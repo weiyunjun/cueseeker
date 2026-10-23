@@ -321,10 +321,6 @@ enum WorkbenchControlMetrics {
     static let redesignSettingsColorPresetSwatchSize: CGFloat = 22
     /// --columns-settings-color-preset: 6
     static let redesignSettingsColorPresetColumns: Int = 6
-    /// --width-settings-font-menu: 240px
-    static let redesignSettingsFontMenuWidth: CGFloat = 240
-    /// --max-height-settings-font-menu-list: 220px
-    static let redesignSettingsFontMenuListMaxHeight: CGFloat = 220
     /// --radius-settings-group: 10px
     static let redesignSettingsGroupRadius: CGFloat = 10
     /// --min-height-settings-row: 52px

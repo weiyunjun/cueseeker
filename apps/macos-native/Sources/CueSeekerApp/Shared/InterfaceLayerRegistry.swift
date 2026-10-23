@@ -88,10 +88,10 @@ final class InterfaceLayerRegistry: ObservableObject {
                 topDialogSize = nil
             }
         }
-        CardHighlightModel.broadcastLayerFrozenChanged(isOpen) { candidate in
+        CardHighlightModel.broadcastLayerFrozenChanged(isOpen, in: self) { candidate in
             self.isFrozen(candidate) == isOpen
         }
-        PointerHoverSession.broadcastLayerFrozenChanged(isOpen) { candidate in
+        PointerHoverSession.broadcastLayerFrozenChanged(isOpen, in: self) { candidate in
             self.isFrozen(candidate) == isOpen
         }
         if !isOpen {
@@ -143,10 +143,10 @@ final class InterfaceLayerRegistry: ObservableObject {
     /// can leave a menu registered forever.
     func registerOpenMenu(ownedBy owner: InterfaceLayer) -> OpenMenuToken {
         openMenuCounts[owner, default: 0] += 1
-        CardHighlightModel.broadcastLayerFrozenChanged(true) { layer in
+        CardHighlightModel.broadcastLayerFrozenChanged(true, in: self) { layer in
             self.isFrozen(layer)
         }
-        PointerHoverSession.broadcastLayerFrozenChanged(true) { layer in
+        PointerHoverSession.broadcastLayerFrozenChanged(true, in: self) { layer in
             self.isFrozen(layer)
         }
         TooltipCenter.shared.dismissFromUserInteraction()
@@ -162,10 +162,10 @@ final class InterfaceLayerRegistry: ObservableObject {
         } else {
             openMenuCounts[owner] = count - 1
         }
-        CardHighlightModel.broadcastLayerFrozenChanged(false) { layer in
+        CardHighlightModel.broadcastLayerFrozenChanged(false, in: self) { layer in
             !self.isFrozen(layer)
         }
-        PointerHoverSession.broadcastLayerFrozenChanged(false) { layer in
+        PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { layer in
             !self.isFrozen(layer)
         }
         if !isFrozen(owner) {

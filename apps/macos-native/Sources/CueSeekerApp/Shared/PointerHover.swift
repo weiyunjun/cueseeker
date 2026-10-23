@@ -237,11 +237,15 @@ final class PointerHoverSession: ObservableObject {
 
     static func broadcastLayerFrozenChanged(
         _ isFrozen: Bool,
+        in registry: InterfaceLayerRegistry? = nil,
         matching predicate: (InterfaceLayer) -> Bool
     ) {
         registeredSessions = registeredSessions.filter { $0.value.value != nil }
         for box in registeredSessions.values {
-            guard let session = box.value, predicate(session.layer) else {
+            guard let session = box.value,
+                  (registry == nil || session.registry == nil || session.registry === registry),
+                  predicate(session.layer)
+            else {
                 continue
             }
             session.setFrozen(isFrozen)
@@ -250,6 +254,7 @@ final class PointerHoverSession: ObservableObject {
 
     let id = UUID()
     var gate = PointerHoverGate()
+    weak var registry: InterfaceLayerRegistry?
     var layer: InterfaceLayer = .workbenchPage
     var isFrozen = false
     var action: ((Bool) -> Void)?
@@ -470,6 +475,7 @@ private struct PointerHoverModifier: ViewModifier {
         let isFrozen = effectiveIsFrozen
         let _ = {
             session.action = action
+            session.registry = interfaceLayers
             session.layer = layerContext.layer
             session.initializeIfNeeded(isFrozen: isFrozen)
         }()
@@ -477,18 +483,21 @@ private struct PointerHoverModifier: ViewModifier {
             .background(PointerHoverProbe(session: session))
             .onAppear {
                 session.action = action
+                session.registry = interfaceLayers
                 session.layer = layerContext.layer
                 session.setFrozen(effectiveIsFrozen)
                 session.syncScrollListener()
             }
             .onHover { isHovered in
                 session.action = action
+                session.registry = interfaceLayers
                 session.layer = layerContext.layer
                 session.isFrozen = effectiveIsFrozen
                 session.report(isHovered)
             }
             .onChange(of: layerContext.isFrozen) { isFrozen in
                 session.action = action
+                session.registry = interfaceLayers
                 session.layer = layerContext.layer
                 session.setFrozen(interfaceLayers?.isFrozen(layerContext.layer) ?? isFrozen)
             }

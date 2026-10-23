@@ -430,33 +430,23 @@ struct WorkbenchInputControlsTests {
         #expect(abs(subtitleBox.textColor.green - 1.0) < 0.001)
         #expect(abs(subtitleBox.textColor.blue - 0.0) < 0.001)
 
-        // 4. Font filtering matches case-insensitively and returns empty array when no font matches
+        // 4. Font menu options place System Font first followed by sorted system font families
         let sampleFonts: [SettingsSubtitleFontOption] = [
-            SettingsSubtitleFontOption(id: "HelveticaNeue", title: "Helvetica Neue", fontName: "HelveticaNeue"),
-            SettingsSubtitleFontOption(id: "PingFangSC-Regular", title: "PingFang SC", fontName: "PingFangSC-Regular"),
-            SettingsSubtitleFontOption(id: "SFMono-Regular", title: "SF Mono", fontName: "SFMono-Regular"),
+            SettingsSubtitleFontOption(id: "Helvetica Neue", title: "Helvetica Neue", fontName: "Helvetica Neue"),
+            SettingsSubtitleFontOption(id: "PingFang SC", title: "PingFang SC", fontName: "PingFang SC"),
+            SettingsSubtitleFontOption(id: "SF Mono", title: "SF Mono", fontName: "SF Mono"),
         ]
-        let initialMatches = SettingsSubtitleCategory.filterFonts(
+        let menuOptions = SettingsSubtitleCategory.menuOptions(
             availableFonts: sampleFonts,
-            systemFontTitle: "System Font",
-            query: ""
+            systemFontTitle: "System Font"
         )
-        #expect(initialMatches.count == 4)
-        #expect(initialMatches.first?.fontName == nil)
-
-        let pingFangMatches = SettingsSubtitleCategory.filterFonts(
-            availableFonts: sampleFonts,
-            systemFontTitle: "System Font",
-            query: "ping"
-        )
-        #expect(pingFangMatches.map(\.title) == ["PingFang SC"])
-
-        let emptyMatches = SettingsSubtitleCategory.filterFonts(
-            availableFonts: sampleFonts,
-            systemFontTitle: "System Font",
-            query: "nonexistent-font-xyz"
-        )
-        #expect(emptyMatches.isEmpty)
+        #expect(menuOptions.count == 4)
+        #expect(menuOptions.first?.fontName == nil)
+        #expect(menuOptions.first?.title == "System Font")
+        #expect(menuOptions.dropFirst().map(\.title) == ["Helvetica Neue", "PingFang SC", "SF Mono"])
+        #expect(SettingsSubtitleCategory.option(at: 0, availableFonts: sampleFonts, systemFontTitle: "System Font")?.fontName == nil)
+        #expect(SettingsSubtitleCategory.option(at: 2, availableFonts: sampleFonts, systemFontTitle: "System Font")?.title == "PingFang SC")
+        #expect(SettingsSubtitleCategory.option(at: 99, availableFonts: sampleFonts, systemFontTitle: "System Font") == nil)
     }
 
     @Test
@@ -784,6 +774,112 @@ struct WorkbenchInputControlsTests {
         #expect(locationField.isCurrentlyFocused)
         #expect(fileNameFocusedStates.last == false)
         #expect(locationFocusedStates.last == true)
+    }
+
+    @Test
+    func subtitleFontMenuFollowsStandardDropdownStructureVirtualizesHundredsOfFontsAndRevealsKeyboardHighlight() throws {
+        _ = NSApplication.shared
+        let manyFonts = (0..<500).map { index in
+            let name = String(format: "Font Family %03d", index)
+            return SettingsSubtitleFontOption(id: name, title: name, fontName: name)
+        }
+        let metrics = SettingsSubtitleFontMenu.measureMetrics(
+            systemFontTitle: "System Font",
+            availableFonts: manyFonts
+        )
+        #expect(metrics.itemStackWidth > 100)
+        #expect(metrics.dividerHeight >= 9)
+
+        let panelSize = SettingsSubtitleFontMenu.panelSize(
+            availableFontCount: manyFonts.count,
+            itemStackWidth: metrics.itemStackWidth,
+            dividerHeight: metrics.dividerHeight,
+            maximumHeight: MenuMetrics.maximumHeight
+        )
+        #expect(panelSize.height == MenuMetrics.maximumHeight)
+        #expect(panelSize.width == ceil(metrics.itemStackWidth) + MenuMetrics.padding * 2 + MenuMetrics.scrollbarStrip)
+
+        // Position hit-testing: System Font is at 0, Divider returns nil, font rows start at 1
+        let midX = MenuMetrics.padding + metrics.itemStackWidth / 2
+        #expect(
+            SettingsSubtitleFontMenu.positionInDocument(
+                at: CGPoint(x: midX, y: MenuMetrics.padding + 10),
+                availableFontCount: manyFonts.count,
+                itemStackWidth: metrics.itemStackWidth,
+                dividerHeight: metrics.dividerHeight
+            ) == 0
+        )
+        let dividerMidY = MenuMetrics.padding + WorkbenchControlMetrics.redesignMenuItemHeight + metrics.dividerHeight / 2
+        #expect(
+            SettingsSubtitleFontMenu.positionInDocument(
+                at: CGPoint(x: midX, y: dividerMidY),
+                availableFontCount: manyFonts.count,
+                itemStackWidth: metrics.itemStackWidth,
+                dividerHeight: metrics.dividerHeight
+            ) == nil
+        )
+        let firstFontMidY = MenuMetrics.padding
+            + WorkbenchControlMetrics.redesignMenuItemHeight
+            + metrics.dividerHeight
+            + 10
+        #expect(
+            SettingsSubtitleFontMenu.positionInDocument(
+                at: CGPoint(x: midX, y: firstFontMidY),
+                availableFontCount: manyFonts.count,
+                itemStackWidth: metrics.itemStackWidth,
+                dividerHeight: metrics.dividerHeight
+            ) == 1
+        )
+
+        let highlight = MenuHighlightModel()
+        highlight.open(selectablePositions: Array(0...manyFonts.count))
+        #expect(highlight.highlightedPosition == nil)
+
+        let scrollController = WorkbenchScrollViewController()
+        let menu = SettingsSubtitleFontMenu(
+            systemFontTitle: "System Font",
+            availableFonts: manyFonts,
+            selectedFontName: nil,
+            maximumHeight: MenuMetrics.maximumHeight,
+            itemStackWidth: metrics.itemStackWidth,
+            dividerHeight: metrics.dividerHeight,
+            highlight: highlight,
+            scrollController: scrollController,
+            onSelect: { _ in }
+        )
+
+        // Virtualized window mounts only a small slice rather than all 500 fonts
+        #expect(menu.mountedFontRangeForTesting.count < 45)
+
+        let window = CueSeekerWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 600),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let hostingView = NSHostingView(
+            rootView: ZStack(alignment: .topLeading) {
+                Color.clear
+                menu
+            }
+            .frame(width: 400, height: 600)
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 600)
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        // No embedded search field inside the redesigned font menu
+        #expect(collectEditableTextFields(in: hostingView).isEmpty)
+        #expect(scrollController.currentOffsetY == 0)
+
+        // Pressing Up when nothing is highlighted jumps to the last font (position 500)
+        // and scrolls the virtualized list to the bottom without animation.
+        #expect(highlight.moveHighlight(by: -1))
+        #expect(highlight.highlightedPosition == 500)
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        #expect(scrollController.currentOffsetY > 10_000)
     }
 }
 

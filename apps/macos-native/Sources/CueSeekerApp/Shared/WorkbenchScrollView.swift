@@ -2,19 +2,54 @@ import AppKit
 import SwiftUI
 
 @MainActor
+final class WorkbenchScrollViewController {
+    enum PointerDocumentQueryResult: Equatable {
+        case windowNotFocused
+        case outsideViewport
+        case inside(CGPoint)
+    }
+
+    var onVerticalScrollChange: ((_ offsetY: CGFloat, _ viewportHeight: CGFloat) -> Void)?
+    fileprivate weak var bridge: WorkbenchScrollViewBridge?
+
+    var currentOffsetY: CGFloat {
+        bridge?.currentVerticalOffset ?? 0
+    }
+
+    var currentViewportHeight: CGFloat {
+        bridge?.currentViewportHeight ?? 0
+    }
+
+    var scrollViewForTesting: NSScrollView? {
+        bridge?.scrollViewForTesting
+    }
+
+    func revealVerticalRange(minY: CGFloat, maxY: CGFloat) {
+        bridge?.revealVerticalRange(minY: minY, maxY: maxY)
+    }
+
+    func queryPointerInDocument() -> PointerDocumentQueryResult {
+        bridge?.queryPointerInDocument() ?? .windowNotFocused
+    }
+}
+
+@MainActor
 struct WorkbenchScrollView<Content: View>: View {
     private let axes: Axis.Set
     private let scrollbarInset: CGFloat
+    private let controller: WorkbenchScrollViewController?
     private let content: Content
     @StateObject private var bridge: WorkbenchScrollViewBridge
 
     init(
         _ axes: Axis.Set = .vertical,
         scrollbarInset: CGFloat = TableScrollbarPrimitiveMetrics.inset,
+        controller: WorkbenchScrollViewController? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.axes = axes
         self.scrollbarInset = scrollbarInset
+        self.controller = controller
         self.content = content()
         _bridge = StateObject(wrappedValue: WorkbenchScrollViewBridge())
     }
@@ -25,7 +60,8 @@ struct WorkbenchScrollView<Content: View>: View {
                 .background(alignment: .topLeading) {
                     WorkbenchScrollViewBindingRepresentable(
                         axes: axes,
-                        bridge: bridge
+                        bridge: bridge,
+                        controller: controller
                     )
                     .frame(width: 0, height: 0)
                 }
@@ -54,10 +90,11 @@ final class WorkbenchScrollViewOverlayView: TableScrollbarOverlayView {
 private struct WorkbenchScrollViewBindingRepresentable: NSViewRepresentable {
     let axes: Axis.Set
     let bridge: WorkbenchScrollViewBridge
+    let controller: WorkbenchScrollViewController?
 
     func makeNSView(context: Context) -> WorkbenchScrollViewBindingView {
         let view = WorkbenchScrollViewBindingView()
-        bridge.register(bindingView: view, axes: axes)
+        bridge.register(bindingView: view, axes: axes, controller: controller)
         return view
     }
 
@@ -65,7 +102,7 @@ private struct WorkbenchScrollViewBindingRepresentable: NSViewRepresentable {
         _ nsView: WorkbenchScrollViewBindingView,
         context: Context
     ) {
-        bridge.register(bindingView: nsView, axes: axes)
+        bridge.register(bindingView: nsView, axes: axes, controller: controller)
     }
 
     static func dismantleNSView(
@@ -141,8 +178,29 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
     private weak var scrollView: NSScrollView?
     private weak var overlayView: WorkbenchScrollViewOverlayView?
     private weak var observedDocumentView: NSView?
+    private weak var controller: WorkbenchScrollViewController?
     private var axes: Axis.Set = .vertical
     private var isObserving = false
+    private var lastReportedOffset: CGFloat = -1
+    private var lastReportedViewportHeight: CGFloat = -1
+
+    var scrollViewForTesting: NSScrollView? {
+        scrollView
+    }
+
+    var currentVerticalOffset: CGFloat {
+        guard let scrollView, let documentView = scrollView.documentView else {
+            return 0
+        }
+        return verticalOffset(
+            visibleRect: scrollView.documentVisibleRect,
+            documentView: documentView
+        )
+    }
+
+    var currentViewportHeight: CGFloat {
+        scrollView?.documentVisibleRect.height ?? 0
+    }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
@@ -150,10 +208,13 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
 
     func register(
         bindingView: WorkbenchScrollViewBindingView,
-        axes: Axis.Set
+        axes: Axis.Set,
+        controller: WorkbenchScrollViewController?
     ) {
         self.axes = axes
         self.bindingView = bindingView
+        self.controller = controller
+        controller?.bridge = self
         bindingView.bridge = self
         resolveScrollView(for: bindingView)
     }
@@ -263,6 +324,16 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
 
     private func updatePresentation() {
         refreshDocumentObservation()
+        if let controller, let scrollView, let documentView = scrollView.documentView {
+            let visibleRect = scrollView.documentVisibleRect
+            let offset = verticalOffset(visibleRect: visibleRect, documentView: documentView)
+            let viewport = visibleRect.height
+            if abs(offset - lastReportedOffset) > 0.1 || abs(viewport - lastReportedViewportHeight) > 0.1 {
+                lastReportedOffset = offset
+                lastReportedViewportHeight = viewport
+                controller.onVerticalScrollChange?(offset, viewport)
+            }
+        }
         guard let overlayView else { return }
         let presentation = presentation()
         overlayView.isPresented = presentation?.vertical != nil
@@ -270,6 +341,96 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
         if overlayView.isPresented {
             overlayView.scrollbarMetricsDidChange()
         }
+    }
+
+    func revealVerticalRange(minY: CGFloat, maxY: CGFloat) {
+        guard let scrollView,
+              let documentView = scrollView.documentView
+        else {
+            return
+        }
+        let visibleRect = scrollView.documentVisibleRect
+        let viewportHeight = visibleRect.height
+        let contentHeight = documentView.frame.height
+        guard contentHeight > viewportHeight, viewportHeight > 0 else {
+            return
+        }
+        let currentOffset = verticalOffset(
+            visibleRect: visibleRect,
+            documentView: documentView
+        )
+        let targetOffset: CGFloat
+        if minY < currentOffset {
+            targetOffset = minY
+        } else if maxY > currentOffset + viewportHeight {
+            targetOffset = maxY - viewportHeight
+        } else {
+            return
+        }
+        let maximumOffset = max(0, contentHeight - viewportHeight)
+        let clampedOffset = min(max(0, targetOffset), maximumOffset)
+        guard abs(clampedOffset - currentOffset) > 0.01 else {
+            return
+        }
+        var origin = scrollView.contentView.bounds.origin
+        origin.y = documentView.isFlipped
+            ? documentView.frame.minY + clampedOffset
+            : documentView.frame.maxY - viewportHeight - clampedOffset
+        scrollView.contentView.scroll(to: origin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        updatePresentation()
+    }
+
+    func queryPointerInDocument() -> WorkbenchScrollViewController.PointerDocumentQueryResult {
+        guard let scrollView,
+              let documentView = scrollView.documentView,
+              let window = scrollView.window
+        else {
+            return .windowNotFocused
+        }
+        let isWindowFocused: Bool
+        if let cueSeekerWindow = window as? CueSeekerWindow {
+            isWindowFocused = cueSeekerWindow.isFocusedForHover
+        } else {
+            isWindowFocused = NSApp.isActive && window.isKeyWindow
+        }
+        guard isWindowFocused else {
+            return .windowNotFocused
+        }
+        var overrideLocation: CGPoint?
+        var current: NSView? = scrollView
+        while let candidate = current {
+            if let source = candidate as? CueSeekerHostingViewLocationOverride,
+               let point = source.mouseLocationOverrideForTesting {
+                overrideLocation = point
+                break
+            }
+            current = candidate.superview
+        }
+        if overrideLocation == nil {
+            overrideLocation = (window.contentView as? CueSeekerHostingViewLocationOverride)?
+                .mouseLocationOverrideForTesting
+        }
+        if overrideLocation == nil,
+           (window as? CueSeekerWindow)?.isWindowFocusedOverrideForTesting == nil {
+            guard NSWindow.windowNumber(
+                at: NSEvent.mouseLocation,
+                belowWindowWithWindowNumber: 0
+            ) == window.windowNumber else {
+                return .windowNotFocused
+            }
+        }
+        let locationInWindow = overrideLocation ?? window.mouseLocationOutsideOfEventStream
+        let clipView = scrollView.contentView
+        let pointInClip = clipView.convert(locationInWindow, from: nil)
+        guard clipView.bounds.contains(pointInClip) else {
+            return .outsideViewport
+        }
+        let rawPoint = documentView.convert(locationInWindow, from: nil)
+        let topDownY = documentView.isFlipped
+            ? (rawPoint.y - documentView.bounds.minY)
+            : (documentView.bounds.maxY - rawPoint.y)
+        return .inside(CGPoint(x: rawPoint.x - documentView.bounds.minX, y: topDownY))
     }
 
     private func presentation() -> TableScrollbarPresentation? {

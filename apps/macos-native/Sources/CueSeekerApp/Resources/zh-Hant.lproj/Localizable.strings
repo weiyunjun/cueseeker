@@ -407,8 +407,6 @@
 "settings.subtitle.section.position" = "位置";
 "settings.subtitle.font" = "字體";
 "settings.subtitle.system_font" = "系統字體";
-"settings.subtitle.font_search_placeholder" = "搜尋字體…";
-"settings.subtitle.no_results" = "無結果";
 "settings.subtitle.size" = "字級";
 "settings.subtitle.style" = "樣式";
 "settings.subtitle.bold" = "粗體";

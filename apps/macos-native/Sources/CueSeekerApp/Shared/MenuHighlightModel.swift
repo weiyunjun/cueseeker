@@ -225,6 +225,27 @@ final class MenuHighlightModel: ObservableObject {
         syncHoveredPosition()
     }
 
+    func updatePointerHover(position: Int?) {
+        rawHoveredPosition = position.flatMap {
+            selectablePositions.contains($0) ? $0 : nil
+        }
+        guard !isScrolling, !isSuppressedByKeyboard else {
+            return
+        }
+        syncHoveredPosition()
+    }
+
+    func syncHoverAfterScrollSettled(positionUnderPointer: Int?) {
+        rawHoveredPosition = positionUnderPointer.flatMap {
+            selectablePositions.contains($0) ? $0 : nil
+        }
+        isScrolling = false
+        guard !isSuppressedByKeyboard else {
+            return
+        }
+        syncHoveredPosition()
+    }
+
     func notePointerMoved() {
         if isScrolling {
             isScrolling = false

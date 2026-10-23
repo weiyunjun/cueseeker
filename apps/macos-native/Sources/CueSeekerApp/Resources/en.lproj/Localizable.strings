@@ -407,8 +407,6 @@
 "settings.subtitle.section.position" = "Position";
 "settings.subtitle.font" = "Font";
 "settings.subtitle.system_font" = "System Font";
-"settings.subtitle.font_search_placeholder" = "Search fonts…";
-"settings.subtitle.no_results" = "No Results";
 "settings.subtitle.size" = "Size";
 "settings.subtitle.style" = "Style";
 "settings.subtitle.bold" = "Bold";

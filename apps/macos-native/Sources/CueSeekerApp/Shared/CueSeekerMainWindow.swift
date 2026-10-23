@@ -5,6 +5,8 @@ import AppKit
 /// `NSHostingView` never synthesize hover on an unfocused window.
 class CueSeekerWindow: NSWindow {
     var isWindowFocusedOverrideForTesting: Bool?
+    /// Set by the App once the interface layer registry exists.
+    var isFocusLocked: () -> Bool = { false }
 
     var isFocusedForHover: Bool {
         if let isWindowFocusedOverrideForTesting {
@@ -18,6 +20,16 @@ class CueSeekerWindow: NSWindow {
             return NSPoint(x: -10_000, y: -10_000)
         }
         return super.mouseLocationOutsideOfEventStream
+    }
+
+    override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+        guard responder != nil else {
+            return super.makeFirstResponder(responder)
+        }
+        guard !isFocusLocked() else {
+            return false
+        }
+        return super.makeFirstResponder(responder)
     }
 
     override func sendEvent(_ event: NSEvent) {
@@ -50,9 +62,6 @@ class CueSeekerWindow: NSWindow {
 /// See `docs/human/requirements/20260826-UI-Menu Modality Input Barrier And
 /// Focus Cancellation.md`.
 final class CueSeekerMainWindow: CueSeekerWindow {
-    /// Set by the App once the interface layer registry exists.
-    var isFocusLocked: () -> Bool = { false }
-
     /// The size of the dialog that owns input, or nil while none is open. Set
     /// by the App. A dialog used to be a window of its own, where the keyboard
     /// could not leave it; drawn in this window, it is kept in here instead.

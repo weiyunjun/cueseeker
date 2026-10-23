@@ -71,11 +71,15 @@ final class CardHighlightModel: ObservableObject {
 
     static func broadcastLayerFrozenChanged(
         _ isFrozen: Bool,
+        in registry: InterfaceLayerRegistry? = nil,
          matching predicate: (InterfaceLayer) -> Bool
     ) {
         instances.removeAll { $0.value == nil }
         for box in instances {
-            guard let model = box.value, predicate(model.layer) else {
+            guard let model = box.value,
+                  (registry == nil || model.registry == nil || model.registry === registry),
+                  predicate(model.layer)
+            else {
                 continue
             }
             model.setFrozen(isFrozen)
@@ -85,6 +89,7 @@ final class CardHighlightModel: ObservableObject {
     private(set) var selectedID: String?
     @Published private(set) var hoveredID: String?
 
+    weak var registry: InterfaceLayerRegistry?
     var layer: InterfaceLayer = .workbenchPage
 
     /// Compatibility accessor: returns `selectedID` when the interface maintains
@@ -355,18 +360,22 @@ extension View {
 
 private struct CardHighlightFreezeModifier: ViewModifier {
     let model: CardHighlightModel
+    @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
 
     func body(content: Content) -> some View {
         content
             .onAppear {
+                model.registry = interfaceLayers
                 model.layer = layerContext.layer
                 model.setFrozen(layerContext.isFrozen)
             }
             .onChange(of: layerContext.layer) { layer in
+                model.registry = interfaceLayers
                 model.layer = layer
             }
             .onChange(of: layerContext.isFrozen) { isFrozen in
+                model.registry = interfaceLayers
                 model.setFrozen(isFrozen)
             }
     }

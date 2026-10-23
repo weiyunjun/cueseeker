@@ -54,7 +54,13 @@ struct SettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     // Observed so the category titles are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
+    @Environment(\.interfaceLayers) private var environmentInterfaceLayers
+    @StateObject private var ownedInterfaceLayers = InterfaceLayerRegistry()
     @State private var selectedCategory: SettingsCategory = .general
+
+    private var activeInterfaceLayers: InterfaceLayerRegistry {
+        environmentInterfaceLayers ?? ownedInterfaceLayers
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -80,6 +86,7 @@ struct SettingsView: View {
                 .zIndex(400)
         }
         .environmentObject(settingsStore.playbackShortcuts)
+        .modifier(InterfaceLayerCoverageBridge(layers: activeInterfaceLayers))
         .ignoresSafeArea(.container, edges: .top)
         .frame(
             minWidth: WorkbenchControlMetrics.redesignSettingsWindowWidth,

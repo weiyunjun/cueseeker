@@ -5,9 +5,11 @@ import SwiftUI
 /// Settings / Subtitle: how SRT subtitles look and where they sit. See
 /// `docs/human/requirements/20260913-Feature-SRT Subtitle Style And Position
 /// Settings.md`, `docs/human/requirements/20260914-UI-Settings Categories
-/// Merge And Grouped Card Layout.md`, and
+/// Merge And Grouped Card Layout.md`,
 /// `docs/human/requirements/20261016-UI-Subtitle Settings Simplification And
-/// Controls Refinement.md`.
+/// Controls Refinement.md`, and
+/// `docs/human/requirements/20261024-UI-Subtitle Font Menu Redesign And
+/// Performance Optimization.md`.
 struct SettingsSubtitleCategory: View {
     private static let coordinateSpaceName = "SettingsSubtitleCategorySpace"
     private static let fontTriggerAnchorID = "fontTrigger"
@@ -22,23 +24,31 @@ struct SettingsSubtitleCategory: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var settingsStore: SettingsStore
+    @Environment(\.interfaceLayers) private var environmentInterfaceLayers
+    @Environment(\.interfaceLayerContext) private var layerContext
+    @StateObject private var fallbackInterfaceLayers = InterfaceLayerRegistry()
 
-    @State private var isFontMenuOpen = false
-    @State private var fontSearchQuery = ""
+    @State private var activeFontMenu: SettingsSubtitleFontMenuState?
     @StateObject private var fontHighlight = MenuHighlightModel()
+    @State private var fontScrollController = WorkbenchScrollViewController()
+    @State private var fontTriggerAnchor = MenuAnchorHandle()
+    @State private var viewportGeometry = SettingsSubtitleViewportGeometry()
     @State private var activeColorPopover: ColorFieldID?
     @State private var anchorFrames: [String: CGRect] = [:]
-    @State private var fontMenuFrame: CGRect = .zero
     @State private var colorPopoverFrame: CGRect = .zero
     @State private var availableFonts: [SettingsSubtitleFontOption] = []
 
+    private var activeInterfaceLayers: InterfaceLayerRegistry {
+        environmentInterfaceLayers ?? fallbackInterfaceLayers
+    }
+
+    private var isFontMenuOpen: Bool {
+        activeFontMenu != nil
+    }
+
     var body: some View {
         let style = settingsStore.srtSubtitleStyle
-        let filteredFonts = Self.filterFonts(
-            availableFonts: availableFonts,
-            systemFontTitle: L("settings.subtitle.system_font"),
-            query: fontSearchQuery
-        )
+        let systemFontTitle = L("settings.subtitle.system_font")
 
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
             SettingsGroup(title: L("settings.subtitle.section.text")) {
@@ -49,6 +59,7 @@ struct SettingsSubtitleCategory: View {
                     ) {
                         toggleFontMenu()
                     }
+                    .background(MenuAnchorProbe(handle: fontTriggerAnchor))
                     .workbenchDropdownAnchor(
                         id: Self.fontTriggerAnchorID,
                         in: Self.coordinateSpaceName
@@ -193,6 +204,7 @@ struct SettingsSubtitleCategory: View {
             }
         }
         .coordinateSpace(name: Self.coordinateSpaceName)
+        .background(SettingsSubtitleViewportProbe(geometry: viewportGeometry))
         .onPreferenceChange(WorkbenchDropdownAnchorPreferenceKey.self) { anchors in
             for (key, rect) in anchors where rect != .zero {
                 anchorFrames[key] = rect
@@ -200,7 +212,7 @@ struct SettingsSubtitleCategory: View {
         }
         .overlay(alignment: .topLeading) {
             ZStack(alignment: .topLeading) {
-                if isFontMenuOpen || activeColorPopover != nil {
+                if activeColorPopover != nil {
                     SettingsSubtitleOutsideClickMonitor(
                         activeRects: activePopoverInteractiveRects,
                         onOutsideClick: {
@@ -210,43 +222,52 @@ struct SettingsSubtitleCategory: View {
                     .frame(width: 0, height: 0)
                 }
 
-                if isFontMenuOpen,
-                   let triggerFrame = anchorFrames[Self.fontTriggerAnchorID] {
-                    let menuWidth = WorkbenchControlMetrics.redesignSettingsFontMenuWidth
-                    let originX = max(0, triggerFrame.maxX - menuWidth)
-                    let originY = triggerFrame.maxY + WorkbenchControlMetrics.redesignSpacing1
+                if let activeFontMenu {
+                    let menuFrame = activeFontMenu.menuFrame
 
-                    SettingsSubtitleFontMenu(
-                        query: $fontSearchQuery,
-                        options: filteredFonts,
-                        selectedFontName: style.fontName,
-                        highlight: fontHighlight,
-                        onSelect: { option in
-                            settingsStore.srtSubtitleStyle.fontName = option.fontName
-                            closeFontMenu()
+                    MenuGateClientView(
+                        gate: activeInterfaceLayers.menuGate,
+                        owner: layerContext.layer,
+                        kind: .excerptDestinationMenu,
+                        menuFrame: menuFrame,
+                        anchorFrame: activeFontMenu.anchorFrame,
+                        notePointer: { point in
+                            handleFontMenuPointerMove(
+                                at: point,
+                                menuState: activeFontMenu
+                            )
                         },
-                        onClose: {
+                        handleKey: { keyCode, isRepeat in
+                            handleFontMenuKey(
+                                keyCode,
+                                isRepeat: isRepeat,
+                                systemFontTitle: systemFontTitle
+                            )
+                        },
+                        dismiss: { _ in
                             closeFontMenu()
                         }
                     )
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear
-                                .onAppear {
-                                    fontMenuFrame = CGRect(
-                                        origin: CGPoint(x: originX, y: originY),
-                                        size: geo.size
-                                    )
-                                }
-                                .onChange(of: geo.size) { newSize in
-                                    fontMenuFrame = CGRect(
-                                        origin: CGPoint(x: originX, y: originY),
-                                        size: newSize
-                                    )
-                                }
-                        }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+
+                    SettingsSubtitleFontMenuSurfaceHost(
+                        menu: SettingsSubtitleFontMenu(
+                            systemFontTitle: systemFontTitle,
+                            availableFonts: availableFonts,
+                            selectedFontName: style.fontName,
+                            maximumHeight: activeFontMenu.maximumHeight,
+                            itemStackWidth: activeFontMenu.itemStackWidth,
+                            dividerHeight: activeFontMenu.dividerHeight,
+                            highlight: fontHighlight,
+                            scrollController: fontScrollController,
+                            onSelect: { option in
+                                selectFontOption(option)
+                            }
+                        )
                     )
-                    .offset(x: originX, y: originY)
+                    .frame(width: menuFrame.width, height: menuFrame.height)
+                    .offset(x: menuFrame.minX, y: menuFrame.minY)
                     .zIndex(1000)
                 }
 
@@ -298,17 +319,6 @@ struct SettingsSubtitleCategory: View {
                 availableFonts = Self.loadSystemFonts()
             }
         }
-        .onChange(of: fontSearchQuery) { newQuery in
-            let matches = Self.filterFonts(
-                availableFonts: availableFonts,
-                systemFontTitle: L("settings.subtitle.system_font"),
-                query: newQuery
-            )
-            fontHighlight.open(
-                selectablePositions: Array(matches.indices),
-                defaultPosition: 0
-            )
-        }
         .onChange(of: style.borderType) { _ in
             if activeColorPopover == .outlineColor || activeColorPopover == .backgroundColor {
                 activeColorPopover = nil
@@ -321,14 +331,6 @@ struct SettingsSubtitleCategory: View {
 
     private var activePopoverInteractiveRects: [CGRect] {
         var rects: [CGRect] = []
-        if isFontMenuOpen {
-            if let trigger = anchorFrames[Self.fontTriggerAnchorID] {
-                rects.append(trigger)
-            }
-            if fontMenuFrame != .zero {
-                rects.append(fontMenuFrame)
-            }
-        }
         if let activeID = activeColorPopover {
             if let field = anchorFrames[activeID.rawValue] {
                 rects.append(field)
@@ -344,28 +346,149 @@ struct SettingsSubtitleCategory: View {
         if isFontMenuOpen {
             closeFontMenu()
         } else {
-            activeColorPopover = nil
-            if availableFonts.isEmpty {
-                availableFonts = Self.loadSystemFonts()
-            }
-            fontSearchQuery = ""
-            let options = Self.filterFonts(
-                availableFonts: availableFonts,
-                systemFontTitle: L("settings.subtitle.system_font"),
-                query: ""
-            )
-            fontHighlight.open(
-                selectablePositions: Array(options.indices),
-                defaultPosition: 0
-            )
-            isFontMenuOpen = true
+            openFontMenu()
         }
     }
 
+    private func openFontMenu() {
+        activeColorPopover = nil
+        if availableFonts.isEmpty {
+            availableFonts = Self.loadSystemFonts()
+        }
+        let systemFontTitle = L("settings.subtitle.system_font")
+        let metrics = SettingsSubtitleFontMenu.measureMetrics(
+            systemFontTitle: systemFontTitle,
+            availableFonts: availableFonts
+        )
+        let anchorFrame = viewportGeometry.anchorFrame(for: fontTriggerAnchor)
+            ?? anchorFrames[Self.fontTriggerAnchorID]
+            ?? CGRect(
+                x: 0,
+                y: 0,
+                width: WorkbenchControlMetrics.redesignSettingsPopupWidth,
+                height: WorkbenchControlMetrics.redesignFieldHeight
+            )
+        let container = viewportGeometry.visibleContainerRect(
+            fallbackSize: CGSize(
+                width: WorkbenchControlMetrics.redesignSettingsWindowWidth
+                    - WorkbenchControlMetrics.redesignSettingsSidebarWidth,
+                height: WorkbenchControlMetrics.redesignSettingsWindowHeight
+                    - WorkbenchControlMetrics.redesignSettingsTitlebarHeight
+            )
+        )
+        let naturalSize = SettingsSubtitleFontMenu.panelSize(
+            availableFontCount: availableFonts.count,
+            itemStackWidth: metrics.itemStackWidth,
+            dividerHeight: metrics.dividerHeight,
+            maximumHeight: MenuMetrics.maximumHeight
+        )
+        let place = { (menuSize: CGSize) -> CGRect in
+            let anchorForPlacement = CGRect(
+                x: anchorFrame.maxX - menuSize.width,
+                y: anchorFrame.minY,
+                width: menuSize.width,
+                height: anchorFrame.height
+            )
+            return MenuPlacement.openingFrame(
+                anchor: anchorForPlacement,
+                menuSize: menuSize,
+                in: container,
+                gap: WorkbenchControlMetrics.redesignSpacing1,
+                shrinksToFit: true
+            )
+        }
+        var maximumHeight = MenuMetrics.maximumHeight
+        var menuSize = naturalSize
+        var openingFrame = place(naturalSize)
+        if openingFrame.height < naturalSize.height {
+            maximumHeight = openingFrame.height
+            menuSize = SettingsSubtitleFontMenu.panelSize(
+                availableFontCount: availableFonts.count,
+                itemStackWidth: metrics.itemStackWidth,
+                dividerHeight: metrics.dividerHeight,
+                maximumHeight: maximumHeight
+            )
+            openingFrame = place(menuSize)
+        }
+        fontHighlight.open(
+            selectablePositions: Array(0...availableFonts.count)
+        )
+        activeFontMenu = SettingsSubtitleFontMenuState(
+            anchorFrame: anchorFrame,
+            menuFrame: openingFrame,
+            maximumHeight: maximumHeight,
+            itemStackWidth: metrics.itemStackWidth,
+            dividerHeight: metrics.dividerHeight
+        )
+    }
+
     private func closeFontMenu() {
-        guard isFontMenuOpen else { return }
-        isFontMenuOpen = false
+        guard activeFontMenu != nil else { return }
+        activeFontMenu = nil
         fontHighlight.close()
+    }
+
+    private func selectFontOption(_ option: SettingsSubtitleFontOption) {
+        settingsStore.srtSubtitleStyle.fontName = Self.resolvedFontName(for: option)
+        closeFontMenu()
+    }
+
+    private func handleFontMenuPointerMove(
+        at point: CGPoint,
+        menuState: SettingsSubtitleFontMenuState
+    ) {
+        guard menuState.menuFrame.contains(point) else {
+            fontHighlight.updatePointerHover(position: nil)
+            return
+        }
+        let localPoint = CGPoint(
+            x: point.x - menuState.menuFrame.minX,
+            y: point.y - menuState.menuFrame.minY
+        )
+        let position = SettingsSubtitleFontMenu.position(
+            atLocalPoint: localPoint,
+            menuSize: menuState.menuFrame.size,
+            scrollOffsetY: fontScrollController.currentOffsetY,
+            availableFontCount: availableFonts.count,
+            itemStackWidth: menuState.itemStackWidth,
+            dividerHeight: menuState.dividerHeight
+        )
+        fontHighlight.updatePointerHover(position: position)
+    }
+
+    private func handleFontMenuKey(
+        _ keyCode: UInt16,
+        isRepeat: Bool,
+        systemFontTitle: String
+    ) -> Bool {
+        switch keyCode {
+        case 53:
+            if !isRepeat {
+                closeFontMenu()
+            }
+            return true
+        case 126:
+            _ = fontHighlight.moveHighlight(by: -1)
+            return true
+        case 125:
+            _ = fontHighlight.moveHighlight(by: 1)
+            return true
+        case 123, 124:
+            return true
+        case 36, 76:
+            if !isRepeat,
+               let position = fontHighlight.highlightedPosition,
+               let option = Self.option(
+                   at: position,
+                   availableFonts: availableFonts,
+                   systemFontTitle: systemFontTitle
+               ) {
+                selectFontOption(option)
+            }
+            return true
+        default:
+            return false
+        }
     }
 
     private func closeAllPopovers() {
@@ -537,62 +660,156 @@ struct SettingsSubtitleCategory: View {
         }) {
             return match.title
         }
-        if let nsFont = NSFont(name: fontName, size: NSFont.systemFontSize) {
-            return nsFont.familyName ?? nsFont.displayName ?? fontName
-        }
-        return fontName
+        return Self.resolvedFamilyName(for: fontName) ?? fontName
     }
 
+    @MainActor
+    private static var cachedSystemFonts: [SettingsSubtitleFontOption]?
+
+    @MainActor
     static func loadSystemFonts() -> [SettingsSubtitleFontOption] {
-        let fontManager = NSFontManager.shared
-        let families = fontManager.availableFontFamilies.sorted {
-            $0.localizedStandardCompare($1) == .orderedAscending
+        if let cached = cachedSystemFonts {
+            return cached
         }
-        var result: [SettingsSubtitleFontOption] = []
-        result.reserveCapacity(families.count)
-        for family in families {
-            guard !family.hasPrefix(".") else { continue }
-            let postScriptName = fontManager
-                .font(withFamily: family, traits: [], weight: 5, size: 12)?
-                .fontName
-                ?? NSFont(name: family, size: 12)?.fontName
-                ?? family
-            result.append(
-                SettingsSubtitleFontOption(
-                    id: postScriptName,
-                    title: family,
-                    fontName: postScriptName
-                )
+        let families = NSFontManager.shared.availableFontFamilies
+            .filter { !$0.hasPrefix(".") }
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        let options = families.map { family in
+            SettingsSubtitleFontOption(
+                id: family,
+                title: family,
+                fontName: family
             )
         }
-        return result
+        cachedSystemFonts = options
+        return options
     }
 
-    static func filterFonts(
+    static func resolvedFamilyName(for selectedFontName: String?) -> String? {
+        guard let selectedFontName, !selectedFontName.isEmpty else {
+            return nil
+        }
+        if let nsFont = NSFont(name: selectedFontName, size: 12) {
+            return nsFont.familyName ?? nsFont.displayName ?? selectedFontName
+        }
+        return selectedFontName
+    }
+
+    static func resolvedFontName(for option: SettingsSubtitleFontOption) -> String? {
+        guard let rawName = option.fontName, !rawName.isEmpty else {
+            return nil
+        }
+        return NSFontManager.shared
+            .font(withFamily: option.title, traits: [], weight: 5, size: 12)?
+            .fontName
+            ?? NSFont(name: rawName, size: 12)?.fontName
+            ?? rawName
+    }
+
+    static func menuOptions(
         availableFonts: [SettingsSubtitleFontOption],
-        systemFontTitle: String,
-        query: String
+        systemFontTitle: String
     ) -> [SettingsSubtitleFontOption] {
-        let systemOption = SettingsSubtitleFontOption(
-            id: "__system_font__",
-            title: systemFontTitle,
-            fontName: nil
-        )
-        let allOptions = [systemOption] + availableFonts
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return allOptions
+        [SettingsSubtitleFontOption.systemFont(title: systemFontTitle)] + availableFonts
+    }
+
+    static func option(
+        at position: Int,
+        availableFonts: [SettingsSubtitleFontOption],
+        systemFontTitle: String
+    ) -> SettingsSubtitleFontOption? {
+        if position == 0 {
+            return .systemFont(title: systemFontTitle)
         }
-        return allOptions.filter { option in
-            if option.title.localizedCaseInsensitiveContains(trimmed) {
-                return true
-            }
-            if let fontName = option.fontName,
-               fontName.localizedCaseInsensitiveContains(trimmed) {
-                return true
-            }
-            return false
+        let fontIndex = position - 1
+        guard availableFonts.indices.contains(fontIndex) else {
+            return nil
         }
+        return availableFonts[fontIndex]
+    }
+}
+
+private struct SettingsSubtitleFontMenuState: Identifiable {
+    let id = UUID()
+    let anchorFrame: CGRect
+    let menuFrame: CGRect
+    let maximumHeight: CGFloat
+    let itemStackWidth: CGFloat
+    let dividerHeight: CGFloat
+}
+
+@MainActor
+private final class SettingsSubtitleViewportGeometry {
+    weak var probe: SettingsSubtitleViewportProbe.ProbeView?
+
+    func anchorFrame(for handle: MenuAnchorHandle) -> CGRect? {
+        guard let probe, let windowFrame = handle.windowFrame, probe.window != nil else {
+            return nil
+        }
+        return probe.convert(windowFrame, from: nil)
+    }
+
+    func visibleContainerRect(fallbackSize: CGSize) -> CGRect {
+        guard let probe else {
+            return CGRect(origin: .zero, size: fallbackSize)
+        }
+        if let scrollView = probe.enclosingScrollView {
+            let clipView = scrollView.contentView
+            let converted = probe.convert(clipView.bounds, from: clipView)
+            if !converted.isEmpty {
+                return converted
+            }
+        }
+        if let contentView = probe.window?.contentView {
+            let converted = probe.convert(contentView.bounds, from: contentView)
+            if !converted.isEmpty {
+                return converted
+            }
+        }
+        let visible = probe.visibleRect
+        if !visible.isEmpty {
+            return visible
+        }
+        if !probe.bounds.isEmpty {
+            return probe.bounds
+        }
+        return CGRect(origin: .zero, size: fallbackSize)
+    }
+}
+
+private struct SettingsSubtitleViewportProbe: NSViewRepresentable {
+    let geometry: SettingsSubtitleViewportGeometry
+
+    func makeNSView(context _: Context) -> ProbeView {
+        let view = ProbeView()
+        geometry.probe = view
+        return view
+    }
+
+    func updateNSView(_ nsView: ProbeView, context _: Context) {
+        geometry.probe = nsView
+    }
+
+    final class ProbeView: NSView {
+        override var isFlipped: Bool {
+            true
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            nil
+        }
+    }
+}
+
+private struct SettingsSubtitleFontMenuSurfaceHost: NSViewRepresentable {
+    let menu: SettingsSubtitleFontMenu
+
+    func makeNSView(context _: Context) -> MenuHostingView {
+        MenuHostingView(rootView: AnyView(menu))
+    }
+
+    func updateNSView(_ nsView: MenuHostingView, context _: Context) {
+        nsView.rootView = AnyView(menu)
     }
 }
 
@@ -609,16 +826,32 @@ enum SettingsSubtitleBounds {
 }
 
 struct SettingsSubtitleFontOption: Identifiable, Equatable {
+    static let systemFontID = "__system_font__"
+
     let id: String
     let title: String
     let fontName: String?
 
-    func matches(selectedFontName: String?) -> Bool {
+    static func systemFont(title: String) -> SettingsSubtitleFontOption {
+        SettingsSubtitleFontOption(
+            id: systemFontID,
+            title: title,
+            fontName: nil
+        )
+    }
+
+    func matches(
+        selectedFontName: String?,
+        resolvedFamilyName: String? = nil
+    ) -> Bool {
         guard let selectedFontName, !selectedFontName.isEmpty else {
             return fontName == nil
         }
         if fontName == selectedFontName || title == selectedFontName {
             return true
+        }
+        if let resolvedFamilyName {
+            return title == resolvedFamilyName || fontName == resolvedFamilyName
         }
         if let nsFont = NSFont(name: selectedFontName, size: 12),
            nsFont.familyName == title {
@@ -679,11 +912,9 @@ struct SettingsSubtitleFontTrigger: View {
                     style: .continuous
                 )
                 .strokeBorder(
-                    isOpen
-                        ? WorkbenchRedesignColors.borderFocus
-                        : ((isPressed || isHovered)
-                            ? WorkbenchRedesignColors.borderControlHover
-                            : WorkbenchRedesignColors.borderControl),
+                    (isPressed || isOpen || isHovered)
+                        ? WorkbenchRedesignColors.borderControlHover
+                        : WorkbenchRedesignColors.borderControl,
                     lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
                 )
             )
@@ -696,121 +927,154 @@ struct SettingsSubtitleFontTrigger: View {
 }
 
 struct SettingsSubtitleFontMenu: View {
-    @Binding var query: String
-    let options: [SettingsSubtitleFontOption]
+    struct Metrics: Equatable {
+        let itemStackWidth: CGFloat
+        let dividerHeight: CGFloat
+    }
+
+    private static let rowHeight = WorkbenchControlMetrics.redesignMenuItemHeight
+    private static let defaultDividerHeight = 1 + WorkbenchControlMetrics.redesignMenuDividerGap * 2
+    private static let overscanRows = 8
+    private static let quantizeStep = 4
+
+    let systemFontTitle: String
+    let availableFonts: [SettingsSubtitleFontOption]
     let selectedFontName: String?
+    var maximumHeight: CGFloat = MenuMetrics.maximumHeight
+    var itemStackWidth: CGFloat? = nil
+    var dividerHeight: CGFloat = Self.defaultDividerHeight
     @ObservedObject var highlight: MenuHighlightModel
+    var scrollController: WorkbenchScrollViewController? = nil
     let onSelect: (SettingsSubtitleFontOption) -> Void
-    let onClose: () -> Void
+
+    @State private var fallbackScrollController = WorkbenchScrollViewController()
+    @State private var quantizedWindowStart: Int = 0
+    @State private var viewportHeight: CGFloat = MenuMetrics.maximumHeight
+
+    private var activeScrollController: WorkbenchScrollViewController {
+        scrollController ?? fallbackScrollController
+    }
+
+    private var resolvedDividerHeight: CGFloat {
+        availableFonts.isEmpty ? 0 : dividerHeight
+    }
+
+    private var fontsStartY: CGFloat {
+        MenuMetrics.padding + Self.rowHeight + resolvedDividerHeight
+    }
+
+    private var totalContentHeight: CGFloat {
+        Self.rowHeight
+            + resolvedDividerHeight
+            + CGFloat(availableFonts.count) * Self.rowHeight
+            + MenuMetrics.padding * 2
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            WorkbenchSearchField(
-                placeholder: L("settings.subtitle.font_search_placeholder"),
-                text: $query,
-                autofocus: true,
-                placesInsertionPointAtEndOnAutofocus: true,
-                onSubmit: {
-                    if let highlighted = highlight.highlightedPosition,
-                       options.indices.contains(highlighted) {
-                        onSelect(options[highlighted])
-                    }
-                },
-                onMoveUp: {
-                    highlight.moveHighlight(by: -1)
-                },
-                onMoveDown: {
-                    highlight.moveHighlight(by: 1)
-                },
-                onCancel: {
-                    onClose()
-                    return true
-                }
-            )
-            .padding(MenuMetrics.padding)
+        let resolvedWidth = itemStackWidth
+            ?? Self.measureMetrics(
+                systemFontTitle: systemFontTitle,
+                availableFonts: availableFonts
+            ).itemStackWidth
+        let resolvedFamilyName = SettingsSubtitleCategory.resolvedFamilyName(
+            for: selectedFontName
+        )
+        let systemOption = SettingsSubtitleFontOption.systemFont(
+            title: systemFontTitle
+        )
+        let sliceRange = visibleFontSliceRange()
+        let topSpacerHeight = CGFloat(sliceRange.lowerBound) * Self.rowHeight
+        let bottomSpacerHeight = CGFloat(
+            max(0, availableFonts.count - sliceRange.upperBound)
+        ) * Self.rowHeight
+        let cornerRadius = WorkbenchControlMetrics.redesignMenuRadius
 
-            WorkbenchMenuDivider()
+        MenuHeightCap(height: maximumHeight) {
+            WorkbenchScrollView(
+                scrollbarInset: MenuMetrics.scrollbarOuterGap,
+                controller: activeScrollController
+            ) {
+                MenuItemStack(
+                    padding: MenuMetrics.padding,
+                    strip: MenuMetrics.scrollbarStrip,
+                    cap: maximumHeight
+                ) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        WorkbenchPopoverRow(
+                            title: systemOption.title,
+                            isSelected: systemOption.matches(
+                                selectedFontName: selectedFontName,
+                                resolvedFamilyName: resolvedFamilyName
+                            ),
+                            isHighlighted: highlight.isSelected(0),
+                            isRowHovered: highlight.isHovered(0),
+                            showsCheckmarkSlot: true,
+                            action: {
+                                onSelect(systemOption)
+                            },
+                            onHoverChange: { isHovered in
+                                highlight.noteHover(isHovered, at: 0)
+                            }
+                        )
+                        .id(0)
 
-            if options.isEmpty {
-                Text(L("settings.subtitle.no_results"))
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeControl,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .frame(
-                        maxWidth: .infinity,
-                        minHeight: WorkbenchControlMetrics.redesignMenuItemHeight * 2
-                    )
-                    .padding(.horizontal, MenuMetrics.padding)
-                    .padding(.bottom, MenuMetrics.padding)
-            } else {
-                ScrollViewReader { proxy in
-                    MenuHeightCap(
-                        height: WorkbenchControlMetrics.redesignSettingsFontMenuListMaxHeight
-                    ) {
-                        WorkbenchScrollView(
-                            scrollbarInset: MenuMetrics.scrollbarOuterGap
-                        ) {
-                            MenuItemStack(
-                                padding: MenuMetrics.padding,
-                                strip: MenuMetrics.scrollbarStrip,
-                                cap: WorkbenchControlMetrics.redesignSettingsFontMenuListMaxHeight
-                            ) {
-                                VStack(alignment: .leading, spacing: 0) {
-                                    ForEach(
-                                        Array(options.enumerated()),
-                                        id: \.element.id
-                                    ) { position, option in
-                                        WorkbenchPopoverRow(
-                                            title: option.title,
-                                            isSelected: option.matches(
-                                                selectedFontName: selectedFontName
-                                            ),
-                                            isHighlighted: highlight.isSelected(position),
-                                            isRowHovered: highlight.isHovered(position),
-                                            showsCheckmarkSlot: true,
-                                            action: {
-                                                onSelect(option)
-                                            },
-                                            onHoverChange: { isHovered in
-                                                highlight.noteHover(isHovered, at: position)
-                                            }
-                                        )
-                                        .id(position)
+                        if !availableFonts.isEmpty {
+                            WorkbenchMenuDivider()
+
+                            if topSpacerHeight > 0 {
+                                Color.clear
+                                    .frame(height: topSpacerHeight)
+                                    .allowsHitTesting(false)
+                            }
+
+                            ForEach(sliceRange, id: \.self) { fontIndex in
+                                let option = availableFonts[fontIndex]
+                                let position = fontIndex + 1
+                                WorkbenchPopoverRow(
+                                    title: option.title,
+                                    isSelected: option.matches(
+                                        selectedFontName: selectedFontName,
+                                        resolvedFamilyName: resolvedFamilyName
+                                    ),
+                                    isHighlighted: highlight.isSelected(position),
+                                    isRowHovered: highlight.isHovered(position),
+                                    showsCheckmarkSlot: true,
+                                    action: {
+                                        onSelect(option)
+                                    },
+                                    onHoverChange: { isHovered in
+                                        highlight.noteHover(isHovered, at: position)
                                     }
-                                }
+                                )
+                                .id(position)
+                            }
+
+                            if bottomSpacerHeight > 0 {
+                                Color.clear
+                                    .frame(height: bottomSpacerHeight)
+                                    .allowsHitTesting(false)
                             }
                         }
                     }
-                    .onAppear {
-                        if let position = highlight.highlightedPosition {
-                            proxy.scrollTo(position)
-                        }
-                    }
-                    .onChange(of: highlight.keyboardMoveCount) { _ in
-                        if let position = highlight.highlightedPosition {
-                            proxy.scrollTo(position)
-                        }
-                    }
+                    .frame(width: resolvedWidth, alignment: .leading)
                 }
             }
         }
-        .frame(width: WorkbenchControlMetrics.redesignSettingsFontMenuWidth)
+        .fixedSize(horizontal: true, vertical: false)
         .background(
             RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignMenuRadius,
+                cornerRadius: cornerRadius,
                 style: .continuous
             )
             .fill(WorkbenchRedesignColors.bgPopover)
             .shadowToken(
                 WorkbenchRedesignColors.shadowPopover,
-                cornerRadius: WorkbenchControlMetrics.redesignMenuRadius
+                cornerRadius: cornerRadius
             )
         )
         .overlay(
             RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignMenuRadius,
+                cornerRadius: cornerRadius,
                 style: .continuous
             )
             .strokeBorder(
@@ -818,6 +1082,246 @@ struct SettingsSubtitleFontMenu: View {
                 lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
             )
         )
+        .subtitleTableTextSelectionNonInteractiveRegion(
+            cornerRadius: cornerRadius
+        )
+        .onAppear {
+            bindScrollController()
+            revealHighlightedPosition()
+        }
+        .onChange(of: highlight.keyboardMoveCount) { _ in
+            revealHighlightedPosition()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .cueSeekerScrollDebounceSettled)
+        ) { _ in
+            syncHoverAfterScrollSettled(itemStackWidth: resolvedWidth)
+        }
+    }
+
+    var mountedFontRangeForTesting: Range<Int> {
+        visibleFontSliceRange()
+    }
+
+    private func visibleFontSliceRange() -> Range<Int> {
+        guard !availableFonts.isEmpty else {
+            return 0..<0
+        }
+        let effectiveViewport = max(viewportHeight, maximumHeight)
+        let visibleCount = max(1, Int(ceil(effectiveViewport / Self.rowHeight)))
+        let start = min(max(0, quantizedWindowStart), availableFonts.count)
+        let span = visibleCount + Self.overscanRows * 2 + Self.quantizeStep
+        let end = min(availableFonts.count, start + span)
+        return start..<end
+    }
+
+    private func bindScrollController() {
+        let controller = activeScrollController
+        let startY = fontsStartY
+        let maxCap = maximumHeight
+        controller.onVerticalScrollChange = { offsetY, currentViewportHeight in
+            let effectiveViewport = currentViewportHeight > 0 ? currentViewportHeight : maxCap
+            let rawFirstVisible = max(0, Int(floor((offsetY - startY) / Self.rowHeight)))
+            let nextQuantized = max(
+                0,
+                (rawFirstVisible / Self.quantizeStep) * Self.quantizeStep - Self.overscanRows
+            )
+            if nextQuantized != quantizedWindowStart {
+                quantizedWindowStart = nextQuantized
+            }
+            if abs(effectiveViewport - viewportHeight) > 0.5 {
+                viewportHeight = effectiveViewport
+            }
+        }
+    }
+
+    private func revealHighlightedPosition() {
+        guard totalContentHeight > floor(maximumHeight),
+              let position = highlight.highlightedPosition
+        else {
+            return
+        }
+        let minY: CGFloat
+        let maxY: CGFloat
+        if position <= 0 {
+            minY = 0
+            maxY = MenuMetrics.padding + Self.rowHeight
+            if quantizedWindowStart != 0 {
+                quantizedWindowStart = 0
+            }
+        } else {
+            let fontIndex = min(max(0, position - 1), max(0, availableFonts.count - 1))
+            let rowMinY = fontsStartY + CGFloat(fontIndex) * Self.rowHeight
+            let rowMaxY = rowMinY + Self.rowHeight
+            minY = rowMinY
+            maxY = position == availableFonts.count ? totalContentHeight : rowMaxY
+            let currentRange = visibleFontSliceRange()
+            if !currentRange.contains(fontIndex) {
+                quantizedWindowStart = max(
+                    0,
+                    (fontIndex / Self.quantizeStep) * Self.quantizeStep - Self.overscanRows
+                )
+            }
+        }
+        activeScrollController.revealVerticalRange(minY: minY, maxY: maxY)
+    }
+
+    private func syncHoverAfterScrollSettled(itemStackWidth: CGFloat) {
+        switch activeScrollController.queryPointerInDocument() {
+        case .windowNotFocused:
+            break
+        case .outsideViewport:
+            highlight.syncHoverAfterScrollSettled(positionUnderPointer: nil)
+        case .inside(let docPoint):
+            let pos = Self.positionInDocument(
+                at: docPoint,
+                availableFontCount: availableFonts.count,
+                itemStackWidth: itemStackWidth,
+                dividerHeight: dividerHeight
+            )
+            highlight.syncHoverAfterScrollSettled(positionUnderPointer: pos)
+        }
+    }
+
+    static func position(
+        atLocalPoint localPoint: CGPoint,
+        menuSize: CGSize,
+        scrollOffsetY: CGFloat,
+        availableFontCount: Int,
+        itemStackWidth: CGFloat,
+        dividerHeight: CGFloat = defaultDividerHeight
+    ) -> Int? {
+        guard localPoint.x >= 0,
+              localPoint.x <= menuSize.width,
+              localPoint.y >= 0,
+              localPoint.y <= menuSize.height
+        else {
+            return nil
+        }
+        let docPoint = CGPoint(
+            x: localPoint.x,
+            y: localPoint.y + scrollOffsetY
+        )
+        return positionInDocument(
+            at: docPoint,
+            availableFontCount: availableFontCount,
+            itemStackWidth: itemStackWidth,
+            dividerHeight: dividerHeight
+        )
+    }
+
+    static func positionInDocument(
+        at docPoint: CGPoint,
+        availableFontCount: Int,
+        itemStackWidth: CGFloat,
+        dividerHeight: CGFloat = defaultDividerHeight
+    ) -> Int? {
+        let minX = MenuMetrics.padding
+        let maxX = MenuMetrics.padding + itemStackWidth
+        guard docPoint.x >= minX, docPoint.x <= maxX else {
+            return nil
+        }
+        let systemMinY = MenuMetrics.padding
+        let systemMaxY = systemMinY + rowHeight
+        if docPoint.y >= systemMinY && docPoint.y < systemMaxY {
+            return 0
+        }
+        guard availableFontCount > 0 else {
+            return nil
+        }
+        let fontsStartY = systemMaxY + dividerHeight
+        guard docPoint.y >= fontsStartY else {
+            return nil
+        }
+        let fontIndex = Int(floor((docPoint.y - fontsStartY) / rowHeight))
+        guard fontIndex >= 0 && fontIndex < availableFontCount else {
+            return nil
+        }
+        return fontIndex + 1
+    }
+
+    @MainActor
+    private static var cachedMetricsKey: String?
+    @MainActor
+    private static var cachedMetrics: Metrics?
+
+    @MainActor
+    static func measureMetrics(
+        systemFontTitle: String,
+        availableFonts: [SettingsSubtitleFontOption]
+    ) -> Metrics {
+        let key = "\(systemFontTitle)|\(availableFonts.count)|\(availableFonts.first?.id ?? "")|\(availableFonts.last?.id ?? "")"
+        if cachedMetricsKey == key, let cached = cachedMetrics {
+            return cached
+        }
+        let font = NSFont.systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
+            weight: .regular
+        )
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        var candidateTitles: [String] = [systemFontTitle]
+        let topFontTitles = availableFonts
+            .map { option in
+                (
+                    title: option.title,
+                    width: (option.title as NSString).size(withAttributes: attributes).width
+                )
+            }
+            .sorted { $0.width > $1.width }
+            .prefix(3)
+            .map(\.title)
+        candidateTitles.append(contentsOf: topFontTitles)
+
+        let rowHost = NSHostingView(
+            rootView: VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(candidateTitles.enumerated()), id: \.offset) { _, title in
+                    WorkbenchPopoverRow(
+                        title: title,
+                        showsCheckmarkSlot: true
+                    )
+                }
+            }
+            .fixedSize()
+        )
+        rowHost.layoutSubtreeIfNeeded()
+        let itemStackWidth = ceil(rowHost.fittingSize.width)
+
+        let dividerHost = NSHostingView(
+            rootView: WorkbenchMenuDivider()
+                .frame(width: max(1, itemStackWidth))
+                .fixedSize(horizontal: false, vertical: true)
+        )
+        dividerHost.layoutSubtreeIfNeeded()
+        let dividerHeight = max(1, ceil(dividerHost.fittingSize.height))
+
+        let metrics = Metrics(
+            itemStackWidth: itemStackWidth,
+            dividerHeight: dividerHeight
+        )
+        cachedMetricsKey = key
+        cachedMetrics = metrics
+        return metrics
+    }
+
+    static func panelSize(
+        availableFontCount: Int,
+        itemStackWidth: CGFloat,
+        dividerHeight: CGFloat = defaultDividerHeight,
+        maximumHeight: CGFloat = MenuMetrics.maximumHeight
+    ) -> CGSize {
+        let resolvedDivider = availableFontCount > 0 ? dividerHeight : 0
+        let contentHeight = ceil(
+            rowHeight
+                + resolvedDivider
+                + CGFloat(availableFontCount) * rowHeight
+        )
+        let unclippedHeight = contentHeight + MenuMetrics.padding * 2
+        let reservesStrip = unclippedHeight > floor(maximumHeight)
+        let width = ceil(itemStackWidth)
+            + MenuMetrics.padding * 2
+            + (reservesStrip ? MenuMetrics.scrollbarStrip : 0)
+        let height = max(0, min(unclippedHeight, floor(maximumHeight)))
+        return CGSize(width: width, height: height)
     }
 }
 

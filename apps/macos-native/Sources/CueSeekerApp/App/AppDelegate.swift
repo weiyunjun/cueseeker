@@ -360,7 +360,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
+        let settingsInterfaceLayers = InterfaceLayerRegistry()
         let contentView = SettingsView()
+            .modifier(InterfaceLayerCoverageBridge(layers: settingsInterfaceLayers))
             .environmentObject(appState)
             .environmentObject(appState.workbenchLayout)
             .environmentObject(appState.workbenchLayout.route)
@@ -384,6 +386,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
+        settingsWindow.isFocusLocked = { [settingsInterfaceLayers] in
+            settingsInterfaceLayers.hasUncoveredOpenMenu
+        }
         settingsWindow.title = L("settings.window.title")
         settingsWindow.titleVisibility = .hidden
         settingsWindow.titlebarAppearsTransparent = true

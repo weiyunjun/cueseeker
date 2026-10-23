@@ -437,6 +437,13 @@ struct MenuGateClientView: NSViewRepresentable {
             nil
         }
 
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window, session != nil {
+                window.makeFirstResponder(nil)
+            }
+        }
+
         fileprivate func update(
             gate: MenuGate?,
             representable: MenuGateClientView
