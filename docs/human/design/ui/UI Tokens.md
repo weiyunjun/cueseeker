@@ -559,9 +559,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - `--duration-subtitle-focus-scroll`: `0.40s`
 - `--easing-subtitle-focus-scroll`: `cubic-bezier(0.22, 1, 0.36, 1)`
-- `--duration-subtitle-focus-fade-out`: `0.26s`
-- `--delay-subtitle-focus-fade-in`: `0.18s`
-- `--duration-subtitle-focus-fade-in`: `0.22s`
+- `--duration-subtitle-focus-fade-out`: `0.30s`
+- `--delay-subtitle-focus-fade-in`: `0.10s`
+- `--duration-subtitle-focus-fade-in`: `0.30s`
 - `--easing-subtitle-focus-fade`: `cubic-bezier(0.37, 0, 0.63, 1)`
 
 ### Player UI Visibility
