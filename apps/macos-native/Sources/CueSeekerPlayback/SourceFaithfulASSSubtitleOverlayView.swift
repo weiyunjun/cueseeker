@@ -108,14 +108,12 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private var renderCacheProvider: (any PlaybackSubtitleRenderCacheProviding)?
     private var frameWidth = 0
     private var frameHeight = 0
-    private var activeRenderSegmentWindow: PlaybackSubtitleTimeWindow?
     private var requestedFontNames: [String]?
 
     func load(
         source: PlaybackSubtitleSource,
         frameWidth: Int,
         frameHeight: Int,
-        initialTimestampMilliseconds: Int,
         completion: @escaping @Sendable (UUID, Result<Void, ASSRenderWorkerError>) -> Void
     ) -> UUID {
         let nextGeneration = UUID()
@@ -136,13 +134,12 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 self.renderCacheProvider = renderCacheProvider
                 self.frameWidth = frameWidth
                 self.frameHeight = frameHeight
-                self.activeRenderSegmentWindow = nil
                 self.requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
                     sourcePath: sourcePath,
                     renderCacheProvider: renderCacheProvider
                 )
 
-                let nextSession = try self.makeSession(containing: initialTimestampMilliseconds)
+                let nextSession = try self.makeSession()
                 guard !self.isInvalidated else {
                     nextSession.close()
                     return
@@ -156,7 +153,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 }
 
                 self.session = nil
-                self.activeRenderSegmentWindow = nil
                 completion(
                     nextGeneration,
                     .failure(ASSRenderWorkerError(message: "ASS renderer failed to load source: \(error.localizedDescription)"))
@@ -188,7 +184,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             }
 
             do {
-                try self.ensureSessionCovers(timestampMilliseconds: timestampMilliseconds)
                 guard let session = self.session else {
                     completion(
                         expectedGeneration,
@@ -202,12 +197,8 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                     return
                 }
 
-                var validLower = max(0, output.unchangedFromMilliseconds)
-                var validUpper = max(validLower + 1, output.unchangedUntilMilliseconds)
-                if let segmentWindow = self.activeRenderSegmentWindow {
-                    validLower = max(validLower, segmentWindow.startMilliseconds)
-                    validUpper = min(validUpper, segmentWindow.endMilliseconds)
-                }
+                let validLower = max(0, output.unchangedFromMilliseconds)
+                let validUpper = max(validLower + 1, output.unchangedUntilMilliseconds)
                 let validRange = validLower ..< max(validLower + 1, validUpper)
 
                 guard output.changed else {
@@ -254,26 +245,10 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         renderCacheProvider = nil
         frameWidth = 0
         frameHeight = 0
-        activeRenderSegmentWindow = nil
         requestedFontNames = nil
     }
 
-    private func ensureSessionCovers(timestampMilliseconds: Int) throws {
-        if let activeRenderSegmentWindow,
-           timestampMilliseconds >= activeRenderSegmentWindow.startMilliseconds,
-           timestampMilliseconds < activeRenderSegmentWindow.endMilliseconds {
-            return
-        }
-
-        if activeRenderSegmentWindow == nil, session != nil {
-            return
-        }
-
-        session?.close()
-        session = try makeSession(containing: timestampMilliseconds)
-    }
-
-    private func makeSession(containing timestampMilliseconds: Int) throws -> SFXASSRendererSession {
+    private func makeSession() throws -> SFXASSRendererSession {
         guard let sourcePath,
               let sourceFormat,
               frameWidth > 0,
@@ -287,54 +262,42 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             )
         }
 
-        if let segment = try indexedRenderSegment(containing: timestampMilliseconds)
-        {
-            activeRenderSegmentWindow = PlaybackSubtitleTimeWindow(
-                startMilliseconds: segment.startMilliseconds,
-                endMilliseconds: segment.endMilliseconds
+        return try autoreleasepool {
+            let sourceURL = URL.fromMediaPath(sourcePath)
+            let requestedFontNames = self.requestedFontNames
+            if !sourceURL.isRemoteMediaURL,
+               let session = try? SFXASSRendererSession(
+                   assFileAtPath: sourceURL.path,
+                   frameWidth: frameWidth,
+                   frameHeight: frameHeight,
+                   scriptRewriter: { chunk in
+                       ASSFontAliasResolver.shared.rewriteRenderScript(
+                           chunk,
+                           requestedFontNames: requestedFontNames
+                       )
+                   }
+               ) {
+                return session
+            }
+
+            let sourceScript = try SubtitleTextDecoder.decode(
+                contentsOf: sourceURL,
+                format: .ass
             )
-            print(
-                "libass indexed segment: window=\(segment.startMilliseconds)-\(segment.endMilliseconds)ms events=\(segment.eventCount) bytes=\(segment.byteCount)"
-            )
-            let sourceIdentifier = "\(sourcePath)#\(segment.startMilliseconds)-\(segment.endMilliseconds)"
-            let renderScript = rewriteFontAliases(in: segment.scriptText)
+            let renderScript = rewriteFontAliases(in: sourceScript)
             return try SFXASSRendererSession(
                 assScript: renderScript,
-                sourceIdentifier: sourceIdentifier,
+                sourceIdentifier: sourcePath,
                 frameWidth: frameWidth,
                 frameHeight: frameHeight
             )
         }
-
-        activeRenderSegmentWindow = nil
-        let sourceScript = try SubtitleTextDecoder.decode(
-            contentsOf: URL.fromMediaPath(sourcePath),
-            format: .ass
-        )
-        let renderScript = rewriteFontAliases(in: sourceScript)
-        return try SFXASSRendererSession(
-            assScript: renderScript,
-            sourceIdentifier: sourcePath,
-            frameWidth: frameWidth,
-            frameHeight: frameHeight
-        )
     }
 
     private func rewriteFontAliases(in script: String) -> String {
         return ASSFontAliasResolver.shared.rewriteRenderScript(
             script,
             requestedFontNames: requestedFontNames
-        )
-    }
-
-    private func indexedRenderSegment(containing timestampMilliseconds: Int) throws -> ASSRenderSegment? {
-        guard let renderCacheProvider, let sourcePath else {
-            return nil
-        }
-
-        return try renderCacheProvider.assRenderSegment(
-            forSubtitleFile: URL.fromMediaPath(sourcePath),
-            atMilliseconds: timestampMilliseconds
         )
     }
 
@@ -569,8 +532,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             let loadGeneration = rendererWorker.load(
                 source: source,
                 frameWidth: renderSize.width,
-                frameHeight: renderSize.height,
-                initialTimestampMilliseconds: currentTimeMilliseconds
+                frameHeight: renderSize.height
             ) { [weak self] returnedGeneration, result in
                 let scheduledAt = PlaybackPerformanceProbe.now()
                 DispatchQueue.main.async(execute: {

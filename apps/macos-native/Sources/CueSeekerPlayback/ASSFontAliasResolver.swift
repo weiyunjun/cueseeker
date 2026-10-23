@@ -391,8 +391,7 @@ enum ASSFontAliasRewriter {
 
     static func rewriteWithReport(script: String, aliases: ASSFontAliasTable) -> ASSFontAliasRewriteResult {
         var replacements: [ASSFontAliasReplacement] = []
-        let normalizedScript = normalizeLineEndings(script)
-        let styleRewritten = rewriteStyleFontNames(in: normalizedScript, aliases: aliases, replacements: &replacements)
+        let styleRewritten = rewriteStyleFontNames(in: script, aliases: aliases, replacements: &replacements)
         let rewritten = rewriteInlineFontOverrides(in: styleRewritten, aliases: aliases, replacements: &replacements)
         return ASSFontAliasRewriteResult(
             script: replacements.isEmpty ? script : rewritten,
@@ -407,34 +406,48 @@ enum ASSFontAliasRewriter {
     ) -> String {
         var section = ASSSection.unknown
         var styleFormat: [String] = []
-        var rewrittenLines: [String] = []
-        var changed = false
+        var result = ""
+        var lastCopiedIndex = script.startIndex
+        var lineStart = script.startIndex
 
-        for line in script.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+        while lineStart < script.endIndex {
+            var lineEnd = lineStart
+            while lineEnd < script.endIndex {
+                let character = script[lineEnd]
+                if character == "\n" || character == "\r" || character == "\r\n" {
+                    break
+                }
+                lineEnd = script.index(after: lineEnd)
+            }
+            let nextLineStart = lineEnd < script.endIndex ? script.index(after: lineEnd) : script.endIndex
+            let line = String(script[lineStart..<lineEnd])
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             let lowercased = trimmed.lowercased()
 
             if lowercased.hasPrefix("[") && lowercased.hasSuffix("]") {
+                if lowercased == "[events]" {
+                    break
+                }
                 section = ASSSection(rawValue: lowercased) ?? .unknown
-                rewrittenLines.append(line)
+                lineStart = nextLineStart
                 continue
             }
 
             guard section == .styles else {
-                rewrittenLines.append(line)
+                lineStart = nextLineStart
                 continue
             }
 
             if let body = lineBody(afterPrefix: "format", in: line) {
                 styleFormat = parseFormat(body)
-                rewrittenLines.append(line)
+                lineStart = nextLineStart
                 continue
             }
 
             guard let body = lineBody(afterPrefix: "style", in: line),
                   let fontIndex = styleFormat.firstIndex(of: "fontname")
             else {
-                rewrittenLines.append(line)
+                lineStart = nextLineStart
                 continue
             }
 
@@ -442,7 +455,7 @@ enum ASSFontAliasRewriter {
             guard fields.indices.contains(fontIndex),
                   let replacement = aliases.replacement(for: fields[fontIndex])
             else {
-                rewrittenLines.append(line)
+                lineStart = nextLineStart
                 continue
             }
 
@@ -456,11 +469,19 @@ enum ASSFontAliasRewriter {
                 )
             )
             let prefix = linePrefix(throughFirstColonIn: line)
-            rewrittenLines.append(prefix + fields.joined(separator: ","))
-            changed = true
+            result.append(contentsOf: script[lastCopiedIndex..<lineStart])
+            result.append(prefix)
+            result.append(fields.joined(separator: ","))
+            lastCopiedIndex = lineEnd
+            lineStart = nextLineStart
         }
 
-        return changed ? rewrittenLines.joined(separator: "\n") : script
+        guard lastCopiedIndex != script.startIndex else {
+            return script
+        }
+
+        result.append(contentsOf: script[lastCopiedIndex...])
+        return result
     }
 
     private static func rewriteInlineFontOverrides(
@@ -468,33 +489,42 @@ enum ASSFontAliasRewriter {
         aliases: ASSFontAliasTable,
         replacements: inout [ASSFontAliasReplacement]
     ) -> String {
+        guard script.range(of: "\\fn") != nil else {
+            return script
+        }
+
         var result = ""
+        var lastCopiedIndex = script.startIndex
         var searchIndex = script.startIndex
-        var changed = false
 
         while let blockStart = script[searchIndex...].firstIndex(of: "{") {
-            result.append(contentsOf: script[searchIndex..<blockStart])
-
             let bodyStart = script.index(after: blockStart)
             guard let blockEnd = script[bodyStart...].firstIndex(of: "}") else {
-                result.append(contentsOf: script[blockStart...])
-                return changed ? result : script
+                break
+            }
+
+            guard script[bodyStart..<blockEnd].range(of: "\\fn") != nil else {
+                searchIndex = script.index(after: blockEnd)
+                continue
             }
 
             let body = String(script[bodyStart..<blockEnd])
             let rewrittenBody = rewriteOverrideBlock(body, aliases: aliases, replacements: &replacements)
             if rewrittenBody != body {
-                changed = true
+                result.append(contentsOf: script[lastCopiedIndex..<bodyStart])
+                result.append(rewrittenBody)
+                lastCopiedIndex = blockEnd
             }
 
-            result.append("{")
-            result.append(rewrittenBody)
-            result.append("}")
             searchIndex = script.index(after: blockEnd)
         }
 
-        result.append(contentsOf: script[searchIndex...])
-        return changed ? result : script
+        guard lastCopiedIndex != script.startIndex else {
+            return script
+        }
+
+        result.append(contentsOf: script[lastCopiedIndex...])
+        return result
     }
 
     private static func rewriteOverrideBlock(
@@ -512,7 +542,7 @@ enum ASSFontAliasRewriter {
             var nameEnd = tagRange.upperBound
             while nameEnd < block.endIndex {
                 let character = block[nameEnd]
-                if character == "\\" || character == "\n" || character == "\r" {
+                if character == "\\" || character == "\n" || character == "\r" || character == "\r\n" {
                     break
                 }
                 nameEnd = block.index(after: nameEnd)
@@ -580,12 +610,6 @@ enum ASSFontAliasRewriter {
         let leading = original[..<firstNonWhitespace]
         let trailing = original[original.index(after: lastNonWhitespace)...]
         return "\(leading)\(replacement)\(trailing)"
-    }
-
-    private static func normalizeLineEndings(_ script: String) -> String {
-        script
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
     }
 
     private enum ASSSection: String {

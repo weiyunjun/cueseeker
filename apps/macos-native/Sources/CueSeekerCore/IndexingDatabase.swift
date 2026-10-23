@@ -86,7 +86,6 @@ public final class IndexingDatabase: @unchecked Sendable {
                     videoFile: file.videoFile,
                     format: file.format,
                     cueGroups: file.cueGroups,
-                    assRenderSegments: file.assRenderSegments,
                     assFontReferences: file.assFontReferences,
                     fileSize: file.fileSize,
                     modifiedAt: file.modifiedAt,
@@ -329,7 +328,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         videoFile: URL,
         format: SubtitleFormat,
         cueGroups: [SubtitleCueGroup],
-        assRenderSegments: [ASSRenderSegmentPayload] = [],
         assFontReferences: [ASSFontReferenceIntent] = [],
         fileSize: Int64? = nil,
         modifiedAt: Date? = nil
@@ -339,7 +337,6 @@ public final class IndexingDatabase: @unchecked Sendable {
             videoFile: videoFile,
             format: format,
             cueGroups: cueGroups,
-            assRenderSegments: assRenderSegments,
             assFontReferences: assFontReferences,
             fileSize: fileSize,
             modifiedAt: modifiedAt,
@@ -352,7 +349,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         videoFile: URL,
         format: SubtitleFormat,
         cueGroups: [SubtitleCueGroup],
-        assRenderSegments: [ASSRenderSegmentPayload] = [],
         assFontReferences: [ASSFontReferenceIntent] = [],
         fileSize: Int64? = nil,
         modifiedAt: Date? = nil,
@@ -363,7 +359,6 @@ public final class IndexingDatabase: @unchecked Sendable {
             videoFile: videoFile,
             format: format,
             cueGroups: cueGroups,
-            assRenderSegments: assRenderSegments,
             assFontReferences: assFontReferences,
             fileSize: fileSize,
             modifiedAt: modifiedAt,
@@ -376,7 +371,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         videoFile: URL,
         format: SubtitleFormat,
         cueGroups: [SubtitleCueGroup],
-        assRenderSegments: [ASSRenderSegmentPayload],
         assFontReferences: [ASSFontReferenceIntent],
         fileSize: Int64?,
         modifiedAt: Date?,
@@ -387,7 +381,6 @@ public final class IndexingDatabase: @unchecked Sendable {
             videoFile: videoFile,
             format: format,
             cueGroups: cueGroups,
-            assRenderSegments: assRenderSegments,
             assFontReferences: assFontReferences,
             fileSize: fileSize,
             modifiedAt: modifiedAt,
@@ -401,7 +394,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         videoFile: URL,
         format: SubtitleFormat,
         cueGroups: [SubtitleCueGroup],
-        assRenderSegments: [ASSRenderSegmentPayload] = [],
         assFontReferences: [ASSFontReferenceIntent] = [],
         fileSize: Int64? = nil,
         modifiedAt: Date? = nil,
@@ -416,7 +408,6 @@ public final class IndexingDatabase: @unchecked Sendable {
                 videoFile: videoFile,
                 format: format,
                 cueGroups: cueGroups,
-                assRenderSegments: assRenderSegments,
                 assFontReferences: assFontReferences,
                 fileSize: fileSize,
                 modifiedAt: modifiedAt,
@@ -437,7 +428,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         videoFile: URL,
         format: SubtitleFormat,
         cueGroups: [SubtitleCueGroup],
-        assRenderSegments: [ASSRenderSegmentPayload],
         assFontReferences: [ASSFontReferenceIntent],
         fileSize: Int64?,
         modifiedAt: Date?,
@@ -492,10 +482,6 @@ public final class IndexingDatabase: @unchecked Sendable {
             for reference in assFontReferences {
                 try insertASSFontReference(subtitleFileID: subtitleFileID, reference: reference)
             }
-        }
-
-        for segment in assRenderSegments {
-            try insertASSRenderSegment(subtitleFileID: subtitleFileID, segment: segment)
         }
 
         if let languageAnalysis {
@@ -1107,23 +1093,6 @@ public final class IndexingDatabase: @unchecked Sendable {
                 subtitleFiles: subtitleFiles
             )
             try deleteASSFontReferenceManifests.run()
-
-            let deleteASSRenderSegments = try database.prepare(
-                """
-                DELETE FROM ass_render_segments
-                WHERE subtitle_file_id IN (
-                    SELECT sf.id
-                    FROM subtitle_files sf
-                    WHERE (\(prefixCondition)) \(keepCondition)
-                );
-                """
-            )
-            try bindStaleEntryParameters(
-                statement: deleteASSRenderSegments,
-                folderPathPrefixes: folderPathPrefixes,
-                subtitleFiles: subtitleFiles
-            )
-            try deleteASSRenderSegments.run()
 
             let deleteASSFontResources = try database.prepare(
                 """
@@ -1917,37 +1886,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
     }
 
-    private func insertASSRenderSegment(
-        subtitleFileID: Int64,
-        segment: ASSRenderSegmentPayload
-    ) throws {
-        let statement = try database.prepare(
-            """
-            INSERT INTO ass_render_segments(
-                subtitle_file_id,
-                segment_index,
-                algorithm_version,
-                start_ms,
-                end_ms,
-                event_count,
-                byte_count,
-                script_text
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-            """
-        )
-
-        try statement.bind(subtitleFileID, at: 1)
-        try statement.bind(segment.segmentIndex, at: 2)
-        try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 3)
-        try statement.bind(segment.startMilliseconds, at: 4)
-        try statement.bind(segment.endMilliseconds, at: 5)
-        try statement.bind(segment.eventCount, at: 6)
-        try statement.bind(segment.byteCount, at: 7)
-        try statement.bind(segment.scriptText, at: 8)
-        try statement.run()
-    }
-
     private func insertASSFontReferenceManifest(
         subtitleFileID: Int64,
         referencedFontCount: Int
@@ -2102,19 +2040,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         )
         try deleteASSFontReferenceManifests.bind(subtitlePath, at: 1)
         try deleteASSFontReferenceManifests.run()
-
-        let deleteASSRenderSegments = try database.prepare(
-            """
-            DELETE FROM ass_render_segments
-            WHERE subtitle_file_id IN (
-                SELECT id
-                FROM subtitle_files
-                WHERE subtitle_path = ?
-            );
-            """
-        )
-        try deleteASSRenderSegments.bind(subtitlePath, at: 1)
-        try deleteASSRenderSegments.run()
 
         let deleteASSFontResources = try database.prepare(
             """

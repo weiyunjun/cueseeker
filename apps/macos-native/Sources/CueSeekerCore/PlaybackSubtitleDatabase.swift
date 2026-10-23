@@ -4,10 +4,6 @@ public protocol PlaybackSubtitleRenderCacheProviding: Sendable {
     var cacheScopeID: String { get }
     func hasCurrentASSFontReferenceManifest(forSubtitleFile subtitleFile: URL) throws -> Bool
     func assFontReferences(forSubtitleFile subtitleFile: URL) throws -> [ASSFontReference]
-    func assRenderSegment(
-        forSubtitleFile subtitleFile: URL,
-        atMilliseconds timestampMilliseconds: Int
-    ) throws -> ASSRenderSegment?
 }
 
 public struct PlaybackSubtitleRenderCacheReader: PlaybackSubtitleRenderCacheProviding, Equatable, Sendable {
@@ -29,17 +25,6 @@ public struct PlaybackSubtitleRenderCacheReader: PlaybackSubtitleRenderCacheProv
     public func assFontReferences(forSubtitleFile subtitleFile: URL) throws -> [ASSFontReference] {
         try PlaybackSubtitleDatabase(path: databaseURL)
             .assFontReferences(forSubtitleFile: subtitleFile)
-    }
-
-    public func assRenderSegment(
-        forSubtitleFile subtitleFile: URL,
-        atMilliseconds timestampMilliseconds: Int
-    ) throws -> ASSRenderSegment? {
-        try PlaybackSubtitleDatabase(path: databaseURL)
-            .assRenderSegment(
-                forSubtitleFile: subtitleFile,
-                atMilliseconds: timestampMilliseconds
-            )
     }
 }
 
@@ -170,24 +155,6 @@ public final class PlaybackSubtitleDatabase: PlaybackSubtitleRenderCacheProvidin
         )
     }
 
-
-    public func hasASSRenderSegments(forSubtitleFile subtitleFile: URL) throws -> Bool {
-        let statement = try database.prepare(
-            """
-            SELECT 1
-            FROM ass_render_segments s
-            JOIN subtitle_files sf ON sf.id = s.subtitle_file_id
-            WHERE sf.subtitle_path = ?
-              AND s.algorithm_version = ?
-            LIMIT 1;
-            """
-        )
-
-        try statement.bind(subtitleFile.mediaPath, at: 1)
-        try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
-        return try statement.step()
-    }
-
     public func hasCurrentASSFontReferenceManifest(forSubtitleFile subtitleFile: URL) throws -> Bool {
         let statement = try database.prepare(
             """
@@ -235,45 +202,6 @@ public final class PlaybackSubtitleDatabase: PlaybackSubtitleRenderCacheProvidin
         }
 
         return references
-    }
-
-    public func assRenderSegment(
-        forSubtitleFile subtitleFile: URL,
-        atMilliseconds milliseconds: Int
-    ) throws -> ASSRenderSegment? {
-        let timestamp = max(0, milliseconds)
-        let statement = try database.prepare(
-            """
-            SELECT sf.subtitle_path, s.start_ms, s.end_ms, s.script_text,
-                   s.event_count, s.byte_count
-            FROM ass_render_segments s
-            JOIN subtitle_files sf ON sf.id = s.subtitle_file_id
-            WHERE sf.subtitle_path = ?
-              AND s.algorithm_version = ?
-              AND s.start_ms <= ?
-              AND s.end_ms > ?
-            ORDER BY s.start_ms DESC, s.segment_index DESC
-            LIMIT 1;
-            """
-        )
-
-        try statement.bind(subtitleFile.mediaPath, at: 1)
-        try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
-        try statement.bind(timestamp, at: 3)
-        try statement.bind(timestamp, at: 4)
-
-        guard try statement.step() else {
-            return nil
-        }
-
-        return ASSRenderSegment(
-            subtitlePath: statement.stringColumn(0),
-            startMilliseconds: statement.intColumn(1),
-            endMilliseconds: statement.intColumn(2),
-            scriptText: statement.stringColumn(3),
-            eventCount: statement.intColumn(4),
-            byteCount: statement.intColumn(5)
-        )
     }
 
     private static func decodePrimaryStyles(from json: String) throws -> [String] {

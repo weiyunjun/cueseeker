@@ -49,7 +49,6 @@ struct PreparedSubtitleIndexFile: Sendable {
     let videoFile: URL
     let format: SubtitleFormat
     let cueGroups: [SubtitleCueGroup]
-    let assRenderSegments: [ASSRenderSegmentPayload]
     let assFontReferences: [ASSFontReferenceIntent]
     let fileSize: Int64?
     let modifiedAt: Date?
@@ -370,7 +369,6 @@ public struct SubtitleIndexer {
             }
 
             let cueGroups: [SubtitleCueGroup]
-            var assRenderSegments: [ASSRenderSegmentPayload] = []
             var assFontReferences: [ASSFontReferenceIntent] = []
             do {
                 switch format {
@@ -379,12 +377,6 @@ public struct SubtitleIndexer {
                 case .ass, .ssa:
                     cueGroups = try ASSParser.parseCueGroupsForIndexing(contents, format: format)
                     assFontReferences = ASSFontIntentExtractor.references(from: contents)
-                    if ASSRenderSegmenter.shouldSegment(
-                        format: format,
-                        fileSize: observation.fileSize
-                    ) {
-                        assRenderSegments = ASSRenderSegmenter.renderSegments(from: contents)
-                    }
                 }
             } catch {
                 recordFileFailure(
@@ -435,7 +427,6 @@ public struct SubtitleIndexer {
                     videoFile: videoFile,
                     format: format,
                     cueGroups: cueGroups,
-                    assRenderSegments: assRenderSegments,
                     assFontReferences: assFontReferences,
                     fileSize: observation.fileSize,
                     modifiedAt: observation.modifiedAt,
@@ -534,10 +525,6 @@ public struct SubtitleIndexer {
         if metadata.subtitleFormat.usesASSSemantics,
            try !playbackDatabase.hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile) {
             return false
-        }
-
-        if ASSRenderSegmenter.shouldSegment(format: metadata.subtitleFormat, fileSize: fileSize) {
-            return try playbackDatabase.hasASSRenderSegments(forSubtitleFile: subtitleFile)
         }
 
         return true

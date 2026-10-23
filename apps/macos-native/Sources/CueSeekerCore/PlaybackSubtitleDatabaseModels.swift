@@ -161,15 +161,6 @@ public struct StoredSubtitleLanguageDetection: Equatable, Sendable {
     public let detectedAt: String
 }
 
-public struct ASSRenderSegment: Equatable, Sendable {
-    public let subtitlePath: String
-    public let startMilliseconds: Int
-    public let endMilliseconds: Int
-    public let scriptText: String
-    public let eventCount: Int
-    public let byteCount: Int
-}
-
 public struct ASSFontReference: Equatable, Sendable {
     public let subtitlePath: String
     public let fontName: String

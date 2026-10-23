@@ -394,6 +394,21 @@ extension DatabaseBootstrap {
         }
     }
 
+    /// Schema 59 removes the legacy `ass_render_segments` table and its lookup
+    /// index because ASS playback loads the full subtitle script directly with
+    /// bounded libass caches instead of storing segmented script copies in SQLite.
+    static func migrateSchema58To59(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                DROP INDEX IF EXISTS idx_ass_render_segments_lookup;
+                DROP TABLE IF EXISTS ass_render_segments;
+                PRAGMA user_version = 59;
+                """
+            )
+        }
+    }
+
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(

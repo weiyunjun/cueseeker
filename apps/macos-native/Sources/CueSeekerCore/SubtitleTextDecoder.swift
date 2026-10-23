@@ -30,6 +30,19 @@ public enum SubtitleTextDecoder {
         format: SubtitleFormat
     ) throws -> String {
         if let markedEncoding = byteOrderMarkedEncoding(in: data) {
+            if markedEncoding.encoding == .utf8 {
+                let contents: String? = autoreleasepool {
+                    guard var decoded = String(data: data.dropFirst(markedEncoding.byteCount), encoding: .utf8) else {
+                        return nil
+                    }
+                    decoded.makeContiguousUTF8()
+                    return decoded
+                }
+                guard let contents else {
+                    throw SubtitleTextDecodingError.undecodableData
+                }
+                return try validated(contents, format: format)
+            }
             let encodedContents = Data(data.dropFirst(markedEncoding.byteCount))
             guard let contents = String(data: encodedContents, encoding: markedEncoding.encoding),
                   contents.data(using: markedEncoding.encoding) == encodedContents
@@ -39,14 +52,28 @@ public enum SubtitleTextDecoder {
             return try validated(contents, format: format)
         }
 
-        if let contents = String(data: data, encoding: .utf8) {
-            return try validated(contents, format: format)
+        let utf8Contents: String? = autoreleasepool {
+            guard var decoded = String(data: data, encoding: .utf8) else {
+                return nil
+            }
+            decoded.makeContiguousUTF8()
+            return decoded
+        }
+        if let utf8Contents {
+            return try validated(utf8Contents, format: format)
         }
 
-        guard let contents = detectLegacyEncoding(in: data) else {
+        let legacyContents: String? = autoreleasepool {
+            guard var decoded = detectLegacyEncoding(in: data) else {
+                return nil
+            }
+            decoded.makeContiguousUTF8()
+            return decoded
+        }
+        guard let legacyContents else {
             throw SubtitleTextDecodingError.undecodableData
         }
-        return try validated(contents, format: format)
+        return try validated(legacyContents, format: format)
     }
 
     public static func detectedEncodingName(in data: Data) -> String {
@@ -145,10 +172,9 @@ public enum SubtitleTextDecoder {
     }
 
     private static func isBlankSubtitleText(_ contents: String) -> Bool {
-        contents
-            .replacingOccurrences(of: "\u{feff}", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty
+        !contents.unicodeScalars.contains { scalar in
+            !scalar.properties.isWhitespace && scalar != "\u{feff}"
+        }
     }
 
     private static func hasValidStructure(

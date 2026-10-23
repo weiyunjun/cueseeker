@@ -34,6 +34,7 @@ func migratesFreshDatabaseToCurrentSchemaVersion() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try !sqliteTableExists("ass_render_segments", databaseURL: databaseURL))
 }
 
 @Test
@@ -1302,5 +1303,46 @@ func migratesSchema57ByBackfillingCueLineAndTombstoneDurationAndCharacterWidth()
     let distribution = try searchDatabase.cueFacetDistribution()
     #expect(distribution.durationCounts == [.oneToUnderThreeSeconds: 1])
     #expect(distribution.characterCounts == [.elevenToTwenty: 1])
+}
+
+@Test
+func migratesSchema58ByDroppingASSRenderSegmentsTable() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        CREATE TABLE ass_render_segments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_file_id INTEGER NOT NULL,
+            segment_index INTEGER NOT NULL,
+            algorithm_version INTEGER NOT NULL DEFAULT 0,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            event_count INTEGER NOT NULL,
+            byte_count INTEGER NOT NULL,
+            script_text TEXT NOT NULL,
+            UNIQUE(subtitle_file_id, segment_index)
+        );
+        CREATE INDEX idx_ass_render_segments_lookup
+            ON ass_render_segments(subtitle_file_id, start_ms, end_ms);
+        INSERT INTO ass_render_segments(
+            subtitle_file_id, segment_index, algorithm_version,
+            start_ms, end_ms, event_count, byte_count, script_text
+        )
+        VALUES (1, 0, 2, 0, 5000, 10, 256, '[Script Info]');
+        PRAGMA user_version = 58;
+        """
+    )
+    #expect(try sqliteTableExists("ass_render_segments", databaseURL: databaseURL))
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try !sqliteTableExists("ass_render_segments", databaseURL: databaseURL))
 }
 

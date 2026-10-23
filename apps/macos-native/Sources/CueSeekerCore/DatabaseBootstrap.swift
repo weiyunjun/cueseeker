@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 58
+    public static let currentSchemaVersion = 59
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -70,6 +70,7 @@ extension DatabaseBootstrap {
                 || previousVersion == 55
                 || previousVersion == 56
                 || previousVersion == 57
+                || previousVersion == 58
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -197,6 +198,9 @@ extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 57 {
             try migrateSchema57To58(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 58 {
+            try migrateSchema58To59(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -491,23 +495,6 @@ extension DatabaseBootstrap {
 
             CREATE INDEX IF NOT EXISTS idx_subtitle_cue_group_languages_language
                 ON subtitle_cue_group_languages(language_code, cue_group_id);
-
-            CREATE TABLE IF NOT EXISTS ass_render_segments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                subtitle_file_id INTEGER NOT NULL,
-                segment_index INTEGER NOT NULL,
-                algorithm_version INTEGER NOT NULL DEFAULT 0,
-                start_ms INTEGER NOT NULL,
-                end_ms INTEGER NOT NULL,
-                event_count INTEGER NOT NULL,
-                byte_count INTEGER NOT NULL,
-                script_text TEXT NOT NULL,
-                UNIQUE(subtitle_file_id, segment_index),
-                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_ass_render_segments_lookup
-                ON ass_render_segments(subtitle_file_id, start_ms, end_ms);
 
             CREATE TABLE IF NOT EXISTS ass_font_reference_manifests (
                 subtitle_file_id INTEGER PRIMARY KEY,

@@ -47,6 +47,8 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
 
 @end
 
+typedef NSString * _Nonnull (^SFXASSScriptRewriterBlock)(NSString * _Nonnull scriptChunk);
+
 @interface SFXASSRendererSession : NSObject
 
 @property (nonatomic, copy, readonly) NSString *sourcePath;
@@ -59,6 +61,13 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
                                    frameHeight:(NSInteger)frameHeight
                                          error:(NSError **)error
     NS_SWIFT_NAME(init(assFileAtPath:frameWidth:frameHeight:));
+
+- (nullable instancetype)initWithASSFileAtPath:(NSString *)path
+                                    frameWidth:(NSInteger)frameWidth
+                                   frameHeight:(NSInteger)frameHeight
+                                scriptRewriter:(nullable SFXASSScriptRewriterBlock)scriptRewriter
+                                         error:(NSError **)error
+    NS_SWIFT_NAME(init(assFileAtPath:frameWidth:frameHeight:scriptRewriter:));
 
 - (nullable instancetype)initWithASSScript:(NSString *)script
                           sourceIdentifier:(NSString *)sourceIdentifier

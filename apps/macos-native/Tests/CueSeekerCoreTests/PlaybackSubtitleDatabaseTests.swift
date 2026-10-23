@@ -44,56 +44,6 @@ func subtitleEntryIndexAndWindowLoadCurrentSubtitleRows() throws {
 }
 
 @Test
-func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        removeTemporaryDatabase(at: databaseURL)
-    }
-
-    let database = try IndexingDatabase(path: databaseURL)
-    try DatabaseBootstrap.prepare(at: databaseURL)
-
-    let subtitleFile = URL(fileURLWithPath: "/Media/Effects.ass")
-    let videoFile = URL(fileURLWithPath: "/Media/Effects.mkv")
-    let segments = [
-        ASSRenderSegmentPayload(
-            segmentIndex: 0,
-            startMilliseconds: 0,
-            endMilliseconds: 30_000,
-            scriptText: "[Script Info]\n[Events]\n",
-            eventCount: 0,
-            byteCount: 23
-        ),
-        ASSRenderSegmentPayload(
-            segmentIndex: 1,
-            startMilliseconds: 30_000,
-            endMilliseconds: 60_000,
-            scriptText: "[Script Info]\n[Events]\nDialogue: 0,0:00:30.00,0:00:31.00,Default,,0,0,0,,fx\n",
-            eventCount: 1,
-            byteCount: 89
-        )
-    ]
-
-    try database.replaceCueGroups(
-        subtitleFile: subtitleFile,
-        videoFile: videoFile,
-        format: .ass,
-        cueGroups: [],
-        assRenderSegments: segments
-    )
-
-    let playback = try PlaybackSubtitleDatabase(path: databaseURL)
-    #expect(try playback.hasASSRenderSegments(forSubtitleFile: subtitleFile))
-    let loadedSegment = try playback.assRenderSegment(forSubtitleFile: subtitleFile, atMilliseconds: 30_250)
-    let segment = try #require(loadedSegment)
-    #expect(segment.startMilliseconds == 30_000)
-    #expect(segment.endMilliseconds == 60_000)
-    #expect(segment.eventCount == 1)
-    #expect(segment.scriptText.contains("Dialogue:"))
-    #expect(try playback.assRenderSegment(forSubtitleFile: subtitleFile, atMilliseconds: 60_000) == nil)
-}
-
-@Test
 func storesAndLoadsASSFontReferences() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
