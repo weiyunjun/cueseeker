@@ -122,6 +122,16 @@ func testSubtitleRawCueCounter() {
 
 @Test
 func testSubtitleIndexerStoresRawCueCountAndReindexesWhenNull() throws {
+    struct ProgressStep: Equatable {
+        let completed: Int
+        let total: Int
+
+        init(_ completed: Int, _ total: Int) {
+            self.completed = completed
+            self.total = total
+        }
+    }
+
     let tempRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerRawCueCountTests-\(UUID().uuidString)")
     let databaseURL = tempRoot.appendingPathComponent("index.sqlite")
@@ -133,6 +143,7 @@ func testSubtitleIndexerStoresRawCueCountAndReindexesWhenNull() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleURL = tempRoot.appendingPathComponent("Episode.ass")
+    let unpairedSubtitleURL = tempRoot.appendingPathComponent("Unpaired.srt")
     let videoURL = tempRoot.appendingPathComponent("Episode.mkv")
     let assScript = """
     [Script Info]
@@ -144,15 +155,30 @@ func testSubtitleIndexerStoresRawCueCountAndReindexesWhenNull() throws {
     Dialogue: 0,0:00:04.00,0:00:06.00,Default,,0,0,0,,{override only}
     Dialogue: 0,0:00:07.00,0:00:09.00,Default,,0,0,0,,   
     """
+    let unpairedSrt = """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Unpaired line
+    """
     try assScript.write(to: subtitleURL, atomically: true, encoding: .utf8)
+    try unpairedSrt.write(to: unpairedSubtitleURL, atomically: true, encoding: .utf8)
     try Data().write(to: videoURL)
 
     let indexingDatabase = try IndexingDatabase(path: databaseURL)
     let indexer = SubtitleIndexer()
 
-    let firstResult = try indexer.index(folder: tempRoot, into: indexingDatabase)
+    nonisolated(unsafe) var firstProgress: [ProgressStep] = []
+    let firstResult = try indexer.index(
+        folder: tempRoot,
+        into: indexingDatabase,
+        onProgress: { completed, total in
+            firstProgress.append(ProgressStep(completed, total))
+        }
+    )
     #expect(firstResult.indexedSubtitleFiles == 1)
     #expect(firstResult.skippedUnchangedSubtitleFiles == 0)
+    #expect(firstResult.skippedMissingVideo == 1)
+    #expect(firstProgress == [ProgressStep(0, 1), ProgressStep(1, 1)])
 
     let storedMetadata = try #require(try indexingDatabase.subtitleFiles().first)
     #expect(storedMetadata.rawCueCount == 3)
@@ -164,9 +190,17 @@ func testSubtitleIndexerStoresRawCueCountAndReindexesWhenNull() throws {
     #expect(detailInfo.rawCueCount == 3)
     #expect(detailInfo.cueCount == 1)
 
-    let secondResult = try indexer.index(folder: tempRoot, into: indexingDatabase)
+    nonisolated(unsafe) var secondProgress: [ProgressStep] = []
+    let secondResult = try indexer.index(
+        folder: tempRoot,
+        into: indexingDatabase,
+        onProgress: { completed, total in
+            secondProgress.append(ProgressStep(completed, total))
+        }
+    )
     #expect(secondResult.indexedSubtitleFiles == 0)
     #expect(secondResult.skippedUnchangedSubtitleFiles == 1)
+    #expect(secondProgress == [ProgressStep(0, 0)])
 
     try executeDatabaseTestSQLite(
         at: databaseURL,
@@ -174,8 +208,17 @@ func testSubtitleIndexerStoresRawCueCountAndReindexesWhenNull() throws {
     )
     #expect(try indexingDatabase.subtitleFiles().first?.rawCueCount == nil)
 
-    let thirdResult = try indexer.index(folder: tempRoot, into: indexingDatabase)
+    nonisolated(unsafe) var thirdProgress: [ProgressStep] = []
+    let thirdResult = try indexer.index(
+        folder: tempRoot,
+        into: indexingDatabase,
+        onProgress: { completed, total in
+            thirdProgress.append(ProgressStep(completed, total))
+        }
+    )
     #expect(thirdResult.indexedSubtitleFiles == 1)
     #expect(thirdResult.skippedUnchangedSubtitleFiles == 0)
+    #expect(!thirdResult.hasIndexedContentChanges)
+    #expect(thirdProgress == [ProgressStep(0, 1), ProgressStep(1, 1)])
     #expect(try indexingDatabase.subtitleFiles().first?.rawCueCount == 3)
 }

@@ -136,6 +136,19 @@ public final class IndexingDatabase: @unchecked Sendable {
                 )
             }
 
+            for refresh in index.rawCueCountRefreshes {
+                let statement = try database.prepare(
+                    """
+                    UPDATE subtitle_files
+                    SET raw_cue_count = ?
+                    WHERE subtitle_path = ?;
+                    """
+                )
+                try statement.bind(refresh.rawCueCount, at: 1)
+                try statement.bind(refresh.subtitleFile.mediaPath, at: 2)
+                try statement.run()
+            }
+
             affectedFolderPaths.formUnion(
                 try removeIndexedDataInCurrentTransaction(
                     under: index.folder,

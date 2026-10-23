@@ -61,38 +61,63 @@ struct PreparedSubtitleIndexFile: Sendable {
 
 public enum SubtitleRawCueCounter {
     public static func count(in contents: String, format: SubtitleFormat) -> Int {
-        let normalized = contents
-            .replacingOccurrences(of: "\u{feff}", with: "")
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-
         switch format {
         case .ass, .ssa:
             var inEventsSection = false
             var count = 0
-            for rawLine in normalized.split(separator: "\n", omittingEmptySubsequences: false) {
-                let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            forEachLine(in: contents) { rawLine in
+                let trimmed = trimWhitespaceAndBOM(rawLine)
                 guard !trimmed.isEmpty, !trimmed.hasPrefix(";") else {
-                    continue
+                    return
                 }
                 if trimmed.hasPrefix("["), trimmed.hasSuffix("]") {
-                    inEventsSection = trimmed.lowercased() == "[events]"
-                    continue
+                    inEventsSection =
+                        trimmed.utf8.count == 8
+                        && trimmed.compare("[events]", options: [.caseInsensitive]) == .orderedSame
+                    return
                 }
-                if inEventsSection, trimmed.lowercased().hasPrefix("dialogue:") {
+                if inEventsSection,
+                   trimmed.range(of: "dialogue:", options: [.caseInsensitive, .anchored]) != nil
+                {
                     count += 1
                 }
             }
             return count
         case .srt, .vtt:
             var count = 0
-            for rawLine in normalized.split(separator: "\n", omittingEmptySubsequences: false) {
+            forEachLine(in: contents) { rawLine in
                 if rawLine.contains("-->") {
                     count += 1
                 }
             }
             return count
         }
+    }
+
+    private static func forEachLine(in contents: String, _ body: (Substring) -> Void) {
+        var lineStart = contents.startIndex
+        var index = lineStart
+        while index < contents.endIndex {
+            let character = contents[index]
+            if character == "\n" || character == "\r\n" || character == "\r" {
+                body(contents[lineStart..<index])
+                lineStart = contents.index(after: index)
+                index = lineStart
+            } else {
+                index = contents.index(after: index)
+            }
+        }
+        body(contents[lineStart..<contents.endIndex])
+    }
+
+    private static func trimWhitespaceAndBOM(_ line: Substring) -> Substring {
+        var trimmed = line.drop { $0 == "\u{feff}" || $0 == " " || $0 == "\t" || $0.isWhitespace }
+        while let last = trimmed.last,
+              last == "\u{feff}" || last == " " || last == "\t" || last.isWhitespace
+        {
+            trimmed = trimmed.dropLast()
+        }
+        return trimmed
     }
 }
 
@@ -118,12 +143,34 @@ struct PreparedSubtitleBindingRefresh: Sendable {
     let videoModifiedAt: Date?
 }
 
+struct PreparedSubtitleRawCueCountRefresh: Sendable {
+    let subtitleFile: URL
+    let rawCueCount: Int
+}
+
 struct PreparedLibraryIndex: Sendable {
     let folder: URL
     let changedFiles: [PreparedSubtitleIndexFile]
     let bindingRefreshes: [PreparedSubtitleBindingRefresh]
+    let rawCueCountRefreshes: [PreparedSubtitleRawCueCountRefresh]
     let missingVideoSubtitleFiles: [URL]
     let keptSubtitlePaths: Set<String>
+
+    init(
+        folder: URL,
+        changedFiles: [PreparedSubtitleIndexFile],
+        bindingRefreshes: [PreparedSubtitleBindingRefresh],
+        rawCueCountRefreshes: [PreparedSubtitleRawCueCountRefresh] = [],
+        missingVideoSubtitleFiles: [URL],
+        keptSubtitlePaths: Set<String>
+    ) {
+        self.folder = folder
+        self.changedFiles = changedFiles
+        self.bindingRefreshes = bindingRefreshes
+        self.rawCueCountRefreshes = rawCueCountRefreshes
+        self.missingVideoSubtitleFiles = missingVideoSubtitleFiles
+        self.keptSubtitlePaths = keptSubtitlePaths
+    }
 }
 
 struct PublishedLibraryIndexMutation: Equatable, Sendable {
@@ -276,8 +323,6 @@ public struct SubtitleIndexer {
             }
         }
 
-        onProgress?(0, subtitleFiles.count)
-
         let existingFiles = Dictionary(
             uniqueKeysWithValues: try database.subtitleFiles().map { ($0.subtitlePath, $0) }
         )
@@ -293,11 +338,28 @@ public struct SubtitleIndexer {
         var keptSubtitlePaths = Set<String>()
         var changedFiles: [PreparedSubtitleIndexFile] = []
         var bindingRefreshes: [PreparedSubtitleBindingRefresh] = []
+        var rawCueCountRefreshes: [PreparedSubtitleRawCueCountRefresh] = []
         var missingVideoSubtitleFiles: [URL] = []
 
-        for (offset, subtitleFile) in subtitleFiles.enumerated() {
+        enum Stage2WorkItem {
+            case rawCueCountRefresh(
+                subtitleFile: URL,
+                videoFile: URL,
+                metadata: SubtitleFileMetadata,
+                videoObservation: SubtitleFileObservation?
+            )
+            case fullIndex(
+                subtitleFile: URL,
+                videoFile: URL,
+                observation: SubtitleFileObservation,
+                videoObservation: SubtitleFileObservation?
+            )
+        }
+
+        var workItems: [Stage2WorkItem] = []
+
+        for subtitleFile in subtitleFiles {
             try Task.checkCancellation()
-            defer { onProgress?(offset + 1, subtitleFiles.count) }
             let subtitleMediaPath = subtitleFile.mediaPath
 
             guard let videoFile = matchingVideos[subtitleFile] else {
@@ -350,14 +412,117 @@ public struct SubtitleIndexer {
                     modifiedAt: observation.modifiedAt
                )
             {
-                keptSubtitlePaths.insert(subtitleMediaPath)
-                if isWebDAV {
-                    let cachedURL = WebDAVSubtitleCache.shared.cachedFileURL(for: subtitleFile)
-                    if !FileManager.default.fileExists(atPath: cachedURL.path),
-                       let data = try? loadSubtitleData(subtitleFile) {
-                        _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: subtitleFile)
+                if metadata.rawCueCount != nil {
+                    keptSubtitlePaths.insert(subtitleMediaPath)
+                    if isWebDAV {
+                        let cachedURL = WebDAVSubtitleCache.shared.cachedFileURL(for: subtitleFile)
+                        if !FileManager.default.fileExists(atPath: cachedURL.path),
+                           let data = try? loadSubtitleData(subtitleFile) {
+                            _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: subtitleFile)
+                        }
                     }
+                    if videoBindingNeedsRefresh(
+                        metadata: metadata,
+                        videoFile: videoFile,
+                        videoObservation: videoObservation
+                    ) {
+                        bindingRefreshes.append(
+                            PreparedSubtitleBindingRefresh(
+                                subtitleFile: subtitleFile,
+                                videoFile: videoFile,
+                                videoFileSize: videoObservation?.fileSize,
+                                videoModifiedAt: videoObservation?.modifiedAt
+                            )
+                        )
+                    }
+                    result.skippedUnchangedSubtitleFiles += 1
+                } else {
+                    workItems.append(
+                        .rawCueCountRefresh(
+                            subtitleFile: subtitleFile,
+                            videoFile: videoFile,
+                            metadata: metadata,
+                            videoObservation: videoObservation
+                        )
+                    )
                 }
+                continue
+            }
+
+            workItems.append(
+                .fullIndex(
+                    subtitleFile: subtitleFile,
+                    videoFile: videoFile,
+                    observation: observation,
+                    videoObservation: videoObservation
+                )
+            )
+        }
+
+        onProgress?(0, workItems.count)
+
+        for (offset, item) in workItems.enumerated() {
+            try Task.checkCancellation()
+            defer { onProgress?(offset + 1, workItems.count) }
+
+            switch item {
+            case let .rawCueCountRefresh(
+                subtitleFile,
+                videoFile,
+                metadata,
+                videoObservation
+            ):
+                let subtitleMediaPath = subtitleFile.mediaPath
+                let format =
+                    SubtitleFormat(fileExtension: subtitleFile.pathExtension)
+                    ?? metadata.subtitleFormat
+
+                let data: Data
+                do {
+                    if isWebDAV {
+                        let cachedURL = WebDAVSubtitleCache.shared.cachedFileURL(for: subtitleFile)
+                        if FileManager.default.fileExists(atPath: cachedURL.path),
+                           let cachedData = try? Data(contentsOf: cachedURL) {
+                            data = cachedData
+                        } else {
+                            let loadedData = try loadSubtitleData(subtitleFile)
+                            _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(loadedData, for: subtitleFile)
+                            data = loadedData
+                        }
+                    } else {
+                        data = try loadSubtitleData(subtitleFile)
+                    }
+                } catch {
+                    recordFileFailure(
+                        subtitleFile,
+                        reason: "Subtitle file could not be read: \(error.localizedDescription)",
+                        result: &result,
+                        keptSubtitlePaths: &keptSubtitlePaths
+                    )
+                    continue
+                }
+
+                let contents: String
+                do {
+                    contents = try SubtitleTextDecoder.decode(data, format: format)
+                } catch {
+                    recordFileFailure(
+                        subtitleFile,
+                        reason: "Subtitle file could not be decoded: \(error.localizedDescription)",
+                        result: &result,
+                        keptSubtitlePaths: &keptSubtitlePaths
+                    )
+                    continue
+                }
+
+                let rawCueCount = SubtitleRawCueCounter.count(in: contents, format: format)
+                rawCueCountRefreshes.append(
+                    PreparedSubtitleRawCueCountRefresh(
+                        subtitleFile: subtitleFile,
+                        rawCueCount: rawCueCount
+                    )
+                )
+                keptSubtitlePaths.insert(subtitleMediaPath)
                 if videoBindingNeedsRefresh(
                     metadata: metadata,
                     videoFile: videoFile,
@@ -372,122 +537,128 @@ public struct SubtitleIndexer {
                         )
                     )
                 }
-                result.skippedUnchangedSubtitleFiles += 1
-                continue
-            }
+                result.indexedSubtitleFiles += 1
 
-            guard let format = SubtitleFormat(fileExtension: subtitleFile.pathExtension) else {
-                continue
-            }
-
-            let data: Data
-            do {
-                data = try loadSubtitleData(subtitleFile)
-            } catch {
-                recordFileFailure(
-                    subtitleFile,
-                    reason: "Subtitle file could not be read: \(error.localizedDescription)",
-                    result: &result,
-                    keptSubtitlePaths: &keptSubtitlePaths
-                )
-                continue
-            }
-
-            let contents: String
-            do {
-                contents = try SubtitleTextDecoder.decode(data, format: format)
-            } catch {
-                recordFileFailure(
-                    subtitleFile,
-                    reason: "Subtitle file could not be decoded: \(error.localizedDescription)",
-                    result: &result,
-                    keptSubtitlePaths: &keptSubtitlePaths
-                )
-                continue
-            }
-
-            let cueGroups: [SubtitleCueGroup]
-            var assFontReferences: [ASSFontReferenceIntent] = []
-            do {
-                switch format {
-                case .srt, .vtt:
-                    cueGroups = try SRTParser.parseCueGroupsForIndexing(contents, format: format)
-                case .ass, .ssa:
-                    cueGroups = try ASSParser.parseCueGroupsForIndexing(contents, format: format)
-                    assFontReferences = ASSFontIntentExtractor.references(from: contents)
+            case let .fullIndex(
+                subtitleFile,
+                videoFile,
+                observation,
+                videoObservation
+            ):
+                let subtitleMediaPath = subtitleFile.mediaPath
+                guard let format = SubtitleFormat(fileExtension: subtitleFile.pathExtension) else {
+                    continue
                 }
-            } catch {
-                recordFileFailure(
-                    subtitleFile,
-                    reason: "Subtitle parsing did not complete: \(error)",
-                    result: &result,
-                    keptSubtitlePaths: &keptSubtitlePaths
-                )
-                continue
-            }
 
-            let finalObservation: SubtitleFileObservation
-            if isWebDAV {
-                finalObservation = observation
-            } else {
+                let data: Data
                 do {
-                    finalObservation = try SubtitleFileObservation.capture(
-                        subtitleFile
-                    )
+                    data = try loadSubtitleData(subtitleFile)
                 } catch {
                     recordFileFailure(
                         subtitleFile,
-                        reason: "Subtitle metadata could not be revalidated.",
+                        reason: "Subtitle file could not be read: \(error.localizedDescription)",
                         result: &result,
                         keptSubtitlePaths: &keptSubtitlePaths
                     )
                     continue
                 }
-            }
-            guard finalObservation == observation else {
-                recordFileFailure(
-                    subtitleFile,
-                    reason: "Subtitle file changed while it was being indexed.",
-                    result: &result,
-                    keptSubtitlePaths: &keptSubtitlePaths
-                )
-                continue
-            }
 
-            guard !cueGroups.isEmpty else {
-                continue
-            }
+                let contents: String
+                do {
+                    contents = try SubtitleTextDecoder.decode(data, format: format)
+                } catch {
+                    recordFileFailure(
+                        subtitleFile,
+                        reason: "Subtitle file could not be decoded: \(error.localizedDescription)",
+                        result: &result,
+                        keptSubtitlePaths: &keptSubtitlePaths
+                    )
+                    continue
+                }
 
-            let rawCueCount = SubtitleRawCueCounter.count(in: contents, format: format)
-            let languageAnalysis = languageAnalyzer.analyze(format: format, cueGroups: cueGroups)
-            changedFiles.append(
-                PreparedSubtitleIndexFile(
-                    subtitleFile: subtitleFile,
-                    videoFile: videoFile,
-                    format: format,
-                    cueGroups: cueGroups,
-                    assFontReferences: assFontReferences,
-                    fileSize: observation.fileSize,
-                    modifiedAt: observation.modifiedAt,
-                    rawCueCount: rawCueCount,
-                    videoFileSize: videoObservation?.fileSize,
-                    videoModifiedAt: videoObservation?.modifiedAt,
-                    languageAnalysis: languageAnalysis,
-                    refreshVideoMetadata: existingVideoMetadataByPath[
-                        videoFile.mediaPath
-                    ].map {
-                        videoBindingNeedsRefresh(
-                            metadata: $0,
-                            videoFile: videoFile,
-                            videoObservation: videoObservation
+                let cueGroups: [SubtitleCueGroup]
+                var assFontReferences: [ASSFontReferenceIntent] = []
+                do {
+                    switch format {
+                    case .srt, .vtt:
+                        cueGroups = try SRTParser.parseCueGroupsForIndexing(contents, format: format)
+                    case .ass, .ssa:
+                        cueGroups = try ASSParser.parseCueGroupsForIndexing(contents, format: format)
+                        assFontReferences = ASSFontIntentExtractor.references(from: contents)
+                    }
+                } catch {
+                    recordFileFailure(
+                        subtitleFile,
+                        reason: "Subtitle parsing did not complete: \(error)",
+                        result: &result,
+                        keptSubtitlePaths: &keptSubtitlePaths
+                    )
+                    continue
+                }
+
+                let finalObservation: SubtitleFileObservation
+                if isWebDAV {
+                    finalObservation = observation
+                } else {
+                    do {
+                        finalObservation = try SubtitleFileObservation.capture(
+                            subtitleFile
                         )
-                    } ?? true
-                )
-            )
+                    } catch {
+                        recordFileFailure(
+                            subtitleFile,
+                            reason: "Subtitle metadata could not be revalidated.",
+                            result: &result,
+                            keptSubtitlePaths: &keptSubtitlePaths
+                        )
+                        continue
+                    }
+                }
+                guard finalObservation == observation else {
+                    recordFileFailure(
+                        subtitleFile,
+                        reason: "Subtitle file changed while it was being indexed.",
+                        result: &result,
+                        keptSubtitlePaths: &keptSubtitlePaths
+                    )
+                    continue
+                }
 
-            keptSubtitlePaths.insert(subtitleMediaPath)
-            result.indexedSubtitleFiles += 1
-            result.indexedSubtitleEntries += cueGroups.count
+                guard !cueGroups.isEmpty else {
+                    continue
+                }
+
+                let rawCueCount = SubtitleRawCueCounter.count(in: contents, format: format)
+                let languageAnalysis = languageAnalyzer.analyze(format: format, cueGroups: cueGroups)
+                changedFiles.append(
+                    PreparedSubtitleIndexFile(
+                        subtitleFile: subtitleFile,
+                        videoFile: videoFile,
+                        format: format,
+                        cueGroups: cueGroups,
+                        assFontReferences: assFontReferences,
+                        fileSize: observation.fileSize,
+                        modifiedAt: observation.modifiedAt,
+                        rawCueCount: rawCueCount,
+                        videoFileSize: videoObservation?.fileSize,
+                        videoModifiedAt: videoObservation?.modifiedAt,
+                        languageAnalysis: languageAnalysis,
+                        refreshVideoMetadata: existingVideoMetadataByPath[
+                            videoFile.mediaPath
+                        ].map {
+                            videoBindingNeedsRefresh(
+                                metadata: $0,
+                                videoFile: videoFile,
+                                videoObservation: videoObservation
+                            )
+                        } ?? true
+                    )
+                )
+
+                keptSubtitlePaths.insert(subtitleMediaPath)
+                result.indexedSubtitleFiles += 1
+                result.indexedSubtitleEntries += cueGroups.count
+            }
         }
 
         let mutation = try database.publishLibraryIndex(
@@ -495,6 +666,7 @@ public struct SubtitleIndexer {
                 folder: folder,
                 changedFiles: changedFiles,
                 bindingRefreshes: bindingRefreshes,
+                rawCueCountRefreshes: rawCueCountRefreshes,
                 missingVideoSubtitleFiles: missingVideoSubtitleFiles,
                 keptSubtitlePaths: keptSubtitlePaths
             )
@@ -539,7 +711,6 @@ public struct SubtitleIndexer {
         modifiedAt: Date?
     ) throws -> Bool {
         guard metadata.fileSize == fileSize,
-              metadata.rawCueCount != nil,
               metadata.indexAlgorithmVersion == SubtitleCueIndexingRules.algorithmVersion,
               let existingModifiedAt = metadata.modifiedAt,
               let modifiedAt
