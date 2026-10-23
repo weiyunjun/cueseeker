@@ -289,17 +289,22 @@ final class PointerHoverSession: ObservableObject {
         let wasFrozen = self.isFrozen
         hasInitializedFreeze = true
         self.isFrozen = isFrozen
-        if !isFrozen, (wasFrozen || gate.hasActiveHover), currentPointerInsideView() == false {
+        if !isFrozen, (wasFrozen || gate.hasActiveHover), let pointerInside = currentPointerInsideView() {
+            let hadActiveHover = gate.hasActiveHover
             let scrollState = PointerHoverScrollState.shared
             let delivered = gate.report(
-                false,
+                pointerInside,
                 isFrozen: false,
                 isScrolling: scrollState.isScrolling,
                 isCursorHidden: AppCursorVisibility.isCursorHidden,
                 isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
             )
             syncScrollListener()
-            action?(delivered ?? false)
+            if let delivered {
+                action?(delivered)
+            } else if hadActiveHover, !pointerInside {
+                action?(false)
+            }
             return
         }
         guard wasFrozen != isFrozen else {
@@ -325,10 +330,30 @@ final class PointerHoverSession: ObservableObject {
 
     func handleStateChanged() {
         let scrollState = PointerHoverScrollState.shared
+        let isCursorHidden = AppCursorVisibility.isCursorHidden
+        if !isFrozen,
+           !scrollState.isScrolling,
+           !isCursorHidden,
+           !scrollState.isSuppressedByKeyboardOrController,
+           gate.hasActiveHover,
+           let pointerInside = currentPointerInsideView() {
+            let delivered = gate.report(
+                pointerInside,
+                isFrozen: false,
+                isScrolling: false,
+                isCursorHidden: false,
+                isSuppressedByKeyboard: false
+            )
+            syncScrollListener()
+            if let delivered {
+                action?(delivered)
+            }
+            return
+        }
         let delivered = gate.freezeChanged(
             isFrozen: isFrozen,
             isScrolling: scrollState.isScrolling,
-            isCursorHidden: AppCursorVisibility.isCursorHidden,
+            isCursorHidden: isCursorHidden,
             isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
         )
         syncScrollListener()

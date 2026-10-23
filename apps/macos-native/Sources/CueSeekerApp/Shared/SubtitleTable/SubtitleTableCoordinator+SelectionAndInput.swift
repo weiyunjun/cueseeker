@@ -233,6 +233,9 @@ extension SubtitleTableView.Coordinator {
     }
 
     @objc func scrollDebounceDidSettle(_ notification: Notification) {
+        guard !isCoveredByHigherLayer else {
+            return
+        }
         reevaluateHoverFromCurrentPointer()
         headerView?.refreshHoverFromWindow()
         headerView?.refreshHeaderHosts()

@@ -817,12 +817,15 @@ final class SubtitleVirtualTableHeaderView: NSView {
             context: coordinator.interfaceLayerContext
         )
 
-        if let host = hostVar {
+        if let host = hostVar as? SubtitleTablePageChromeHostingView {
+            host.coordinator = coordinator
             host.rootView = anyView
             host.frame = frame
             host.isHidden = false
         } else {
-            let host = CueSeekerHostingView(rootView: anyView)
+            hostVar?.removeFromSuperview()
+            let host = SubtitleTablePageChromeHostingView(rootView: anyView)
+            host.coordinator = coordinator
             host.wantsLayer = true
             host.layer?.masksToBounds = false
             addSubview(host)
@@ -854,12 +857,13 @@ final class SubtitleVirtualTableHeaderView: NSView {
             context: coordinator.interfaceLayerContext
         )
 
-        if let host = hostVar {
+        if let host = hostVar, !(host is SubtitleTablePageChromeHostingView) {
             host.rootView = anyView
             host.frame = frame
             host.isHidden = false
         } else {
-            let host = CueSeekerHostingView(rootView: anyView)
+            hostVar?.removeFromSuperview()
+            let host = NSHostingView(rootView: anyView)
             host.wantsLayer = true
             host.layer?.masksToBounds = false
             addSubview(host)
@@ -1100,6 +1104,11 @@ struct SubtitleTablePageScrollGeometry: Equatable {
 
 final class SubtitleTablePageChromeHostingView: CueSeekerHostingView<AnyView> {
     weak var scrollView: NSScrollView?
+    weak var coordinator: SubtitleTableView.Coordinator?
+
+    override var isHoverSyncSuppressedByCoveringLayer: Bool {
+        coordinator?.isPointerFrozen == true
+    }
 
     override func scrollWheel(with event: NSEvent) {
         scrollView?.scrollWheel(with: event)

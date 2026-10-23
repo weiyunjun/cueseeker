@@ -391,6 +391,10 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
         }
     }
 
+    var isHoverSyncSuppressedByCoveringLayer: Bool {
+        false
+    }
+
     var isWindowFocused: Bool {
         guard let window else {
             return false
@@ -399,6 +403,17 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
             return cueSeekerWindow.isFocusedForHover
         }
         return NSApp.isActive && window.isKeyWindow
+    }
+
+    private func performWithoutNextResponder(_ body: () -> Void) {
+        guard window?.contentView !== self else {
+            body()
+            return
+        }
+        let savedNextResponder = nextResponder
+        nextResponder = nil
+        defer { nextResponder = savedNextResponder }
+        body()
     }
 
     override func viewDidMoveToWindow() {
@@ -417,7 +432,9 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
             return
         }
         needsMouseReenterInSuper = false
-        super.mouseEntered(with: event)
+        performWithoutNextResponder {
+            super.mouseEntered(with: event)
+        }
     }
 
     override func mouseMoved(with event: NSEvent) {
@@ -425,18 +442,20 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
             needsMouseReenterInSuper = true
             return
         }
-        if needsMouseReenterInSuper {
-            needsMouseReenterInSuper = false
-            if let window,
-               let offscreenEvent = Self.makeMouseEvent(
-                   at: CGPoint(x: -10_000, y: -10_000),
-                   in: window
-               ) {
-                super.mouseExited(with: offscreenEvent)
+        performWithoutNextResponder {
+            if needsMouseReenterInSuper {
+                needsMouseReenterInSuper = false
+                if let window,
+                   let offscreenEvent = Self.makeMouseEvent(
+                       at: CGPoint(x: -10_000, y: -10_000),
+                       in: window
+                   ) {
+                    super.mouseExited(with: offscreenEvent)
+                }
+                super.mouseEntered(with: event)
             }
-            super.mouseEntered(with: event)
+            super.mouseMoved(with: event)
         }
-        super.mouseMoved(with: event)
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -445,7 +464,9 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
             return
         }
         needsMouseReenterInSuper = false
-        super.mouseExited(with: event)
+        performWithoutNextResponder {
+            super.mouseExited(with: event)
+        }
     }
 
     func syncMouseHoverForWindowFocus() {
@@ -455,6 +476,7 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
         if isWindowFocused {
             guard !AppCursorVisibility.isCursorHidden,
                   !PointerHoverScrollState.shared.isHoverSuppressed,
+                  !isHoverSyncSuppressedByCoveringLayer,
                   !isHiddenOrHasHiddenAncestor
             else {
                 return
@@ -463,7 +485,9 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
                 at: CGPoint(x: -10_000, y: -10_000),
                 in: window
             ) {
-                super.mouseExited(with: offscreenEvent)
+                performWithoutNextResponder {
+                    super.mouseExited(with: offscreenEvent)
+                }
             }
             let locationInWindow = mouseLocationOverrideForTesting
                 ?? window.mouseLocationOutsideOfEventStream
@@ -479,8 +503,10 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
                 return
             }
             needsMouseReenterInSuper = false
-            super.mouseEntered(with: moveEvent)
-            super.mouseMoved(with: moveEvent)
+            performWithoutNextResponder {
+                super.mouseEntered(with: moveEvent)
+                super.mouseMoved(with: moveEvent)
+            }
             if AppPointerShape.manages(window) {
                 AppPointerShape.pointerMoved(in: window, at: locationInWindow)
             }
@@ -495,7 +521,9 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
                 at: CGPoint(x: -10_000, y: -10_000),
                 in: window
             ) {
-                super.mouseExited(with: offscreenEvent)
+                performWithoutNextResponder {
+                    super.mouseExited(with: offscreenEvent)
+                }
             }
         }
     }

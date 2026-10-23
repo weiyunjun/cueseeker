@@ -450,7 +450,12 @@ struct SubtitleTableView: NSViewRepresentable {
         /// read a default context that is never frozen.
         var interfaceLayerContext = InterfaceLayerContext() {
             didSet {
-                guard interfaceLayerContext != oldValue else { return }
+                guard interfaceLayerContext.layer != oldValue.layer
+                    || interfaceLayerContext.isCovered != oldValue.isCovered
+                    || interfaceLayerContext.isFrozen != oldValue.isFrozen
+                else {
+                    return
+                }
                 updatePageChromeHosts()
                 guard interfaceLayerContext.isFrozen != oldValue.isFrozen
                 else {
@@ -812,11 +817,13 @@ struct SubtitleTableView: NSViewRepresentable {
                 context: interfaceLayerContext
             )
             if let scrollablePageChromeHost {
+                scrollablePageChromeHost.coordinator = self
                 scrollablePageChromeHost.rootView = scrollableRootView
             } else {
                 let host = SubtitleTablePageChromeHostingView(
                     rootView: scrollableRootView
                 )
+                host.coordinator = self
                 host.scrollView = scrollView
                 pageChromeViewport.addSubview(host)
                 scrollablePageChromeHost = host
@@ -828,11 +835,13 @@ struct SubtitleTableView: NSViewRepresentable {
                 context: interfaceLayerContext
             )
             if let pinnedPageChromeHost {
+                pinnedPageChromeHost.coordinator = self
                 pinnedPageChromeHost.rootView = pinnedRootView
             } else {
                 let host = SubtitleTablePageChromeHostingView(
                     rootView: pinnedRootView
                 )
+                host.coordinator = self
                 host.scrollView = scrollView
                 pageChromeViewport.addSubview(host)
                 pinnedPageChromeHost = host

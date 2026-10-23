@@ -426,4 +426,146 @@ struct PointerHoverGateTests {
         _ = thirdMenuToken
         #expect(hoveredButtons == [0])
     }
+
+    @MainActor
+    @Test
+    func exitingPlaybackOverlayWithNestedWorkbenchHostingViewPreservesPlayerButtonHover() {
+        AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+        defer { PointerHoverScrollState.shared.resetForTesting() }
+
+        let layers = InterfaceLayerRegistry()
+        var hoveredWorkbenchButtons: Set<Int> = []
+        var hoveredPlayerButtons: Set<Int> = []
+
+        let workbenchHeaderContent = HStack(spacing: 10) {
+            Rectangle()
+                .fill(Color.gray)
+                .frame(width: 40, height: 30)
+                .onPointerHover { isHovered in
+                    if isHovered {
+                        hoveredWorkbenchButtons.insert(0)
+                    } else {
+                        hoveredWorkbenchButtons.remove(0)
+                    }
+                }
+            Spacer()
+        }
+        .frame(width: 220, height: 30)
+
+        let rootView = ZStack {
+            VStack(spacing: 0) {
+                NestedCueSeekerHostingViewRepresentable(rootView: workbenchHeaderContent)
+                    .frame(width: 220, height: 30)
+                Spacer(minLength: 0)
+            }
+            .frame(width: 220, height: 100)
+            .interfaceLayer(.workbenchPage)
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                HStack(spacing: 10) {
+                    ForEach(0..<2, id: \.self) { index in
+                        Rectangle()
+                            .fill(Color.blue)
+                            .frame(width: 40, height: 30)
+                            .onPointerHover { isHovered in
+                                if isHovered {
+                                    hoveredPlayerButtons.insert(index)
+                                } else {
+                                    hoveredPlayerButtons.remove(index)
+                                }
+                            }
+                    }
+                    Spacer()
+                }
+                .frame(width: 220, height: 50)
+            }
+            .frame(width: 220, height: 100)
+            .interfaceLayer(.playbackPage)
+        }
+        .frame(width: 220, height: 100)
+        .modifier(InterfaceLayerCoverageBridge(layers: layers))
+
+        let window = CueSeekerWindow(
+            contentRect: NSRect(x: -5_000, y: -5_000, width: 220, height: 100),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isWindowFocusedOverrideForTesting = true
+        let host = CueSeekerHostingView(rootView: rootView)
+        window.contentView = host
+        window.orderFrontRegardless()
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+
+        layers.setOpen(.playbackPage, true)
+        layers.setOpen(.playbackOverlay, true)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(layers.isFrozen(.playbackPage))
+
+        // Move the pointer over Player button 0 (bottom bar at y = 25 in window
+        // coordinates, outside the top 220x30 nested workbench hosting view)
+        // while Playback Overlay is open, then close Playback Overlay.
+        let playerButton0Point = CGPoint(x: 20, y: 25)
+        host.mouseLocationOverrideForTesting = playerButton0Point
+        layers.setOpen(.playbackOverlay, false)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(!layers.isFrozen(.playbackPage))
+        #expect(hoveredPlayerButtons == [0])
+        #expect(hoveredWorkbenchButtons.isEmpty)
+
+        // Subsequent mouseMoved events on the root hosting view must continue to
+        // transition Hover between Player buttons and clear Hover in empty space.
+        let playerButton1Point = CGPoint(x: 70, y: 25)
+        host.mouseLocationOverrideForTesting = playerButton1Point
+        if let moveToButton1 = NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: playerButton1Point,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) {
+            host.mouseMoved(with: moveToButton1)
+        }
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(hoveredPlayerButtons == [1])
+        #expect(hoveredWorkbenchButtons.isEmpty)
+
+        let emptyPoint = CGPoint(x: 180, y: 25)
+        host.mouseLocationOverrideForTesting = emptyPoint
+        if let moveToEmpty = NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: emptyPoint,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) {
+            host.mouseMoved(with: moveToEmpty)
+        }
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(hoveredPlayerButtons.isEmpty)
+        #expect(hoveredWorkbenchButtons.isEmpty)
+    }
+}
+
+private struct NestedCueSeekerHostingViewRepresentable<Content: View>: NSViewRepresentable {
+    let rootView: Content
+
+    func makeNSView(context: Context) -> CueSeekerHostingView<Content> {
+        CueSeekerHostingView(rootView: rootView)
+    }
+
+    func updateNSView(_ nsView: CueSeekerHostingView<Content>, context: Context) {
+        nsView.rootView = rootView
+    }
 }
