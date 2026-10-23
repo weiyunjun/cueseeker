@@ -418,6 +418,14 @@ struct WebDAVBrowserCard: View {
         isDisabled || isSelected ? .checked : .unchecked
     }
 
+    var showsTrailingChevron: Bool {
+        isFolder && !isDisabled
+    }
+
+    var showsAddedBadge: Bool {
+        isFolder && isDisabled
+    }
+
     var icon: AppIcon {
         switch item.kind {
         case .folder:
@@ -513,16 +521,25 @@ struct WebDAVBrowserCard: View {
                                 .truncationMode(.tail)
                                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                            AppIconImage(
-                                .caretRight,
-                                size: WorkbenchControlMetrics.redesignCardChevronSize
-                            )
-                            .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                            .frame(
-                                width: WorkbenchControlMetrics.redesignCardChevronSize,
-                                height: WorkbenchControlMetrics.redesignIconButtonSize
-                            )
-                            .allowsHitTesting(false)
+                            if showsAddedBadge {
+                                WorkbenchBadge(
+                                    title: L("remote.browser.added"),
+                                    foregroundColor: WorkbenchRedesignColors.watchStatusFinishedText,
+                                    fillColor: WorkbenchRedesignColors.watchStatusFinishedBg
+                                )
+                                .allowsHitTesting(false)
+                            } else if showsTrailingChevron {
+                                AppIconImage(
+                                    .caretRight,
+                                    size: WorkbenchControlMetrics.redesignCardChevronSize
+                                )
+                                .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                                .frame(
+                                    width: WorkbenchControlMetrics.redesignCardChevronSize,
+                                    height: WorkbenchControlMetrics.redesignIconButtonSize
+                                )
+                                .allowsHitTesting(false)
+                            }
                         }
                         .padding(.vertical, WorkbenchControlMetrics.redesignSpacing4)
                         .padding(.trailing, WorkbenchControlMetrics.redesignSpacing4)

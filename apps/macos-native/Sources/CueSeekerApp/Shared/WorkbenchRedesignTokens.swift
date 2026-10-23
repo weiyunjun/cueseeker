@@ -161,24 +161,6 @@ enum WorkbenchRedesignColors {
         // A monochrome glyph: the outline circle unchecked, the filled circle
         // with a cut-out mark when checked or mixed. No background of its own.
         static let bgCheckboxChecked = NSColor.controlAccentColor
-        static let bgCheckboxCheckedDisabled = NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            guard let base = NSColor.controlAccentColor.usingColorSpace(.sRGB) else {
-                return NSColor.controlAccentColor.withAlphaComponent(0.45)
-            }
-            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-            base.getRed(&r, green: &g, blue: &b, alpha: &a)
-            let fraction: CGFloat = 0.55
-            let bgR: CGFloat = isDark ? (0x2E / 255.0) : 1.0
-            let bgG: CGFloat = isDark ? (0x2E / 255.0) : 1.0
-            let bgB: CGFloat = isDark ? (0x34 / 255.0) : 1.0
-            return NSColor(
-                srgbRed: r * (1.0 - fraction) + bgR * fraction,
-                green: g * (1.0 - fraction) + bgG * fraction,
-                blue: b * (1.0 - fraction) + bgB * fraction,
-                alpha: 1.0
-            )
-        }
 
         // Segmented Control
         static let segmentedControlSelectedBg = NSColor.controlAccentColor
@@ -388,7 +370,6 @@ enum WorkbenchRedesignColors {
 
     // Checkbox
     static let bgCheckboxChecked = Color(nsColor: NS.bgCheckboxChecked)
-    static let bgCheckboxCheckedDisabled = Color(nsColor: NS.bgCheckboxCheckedDisabled)
 
     // Segmented Control
     static let segmentedControlSelectedBg = Color(nsColor: NS.segmentedControlSelectedBg)

@@ -715,6 +715,7 @@
 "webdav.field.password" = "Password";
 "webdav.connect" = "Connect";
 "webdav.add" = "Add";
+"remote.browser.added" = "Added";
 "webdav.empty_folder_items" = "No folders, videos, or subtitles in this folder.";
 "common.back" = "Back";
 "webdav.error.name_empty" = "Enter a name";

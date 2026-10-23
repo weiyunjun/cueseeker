@@ -34,15 +34,14 @@ enum WorkbenchCheckboxStyle {
         for state: WorkbenchCheckboxState,
         isEnabled: Bool
     ) -> NSColor {
+        guard isEnabled else {
+            return WorkbenchRedesignColors.NS.textDisabled
+        }
         switch state {
         case .unchecked:
-            return isEnabled
-                ? WorkbenchRedesignColors.NS.borderCheckbox
-                : WorkbenchRedesignColors.NS.textDisabled
+            return WorkbenchRedesignColors.NS.borderCheckbox
         case .checked, .indeterminate:
-            return isEnabled
-                ? WorkbenchRedesignColors.NS.bgCheckboxChecked
-                : WorkbenchRedesignColors.NS.bgCheckboxCheckedDisabled
+            return WorkbenchRedesignColors.NS.bgCheckboxChecked
         }
     }
 

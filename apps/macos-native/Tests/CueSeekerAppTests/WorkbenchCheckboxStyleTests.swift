@@ -64,7 +64,7 @@ func appKitCheckboxSymbolsUseVariantPointSizeAndStayCentered() throws {
 
 @MainActor
 @Test
-func disabledCheckboxUsesDedicatedCheckedDisabledTokenAndRendersAtExpectedSize() throws {
+func disabledCheckboxUsesDisabledControlColorAndRendersAtExpectedSize() throws {
     let uncheckedDisabled = WorkbenchCheckboxStyle.controlColor(
         for: .unchecked,
         isEnabled: false
@@ -79,9 +79,8 @@ func disabledCheckboxUsesDedicatedCheckedDisabledTokenAndRendersAtExpectedSize()
     )
 
     #expect(uncheckedDisabled == WorkbenchRedesignColors.NS.textDisabled)
-    #expect(checkedDisabled == WorkbenchRedesignColors.NS.bgCheckboxCheckedDisabled)
-    #expect(indeterminateDisabled == WorkbenchRedesignColors.NS.bgCheckboxCheckedDisabled)
-    #expect(checkedDisabled != WorkbenchRedesignColors.NS.textDisabled)
+    #expect(checkedDisabled == WorkbenchRedesignColors.NS.textDisabled)
+    #expect(indeterminateDisabled == WorkbenchRedesignColors.NS.textDisabled)
     #expect(checkedDisabled != WorkbenchRedesignColors.NS.bgCheckboxChecked)
 
     let size = SubtitleTableMetrics.checkboxSize

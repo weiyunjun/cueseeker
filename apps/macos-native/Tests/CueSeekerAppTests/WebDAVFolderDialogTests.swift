@@ -457,9 +457,13 @@ struct WebDAVFolderDialogTests {
             onOpenFolder: {}
         )
         #expect(unselectedEnabledCard.checkboxState == .unchecked)
+        #expect(unselectedEnabledCard.showsTrailingChevron)
+        #expect(!unselectedEnabledCard.showsAddedBadge)
         #expect(selectedEnabledCard.checkboxState == .checked)
+        #expect(selectedEnabledCard.showsTrailingChevron)
+        #expect(!selectedEnabledCard.showsAddedBadge)
 
-        // Disabled folder cards always show a checked checkbox and keep tableBg even on hover.
+        // Disabled folder cards always show a checked checkbox, hide chevron, show the Added badge, and keep tableBg even on hover.
         let disabledCard = WebDAVBrowserCard(
             item: folderItem,
             isDisabled: true,
@@ -468,6 +472,8 @@ struct WebDAVFolderDialogTests {
             onOpenFolder: {}
         )
         #expect(disabledCard.checkboxState == .checked)
+        #expect(!disabledCard.showsTrailingChevron)
+        #expect(disabledCard.showsAddedBadge)
         #expect(
             WebDAVBrowserCard.resolveBackgroundFillColor(
                 isFolder: true,
