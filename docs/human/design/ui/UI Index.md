@@ -140,6 +140,7 @@
 | | `L-06.8` | File Detail Dialog Layout | 文件详情（Get Info）弹窗 |
 | | `L-06.9` | Task Panel Layout | 任务面板弹窗（Current / Completed / Incomplete 分段） |
 | | `L-06.10` | Task Card Layout | 任务卡片（基准双行与第 3 行进度条/报错展开对齐） |
+| | `L-06.11` | Task Detail Dialog Layout | 任务详情（Get Info）弹窗 |
 
 ## 3.2 播放相关布局（位于 [`UI Layouts - Playback.md`](UI%20Layouts%20-%20Playback.md)）
 

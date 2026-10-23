@@ -108,7 +108,7 @@
 | `copy` | Regular | 复制 | Search / Excerpt Toolbar / Copy Table；表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Playback Overlay 选中文字菜单 / Copy Selected Text；Playback Feedback（复制） |
 | `export` | Regular | 导出、更换封面 | Search / Excerpt Toolbar / Export to Anki；Library 卡片菜单 / Change Cover；Playback Feedback（导出长截图） |
 | `link-simple` | Regular | 链接 | Search / Excerpt Toolbar / Copy Deep Links；表格行菜单 / Copy Deep Link；Anki 卡片 / Deep Link，20px |
-| `info` | Regular | 简介、详情 | File Page 卡片菜单 / Get Info |
+| `info` | Regular | 简介、详情 | File Page 卡片菜单 / Get Info；Task Card 菜单 / Get Info |
 | `anki-star` | 实心 | Anki | Task Card / Export to Anki |
 
 ## 3.6 播放控制

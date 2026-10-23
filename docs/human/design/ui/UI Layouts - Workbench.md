@@ -1273,9 +1273,9 @@
 #### Trailing Actions
 
 - 统一使用 `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px），Hover 及菜单打开底色为 `--color-row-selected`，Pressed 底色为 `--color-row-action-bg-pressed`
-- 弹出菜单：
-  - Current：`Remove Task`（Destructive 警告项，图标 `minus-circle`）
-  - History（Completed / Incomplete）：`Delete Record`（Destructive 警告项，图标 `trash`）
+- 弹出菜单（菜单打开期间若任务状态变化离开当前标签页，菜单保持原位不消失，点击 `Get Info` 展示该任务最新状态）：
+  - Current：`Get Info`（Neutral，图标 `info`）、`Remove Task`（Destructive 警告项，图标 `minus-circle`）
+  - History（Completed / Incomplete）：`Get Info`（Neutral，图标 `info`）、`Delete Record`（Destructive 警告项，图标 `trash`）
 
 #### States
 
@@ -1283,3 +1283,36 @@
 - Queued
 - Completed
 - Incomplete
+
+### L-06.11 Task Detail Dialog Layout
+
+#### Structure
+
+1. Header
+   1. Title：`Task Info`
+   2. Close Button
+2. Content
+   1. Task Header Row：任务图标与纯任务类型名称（`Export to Anki`、`Rename Folder`、`Rename Files`、`Index All`、`Index`、`Add Folder`、`Remove Folder`）
+   2. Property Groups：Settings 风格卡片组，上方为业务信息分组（数量均为纯阿拉伯数字），最下方固定为 `Task Status` 分组
+      - Export to Anki：`Export Info`（File Name、Location、Card Count）
+      - Rename Folder：`Rename Info`（Original Path、New Path）
+      - Rename Files：`Rename Info`（Location、File Count）、`Original File Names`（`#1`、`#2`... 完整文件名含扩展名）、`New File Names`（`#1`、`#2`... 完整文件名含扩展名）
+      - Index：单文件夹为 `Index Info`（Path，以及仅 Completed 展示 Indexed Subtitles）；Index All 为 `Index Info`（Folder Count，以及仅 Completed 展示 Indexed Subtitles）、`Target Folders`（`#1`、`#2`... 完整文件夹路径）
+      - Add Folder：`Folder Info`（Path，以及仅 Completed 展示 Indexed Subtitles）
+      - Remove Folder：`Folder Info`（Path）
+      - Task Status：
+        - In Progress：Status、Current Stage、Progress（胶囊进度条与百分比，Remove Folder 无此行）、Created、Started
+        - Queued：Status、Created
+        - Completed：Status、Created、Started、Completed
+        - Incomplete：Status、Failure Reason（`--color-danger-text` 多行左对齐折行）、Created、Started（排队期间取消或中断未开始时为 `-`）、Ended
+
+#### Sizes
+
+- Width：`--width-dialog-x-large`
+- Task Icon Size：`--size-detail-file-icon-container`（40×40px，无底框系统强调色同色深浅大图标）
+
+#### Spacing
+
+- Inset：`--inset-dialog`
+- Region Gap：`--spacing-4`
+- Task Header Spacing：`--inset-dialog`
