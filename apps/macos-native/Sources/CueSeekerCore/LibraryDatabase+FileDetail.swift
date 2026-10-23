@@ -347,21 +347,21 @@ extension LibraryDatabase {
         if folderPath.isRemoteMediaPath {
             let folderURL = URL.fromMediaPath(folderPath).standardizedMediaURL
             let standardizedPath = folderURL.mediaPath
-            let normalized = MediaFolderPathMatching.normalizedFolderPath(standardizedPath)
-            let prefix = normalized.hasSuffix("/") ? normalized : normalized + "/"
-            return (standardizedPath, folderURL.lastPathComponent, [normalized], [prefix])
+            return (
+                standardizedPath,
+                folderURL.lastPathComponent,
+                MediaFolderPathMatching.folderPathVariants(forPath: standardizedPath),
+                MediaFolderPathMatching.folderPathPrefixes(forPath: standardizedPath)
+            )
         }
         let normalized = MediaFolderPathMatching.normalizedFolderPath(folderPath)
-        var variants = Set([normalized])
-        if normalized.hasPrefix("/var/") {
-            variants.insert("/private" + normalized)
-        } else if normalized.hasPrefix("/private/var/") {
-            variants.insert(String(normalized.dropFirst("/private".count)))
-        }
-        let sortedVariants = variants.sorted()
-        let prefixes = sortedVariants.map { $0.hasSuffix("/") ? $0 : $0 + "/" }
         let name = (normalized as NSString).lastPathComponent
-        return (normalized, name, sortedVariants, prefixes)
+        return (
+            normalized,
+            name,
+            MediaFolderPathMatching.folderPathVariants(forPath: normalized),
+            MediaFolderPathMatching.folderPathPrefixes(forPath: normalized)
+        )
     }
 
     private func folderDetailTimestamps(

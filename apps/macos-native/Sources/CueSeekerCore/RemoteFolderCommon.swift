@@ -905,33 +905,25 @@ public enum MediaFolderPathMatching {
         return path
     }
 
+    public static func folderPathPrefixes(forPath rawPath: String) -> [String] {
+        folderPathVariants(forPath: rawPath).map { variant in
+            variant.hasSuffix("/") ? variant : variant + "/"
+        }
+    }
+
     public static func folderPathPrefixes(for folder: URL) -> [String] {
-        var path = normalizedFolderPath(folder.mediaPath)
-        if !path.hasSuffix("/") {
-            path.append("/")
-        }
-
-        var prefixes = Set([path])
-        if !folder.isRemoteMediaURL {
-            if path.hasPrefix("/var/") {
-                prefixes.insert("/private" + path)
-            } else if path.hasPrefix("/private/var/") {
-                prefixes.insert(String(path.dropFirst("/private".count)))
-            }
-        }
-
-        return prefixes.sorted()
+        folderPathPrefixes(forPath: folder.mediaPath)
     }
 
     public static func folderPathPrefixes(for folders: [URL]) -> [String] {
         Array(Set(folders.flatMap(folderPathPrefixes(for:)))).sorted()
     }
 
-    public static func folderPathVariants(for folder: URL) -> [String] {
-        let path = normalizedFolderPath(folder.mediaPath)
+    public static func folderPathVariants(forPath rawPath: String) -> [String] {
+        let path = normalizedFolderPath(rawPath)
         var paths = Set([path])
 
-        if !folder.isRemoteMediaURL {
+        if !path.isRemoteMediaPath {
             if path.hasPrefix("/var/") {
                 paths.insert("/private" + path)
             } else if path.hasPrefix("/private/var/") {
@@ -940,6 +932,10 @@ public enum MediaFolderPathMatching {
         }
 
         return paths.sorted()
+    }
+
+    public static func folderPathVariants(for folder: URL) -> [String] {
+        folderPathVariants(forPath: folder.mediaPath)
     }
 
     public static func pathPrefixUpperBound(for prefix: String) -> String {
