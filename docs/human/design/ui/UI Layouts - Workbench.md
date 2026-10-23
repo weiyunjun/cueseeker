@@ -316,13 +316,13 @@
 - Checkbox / Form Checkbox：Bold、Italic
 - Color Well：Color、Outline Color、Background Color、Shadow Color
 - Segmented Control：Type、Horizontal、Vertical
-- Menu / Dropdown Menu：Font（顶部含 Search Field，无匹配项时显示 `No Results`）
+- Menu / Dropdown Menu：Font（首项为 `System Font`，其后为 Menu Divider 与按字母升序排列的系统字体列表；菜单项为 Radio Menu Item）
 - Button / Neutral：Restore Defaults
 
 #### Row
 
 1. 设置项名称
-2. 控件；Font 为宽度 `--width-settings-popup` 的下拉触发器，点击展开宽度 `--width-settings-font-menu`、最大高度 `--max-height-settings-font-menu` 的字体搜索菜单
+2. 控件；Font 为宽度 `--width-settings-popup` 的下拉触发器
 
 #### Layout
 

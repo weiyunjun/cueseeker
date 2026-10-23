@@ -289,7 +289,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--min-height-settings-window`: `420px`
 - `--height-settings-titlebar`: `36px`
 - `--min-height-settings-row`: `52px`
-- `--max-height-settings-font-menu`: `280px`
 - `--height-anki-export-card-box`: `288px`
 
 ### Size
@@ -366,7 +365,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-settings-window`: `880px`
 - `--width-settings-sidebar`: `184px`
 - `--width-settings-popup`: `180px`
-- `--width-settings-font-menu`: `240px`
 - `--size-settings-color-swatch`: `16px`
 - `--size-settings-color-preset-swatch`: `20px`
 - `--border-width-control`: `1px`
