@@ -1368,7 +1368,7 @@ func schema59UpgradesTo60WithRawCueCountAndVideoBitDepthColumns() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 60)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     let subtitleColumns = try sqliteColumnNames(in: "subtitle_files", databaseURL: databaseURL)
     #expect(subtitleColumns.contains("raw_cue_count"))
     let videoColumns = try sqliteColumnNames(in: "video_files", databaseURL: databaseURL)
@@ -1380,6 +1380,41 @@ func schema59UpgradesTo60WithRawCueCountAndVideoBitDepthColumns() throws {
             sql: "SELECT CAST(duration_retry_pending AS TEXT) FROM video_files WHERE path = '/Media/Show/Episode.mkv';"
         ) == "1"
     )
+}
+
+@Test
+func schema60UpgradesTo61WithTaskRecordStartedAtColumn() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        ALTER TABLE task_records DROP COLUMN started_at;
+        INSERT INTO task_records (
+            kind, file_name, folder_path, item_count, state,
+            error_message, created_at, state_changed_at, old_paths, new_paths
+        )
+        VALUES (
+            'anki_export', 'Deck.apkg', '/Exports', 10, 'completed',
+            NULL, '2026-01-01T00:00:00Z', '2026-01-01T00:01:00Z', NULL, NULL
+        );
+        PRAGMA user_version = 60;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 61)
+    let columns = try sqliteColumnNames(in: "task_records", databaseURL: databaseURL)
+    #expect(columns.contains("started_at"))
+    let records = try TaskRecordDatabase(path: databaseURL).records()
+    #expect(records.count == 1)
+    #expect(records.first?.fileName == "Deck.apkg")
+    #expect(records.first?.startedAt == nil)
 }
 
 

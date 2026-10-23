@@ -434,6 +434,19 @@ extension DatabaseBootstrap {
         }
     }
 
+    /// Schema 61 records when a task began running (`started_at`) so the Task
+    /// Detail dialog can show the start timestamp alongside creation and
+    /// completion/termination timestamps.
+    static func migrateSchema60To61(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let columns = try columnNames(of: "task_records", in: database)
+            if !columns.isEmpty, !columns.contains("started_at") {
+                try database.execute("ALTER TABLE task_records ADD COLUMN started_at TEXT;")
+            }
+            try database.execute("PRAGMA user_version = 61;")
+        }
+    }
+
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(

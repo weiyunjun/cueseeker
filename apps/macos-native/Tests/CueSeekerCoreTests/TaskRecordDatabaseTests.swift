@@ -20,7 +20,7 @@ func migratedSchemaCarriesTheTaskRecordTable() throws {
         try sqliteColumnNames(in: "task_records", databaseURL: databaseURL) == [
             "id", "kind", "file_name", "folder_path", "item_count",
             "state", "error_message", "created_at", "state_changed_at",
-            "old_paths", "new_paths"
+            "old_paths", "new_paths", "started_at"
         ]
     )
 }
@@ -46,6 +46,7 @@ func queuedTaskIsReadBackWithWhatItWillWrite() throws {
     #expect(records.first?.itemCount == 80)
     #expect(records.first?.state == .queued)
     #expect(records.first?.errorMessage == nil)
+    #expect(records.first?.startedAt == nil)
 }
 
 @Test
@@ -180,6 +181,74 @@ func unfinishedTasksFromAPreviousLaunchBecomeIncomplete() throws {
     #expect(records[0].errorMessage == "Interrupted")
     #expect(records[1].errorMessage == "Interrupted")
     #expect(records[2].errorMessage == nil)
+    #expect(records[0].startedAt == nil)
+    #expect(records[1].startedAt == Date(timeIntervalSince1970: 11))
+}
+
+@Test
+func startedAtIsSetOnRunningAndPreservedThroughCompletionOrIncomplete() throws {
+    let (database, databaseURL) = try makeTaskRecordDatabase()
+    defer { removeTemporaryDatabase(at: databaseURL) }
+
+    let createdTime = Date(timeIntervalSince1970: 100)
+    let startedTime = Date(timeIntervalSince1970: 105)
+    let completedTime = Date(timeIntervalSince1970: 120)
+
+    let cancelledWhileQueued = try database.insertQueuedTask(
+        kind: .ankiExport,
+        fileName: "QueuedCancelled.apkg",
+        folderPath: "/Exports",
+        itemCount: 5,
+        createdAt: createdTime
+    )
+    try database.updateState(
+        id: cancelledWhileQueued.id,
+        to: .incomplete,
+        errorMessage: "Cancelled by user",
+        changedAt: startedTime
+    )
+
+    let completed = try database.insertQueuedTask(
+        kind: .index,
+        fileName: "",
+        folderPath: "/Media/Show",
+        itemCount: 0,
+        oldPaths: ["/Media/Show"],
+        createdAt: createdTime
+    )
+    try database.updateState(
+        id: completed.id,
+        to: .running,
+        changedAt: startedTime
+    )
+    try database.updateItemCount(id: completed.id, to: 12)
+    try database.updateState(
+        id: completed.id,
+        to: .completed,
+        changedAt: completedTime
+    )
+
+    let recordsByID = Dictionary(
+        uniqueKeysWithValues: try database.records().map { ($0.id, $0) }
+    )
+    #expect(recordsByID[cancelledWhileQueued.id]?.startedAt == nil)
+    #expect(recordsByID[completed.id]?.startedAt == startedTime)
+    #expect(recordsByID[completed.id]?.stateChangedAt == completedTime)
+    #expect(recordsByID[completed.id]?.itemCount == 12)
+
+    let inMemoryQueued = cancelledWhileQueued.withState(
+        .incomplete,
+        errorMessage: "Cancelled by user",
+        changedAt: startedTime
+    )
+    #expect(inMemoryQueued.startedAt == nil)
+
+    let inMemoryRunning = completed
+        .withState(.running, errorMessage: nil, changedAt: startedTime)
+        .withItemCount(12)
+        .withState(.completed, errorMessage: nil, changedAt: completedTime)
+    #expect(inMemoryRunning.startedAt == startedTime)
+    #expect(inMemoryRunning.stateChangedAt == completedTime)
 }
 
 @Test

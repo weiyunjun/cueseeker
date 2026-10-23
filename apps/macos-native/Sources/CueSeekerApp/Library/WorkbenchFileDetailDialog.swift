@@ -447,6 +447,7 @@ struct FileDetailRow: View {
     let label: String
     let value: String
     var isIndex: Bool = false
+    var valueColor: Color = WorkbenchRedesignColors.textPrimary
 
     var body: some View {
         HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing4) {
@@ -465,7 +466,7 @@ struct FileDetailRow: View {
             Text(value)
                 .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
                 .monospacedDigit()
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                .foregroundStyle(valueColor)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
         }

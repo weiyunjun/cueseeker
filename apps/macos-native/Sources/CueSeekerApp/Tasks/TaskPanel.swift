@@ -153,7 +153,7 @@ struct TaskPanel: View {
                 label: L("common.close"),
                 shortcut: .fixed("Esc")
             )
-            .keyboardShortcut(confirmation.session == nil ? .cancelAction : nil)
+            .keyboardShortcut(confirmation.session == nil && tasks.detailTaskID == nil ? .cancelAction : nil)
             .accessibilityLabel(L("common.close"))
         }
         .frame(height: WorkbenchControlMetrics.redesignSegmentedControlHeight)
@@ -204,9 +204,18 @@ struct TaskPanel: View {
         }
     }
 
-    private func currentMenuItems(for entry: TaskQueueEntry) -> [WorkbenchCardMenuItem] {
+    func currentMenuItems(for entry: TaskQueueEntry) -> [WorkbenchCardMenuItem] {
         let isCancellable = entry.record.state != .running || entry.canBeRemovedWhileRunning
         return [
+            WorkbenchCardMenuItem(
+                title: L("task_detail.get_info"),
+                icon: .info,
+                isEnabled: true,
+                isDestructive: false,
+                action: {
+                    tasks.openTaskDetail(id: entry.id)
+                }
+            ),
             WorkbenchCardMenuItem(
                 title: L("task.menu.remove"),
                 icon: .minusCircle,
@@ -219,8 +228,17 @@ struct TaskPanel: View {
         ]
     }
 
-    private func historyMenuItems(for record: TaskRecord) -> [WorkbenchCardMenuItem] {
+    func historyMenuItems(for record: TaskRecord) -> [WorkbenchCardMenuItem] {
         [
+            WorkbenchCardMenuItem(
+                title: L("task_detail.get_info"),
+                icon: .info,
+                isEnabled: true,
+                isDestructive: false,
+                action: {
+                    tasks.openTaskDetail(id: record.id)
+                }
+            ),
             WorkbenchCardMenuItem(
                 title: L("task.menu.delete"),
                 icon: .trash,
@@ -718,5 +736,403 @@ extension TaskRecord {
             }
             return IndexingStore.displayName(for: URL.fromMediaPath(oldPaths.first ?? ""))
         }
+    }
+
+    var typeTitle: String {
+        switch kind {
+        case .ankiExport:
+            return L("task.name.anki_export")
+        case .renameFolder:
+            return L("rename.folder")
+        case .renameFiles:
+            return L("rename.files")
+        case .index:
+            return fileName.isEmpty ? L("task.title.index") : L("task.name.index")
+        case .addFolder:
+            return L("task.name.add_folder")
+        case .removeFolder:
+            return L("task.name.remove_folder")
+        }
+    }
+
+    var statusDetailText: String {
+        switch state {
+        case .running:
+            return L("task_detail.status.in_progress")
+        case .queued:
+            return L("task_detail.status.queued")
+        case .completed:
+            return L("task_detail.status.completed")
+        case .incomplete:
+            return L("task_detail.status.incomplete")
+        }
+    }
+
+    var renameFilesLocation: String {
+        if !folderPath.isEmpty {
+            return folderPath
+        }
+        if let firstOldPath = oldPaths.first, !firstOldPath.isEmpty {
+            return LibraryRenamer.parentPath(of: firstOldPath)
+        }
+        return "-"
+    }
+
+    @MainActor
+    func runningStageText(progress: TaskProgressModel) -> String {
+        switch kind {
+        case .ankiExport:
+            return L("task.progress.exported", progress.exportedCount, itemCount)
+        case .renameFolder, .renameFiles:
+            return progress.renameStage.label
+        case .index, .addFolder:
+            return progress.indexProgress.label
+        case .removeFolder:
+            return L("task.progress.removing")
+        }
+    }
+
+    @MainActor
+    func runningProgressFraction(progress: TaskProgressModel) -> Double {
+        switch kind {
+        case .ankiExport:
+            guard itemCount > 0 else { return 0 }
+            return min(1, Double(progress.exportedCount) / Double(itemCount))
+        case .renameFolder, .renameFiles:
+            return progress.renameStage.fraction
+        case .index, .addFolder:
+            return progress.indexProgress.fraction
+        case .removeFolder:
+            return 0
+        }
+    }
+}
+
+struct TaskDetailDialog: View {
+    let record: TaskRecord
+    let progress: TaskProgressModel?
+    let onClose: () -> Void
+
+    @Environment(\.workbenchDialogAvailableSize) private var availableSize
+
+    var body: some View {
+        VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+            WorkbenchDialogHeader(title: L("task_detail.title"))
+                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+
+            WorkbenchScrollView {
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                    taskHeaderRow
+                    businessGroups
+                    taskStatusGroup
+                }
+                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+                .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
+            }
+        }
+        .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
+        .frame(
+            maxHeight: max(
+                100,
+                availableSize.height
+                    - WorkbenchControlMetrics.redesignDialogTopPadding
+                    - WorkbenchControlMetrics.redesignDialogInset
+            )
+        )
+        .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthXLarge)
+        .background(WorkbenchRedesignColors.bgDialog)
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignDialogCornerRadius,
+                style: .continuous
+            )
+        )
+        .overlay(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignDialogCornerRadius,
+                style: .continuous
+            )
+            .strokeBorder(
+                WorkbenchRedesignColors.borderDivider,
+                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+            )
+        )
+        .workbenchDialogCloseButton(closesOnEscape: true, onClose: onClose)
+    }
+
+    private var taskHeaderRow: some View {
+        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignDialogInset) {
+            WorkbenchCardIcon(
+                icon: record.icon,
+                size: WorkbenchControlMetrics.redesignDetailFileIconContainerSize
+            )
+
+            Text(record.typeTitle)
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: WorkbenchControlMetrics.redesignFontWeightControl
+                ))
+                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: 2 * WorkbenchControlMetrics.redesignDetailFileTitleLineHeight,
+                    alignment: .leading
+                )
+        }
+    }
+
+    @ViewBuilder
+    private var businessGroups: some View {
+        switch record.kind {
+        case .ankiExport:
+            SettingsGroup(title: L("task_detail.section.export_info")) {
+                FileDetailRow(label: L("task_detail.file_name"), value: record.fileName)
+                SettingsRowDivider()
+                FileDetailRow(label: L("task_detail.location"), value: record.folderPath)
+                SettingsRowDivider()
+                FileDetailRow(label: L("task_detail.card_count"), value: "\(record.itemCount)")
+            }
+        case .renameFolder:
+            SettingsGroup(title: L("task_detail.section.rename_info")) {
+                FileDetailRow(
+                    label: L("task_detail.original_path"),
+                    value: record.oldPaths.first ?? "-"
+                )
+                SettingsRowDivider()
+                FileDetailRow(
+                    label: L("task_detail.new_path"),
+                    value: record.newPaths.first ?? "-"
+                )
+            }
+        case .renameFiles:
+            SettingsGroup(title: L("task_detail.section.rename_info")) {
+                FileDetailRow(
+                    label: L("task_detail.location"),
+                    value: record.renameFilesLocation
+                )
+                SettingsRowDivider()
+                FileDetailRow(
+                    label: L("task_detail.file_count"),
+                    value: "\(record.itemCount)"
+                )
+            }
+
+            SettingsGroup(title: L("task_detail.section.original_file_names")) {
+                indexedFileNamesRows(record.oldPaths)
+            }
+
+            SettingsGroup(title: L("task_detail.section.new_file_names")) {
+                indexedFileNamesRows(record.newPaths)
+            }
+        case .index:
+            if !record.fileName.isEmpty {
+                SettingsGroup(title: L("task_detail.section.index_info")) {
+                    FileDetailRow(
+                        label: L("task_detail.path"),
+                        value: record.oldPaths.first ?? "-"
+                    )
+                    if record.state == .completed {
+                        SettingsRowDivider()
+                        FileDetailRow(
+                            label: L("task_detail.indexed_subtitles"),
+                            value: "\(record.itemCount)"
+                        )
+                    }
+                }
+            } else {
+                SettingsGroup(title: L("task_detail.section.index_info")) {
+                    FileDetailRow(
+                        label: L("task_detail.folder_count"),
+                        value: "\(record.oldPaths.count)"
+                    )
+                    if record.state == .completed {
+                        SettingsRowDivider()
+                        FileDetailRow(
+                            label: L("task_detail.indexed_subtitles"),
+                            value: "\(record.itemCount)"
+                        )
+                    }
+                }
+
+                SettingsGroup(title: L("task_detail.section.target_folders")) {
+                    indexedPathRows(record.oldPaths)
+                }
+            }
+        case .addFolder:
+            SettingsGroup(title: L("task_detail.section.folder_info")) {
+                FileDetailRow(
+                    label: L("task_detail.path"),
+                    value: record.oldPaths.first ?? "-"
+                )
+                if record.state == .completed {
+                    SettingsRowDivider()
+                    FileDetailRow(
+                        label: L("task_detail.indexed_subtitles"),
+                        value: "\(record.itemCount)"
+                    )
+                }
+            }
+        case .removeFolder:
+            SettingsGroup(title: L("task_detail.section.folder_info")) {
+                FileDetailRow(
+                    label: L("task_detail.path"),
+                    value: record.oldPaths.first ?? "-"
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func indexedFileNamesRows(_ paths: [String]) -> some View {
+        if paths.isEmpty {
+            FileDetailRow(label: "#1", value: "-", isIndex: true)
+        } else {
+            ForEach(Array(paths.enumerated()), id: \.offset) { index, path in
+                if index > 0 {
+                    SettingsRowDivider()
+                }
+                FileDetailRow(
+                    label: "#\(index + 1)",
+                    value: LibraryRenamer.lastPathComponent(of: path),
+                    isIndex: true
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func indexedPathRows(_ paths: [String]) -> some View {
+        if paths.isEmpty {
+            FileDetailRow(label: "#1", value: "-", isIndex: true)
+        } else {
+            ForEach(Array(paths.enumerated()), id: \.offset) { index, path in
+                if index > 0 {
+                    SettingsRowDivider()
+                }
+                FileDetailRow(
+                    label: "#\(index + 1)",
+                    value: path,
+                    isIndex: true
+                )
+            }
+        }
+    }
+
+    private var taskStatusGroup: some View {
+        SettingsGroup(title: L("task_detail.section.task_status")) {
+            FileDetailRow(
+                label: L("task_detail.status"),
+                value: record.statusDetailText
+            )
+
+            if record.state == .running, let progress {
+                TaskDetailRunningRows(record: record, progress: progress)
+            }
+
+            if record.state == .incomplete {
+                SettingsRowDivider()
+                FileDetailRow(
+                    label: L("task_detail.failure_reason"),
+                    value: record.errorMessage ?? "-",
+                    valueColor: WorkbenchRedesignColors.dangerText
+                )
+            }
+
+            SettingsRowDivider()
+            FileDetailRow(
+                label: L("task_detail.created"),
+                value: WorkbenchFileDetailDialog.dateText(record.createdAt)
+            )
+
+            if record.state != .queued {
+                SettingsRowDivider()
+                FileDetailRow(
+                    label: L("task_detail.started"),
+                    value: WorkbenchFileDetailDialog.dateText(record.startedAt)
+                )
+            }
+
+            if record.state == .completed {
+                SettingsRowDivider()
+                FileDetailRow(
+                    label: L("task_detail.completed"),
+                    value: WorkbenchFileDetailDialog.dateText(record.stateChangedAt)
+                )
+            }
+
+            if record.state == .incomplete {
+                SettingsRowDivider()
+                FileDetailRow(
+                    label: L("task_detail.ended"),
+                    value: WorkbenchFileDetailDialog.dateText(record.stateChangedAt)
+                )
+            }
+        }
+    }
+}
+
+private struct TaskDetailRunningRows: View {
+    let record: TaskRecord
+    @ObservedObject var progress: TaskProgressModel
+
+    var body: some View {
+        SettingsRowDivider()
+        FileDetailRow(
+            label: L("task_detail.current_stage"),
+            value: record.runningStageText(progress: progress)
+        )
+
+        if record.kind != .removeFolder {
+            SettingsRowDivider()
+            TaskDetailProgressRow(
+                label: L("task_detail.progress"),
+                fraction: record.runningProgressFraction(progress: progress)
+            )
+        }
+    }
+}
+
+private struct TaskDetailProgressRow: View {
+    let label: String
+    let fraction: Double
+
+    private var clampedFraction: Double {
+        max(0, min(1, fraction))
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+            Text(label)
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
+                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                .frame(
+                    minWidth: WorkbenchControlMetrics.redesignDetailLabelMinWidth,
+                    alignment: .leading
+                )
+
+            Spacer(minLength: WorkbenchControlMetrics.redesignSpacing4)
+
+            HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(WorkbenchRedesignColors.libraryProgressTrack)
+
+                    Capsule()
+                        .fill(WorkbenchRedesignColors.libraryProgressFill)
+                        .frame(width: 140 * clampedFraction)
+                }
+                .frame(width: 140, height: WorkbenchControlMetrics.redesignTaskProgressBarHeight)
+
+                Text("\(Int((clampedFraction * 100).rounded()))%")
+                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
+                    .monospacedDigit()
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+            }
+        }
+        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+        .padding(.vertical, WorkbenchControlMetrics.redesignSettingsRowVerticalPadding)
+        .frame(minHeight: WorkbenchControlMetrics.redesignSettingsRowMinHeight)
     }
 }

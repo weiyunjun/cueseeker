@@ -669,6 +669,39 @@
 "file_detail.modified" = "修改時間";
 "file_detail.none" = "無";
 
+/* Task Detail Dialog */
+"task_detail.get_info" = "查看詳情";
+"task_detail.title" = "任務詳情";
+"task_detail.section.export_info" = "匯出資訊";
+"task_detail.section.rename_info" = "重新命名資訊";
+"task_detail.section.original_file_names" = "修改前檔案名稱";
+"task_detail.section.new_file_names" = "修改後檔案名稱";
+"task_detail.section.index_info" = "索引資訊";
+"task_detail.section.target_folders" = "目標資料夾";
+"task_detail.section.folder_info" = "資料夾資訊";
+"task_detail.section.task_status" = "任務狀態";
+"task_detail.file_name" = "檔案名稱";
+"task_detail.location" = "所在路徑";
+"task_detail.card_count" = "卡片數量";
+"task_detail.original_path" = "原路徑";
+"task_detail.new_path" = "新路徑";
+"task_detail.file_count" = "檔案數量";
+"task_detail.path" = "路徑";
+"task_detail.folder_count" = "資料夾數量";
+"task_detail.indexed_subtitles" = "已索引字幕";
+"task_detail.status" = "狀態";
+"task_detail.status.in_progress" = "正在執行";
+"task_detail.status.queued" = "排隊中";
+"task_detail.status.completed" = "已完成";
+"task_detail.status.incomplete" = "未完成";
+"task_detail.current_stage" = "目前階段";
+"task_detail.progress" = "進度";
+"task_detail.failure_reason" = "失敗原因";
+"task_detail.created" = "建立時間";
+"task_detail.started" = "開始時間";
+"task_detail.completed" = "完成時間";
+"task_detail.ended" = "終止時間";
+
 /* WebDAV Folder Support */
 "file.all_folders.one" = "全部資料夾";
 "file.all_folders.other" = "全部資料夾";

@@ -28,6 +28,9 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
     public let state: TaskRecordState
     public let errorMessage: String?
     public let createdAt: Date
+    /// When the task entered the `.running` state, or `nil` while still queued
+    /// or if cancelled before it ever began running.
+    public let startedAt: Date?
     /// When the task entered the state it is in. The history tabs show it.
     public let stateChangedAt: Date
     /// What a rename task moves, as absolute paths before and after; the
@@ -45,6 +48,7 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
         state: TaskRecordState,
         errorMessage: String?,
         createdAt: Date,
+        startedAt: Date? = nil,
         stateChangedAt: Date,
         oldPaths: [String] = [],
         newPaths: [String] = []
@@ -57,6 +61,7 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
         self.state = state
         self.errorMessage = errorMessage
         self.createdAt = createdAt
+        self.startedAt = startedAt
         self.stateChangedAt = stateChangedAt
         self.oldPaths = oldPaths
         self.newPaths = newPaths
@@ -74,6 +79,7 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
             state: state,
             errorMessage: errorMessage,
             createdAt: createdAt,
+            startedAt: startedAt,
             stateChangedAt: stateChangedAt,
             oldPaths: oldPaths,
             newPaths: newPaths
@@ -94,6 +100,7 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
             state: state,
             errorMessage: errorMessage,
             createdAt: createdAt,
+            startedAt: state == .running ? (startedAt ?? changedAt) : startedAt,
             stateChangedAt: changedAt,
             oldPaths: oldPaths,
             newPaths: newPaths
@@ -124,7 +131,8 @@ public final class TaskRecordDatabase: @unchecked Sendable {
                created_at,
                state_changed_at,
                old_paths,
-               new_paths
+               new_paths,
+               started_at
         FROM task_records
         """
 
@@ -228,18 +236,27 @@ public final class TaskRecordDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             UPDATE task_records
-            SET state = ?, error_message = ?, state_changed_at = ?
+            SET state = ?,
+                error_message = ?,
+                state_changed_at = ?,
+                started_at = COALESCE(started_at, ?)
             WHERE id = ?;
             """
         )
+        let changedTimestamp = Self.timestamp(from: changedAt)
         try statement.bind(state.rawValue, at: 1)
         if let errorMessage {
             try statement.bind(errorMessage, at: 2)
         } else {
             try statement.bindNull(at: 2)
         }
-        try statement.bind(Self.timestamp(from: changedAt), at: 3)
-        try statement.bind(id, at: 4)
+        try statement.bind(changedTimestamp, at: 3)
+        if state == .running {
+            try statement.bind(changedTimestamp, at: 4)
+        } else {
+            try statement.bindNull(at: 4)
+        }
+        try statement.bind(id, at: 5)
         try statement.run()
     }
 
@@ -299,6 +316,7 @@ public final class TaskRecordDatabase: @unchecked Sendable {
             state: state,
             errorMessage: statement.nullableStringColumn(6),
             createdAt: createdAt,
+            startedAt: statement.nullableStringColumn(11).flatMap(date(from:)),
             stateChangedAt: date(from: statement.stringColumn(8)) ?? createdAt,
             oldPaths: paths(from: statement.nullableStringColumn(9)),
             newPaths: paths(from: statement.nullableStringColumn(10))

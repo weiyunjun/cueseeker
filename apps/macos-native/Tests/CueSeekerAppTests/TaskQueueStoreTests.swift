@@ -922,4 +922,327 @@ func enqueueAddFoldersStartsFirstAndQueuesRemainingInOrder() async throws {
     #expect(finishingStore.completed.map(\.fileName) == ["Season 2", "Season 1"])
 }
 
+@MainActor
+@Test
+func taskRecordTypeTitleAndDetailHelpersFollowSpecification() async throws {
+    defer { AppLocalization.apply(.english) }
+    AppLocalization.apply(.english)
+
+    let now = Date()
+    let ankiRecord = TaskRecord(
+        id: 1,
+        kind: .ankiExport,
+        fileName: "japanese_core_2k.apkg",
+        folderPath: "/Exports",
+        itemCount: 4,
+        state: .running,
+        errorMessage: nil,
+        createdAt: now,
+        startedAt: now,
+        stateChangedAt: now
+    )
+    #expect(ankiRecord.typeTitle == "Export to Anki")
+    #expect(ankiRecord.statusDetailText == "In Progress")
+
+    let renameFolderRecord = TaskRecord(
+        id: 2,
+        kind: .renameFolder,
+        fileName: "Season 01 [FLAC]",
+        folderPath: "",
+        itemCount: 1,
+        state: .queued,
+        errorMessage: nil,
+        createdAt: now,
+        stateChangedAt: now,
+        oldPaths: ["/Videos/Season 01"],
+        newPaths: ["/Videos/Season 01 [FLAC]"]
+    )
+    #expect(renameFolderRecord.typeTitle == "Rename Folder")
+    #expect(renameFolderRecord.statusDetailText == "Queued")
+
+    let renameFilesFromOldPath = TaskRecord(
+        id: 3,
+        kind: .renameFiles,
+        fileName: "ep01-remastered",
+        folderPath: "",
+        itemCount: 2,
+        state: .completed,
+        errorMessage: nil,
+        createdAt: now,
+        startedAt: now,
+        stateChangedAt: now,
+        oldPaths: ["/Videos/Anime/ep01.mkv", "/Videos/Anime/ep01.srt"],
+        newPaths: ["/Videos/Anime/ep01-remastered.mkv", "/Videos/Anime/ep01-remastered.srt"]
+    )
+    #expect(renameFilesFromOldPath.typeTitle == "Rename Files")
+    #expect(renameFilesFromOldPath.statusDetailText == "Completed")
+    #expect(renameFilesFromOldPath.renameFilesLocation == "/Videos/Anime")
+
+    let renameFilesExplicitFolder = TaskRecord(
+        id: 31,
+        kind: .renameFiles,
+        fileName: "ep01",
+        folderPath: "/Custom/Location",
+        itemCount: 1,
+        state: .completed,
+        errorMessage: nil,
+        createdAt: now,
+        startedAt: now,
+        stateChangedAt: now
+    )
+    #expect(renameFilesExplicitFolder.renameFilesLocation == "/Custom/Location")
+
+    let renameFilesEmptyLocation = TaskRecord(
+        id: 32,
+        kind: .renameFiles,
+        fileName: "ep01",
+        folderPath: "",
+        itemCount: 0,
+        state: .incomplete,
+        errorMessage: "Failed",
+        createdAt: now,
+        stateChangedAt: now
+    )
+    #expect(renameFilesEmptyLocation.renameFilesLocation == "-")
+    #expect(renameFilesEmptyLocation.statusDetailText == "Incomplete")
+
+    let indexAllRecord = TaskRecord(
+        id: 4,
+        kind: .index,
+        fileName: "",
+        folderPath: "",
+        itemCount: 0,
+        state: .running,
+        errorMessage: nil,
+        createdAt: now,
+        startedAt: now,
+        stateChangedAt: now,
+        oldPaths: ["/Videos/Anime", "/Videos/Movies"]
+    )
+    #expect(indexAllRecord.typeTitle == "Index All")
+
+    let indexFolderRecord = TaskRecord(
+        id: 5,
+        kind: .index,
+        fileName: "Anime",
+        folderPath: "",
+        itemCount: 0,
+        state: .running,
+        errorMessage: nil,
+        createdAt: now,
+        startedAt: now,
+        stateChangedAt: now,
+        oldPaths: ["/Videos/Anime"]
+    )
+    #expect(indexFolderRecord.typeTitle == "Index")
+
+    let addFolderRecord = TaskRecord(
+        id: 6,
+        kind: .addFolder,
+        fileName: "Documentary 2026",
+        folderPath: "",
+        itemCount: 0,
+        state: .running,
+        errorMessage: nil,
+        createdAt: now,
+        startedAt: now,
+        stateChangedAt: now,
+        oldPaths: ["/Videos/Documentary 2026"]
+    )
+    #expect(addFolderRecord.typeTitle == "Add Folder")
+
+    let removeFolderRecord = TaskRecord(
+        id: 7,
+        kind: .removeFolder,
+        fileName: "OldArchiveFolder",
+        folderPath: "",
+        itemCount: 0,
+        state: .running,
+        errorMessage: nil,
+        createdAt: now,
+        startedAt: now,
+        stateChangedAt: now,
+        oldPaths: ["/Videos/OldArchiveFolder"]
+    )
+    #expect(removeFolderRecord.typeTitle == "Remove Folder")
+
+    let zeroItemAnkiRecord = ankiRecord.withItemCount(0)
+    let defaultProgress = TaskProgressModel()
+    #expect(zeroItemAnkiRecord.runningProgressFraction(progress: defaultProgress) == 0)
+    #expect(removeFolderRecord.runningStageText(progress: defaultProgress) == L("task.progress.removing"))
+    #expect(removeFolderRecord.runningProgressFraction(progress: defaultProgress) == 0)
+
+    let (store, databaseURL) = try makeTaskQueueStore(
+        runExport: { _, _, _, onItemExported in
+            onItemExported(2)
+        },
+        runRename: { _, onStage in
+            onStage(.renaming)
+        }
+    )
+    defer { removeTemporaryDatabase(at: databaseURL) }
+
+    store.enqueueAnkiExport(
+        items: exportItems(4),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
+    )
+    store.enqueueRename(
+        showFolderRename,
+        oldPaths: ["/Videos/Show"],
+        newPaths: ["/Videos/Show Renamed"]
+    )
+
+    let runningExport = try #require(store.current.first(where: { $0.record.kind == .ankiExport }))
+    let runningRename = try #require(store.current.first(where: { $0.record.kind == .renameFolder }))
+    await store.waitUntilIdle()
+
+    #expect(runningExport.record.runningStageText(progress: runningExport.progress) == L("task.progress.exported", 2, 4))
+    #expect(runningExport.record.runningProgressFraction(progress: runningExport.progress) == 0.5)
+    #expect(runningRename.record.runningStageText(progress: runningRename.progress) == TaskRenameStage.renaming.label)
+    #expect(runningRename.record.runningProgressFraction(progress: runningRename.progress) == 0.5)
+    #expect(indexFolderRecord.runningStageText(progress: defaultProgress) == defaultProgress.indexProgress.label)
+    #expect(indexFolderRecord.runningProgressFraction(progress: defaultProgress) == defaultProgress.indexProgress.fraction)
+}
+
+@MainActor
+@Test
+func taskDetailSelectionAndSnapshotTrackLiveTransitionsAndCleanup() async throws {
+    let (store, databaseURL) = try makeTaskQueueStore()
+    defer { removeTemporaryDatabase(at: databaseURL) }
+
+    // Unknown ID is ignored.
+    store.openTaskDetail(id: 999_999)
+    #expect(store.detailTaskID == nil)
+    #expect(store.taskDetailSnapshot(for: 999_999) == nil)
+
+    store.enqueueAnkiExport(
+        items: exportItems(2),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
+    )
+    store.enqueueAnkiExport(
+        items: exportItems(3),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/Second.apkg")
+    )
+
+    let firstID = try #require(store.current.first?.id)
+    let secondID = try #require(store.current.last?.id)
+
+    // Open detail on the second task while it is queued.
+    store.openTaskDetail(id: secondID)
+    #expect(store.detailTaskID == secondID)
+    let queuedSnapshot = try #require(store.taskDetailSnapshot(for: secondID))
+    #expect(queuedSnapshot.record.state == .queued)
+    #expect(queuedSnapshot.progress != nil)
+
+    // Remove first task -> second task transitions from queued to running while detail stays open.
+    store.removeCurrentTask(id: firstID)
+    await waitUntil { store.current.first?.id == secondID && store.current.first?.record.state == .running }
+
+    #expect(store.detailTaskID == secondID)
+    let runningSnapshot = try #require(store.taskDetailSnapshot(for: secondID))
+    #expect(runningSnapshot.record.state == .running)
+    #expect(runningSnapshot.progress != nil)
+
+    // Enqueue a third task that will finish immediately once started, then remove second task.
+    store.runExport = { _, _, _, _ in }
+    store.enqueueAnkiExport(
+        items: exportItems(1),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/Third.apkg")
+    )
+    let thirdID = try #require(store.current.last?.id)
+
+    // Removing second task transitions it from running to incomplete while detailTaskID remains secondID,
+    // and lets third task start and complete into Completed.
+    store.removeCurrentTask(id: secondID)
+    await waitUntil { store.current.isEmpty }
+
+    #expect(store.detailTaskID == secondID)
+    let incompleteSnapshot = try #require(store.taskDetailSnapshot(for: secondID))
+    #expect(incompleteSnapshot.record.state == .incomplete)
+    #expect(incompleteSnapshot.progress == nil)
+
+    store.openTaskDetail(id: thirdID)
+    #expect(store.detailTaskID == thirdID)
+    let completedSnapshot = try #require(store.taskDetailSnapshot(for: thirdID))
+    #expect(completedSnapshot.record.state == .completed)
+    #expect(completedSnapshot.progress == nil)
+
+    // Deleting a different record keeps detailTaskID intact; deleting the viewed record clears it.
+    store.deleteRecord(id: firstID)
+    #expect(store.detailTaskID == thirdID)
+    store.deleteRecord(id: thirdID)
+    #expect(store.detailTaskID == nil)
+    #expect(store.taskDetailSnapshot(for: thirdID) == nil)
+
+    // closeTaskDetail() and closePanel() both clear detailTaskID.
+    store.openPanel()
+    store.openTaskDetail(id: secondID)
+    #expect(store.detailTaskID == secondID)
+    store.closeTaskDetail()
+    #expect(store.detailTaskID == nil)
+
+    store.openTaskDetail(id: secondID)
+    #expect(store.detailTaskID == secondID)
+    store.closePanel()
+    #expect(store.detailTaskID == nil)
+    #expect(!store.isPanelOpen)
+}
+
+@MainActor
+@Test
+func startedAtIsNilWhileQueuedSetWhenRunningAndPreservedInHistory() async throws {
+    let (store, databaseURL) = try makeTaskQueueStore()
+    defer { removeTemporaryDatabase(at: databaseURL) }
+
+    store.enqueueAnkiExport(
+        items: exportItems(1),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
+    )
+    store.enqueueAnkiExport(
+        items: exportItems(1),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/Second.apkg")
+    )
+    store.enqueueAnkiExport(
+        items: exportItems(1),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/Third.apkg")
+    )
+
+    let firstEntry = try #require(store.current.first)
+    let secondEntry = try #require(store.current.dropFirst().first)
+    let thirdEntry = try #require(store.current.last)
+
+    #expect(firstEntry.record.state == .running)
+    let firstStartedAt = try #require(firstEntry.record.startedAt)
+    #expect(secondEntry.record.state == .queued)
+    #expect(secondEntry.record.startedAt == nil)
+    #expect(thirdEntry.record.state == .queued)
+    #expect(thirdEntry.record.startedAt == nil)
+
+    // Cancelling a queued task leaves startedAt as nil in Incomplete.
+    store.removeCurrentTask(id: thirdEntry.id)
+    let cancelledQueued = try #require(store.incomplete.first(where: { $0.id == thirdEntry.id }))
+    #expect(cancelledQueued.startedAt == nil)
+
+    // Configure the next export to complete immediately, then cancel the running first task.
+    store.runExport = { _, _, _, _ in }
+    store.removeCurrentTask(id: firstEntry.id)
+    await waitUntil { store.current.isEmpty }
+
+    // Cancelling the running first task preserves its startedAt in Incomplete.
+    let cancelledRunning = try #require(store.incomplete.first(where: { $0.id == firstEntry.id }))
+    #expect(cancelledRunning.startedAt == firstStartedAt)
+
+    // Completing the second task preserves its non-nil startedAt in Completed.
+    let completedSecond = try #require(store.completed.first(where: { $0.id == secondEntry.id }))
+    #expect(completedSecond.startedAt != nil)
+}
+
+
 

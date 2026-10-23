@@ -272,6 +272,8 @@ final class TaskQueueStore: ObservableObject {
     @Published private(set) var isPanelOpen = false
     /// Which tab the panel shows. Not persisted, and reset by every open.
     @Published var selectedTab: TaskQueueTab = .current
+    /// The task record currently shown in the Task Info dialog, if any.
+    @Published private(set) var detailTaskID: Int64?
     /// The open Export to Anki dialog, whose Export queues its task here.
     @Published var ankiExportSession: AnkiExportSession?
 
@@ -574,6 +576,9 @@ final class TaskQueueStore: ObservableObject {
     }
 
     func deleteRecord(id: Int64) {
+        if detailTaskID == id {
+            detailTaskID = nil
+        }
         completed.removeAll { $0.id == id }
         incomplete.removeAll { $0.id == id }
         let database = self.database
@@ -594,7 +599,32 @@ final class TaskQueueStore: ObservableObject {
     }
 
     func closePanel() {
+        detailTaskID = nil
         isPanelOpen = false
+    }
+
+    func openTaskDetail(id: Int64) {
+        guard taskDetailSnapshot(for: id) != nil else {
+            return
+        }
+        detailTaskID = id
+    }
+
+    func closeTaskDetail() {
+        detailTaskID = nil
+    }
+
+    func taskDetailSnapshot(for id: Int64) -> (record: TaskRecord, progress: TaskProgressModel?)? {
+        if let entry = current.first(where: { $0.id == id }) {
+            return (entry.record, entry.progress)
+        }
+        if let record = completed.first(where: { $0.id == id }) {
+            return (record, nil)
+        }
+        if let record = incomplete.first(where: { $0.id == id }) {
+            return (record, nil)
+        }
+        return nil
     }
 
     // MARK: - Running

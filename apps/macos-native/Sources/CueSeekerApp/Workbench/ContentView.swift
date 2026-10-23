@@ -353,7 +353,18 @@ private struct ContentDialogLayerHost: View {
 
             if tasks.isPanelOpen {
                 TaskPanel(tasks: tasks, confirmation: confirmation)
-                    .workbenchDialog(isCovered: confirmation.session != nil)
+                    .workbenchDialog(isCovered: confirmation.session != nil || tasks.detailTaskID != nil)
+            }
+
+            if let detailTaskID = tasks.detailTaskID,
+               let snapshot = tasks.taskDetailSnapshot(for: detailTaskID)
+            {
+                TaskDetailDialog(
+                    record: snapshot.record,
+                    progress: snapshot.progress,
+                    onClose: tasks.closeTaskDetail
+                )
+                .workbenchDialog(level: 2)
             }
 
             if let session = confirmation.session {
@@ -400,6 +411,11 @@ private struct ContentDialogLayerHost: View {
         }
         if tasks.isPanelOpen {
             ids.append("task-panel")
+        }
+        if let detailTaskID = tasks.detailTaskID,
+           tasks.taskDetailSnapshot(for: detailTaskID) != nil
+        {
+            ids.append("task-detail-\(detailTaskID)")
         }
         if let session = confirmation.session {
             ids.append(session.id)

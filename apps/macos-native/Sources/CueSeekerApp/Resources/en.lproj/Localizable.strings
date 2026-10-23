@@ -669,6 +669,39 @@
 "file_detail.modified" = "Modified";
 "file_detail.none" = "None";
 
+/* Task Detail Dialog */
+"task_detail.get_info" = "Get Info";
+"task_detail.title" = "Task Info";
+"task_detail.section.export_info" = "Export Info";
+"task_detail.section.rename_info" = "Rename Info";
+"task_detail.section.original_file_names" = "Original File Names";
+"task_detail.section.new_file_names" = "New File Names";
+"task_detail.section.index_info" = "Index Info";
+"task_detail.section.target_folders" = "Target Folders";
+"task_detail.section.folder_info" = "Folder Info";
+"task_detail.section.task_status" = "Task Status";
+"task_detail.file_name" = "File Name";
+"task_detail.location" = "Location";
+"task_detail.card_count" = "Card Count";
+"task_detail.original_path" = "Original Path";
+"task_detail.new_path" = "New Path";
+"task_detail.file_count" = "File Count";
+"task_detail.path" = "Path";
+"task_detail.folder_count" = "Folder Count";
+"task_detail.indexed_subtitles" = "Indexed Subtitles";
+"task_detail.status" = "Status";
+"task_detail.status.in_progress" = "In Progress";
+"task_detail.status.queued" = "Queued";
+"task_detail.status.completed" = "Completed";
+"task_detail.status.incomplete" = "Incomplete";
+"task_detail.current_stage" = "Current Stage";
+"task_detail.progress" = "Progress";
+"task_detail.failure_reason" = "Failure Reason";
+"task_detail.created" = "Created";
+"task_detail.started" = "Started";
+"task_detail.completed" = "Completed";
+"task_detail.ended" = "Ended";
+
 /* WebDAV Folder Support */
 "file.all_folders.one" = "All Folder";
 "file.all_folders.other" = "All Folders";

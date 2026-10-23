@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 60
+    public static let currentSchemaVersion = 61
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -72,6 +72,7 @@ extension DatabaseBootstrap {
                 || previousVersion == 57
                 || previousVersion == 58
                 || previousVersion == 59
+                || previousVersion == 60
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -205,6 +206,9 @@ extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 59 {
             try migrateSchema59To60(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 60 {
+            try migrateSchema60To61(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -693,7 +697,8 @@ extension DatabaseBootstrap {
             created_at TEXT NOT NULL,
             state_changed_at TEXT NOT NULL,
             old_paths TEXT,
-            new_paths TEXT
+            new_paths TEXT,
+            started_at TEXT
         );
         """
 
