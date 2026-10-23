@@ -26,9 +26,9 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
         PlaybackSubtitleFocusMetrics.scrollEasing
             == UnitBezier(x1: 0.22, y1: 1, x2: 0.36, y2: 1)
     )
-    #expect(PlaybackSubtitleFocusMetrics.focusFadeOutDuration == 0.26)
-    #expect(PlaybackSubtitleFocusMetrics.focusFadeInDelay == 0.18)
-    #expect(PlaybackSubtitleFocusMetrics.focusFadeInDuration == 0.22)
+    #expect(PlaybackSubtitleFocusMetrics.focusFadeOutDuration == 0.30)
+    #expect(PlaybackSubtitleFocusMetrics.focusFadeInDelay == 0.10)
+    #expect(PlaybackSubtitleFocusMetrics.focusFadeInDuration == 0.30)
     #expect(
         PlaybackSubtitleFocusMetrics.focusFadeEasing
             == UnitBezier(x1: 0.37, y1: 0, x2: 0.63, y2: 1)
@@ -47,7 +47,7 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedFocusFadeOutDuration(
             reducesMotion: false
-        ) == 0.26
+        ) == 0.30
     )
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedFocusFadeOutDuration(
@@ -57,7 +57,7 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedFocusFadeInDelay(
             reducesMotion: false
-        ) == 0.18
+        ) == 0.10
     )
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedFocusFadeInDelay(
@@ -67,7 +67,7 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedFocusFadeInDuration(
             reducesMotion: false
-        ) == 0.22
+        ) == 0.30
     )
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedFocusFadeInDuration(
@@ -3062,21 +3062,21 @@ func subtitleFocusSingleStepNavigationFadesOutImmediatelyAndDebouncesFadeIn() {
     #expect(view.isFocusFadeInDebouncingForTesting)
     #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
 
-    view.advanceFocusTransitionForTesting(by: 0.10)
+    view.advanceFocusTransitionForTesting(by: 0.05)
     let fadingOut12 = view.cueSelectionProgressForTesting(at: 12)
     #expect(fadingOut12 > 0 && fadingOut12 < 1)
     #expect(view.isFocusFadeInDebouncingForTesting)
     #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
 
-    view.advanceFocusTransitionForTesting(by: 0.08)
+    view.advanceFocusTransitionForTesting(by: 0.05)
     #expect(!view.isFocusFadeInDebouncingForTesting)
 
-    view.advanceFocusTransitionForTesting(by: 0.08)
+    view.advanceFocusTransitionForTesting(by: 0.20)
     #expect(view.cueSelectionProgressForTesting(at: 12) == 0)
     let fadingIn13 = view.cueSelectionProgressForTesting(at: 13)
     #expect(fadingIn13 > 0 && fadingIn13 < 1)
 
-    view.advanceFocusTransitionForTesting(by: 0.14)
+    view.advanceFocusTransitionForTesting(by: 0.10)
     #expect(view.cueSelectionProgressForTesting(at: 13) == 1)
     view.invalidate()
 }
@@ -3112,7 +3112,7 @@ func subtitleFocusContinuousNavigationDebouncesTransitRowsAndReversesMidFadeIn()
         isInteractionEnabled: false,
         cancelsWheelMotion: true
     )
-    view.advanceFocusTransitionForTesting(by: 0.10)
+    view.advanceFocusTransitionForTesting(by: 0.06)
     #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
 
     view.update(
@@ -3128,7 +3128,7 @@ func subtitleFocusContinuousNavigationDebouncesTransitRowsAndReversesMidFadeIn()
         isInteractionEnabled: false,
         cancelsWheelMotion: true
     )
-    view.advanceFocusTransitionForTesting(by: 0.10)
+    view.advanceFocusTransitionForTesting(by: 0.06)
     #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
     #expect(view.cueSelectionProgressForTesting(at: 14) == 0)
     #expect(view.cueSelectionProgressForTesting(at: 12) > 0)
@@ -3146,19 +3146,20 @@ func subtitleFocusContinuousNavigationDebouncesTransitRowsAndReversesMidFadeIn()
         isInteractionEnabled: false,
         cancelsWheelMotion: true
     )
-    view.advanceFocusTransitionForTesting(by: 0.06)
-    #expect(view.cueSelectionProgressForTesting(at: 12) == 0)
+    view.advanceFocusTransitionForTesting(by: 0.05)
+    #expect(view.cueSelectionProgressForTesting(at: 12) > 0)
     #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
     #expect(view.cueSelectionProgressForTesting(at: 14) == 0)
     #expect(view.cueSelectionProgressForTesting(at: 15) == 0)
     #expect(view.isFocusFadeInDebouncingForTesting)
 
-    view.advanceFocusTransitionForTesting(by: 0.12)
+    view.advanceFocusTransitionForTesting(by: 0.05)
     #expect(!view.isFocusFadeInDebouncingForTesting)
     #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
     #expect(view.cueSelectionProgressForTesting(at: 14) == 0)
 
-    view.advanceFocusTransitionForTesting(by: 0.10)
+    view.advanceFocusTransitionForTesting(by: 0.13)
+    #expect(view.cueSelectionProgressForTesting(at: 12) == 0)
     let progress15 = view.cueSelectionProgressForTesting(at: 15)
     #expect(progress15 > 0 && progress15 < 1)
 
@@ -3182,7 +3183,7 @@ func subtitleFocusContinuousNavigationDebouncesTransitRowsAndReversesMidFadeIn()
     let reversingProgress15 = view.cueSelectionProgressForTesting(at: 15)
     #expect(reversingProgress15 > 0 && reversingProgress15 < progress15)
 
-    view.advanceFocusTransitionForTesting(by: 0.21)
+    view.advanceFocusTransitionForTesting(by: 0.25)
     #expect(view.cueSelectionProgressForTesting(at: 15) == 0)
     view.invalidate()
 }
@@ -3224,8 +3225,8 @@ func subtitleFocusScrollbarDragSettlesInPlaceAndBoundaryWheelKeepsSelectionLit()
     #expect(view.isFocusFadeInDebouncingForTesting)
     #expect(view.cueSelectionProgressForTesting(at: targetOrdinal) == 0)
 
-    view.advanceFocusTransitionForTesting(by: 0.18)
-    view.advanceFocusTransitionForTesting(by: 0.22)
+    view.advanceFocusTransitionForTesting(by: 0.10)
+    view.advanceFocusTransitionForTesting(by: 0.30)
     #expect(!view.isFocusFadeInDebouncingForTesting)
     #expect(view.cueSelectionProgressForTesting(at: targetOrdinal) == 1)
     #expect(view.cueSelectionProgressForTesting(at: 12) == 0)
@@ -3298,7 +3299,7 @@ func subtitleFocusScrollAndFadeReusePreparedLayoutsAndStaticRowBitmaps() throws 
         isInteractionEnabled: false,
         cancelsWheelMotion: true
     )
-    view.advanceFocusTransitionForTesting(by: 0.10)
+    view.advanceFocusTransitionForTesting(by: 0.05)
     #expect(
         view.cueSelectionProgressForTesting(at: 12) > 0
             && view.cueSelectionProgressForTesting(at: 12) < 1
@@ -3315,7 +3316,7 @@ func subtitleFocusScrollAndFadeReusePreparedLayoutsAndStaticRowBitmaps() throws 
         #expect(view.cueGeometryPreparationCountForTesting(at: ordinal) == 1)
     }
 
-    view.advanceFocusTransitionForTesting(by: 0.30)
+    view.advanceFocusTransitionForTesting(by: 0.35)
     #expect(view.cueSelectionProgressForTesting(at: 12) == 0)
     #expect(view.cueSelectionProgressForTesting(at: 13) == 1)
 
