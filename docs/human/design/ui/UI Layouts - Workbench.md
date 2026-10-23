@@ -1161,6 +1161,8 @@
 2. Content
    1. File Header Row：文件图标与文件名
    2. Property Groups：Settings 风格卡片组
+      - Video File：`Video`（Resolution `W × H`、Frame Rate、Codec、Bit Depth、Pixel Format、Bitrate、Duration）、`Audio #N`（Codec、Channels `<N>ch`、Sample Rate、Bit Depth、Language、Title，仅展示有效项）、`Subtitles`、`File Details`（File Size、Format、Path、Created、Modified）
+      - Subtitle File：`Subtitle Specifications`（Encoding、Raw Lines、Valid Lines）、`Video`、`File Details`（File Size、Format、Path、Created、Modified）
 
 #### Sizes
 
