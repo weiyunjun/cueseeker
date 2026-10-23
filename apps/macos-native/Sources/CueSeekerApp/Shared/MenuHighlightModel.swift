@@ -150,8 +150,13 @@ final class MenuHighlightModel: ObservableObject {
         } else {
             targetIndex = offset < 0 ? (selectablePositions.count - 1) : 0
         }
+        let oldHighlight = highlightedPosition
         highlightedPosition = selectablePositions[targetIndex]
         keyboardMoveCount += 1
+        MenuJitterProbe.log(
+            "Highlight",
+            "moveHighlight(offset:\(offset)) \(String(describing: oldHighlight)) -> \(String(describing: highlightedPosition)) moveCount=\(keyboardMoveCount) selectable=\(selectablePositions)"
+        )
         return true
     }
 

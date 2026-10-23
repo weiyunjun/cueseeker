@@ -258,6 +258,18 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
 
     @objc
     private func scrollGeometryDidChange(_ notification: Notification) {
+        if let scrollView, let overlayView, overlayView.edgeInset == MenuMetrics.scrollbarOuterGap {
+            let docFrame = scrollView.documentView?.frame ?? .zero
+            let docBounds = scrollView.documentView?.bounds ?? .zero
+            let clipBounds = scrollView.contentView.bounds
+            let clipFrame = scrollView.contentView.frame
+            let visRect = scrollView.documentVisibleRect
+            let id = ObjectIdentifier(self).debugDescription
+            MenuJitterProbe.log(
+                "MenuScrollView",
+                "notif=\(notification.name.rawValue) id=\(id) scrollF=\(MenuJitterProbe.fmt(scrollView.frame)) clipF=\(MenuJitterProbe.fmt(clipFrame)) clipB=\(MenuJitterProbe.fmt(clipBounds)) docF=\(MenuJitterProbe.fmt(docFrame)) docB=\(MenuJitterProbe.fmt(docBounds)) vis=\(MenuJitterProbe.fmt(visRect))"
+            )
+        }
         updatePresentation()
     }
 
@@ -267,6 +279,17 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
         let presentation = presentation()
         overlayView.isPresented = presentation?.vertical != nil
             || presentation?.horizontal != nil
+        if overlayView.edgeInset == MenuMetrics.scrollbarOuterGap, let scrollView {
+            let docFrame = scrollView.documentView?.frame ?? .zero
+            let clipBounds = scrollView.contentView.bounds
+            let visRect = scrollView.documentVisibleRect
+            let id = ObjectIdentifier(self).debugDescription
+            MenuJitterProbe.logIfChanged(
+                key: "MenuScrollView.state.\(id)",
+                category: "MenuScrollView",
+                value: "scrollF=\(MenuJitterProbe.fmt(scrollView.frame)) clipB=\(MenuJitterProbe.fmt(clipBounds)) docF=\(MenuJitterProbe.fmt(docFrame)) vis=\(MenuJitterProbe.fmt(visRect)) scrollbarPresented=\(overlayView.isPresented)"
+            )
+        }
         if overlayView.isPresented {
             overlayView.scrollbarMetricsDidChange()
         }

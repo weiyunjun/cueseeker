@@ -85,10 +85,12 @@ extension SubtitleTableView.Coordinator {
     func setMenuHost<Content: View>(_ content: Content, in container: NSView) {
         let wrapped = AnyView(content)
         if let menuHost {
+            menuHost.probeLabel = "TableMenuHost(\(tableName))"
             menuHost.rootView = wrapped
             menuHost.invalidateIntrinsicContentSize()
         } else {
             let host = MenuHostingView(rootView: wrapped)
+            host.probeLabel = "TableMenuHost(\(tableName))"
             host.wantsLayer = true
             host.layer?.masksToBounds = false
             host.onIntrinsicContentSizeInvalidated = { [weak self] in
@@ -105,10 +107,12 @@ extension SubtitleTableView.Coordinator {
     ) {
         let wrapped = AnyView(content)
         if let submenuHost {
+            submenuHost.probeLabel = "TableSubmenuHost(\(tableName))"
             submenuHost.rootView = wrapped
             submenuHost.invalidateIntrinsicContentSize()
         } else {
             let host = MenuHostingView(rootView: wrapped)
+            host.probeLabel = "TableSubmenuHost(\(tableName))"
             host.wantsLayer = true
             host.layer?.masksToBounds = false
             ensureMenuClipView(in: container).addSubview(host)
@@ -119,6 +123,10 @@ extension SubtitleTableView.Coordinator {
     func requestOpenMenuReposition() {
         guard isMenuOpen, !pendingMenuReposition else { return }
         pendingMenuReposition = true
+        MenuJitterProbe.log(
+            "TableMenu",
+            "requestOpenMenuReposition scheduled table=\(tableName) currentFrame=\(MenuJitterProbe.fmt(menuHost?.frame ?? .zero))"
+        )
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.pendingMenuReposition = false
@@ -149,17 +157,28 @@ extension SubtitleTableView.Coordinator {
         }
     }
 
+    func integralMenuFrame(_ frame: CGRect) -> CGRect {
+        CGRect(
+            x: frame.origin.x.rounded(),
+            y: frame.origin.y.rounded(),
+            width: ceil(frame.size.width),
+            height: max(0, floor(frame.size.height))
+        )
+    }
+
     func openingMenuFrame(
         anchorFrameInContainer: CGRect,
         menuSize: CGSize
     ) -> CGRect {
-        MenuPlacement.openingFrame(
-            anchor: anchorFrameInContainer,
-            menuSize: menuSize,
-            in: menuBodyFrameInContainer(),
-            gap: WorkbenchControlMetrics.redesignSpacing1,
-            edgeInset: SubtitleTableMetrics.trailingInset,
-            shrinksToFit: true
+        integralMenuFrame(
+            MenuPlacement.openingFrame(
+                anchor: anchorFrameInContainer,
+                menuSize: menuSize,
+                in: menuBodyFrameInContainer(),
+                gap: WorkbenchControlMetrics.redesignSpacing1,
+                edgeInset: SubtitleTableMetrics.trailingInset,
+                shrinksToFit: true
+            )
         )
     }
 
@@ -287,8 +306,14 @@ extension SubtitleTableView.Coordinator {
             to: finalMenuFrame
         )
 
+        pendingMenuReposition = false
         menuHost?.frame = finalMenuFrame
+        menuHost?.layoutSubtreeIfNeeded()
         menuHost?.isHidden = false
+        MenuJitterProbe.log(
+            "TableMenu",
+            "showMenu table=\(tableName) row=\(row) style=\(rowActionMenuStyle) menuSize=\(MenuJitterProbe.fmt(menuSize)) finalFrame=\(MenuJitterProbe.fmt(finalMenuFrame)) clipFrame=\(MenuJitterProbe.fmt(clipView.frame))"
+        )
 
         openMenuGateSession()
     }
@@ -404,11 +429,13 @@ extension SubtitleTableView.Coordinator {
         submenuHost.layoutSubtreeIfNeeded()
         let visibleRect = menuBodyFrameInContainer()
         var submenuSize = submenuHost.fittingSize
-        var submenuFrame = MenuSubmenuGeometry.frame(
-            parentMenuFrame: menuHost.frame,
-            parentItemFrame: parentItemFrame,
-            submenuSize: submenuSize,
-            visibleRect: visibleRect
+        var submenuFrame = integralMenuFrame(
+            MenuSubmenuGeometry.frame(
+                parentMenuFrame: menuHost.frame,
+                parentItemFrame: parentItemFrame,
+                submenuSize: submenuSize,
+                visibleRect: visibleRect
+            )
         )
         if submenuFrame.height < submenuSize.height {
             // Same second pass the parent menu makes: held to the room the
@@ -417,14 +444,17 @@ extension SubtitleTableView.Coordinator {
             setSubmenuHost(submenuView(submenuFrame.height), in: container)
             submenuHost.layoutSubtreeIfNeeded()
             submenuSize = submenuHost.fittingSize
-            submenuFrame = MenuSubmenuGeometry.frame(
-                parentMenuFrame: menuHost.frame,
-                parentItemFrame: parentItemFrame,
-                submenuSize: submenuSize,
-                visibleRect: visibleRect
+            submenuFrame = integralMenuFrame(
+                MenuSubmenuGeometry.frame(
+                    parentMenuFrame: menuHost.frame,
+                    parentItemFrame: parentItemFrame,
+                    submenuSize: submenuSize,
+                    visibleRect: visibleRect
+                )
             )
         }
         submenuHost.frame = submenuFrame
+        submenuHost.layoutSubtreeIfNeeded()
         submenuHost.isHidden = false
     }
 
@@ -572,13 +602,20 @@ extension SubtitleTableView.Coordinator {
             to: menuHost.frame
         )
         menuPlacementOffset = offset
-        let finalMenuFrame = MenuPlacement.followingFrame(
-            anchor: anchorFrame,
-            offset: offset,
-            menuSize: resolvedMenuSize
+        let finalMenuFrame = integralMenuFrame(
+            MenuPlacement.followingFrame(
+                anchor: anchorFrame,
+                offset: offset,
+                menuSize: resolvedMenuSize
+            )
         )
 
+        let beforeFrame = menuHost.frame
         menuHost.frame = finalMenuFrame
+        MenuJitterProbe.log(
+            "TableMenu",
+            "repositionOpenMenu table=\(tableName) fittingSize=\(MenuJitterProbe.fmt(menuSize)) resolvedSize=\(MenuJitterProbe.fmt(resolvedMenuSize)) beforeFrame=\(MenuJitterProbe.fmt(beforeFrame)) afterFrame=\(MenuJitterProbe.fmt(finalMenuFrame))"
+        )
         if let openParent = rowActionSubmenuState?.openParent {
             showRowActionDestinationSubmenu(for: openParent)
         }

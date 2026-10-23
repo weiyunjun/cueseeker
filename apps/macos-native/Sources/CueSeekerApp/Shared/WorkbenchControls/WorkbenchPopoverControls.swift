@@ -88,6 +88,26 @@ struct WorkbenchPopoverRow: View {
             )
             .fill(rowBackground)
         )
+        .background(
+            GeometryReader { proxy in
+                let rowFrame = proxy.frame(in: .named("WorkbenchPopoverPanelProbeSpace"))
+                Color.clear
+                    .onAppear {
+                        MenuJitterProbe.logIfChanged(
+                            key: "PopoverRow.\(title)",
+                            category: "PopoverRow",
+                            value: "frame=\(MenuJitterProbe.fmt(rowFrame))"
+                        )
+                    }
+                    .onChange(of: rowFrame) { newFrame in
+                        MenuJitterProbe.logIfChanged(
+                            key: "PopoverRow.\(title)",
+                            category: "PopoverRow",
+                            value: "frame=\(MenuJitterProbe.fmt(newFrame))"
+                        )
+                    }
+            }
+        )
         .contentShape(Rectangle())
         .onHover { inside in
             onHoverChange?(inside)
@@ -168,6 +188,7 @@ struct WorkbenchPopoverPanel<Content: View>: View {
     /// their own position for the reveal to find them.
     @ObservedObject var highlight: MenuHighlightModel
     @ViewBuilder var content: () -> Content
+    @State private var contentHeight: CGFloat = .infinity
 
     var body: some View {
         let isPlayerChrome = surface == .playerChrome
@@ -190,6 +211,17 @@ struct WorkbenchPopoverPanel<Content: View>: View {
                     ) {
                         content()
                     }
+                    .background(
+                        GeometryReader { contentGeo in
+                            Color.clear
+                                .onAppear {
+                                    contentHeight = contentGeo.size.height
+                                }
+                                .onChange(of: contentGeo.size.height) { newHeight in
+                                    contentHeight = newHeight
+                                }
+                        }
+                    )
                 }
             }
             .fixedSize(horizontal: true, vertical: false)
@@ -225,15 +257,45 @@ struct WorkbenchPopoverPanel<Content: View>: View {
             .subtitleTableTextSelectionNonInteractiveRegion(
                 cornerRadius: cornerRadius
             )
+            .coordinateSpace(name: "WorkbenchPopoverPanelProbeSpace")
+            .background(
+                GeometryReader { panelGeo in
+                    let panelSize = panelGeo.size
+                    let globalFrame = panelGeo.frame(in: .global)
+                    Color.clear
+                        .onAppear {
+                            MenuJitterProbe.logIfChanged(
+                                key: "PopoverPanel.geometry",
+                                category: "PopoverPanel",
+                                value: "size=\(MenuJitterProbe.fmt(panelSize)) global=\(MenuJitterProbe.fmt(globalFrame))"
+                            )
+                        }
+                        .onChange(of: globalFrame) { newGlobal in
+                            MenuJitterProbe.logIfChanged(
+                                key: "PopoverPanel.geometry",
+                                category: "PopoverPanel",
+                                value: "size=\(MenuJitterProbe.fmt(panelGeo.size)) global=\(MenuJitterProbe.fmt(newGlobal))"
+                            )
+                        }
+                }
+            )
             // The item highlighted when the menu opens can already be out of
             // reach — `Save to Excerpt` opens on the list saved to most
             // recently — so opening reveals it the same way a keyboard move
             // does. The wheel and the scrollbar bump neither signal, so they
             // never pull the menu back to the highlight.
             .onAppear {
+                MenuJitterProbe.log(
+                    "PopoverPanel",
+                    "onAppear revealHighlight highlightedPosition=\(String(describing: highlight.highlightedPosition)) maxH=\(String(format: "%.2f", maximumHeight))"
+                )
                 revealHighlight(proxy)
             }
-            .onChange(of: highlight.keyboardMoveCount) { _ in
+            .onChange(of: highlight.keyboardMoveCount) { moveCount in
+                MenuJitterProbe.log(
+                    "PopoverPanel",
+                    "onChange(keyboardMoveCount=\(moveCount)) -> scrollTo(\(String(describing: highlight.highlightedPosition))) contentH=\(String(format: "%.2f", contentHeight)) maxH=\(String(format: "%.2f", maximumHeight))"
+                )
                 revealHighlight(proxy)
             }
         }
@@ -242,7 +304,9 @@ struct WorkbenchPopoverPanel<Content: View>: View {
     /// Scrolls the least amount that makes the highlighted item whole, without
     /// animating: the menu is already open and the item has to be there now.
     private func revealHighlight(_ proxy: ScrollViewProxy) {
-        guard let position = highlight.highlightedPosition else {
+        guard contentHeight > floor(maximumHeight),
+              let position = highlight.highlightedPosition
+        else {
             return
         }
         proxy.scrollTo(position)

@@ -1088,8 +1088,8 @@ func subtitleTableViewRightClickMenuIsBoundedByTheTableBody() throws {
 
 private func expectMenuFrame(_ menuFrame: CGRect, opensBelow clickPoint: CGPoint) {
     let gap = WorkbenchControlMetrics.redesignSpacing1
-    #expect(abs(menuFrame.minX - clickPoint.x) < 0.5)
-    #expect(abs(menuFrame.minY - (clickPoint.y + gap)) < 0.5)
+    #expect(abs(menuFrame.minX - clickPoint.x.rounded()) < 0.5)
+    #expect(abs(menuFrame.minY - (clickPoint.y + gap).rounded()) < 0.5)
 }
 
 @MainActor
@@ -3401,8 +3401,9 @@ func subtitleTableExcerptSubmenuReachesNewListWithoutOtherLists() async throws {
     fixture.coordinator.openRowActionSubmenuForTesting(.moveToList)
     #expect(fixture.coordinator.submenuFrameForTesting() != nil)
 
-    // The submenu opens highlighting New List, so Return reaches it by
-    // keyboard alone.
+    // Navigating into the submenu highlights New List, so Down + Return
+    // reaches it by keyboard alone.
+    #expect(fixture.coordinator.handleMenuKeyForTesting(125))
     #expect(fixture.coordinator.handleMenuKeyForTesting(36))
     #expect(createRequests.count == 1)
     #expect(createRequests.first?.action == .moveToList)
@@ -3498,6 +3499,67 @@ func subtitleTableExcerptSubmenuTouchesAndAlignsWithItsParentItem() async throws
             windowPoint: outsideBothMenusInWindow
         )
     )
+}
+
+@MainActor
+@Test
+func subtitleTableViewRightClickMenuAndSubmenuFramesAreIntegerAlignedAtFractionalCoordinates() async throws {
+    let destinations = (1...20).map {
+        SubtitleTableRowActionDestination(id: Int64($0), title: "List \($0)")
+    }
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 900.37,
+        showsCueGroup: true,
+        rowActionMenuStyle: .excerpt,
+        rowActionDestinations: destinations
+    )
+
+    func expectIntegerAligned(_ frame: CGRect) {
+        #expect(frame.origin.x.truncatingRemainder(dividingBy: 1) == 0)
+        #expect(frame.origin.y.truncatingRemainder(dividingBy: 1) == 0)
+        #expect(frame.size.width.truncatingRemainder(dividingBy: 1) == 0)
+        #expect(frame.size.height.truncatingRemainder(dividingBy: 1) == 0)
+    }
+
+    fixture.container.frame.size = CGSize(width: 900.37, height: 742.63)
+    fixture.scrollView.frame.size = CGSize(width: 900.37, height: 698.63)
+    fixture.coordinator.showMenu(
+        for: 0,
+        buttonFrame: .zero,
+        clickPointInDocument: CGPoint(x: 465.22, y: 366.97)
+    )
+    for _ in 0..<10
+    where fixture.coordinator.rowActionParentItemFrameForTesting(.moveToList) == nil {
+        await Task.yield()
+    }
+    fixture.coordinator.openRowActionSubmenuForTesting(.moveToList)
+
+    let unclippedMenuFrame = try #require(fixture.coordinator.menuFrameForTesting())
+    let unclippedSubmenuFrame = try #require(fixture.coordinator.submenuFrameForTesting())
+    expectIntegerAligned(unclippedMenuFrame)
+    expectIntegerAligned(unclippedSubmenuFrame)
+
+    fixture.coordinator.dismissMenu()
+    fixture.container.frame.size = CGSize(width: 900.37, height: 263.82)
+    fixture.scrollView.frame.size = CGSize(width: 900.37, height: 219.82)
+    fixture.coordinator.showMenu(
+        for: 0,
+        buttonFrame: .zero,
+        clickPointInDocument: CGPoint(x: 465.22, y: 123.97)
+    )
+    for _ in 0..<10
+    where fixture.coordinator.rowActionParentItemFrameForTesting(.moveToList) == nil {
+        await Task.yield()
+    }
+    fixture.coordinator.openRowActionSubmenuForTesting(.moveToList)
+
+    let clippedMenuFrame = try #require(fixture.coordinator.menuFrameForTesting())
+    let clippedSubmenuFrame = try #require(fixture.coordinator.submenuFrameForTesting())
+    let bodyFrame = fixture.coordinator.menuBodyFrameForTesting()
+    expectIntegerAligned(clippedMenuFrame)
+    expectIntegerAligned(clippedSubmenuFrame)
+    #expect(clippedMenuFrame.height <= floor(bodyFrame.height))
+    #expect(clippedSubmenuFrame.height <= floor(bodyFrame.height))
 }
 
 @MainActor
