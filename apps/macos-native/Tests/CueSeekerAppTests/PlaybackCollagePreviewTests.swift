@@ -840,6 +840,149 @@ func playbackCollageActionsRouteEmptyNotReadyFailedAndCompletionFeedback() async
     await waitForCollagePreviewCondition { events == [.exportFailed] }
 }
 
+@MainActor
+@Test
+func playbackCollagePerformanceLoggerRecordsInitialAndIncrementalCommitsAndTrimsLogFile() async throws {
+    let logFileURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeeker-CollagePerf-\(UUID().uuidString).log")
+    defer {
+        try? FileManager.default.removeItem(at: logFileURL)
+    }
+
+    let logger = PlaybackCollagePerformanceLogger(
+        logFileURL: logFileURL,
+        videoFileName: "Episode 01.mkv",
+        subtitleFileName: "Episode 01.ass"
+    )
+    let first = collagePreviewCue(
+        id: 1,
+        ordinal: 0,
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000
+    )
+    let second = collagePreviewCue(
+        id: 2,
+        ordinal: 1,
+        startMilliseconds: 4_000,
+        endMilliseconds: 5_000
+    )
+    var renderCallCount = 0
+    let store = PlaybackCollagePreviewStore(
+        renderGroup: { _ in
+            renderCallCount += 1
+            let metrics = renderCallCount == 1
+                ? SubtitleCollageGroupRenderMetrics(
+                    subtitleLoadMilliseconds: 12.3,
+                    frameGrabMilliseconds: 45.6,
+                    subtitleRenderMilliseconds: 7.8
+                )
+                : SubtitleCollageGroupRenderMetrics(
+                    subtitleLoadMilliseconds: 0,
+                    frameGrabMilliseconds: 30.2,
+                    subtitleRenderMilliseconds: 6.4
+                )
+            return SubtitleCollageRenderedGroup(
+                image: collagePreviewImage(width: 2, height: 2),
+                subtitleBands: [0...1],
+                metrics: metrics
+            )
+        },
+        compose: { groups in
+            collagePreviewComposition(groupCount: groups.count)
+        },
+        performanceLogger: logger
+    )
+
+    var plan = try SubtitleCollageSelectionPlan(selectedCues: [first])
+    store.update(plan: plan)
+    await waitForCollagePreviewToSettle(store)
+
+    let initialLines = try String(contentsOf: logFileURL, encoding: .utf8)
+        .split(separator: "\n")
+        .map(String.init)
+    #expect(initialLines.count == 1)
+    #expect(initialLines[0].contains("action=initial"))
+    #expect(initialLines[0].contains("video=\"Episode 01.mkv\""))
+    #expect(initialLines[0].contains("sub=\"Episode 01.ass\""))
+    #expect(initialLines[0].contains("groups=1(new=1,cached=0)"))
+    #expect(initialLines[0].contains("target=#1@00:01.50"))
+    #expect(initialLines[0].contains("sub_load_ms=12.3"))
+    #expect(initialLines[0].contains("frame_grab_ms=45.6"))
+    #expect(initialLines[0].contains("sub_render_ms=7.8"))
+    #expect(initialLines[0].contains("compose_ms="))
+    #expect(initialLines[0].contains("total_ms="))
+
+    _ = plan.select(second)
+    store.update(plan: plan)
+    await waitForCollagePreviewToSettle(store)
+
+    let incrementalLines = try String(contentsOf: logFileURL, encoding: .utf8)
+        .split(separator: "\n")
+        .map(String.init)
+    #expect(incrementalLines.count == 2)
+    #expect(incrementalLines[1].contains("action=incremental"))
+    #expect(incrementalLines[1].contains("groups=2(new=1,cached=1)"))
+    #expect(incrementalLines[1].contains("target=#2@00:04.50"))
+    #expect(incrementalLines[1].contains("sub_load_ms=0.0"))
+    #expect(incrementalLines[1].contains("frame_grab_ms=30.2"))
+    #expect(incrementalLines[1].contains("sub_render_ms=6.4"))
+
+    // Deselecting a cue when all remaining groups are cached (new=0) appends no log line.
+    store.update(plan: try SubtitleCollageSelectionPlan(selectedCues: [first]))
+    await waitForCollagePreviewToSettle(store)
+
+    let cachedOnlyLines = try String(contentsOf: logFileURL, encoding: .utf8)
+        .split(separator: "\n")
+        .map(String.init)
+    #expect(cachedOnlyLines.count == 2)
+
+    // Verify log rotation trims the oldest half of lines when maxFileSizeBytes is exceeded.
+    let rotatingLogURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeeker-CollagePerfRotate-\(UUID().uuidString).log")
+    defer {
+        try? FileManager.default.removeItem(at: rotatingLogURL)
+    }
+    let sampleGroup = plan.groups[0]
+    let singleLineLength = logger.formatLine(
+        action: .initial,
+        totalGroupCount: 1,
+        newGroups: [sampleGroup],
+        cachedGroupCount: 0,
+        totalMilliseconds: 10,
+        subtitleLoadMilliseconds: 1,
+        frameGrabMilliseconds: 5,
+        subtitleRenderMilliseconds: 3,
+        composeMilliseconds: 1
+    ).utf8.count + 1
+    let rotatingLogger = PlaybackCollagePerformanceLogger(
+        logFileURL: rotatingLogURL,
+        videoFileName: "Episode 01.mkv",
+        subtitleFileName: "Episode 01.ass",
+        maxFileSizeBytes: singleLineLength * 3
+    )
+    for index in 1...4 {
+        rotatingLogger.record(
+            action: index == 1 ? .initial : .incremental,
+            totalGroupCount: index,
+            newGroups: [sampleGroup],
+            cachedGroupCount: index - 1,
+            totalMilliseconds: Double(index * 10),
+            subtitleLoadMilliseconds: 1,
+            frameGrabMilliseconds: 5,
+            subtitleRenderMilliseconds: 3,
+            composeMilliseconds: 1
+        )
+    }
+    let rotatedData = try Data(contentsOf: rotatingLogURL)
+    #expect(rotatedData.count <= singleLineLength * 3)
+    let rotatedLines = try String(contentsOf: rotatingLogURL, encoding: .utf8)
+        .split(separator: "\n")
+        .map(String.init)
+    #expect(rotatedLines.count == 2)
+    #expect(rotatedLines[0].contains("groups=3(new=1,cached=2)"))
+    #expect(rotatedLines[1].contains("groups=4(new=1,cached=3)"))
+}
+
 private func collagePreviewCue(
     id: Int64,
     ordinal: Int,

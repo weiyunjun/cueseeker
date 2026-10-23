@@ -5,16 +5,141 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
+public struct SubtitleCollageGroupRenderMetrics: Sendable, Equatable {
+    public let subtitleLoadMilliseconds: Double
+    public let frameGrabMilliseconds: Double
+    public let subtitleRenderMilliseconds: Double
+
+    public init(
+        subtitleLoadMilliseconds: Double = 0,
+        frameGrabMilliseconds: Double = 0,
+        subtitleRenderMilliseconds: Double = 0
+    ) {
+        self.subtitleLoadMilliseconds = subtitleLoadMilliseconds
+        self.frameGrabMilliseconds = frameGrabMilliseconds
+        self.subtitleRenderMilliseconds = subtitleRenderMilliseconds
+    }
+}
+
 public struct SubtitleCollageRenderedGroup: @unchecked Sendable {
     let image: CGImage
     let subtitleBands: [ClosedRange<Int>]
+    public let metrics: SubtitleCollageGroupRenderMetrics
 
     public init(
         image: CGImage,
-        subtitleBands: [ClosedRange<Int>]
+        subtitleBands: [ClosedRange<Int>],
+        metrics: SubtitleCollageGroupRenderMetrics = SubtitleCollageGroupRenderMetrics()
     ) {
         self.image = image
         self.subtitleBands = subtitleBands
+        self.metrics = metrics
+    }
+}
+
+public final class SubtitleCollageRenderSession: @unchecked Sendable {
+    private let videoURL: URL
+    private let subtitleSource: PlaybackSubtitleSource
+    private let srtSubtitleStyle: SRTSubtitleStyle
+    private let lock = NSLock()
+    private var cachedPreparedASSScript: SubtitleScreenshotExporter.PreparedASSRenderScript?
+    private var cachedRequestedFontNames: [String]?
+    private var hasPreparedASSScript = false
+
+    public init(
+        videoURL: URL,
+        subtitleSource: PlaybackSubtitleSource,
+        srtSubtitleStyle: SRTSubtitleStyle
+    ) {
+        self.videoURL = videoURL
+        self.subtitleSource = subtitleSource
+        self.srtSubtitleStyle = srtSubtitleStyle
+    }
+
+    public func renderGroup(
+        _ group: SubtitleCollageGroup
+    ) async throws -> SubtitleCollageRenderedGroup {
+        guard let ffmpegExecutable = SubtitleScreenshotExporter.ffmpegExecutable() else {
+            throw SubtitleScreenshotExportError.ffmpegNotFound
+        }
+        try Task.checkCancellation()
+        let (preparedASSScript, requestedFontNames, subtitleLoadMilliseconds) =
+            try prepareASSRenderInputsIfNeeded()
+        try Task.checkCancellation()
+        let timestampMilliseconds = group.renderTimestampMilliseconds
+        let frameGrabStart = DispatchTime.now().uptimeNanoseconds
+        let frameImage = try await SubtitleScreenshotExporter.videoFrame(
+            videoPath: videoURL.mediaPath,
+            timestampMilliseconds: timestampMilliseconds,
+            ffmpegExecutable: ffmpegExecutable
+        )
+        let frameGrabMilliseconds = SubtitleScreenshotExporter.elapsedMilliseconds(
+            since: frameGrabStart
+        )
+        try Task.checkCancellation()
+        let subtitleRenderStart = DispatchTime.now().uptimeNanoseconds
+        let renderedFrame = try SubtitleScreenshotExporter.renderSelectedSubtitleFrame(
+            group: group,
+            source: subtitleSource,
+            preparedASSScript: preparedASSScript,
+            requestedFontNames: requestedFontNames,
+            timestampMilliseconds: timestampMilliseconds,
+            frameImage: frameImage,
+            srtSubtitleStyle: srtSubtitleStyle
+        )
+        let subtitleRenderMilliseconds = SubtitleScreenshotExporter.elapsedMilliseconds(
+            since: subtitleRenderStart
+        )
+        return SubtitleCollageRenderedGroup(
+            image: renderedFrame.image,
+            subtitleBands: renderedFrame.subtitleBands.map {
+                $0.y1...$0.y2
+            },
+            metrics: SubtitleCollageGroupRenderMetrics(
+                subtitleLoadMilliseconds: subtitleLoadMilliseconds,
+                frameGrabMilliseconds: frameGrabMilliseconds,
+                subtitleRenderMilliseconds: subtitleRenderMilliseconds
+            )
+        )
+    }
+
+    private func prepareASSRenderInputsIfNeeded() throws -> (
+        preparedScript: SubtitleScreenshotExporter.PreparedASSRenderScript?,
+        requestedFontNames: [String]?,
+        subtitleLoadMilliseconds: Double
+    ) {
+        guard subtitleSource.format == .ass else {
+            return (nil, nil, 0)
+        }
+
+        lock.lock()
+        defer {
+            lock.unlock()
+        }
+
+        if hasPreparedASSScript {
+            return (cachedPreparedASSScript, cachedRequestedFontNames, 0)
+        }
+
+        let startNanoseconds = DispatchTime.now().uptimeNanoseconds
+        let sourceScript = try SubtitleTextDecoder.decode(
+            contentsOf: subtitleSource.url,
+            format: .ass
+        )
+        let preparedScript = SubtitleScreenshotExporter.PreparedASSRenderScript(sourceScript)
+        let requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
+            sourcePath: subtitleSource.url.mediaPath,
+            renderCacheProvider: subtitleSource.renderCacheProvider
+        )
+        let subtitleLoadMilliseconds = SubtitleScreenshotExporter.elapsedMilliseconds(
+            since: startNanoseconds
+        )
+
+        cachedPreparedASSScript = preparedScript
+        cachedRequestedFontNames = requestedFontNames
+        hasPreparedASSScript = true
+
+        return (preparedScript, requestedFontNames, subtitleLoadMilliseconds)
     }
 }
 
@@ -60,7 +185,234 @@ public enum SubtitleScreenshotExportError: Error, CustomStringConvertible {
 }
 
 public enum SubtitleScreenshotExporter {
-    private struct SubtitleBand: Equatable {
+    struct FFmpegExecutable: Sendable {
+        let url: URL
+        let supportsSkipInternalSubtitles: Bool
+    }
+
+    struct PreparedASSRenderScript: Sendable {
+        private enum SectionDisposition {
+            case keptHeaderOrStyles
+            case events
+            case ignored
+        }
+
+        private static let scriptInfoSection = Array("[script info]".utf8)
+        private static let v4PlusStylesSection = Array("[v4+ styles]".utf8)
+        private static let v4StylesSection = Array("[v4 styles]".utf8)
+        private static let v4StylesPlusSection = Array("[v4 styles+]".utf8)
+
+        private let utf8Bytes: [UInt8]
+        private let prefixBytes: [UInt8]
+        private let dialogueRanges: [Range<Int>]
+
+        init(_ sourceScript: String) {
+            let utf8Bytes = Array(sourceScript.utf8)
+            var headerAndStyleBytes: [UInt8] = []
+            var eventsHeaderBytes: [UInt8] = []
+            var dialogueRanges: [Range<Int>] = []
+
+            utf8Bytes.withUnsafeBufferPointer { bytes in
+                var currentSection: SectionDisposition = .keptHeaderOrStyles
+                ASSScriptScanner.scanLines(bytes) { lineRange, kind in
+                    switch kind {
+                    case .sectionHeader(let isEvents):
+                        if isEvents {
+                            currentSection = .events
+                            SubtitleScreenshotExporter.appendWithoutBOM(
+                                bytes,
+                                in: lineRange,
+                                to: &eventsHeaderBytes
+                            )
+                            eventsHeaderBytes.append(0x0A)
+                        } else if Self.isKeptMetadataOrStyleSection(bytes, in: lineRange) {
+                            currentSection = .keptHeaderOrStyles
+                            SubtitleScreenshotExporter.appendWithoutBOM(
+                                bytes,
+                                in: lineRange,
+                                to: &headerAndStyleBytes
+                            )
+                            headerAndStyleBytes.append(0x0A)
+                        } else {
+                            currentSection = .ignored
+                        }
+
+                    case .eventFormat:
+                        SubtitleScreenshotExporter.appendWithoutBOM(
+                            bytes,
+                            in: lineRange,
+                            to: &eventsHeaderBytes
+                        )
+                        eventsHeaderBytes.append(0x0A)
+
+                    case .dialogue:
+                        dialogueRanges.append(lineRange)
+
+                    case .other:
+                        guard currentSection == .keptHeaderOrStyles,
+                              Self.shouldKeepHeaderOrStyleLine(bytes, in: lineRange)
+                        else {
+                            return
+                        }
+                        SubtitleScreenshotExporter.appendWithoutBOM(
+                            bytes,
+                            in: lineRange,
+                            to: &headerAndStyleBytes
+                        )
+                        headerAndStyleBytes.append(0x0A)
+                    }
+                }
+            }
+
+            var prefixBytes = headerAndStyleBytes
+            prefixBytes.append(contentsOf: eventsHeaderBytes)
+            self.utf8Bytes = utf8Bytes
+            self.prefixBytes = prefixBytes
+            self.dialogueRanges = dialogueRanges
+        }
+
+        func script(for eventIndices: Set<Int>) -> String? {
+            guard !eventIndices.isEmpty,
+                  eventIndices.allSatisfy({ $0 >= 0 && $0 < dialogueRanges.count })
+            else {
+                return nil
+            }
+
+            return utf8Bytes.withUnsafeBufferPointer { bytes in
+                var selectedSignatures: [[UInt8]] = []
+                selectedSignatures.reserveCapacity(eventIndices.count)
+                for eventIndex in eventIndices.sorted() {
+                    let signature = SubtitleScreenshotExporter.glyphSignature(
+                        bytes,
+                        dialogueRanges[eventIndex]
+                    )
+                    if !selectedSignatures.contains(signature) {
+                        selectedSignatures.append(signature)
+                    }
+                }
+
+                var selectedBytes = prefixBytes
+                selectedBytes.reserveCapacity(prefixBytes.count + eventIndices.count * 128)
+
+                for (eventIndex, lineRange) in dialogueRanges.enumerated() {
+                    let isIncluded = eventIndices.contains(eventIndex)
+                        || selectedSignatures.contains { signature in
+                            SubtitleScreenshotExporter.matchesGlyphSignature(
+                                bytes,
+                                lineRange,
+                                signature
+                            )
+                        }
+                    guard isIncluded else {
+                        continue
+                    }
+                    SubtitleScreenshotExporter.appendWithoutBOM(
+                        bytes,
+                        in: lineRange,
+                        to: &selectedBytes
+                    )
+                    selectedBytes.append(0x0A)
+                }
+
+                return String(decoding: selectedBytes, as: UTF8.self)
+            }
+        }
+
+        private static func isKeptMetadataOrStyleSection(
+            _ bytes: UnsafeBufferPointer<UInt8>,
+            in lineRange: Range<Int>
+        ) -> Bool {
+            let trimmed = trimmedRange(bytes, in: lineRange)
+            guard !trimmed.isEmpty else {
+                return false
+            }
+            if bytes[trimmed.lowerBound] >= 0x80
+                || (bytes[trimmed.lowerBound] == 0x5B && bytes[trimmed.upperBound - 1] >= 0x80) {
+                let normalized = String(decoding: bytes[lineRange], as: UTF8.self)
+                    .replacingOccurrences(of: "\u{feff}", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+                return normalized == "[script info]"
+                    || normalized == "[v4+ styles]"
+                    || normalized == "[v4 styles]"
+                    || normalized == "[v4 styles+]"
+            }
+            return equalsIgnoringASCIICase(bytes, trimmed, scriptInfoSection)
+                || equalsIgnoringASCIICase(bytes, trimmed, v4PlusStylesSection)
+                || equalsIgnoringASCIICase(bytes, trimmed, v4StylesSection)
+                || equalsIgnoringASCIICase(bytes, trimmed, v4StylesPlusSection)
+        }
+
+        private static func shouldKeepHeaderOrStyleLine(
+            _ bytes: UnsafeBufferPointer<UInt8>,
+            in lineRange: Range<Int>
+        ) -> Bool {
+            let trimmed = trimmedRange(bytes, in: lineRange)
+            guard !trimmed.isEmpty else {
+                return false
+            }
+            let first = bytes[trimmed.lowerBound]
+            if first == 0x3B {
+                return false
+            }
+            if first == 0x21,
+               trimmed.count >= 2,
+               bytes[trimmed.lowerBound + 1] == 0x3A {
+                return false
+            }
+            return true
+        }
+
+        private static func trimmedRange(
+            _ bytes: UnsafeBufferPointer<UInt8>,
+            in lineRange: Range<Int>
+        ) -> Range<Int> {
+            var start = lineRange.lowerBound
+            var end = lineRange.upperBound
+
+            while start < end {
+                if isASCIIWhitespace(bytes[start]) {
+                    start += 1
+                } else if end - start >= 3,
+                          bytes[start] == 0xEF,
+                          bytes[start + 1] == 0xBB,
+                          bytes[start + 2] == 0xBF {
+                    start += 3
+                } else {
+                    break
+                }
+            }
+            while end > start, isASCIIWhitespace(bytes[end - 1]) {
+                end -= 1
+            }
+            return start..<end
+        }
+
+        private static func isASCIIWhitespace(_ byte: UInt8) -> Bool {
+            byte == 0x20 || (byte >= 0x09 && byte <= 0x0D)
+        }
+
+        private static func lowercasedASCII(_ byte: UInt8) -> UInt8 {
+            byte >= 0x41 && byte <= 0x5A ? byte + 0x20 : byte
+        }
+
+        private static func equalsIgnoringASCIICase(
+            _ bytes: UnsafeBufferPointer<UInt8>,
+            _ range: Range<Int>,
+            _ expected: [UInt8]
+        ) -> Bool {
+            guard range.count == expected.count else {
+                return false
+            }
+            for offset in expected.indices
+            where lowercasedASCII(bytes[range.lowerBound + offset]) != expected[offset] {
+                return false
+            }
+            return true
+        }
+    }
+
+    fileprivate struct SubtitleBand: Equatable {
         let y1: Int
         let y2: Int
 
@@ -69,10 +421,14 @@ public enum SubtitleScreenshotExporter {
         }
     }
 
-    private struct RenderedSubtitleFrame {
+    fileprivate struct RenderedSubtitleFrame {
         let image: CGImage
         let subtitleBands: [SubtitleBand]
     }
+
+    private static let matroskaExtensions: Set<String> = [
+        "mkv", "mk3d", "mka", "mks", "webm"
+    ]
 
     public static func defaultCollageFileName(
         displayTitle: String,
@@ -119,42 +475,17 @@ public enum SubtitleScreenshotExporter {
         guard !groups.isEmpty else {
             return []
         }
-        guard let ffmpegURL = ffmpegExecutableURL() else {
-            throw SubtitleScreenshotExportError.ffmpegNotFound
-        }
 
-        let assSourceScript = subtitleSource.format == .ass
-            ? try SubtitleTextDecoder.decode(
-                contentsOf: subtitleSource.url,
-                format: .ass
-            )
-            : nil
+        let session = SubtitleCollageRenderSession(
+            videoURL: videoURL,
+            subtitleSource: subtitleSource,
+            srtSubtitleStyle: srtSubtitleStyle
+        )
         var renderedGroups: [SubtitleCollageRenderedGroup] = []
         renderedGroups.reserveCapacity(groups.count)
 
         for group in groups {
-            try Task.checkCancellation()
-            let timestampMilliseconds = group.renderTimestampMilliseconds
-            let frameImage = try await videoFrame(
-                videoPath: videoURL.mediaPath,
-                timestampMilliseconds: timestampMilliseconds,
-                ffmpegURL: ffmpegURL
-            )
-            try Task.checkCancellation()
-            let renderedFrame = try renderSelectedSubtitleFrame(
-                group: group,
-                source: subtitleSource,
-                sourceScript: assSourceScript,
-                timestampMilliseconds: timestampMilliseconds,
-                frameImage: frameImage,
-                srtSubtitleStyle: srtSubtitleStyle
-            )
-            renderedGroups.append(SubtitleCollageRenderedGroup(
-                image: renderedFrame.image,
-                subtitleBands: renderedFrame.subtitleBands.map {
-                    $0.y1...$0.y2
-                }
-            ))
+            renderedGroups.append(try await session.renderGroup(group))
         }
 
         return renderedGroups
@@ -177,15 +508,43 @@ public enum SubtitleScreenshotExporter {
         return collage
     }
 
-    private static func videoFrame(
+    static func elapsedMilliseconds(since startNanoseconds: UInt64) -> Double {
+        let endNanoseconds = DispatchTime.now().uptimeNanoseconds
+        guard endNanoseconds >= startNanoseconds else {
+            return 0
+        }
+        return Double(endNanoseconds - startNanoseconds) / 1_000_000
+    }
+
+    static func videoFrame(
         videoPath: String,
         timestampMilliseconds: Int,
-        ffmpegURL: URL
+        ffmpegExecutable: FFmpegExecutable
     ) async throws -> CGImage {
         // BMP keeps the frame uncompressed and self-describing, so the pixels
         // reach the compositor without a PNG round trip through the file system.
         // The 10-bit sources this reads would otherwise produce a 16-bit
         // intermediate that the 8-bit compositing context discards anyway.
+        let arguments = videoFrameArguments(
+            videoPath: videoPath,
+            timestampMilliseconds: timestampMilliseconds,
+            supportsSkipInternalSubtitles: ffmpegExecutable.supportsSkipInternalSubtitles
+        )
+        let frameData = try await runProcessCapturingStandardOutput(
+            executableURL: ffmpegExecutable.url,
+            arguments: arguments
+        )
+        guard !frameData.isEmpty else {
+            throw SubtitleScreenshotExportError.missingFrameImage(videoPath)
+        }
+        return try loadImage(from: frameData, sourceDescription: videoPath)
+    }
+
+    private static func videoFrameArguments(
+        videoPath: String,
+        timestampMilliseconds: Int,
+        supportsSkipInternalSubtitles: Bool
+    ) -> [String] {
         let playableInput = WebDAVClient.shared.resolvePlayableInput(
             for: URL.fromMediaPath(videoPath)
         )
@@ -197,23 +556,39 @@ public enum SubtitleScreenshotExporter {
         if let httpHeaders = playableInput.httpHeaders, !httpHeaders.isEmpty {
             arguments += ["-headers", httpHeaders]
         }
+        arguments.append("-nofind_stream_info")
+        if supportsSkipInternalSubtitles,
+           isMatroskaInput(videoPath: videoPath, resolvedInputPath: playableInput.inputPath) {
+            arguments += ["-cueseeker_skip_internal_subtitles", "1"]
+        }
         arguments += [
             "-ss", String(format: "%.3f", Double(max(0, timestampMilliseconds)) / 1_000),
             "-i", playableInput.inputPath,
             "-frames:v", "1",
+            "-an",
+            "-sn",
+            "-dn",
             "-pix_fmt", "bgr24",
             "-f", "image2pipe",
             "-vcodec", "bmp",
             "-"
         ]
-        let frameData = try await runProcessCapturingStandardOutput(
-            executableURL: ffmpegURL,
-            arguments: arguments
-        )
-        guard !frameData.isEmpty else {
-            throw SubtitleScreenshotExportError.missingFrameImage(videoPath)
+        return arguments
+    }
+
+    private static func isMatroskaInput(
+        videoPath: String,
+        resolvedInputPath: String
+    ) -> Bool {
+        let videoExtension = URL(fileURLWithPath: videoPath).pathExtension.lowercased()
+        if matroskaExtensions.contains(videoExtension) {
+            return true
         }
-        return try loadImage(from: frameData, sourceDescription: videoPath)
+        let resolvedExtension = (
+            URL(string: resolvedInputPath)?.pathExtension
+                ?? URL(fileURLWithPath: resolvedInputPath).pathExtension
+        ).lowercased()
+        return matroskaExtensions.contains(resolvedExtension)
     }
 
     private static func renderSRTFrame(
@@ -263,10 +638,11 @@ public enum SubtitleScreenshotExporter {
         )
     }
 
-    private static func renderSelectedSubtitleFrame(
+    fileprivate static func renderSelectedSubtitleFrame(
         group: SubtitleCollageGroup,
         source: PlaybackSubtitleSource,
-        sourceScript: String?,
+        preparedASSScript: PreparedASSRenderScript?,
+        requestedFontNames: [String]?,
         timestampMilliseconds: Int,
         frameImage: CGImage,
         srtSubtitleStyle: SRTSubtitleStyle
@@ -289,19 +665,14 @@ public enum SubtitleScreenshotExporter {
         }
 
         guard source.format == .ass,
-              let sourceScript,
-              let selectedScript = selectedASSRenderScript(
-                  sourceScript,
-                  eventIndices: Set(group.cues.map(\.eventIndex))
+              let preparedASSScript,
+              let selectedScript = preparedASSScript.script(
+                  for: Set(group.cues.map(\.eventIndex))
               )
         else {
             throw SubtitleScreenshotExportError.imageContextFailed
         }
 
-        let requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
-            sourcePath: source.url.mediaPath,
-            renderCacheProvider: source.renderCacheProvider
-        )
         let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
             selectedScript,
             requestedFontNames: requestedFontNames
@@ -347,6 +718,18 @@ public enum SubtitleScreenshotExporter {
         )
     }
 
+    static func _videoFrameArgumentsForTesting(
+        videoPath: String,
+        timestampMilliseconds: Int,
+        supportsSkipInternalSubtitles: Bool
+    ) -> [String] {
+        videoFrameArguments(
+            videoPath: videoPath,
+            timestampMilliseconds: timestampMilliseconds,
+            supportsSkipInternalSubtitles: supportsSkipInternalSubtitles
+        )
+    }
+
     static func _renderSRTFrameForTesting(
         cues: [PlaybackSubtitleCue],
         timestampMilliseconds: Int,
@@ -387,34 +770,7 @@ public enum SubtitleScreenshotExporter {
         _ sourceScript: String,
         eventIndices: Set<Int>
     ) -> String? {
-        guard !eventIndices.isEmpty else {
-            return nil
-        }
-
-        var foundEventIndices = Set<Int>()
-        var selectedBytes: [UInt8] = []
-        selectedBytes.reserveCapacity(1 << 16)
-
-        ASSScriptScanner.withScriptBytes(sourceScript) { bytes in
-            let selectedGlyphs = glyphSignatures(bytes, eventIndices: eventIndices)
-            ASSScriptScanner.scanLines(bytes) { lineRange, kind in
-                if case .dialogue(let eventIndex) = kind {
-                    if eventIndices.contains(eventIndex) {
-                        foundEventIndices.insert(eventIndex)
-                    } else if !selectedGlyphs.contains(glyphSignature(bytes, lineRange)) {
-                        return
-                    }
-                }
-                selectedBytes.append(contentsOf: bytes[lineRange])
-                selectedBytes.append(0x0A)
-            }
-        }
-
-        guard foundEventIndices == eventIndices else {
-            return nil
-        }
-        return String(decoding: selectedBytes, as: UTF8.self)
-            .replacingOccurrences(of: "\u{feff}", with: "")
+        PreparedASSRenderScript(sourceScript).script(for: eventIndices)
     }
 
     /// A Dialogue line stripped of its override blocks.
@@ -445,20 +801,59 @@ public enum SubtitleScreenshotExporter {
         return signature
     }
 
-    private static func glyphSignatures(
+    private static func matchesGlyphSignature(
         _ bytes: UnsafeBufferPointer<UInt8>,
-        eventIndices: Set<Int>
-    ) -> Set<[UInt8]> {
-        var signatures = Set<[UInt8]>()
-        ASSScriptScanner.scanLines(bytes) { lineRange, kind in
-            guard case .dialogue(let eventIndex) = kind,
-                  eventIndices.contains(eventIndex)
-            else {
-                return
-            }
-            signatures.insert(glyphSignature(bytes, lineRange))
+        _ lineRange: Range<Int>,
+        _ signature: [UInt8]
+    ) -> Bool {
+        if lineRange.count < signature.count {
+            return false
         }
-        return signatures
+        var signatureIndex = 0
+        var isInsideOverride = false
+
+        for index in lineRange {
+            let byte = bytes[index]
+            if byte == 0x7B {
+                isInsideOverride = true
+            } else if byte == 0x7D {
+                isInsideOverride = false
+            } else if !isInsideOverride {
+                guard signatureIndex < signature.count,
+                      byte == signature[signatureIndex]
+                else {
+                    return false
+                }
+                signatureIndex += 1
+            }
+        }
+        return signatureIndex == signature.count
+    }
+
+    private static func appendWithoutBOM(
+        _ bytes: UnsafeBufferPointer<UInt8>,
+        in range: Range<Int>,
+        to destination: inout [UInt8]
+    ) {
+        var segmentStart = range.lowerBound
+        var index = range.lowerBound
+        while index < range.upperBound {
+            if bytes[index] == 0xEF,
+               index + 2 < range.upperBound,
+               bytes[index + 1] == 0xBB,
+               bytes[index + 2] == 0xBF {
+                if segmentStart < index {
+                    destination.append(contentsOf: bytes[segmentStart..<index])
+                }
+                index += 3
+                segmentStart = index
+            } else {
+                index += 1
+            }
+        }
+        if segmentStart < range.upperBound {
+            destination.append(contentsOf: bytes[segmentStart..<range.upperBound])
+        }
     }
 
     private static func subtitleBands(
@@ -678,15 +1073,53 @@ public enum SubtitleScreenshotExporter {
         }
     }
 
-    private static func ffmpegExecutableURL() -> URL? {
-        let candidates = [
-            Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/ffmpeg"),
-            URL(fileURLWithPath: "/opt/homebrew/bin/ffmpeg"),
-            URL(fileURLWithPath: "/usr/local/bin/ffmpeg"),
-            URL(fileURLWithPath: "/usr/bin/ffmpeg")
+    static func ffmpegExecutable() -> FFmpegExecutable? {
+        var candidates: [FFmpegExecutable] = [
+            FFmpegExecutable(
+                url: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/ffmpeg"),
+                supportsSkipInternalSubtitles: true
+            )
         ]
+        if let runtimeRoot = ProcessInfo.processInfo.environment["CUESEEKER_MEDIA_RUNTIME_ROOT"],
+           !runtimeRoot.isEmpty {
+            candidates.append(
+                FFmpegExecutable(
+                    url: URL(fileURLWithPath: runtimeRoot).appendingPathComponent("bin/ffmpeg"),
+                    supportsSkipInternalSubtitles: true
+                )
+            )
+        }
+        let repositoryRuntimeFFmpeg = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(".build/media-runtime/arm64-macos13/bin/ffmpeg")
+        candidates.append(
+            FFmpegExecutable(
+                url: repositoryRuntimeFFmpeg,
+                supportsSkipInternalSubtitles: true
+            )
+        )
+        candidates.append(contentsOf: [
+            FFmpegExecutable(
+                url: URL(fileURLWithPath: "/opt/homebrew/bin/ffmpeg"),
+                supportsSkipInternalSubtitles: false
+            ),
+            FFmpegExecutable(
+                url: URL(fileURLWithPath: "/usr/local/bin/ffmpeg"),
+                supportsSkipInternalSubtitles: false
+            ),
+            FFmpegExecutable(
+                url: URL(fileURLWithPath: "/usr/bin/ffmpeg"),
+                supportsSkipInternalSubtitles: false
+            )
+        ])
 
-        return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
+        return candidates.first {
+            FileManager.default.isExecutableFile(atPath: $0.url.path)
+        }
     }
 
     private static func runProcessCapturingStandardOutput(
