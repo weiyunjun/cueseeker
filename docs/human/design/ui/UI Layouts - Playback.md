@@ -36,7 +36,7 @@
 - Return Action：与 Window Controls 同一水平中线
 - Return Action Gap：`--gap-player-window-controls-return`
 - Fullscreen：Window Controls 由系统标题栏显示，Return Action 起点改为 `--padding-player-topbar-x`
-- 居中元素可用宽度：顶栏宽度减去左右占用较大一侧的两倍，居中元素始终在顶栏中线上
+- 居中元素可用宽度：顶栏宽度减去左右占用较大一侧（含 `--spacing-3` 间距）的两倍，居中元素始终在顶栏中线上
 
 #### Surface
 
@@ -46,7 +46,6 @@
 #### States
 
 - Visible
-- Interaction Suppressed
 - Hidden
 
 ### L-07.2 Player Bottom Control Bar Layout
@@ -84,7 +83,6 @@
 #### States
 
 - Visible
-- Interaction Suppressed
 - Hidden
 
 ### L-07.3 Player Progress Scrubber Layout

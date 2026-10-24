@@ -98,11 +98,11 @@
 - Shape：1 位数为圆形，宽与高相等；2 位及以上为胶囊形，两端为正半圆
 - Size：`--size-control-icon`；在 Section Header 内为 `--size-task-count-badge-compact`
 - Padding Inline：1 位数为 0；2 位及以上为 `--spacing-2`，在 Section Header 内为 `--padding-task-count-badge-compact-x`
-- Background：`--color-badge-neutral-bg`；按钮 Hover 或 Open 时不变
+- Background：`--color-badge-neutral-bg`；在 Player Chrome 上为 `--color-player-control-bg-hover`；按钮 Hover 或 Open 时不变
 - Font Family：`--font-family-base`
 - Font Size：`--font-size-task-count-badge`；在 Section Header 内为 `--font-size-caption`
 - Font Weight：`--font-weight-task-count-badge`
-- Text Color：`--color-text-secondary`；按钮 Disabled 时为 `--color-text-disabled`
+- Text Color：`--color-text-secondary`；在 Player Chrome 上为 `--color-player-text-secondary`；按钮 Disabled 时为 `--color-text-disabled`
 - States
   - Count
   - Hidden：数量为 0
@@ -851,6 +851,7 @@
   - Radius：`--radius-control`
 - Label
   - Font Size：`--font-size-player-time`
+  - Font Weight：`600`
   - Color：`--color-player-text-primary`
   - 数字等宽
 
@@ -872,7 +873,6 @@
   - Background：`--color-player-control-bg-hover`
 - Disabled
   - Text Color：`--color-player-text-tertiary`
-- Interaction Suppressed
 
 ### C-12.2 Player Time Display
 
@@ -882,10 +882,12 @@
 
 - Current Time
   - Font Design：Monospaced
+  - Font Weight：`600`
   - Color：`--color-player-text-primary`
 - Remaining Time
   - 带前导负号 `-`
   - Font Design：Monospaced
+  - Font Weight：`600`
   - Color：`--color-player-text-primary`
 
 ##### Sizes
@@ -942,6 +944,7 @@
   - Radius：`--radius-field`
 - Time Label
   - Font Size：`--font-size-player-progress-time`
+  - Font Weight：`600`
   - Color：`--color-player-text-primary`
 
 ##### Sizes
@@ -974,6 +977,7 @@
 - Volume Value
   - Font Size：`--font-size-player-time`
   - Font Design：Monospaced
+  - Font Weight：`600`
   - Color：`--color-player-text-primary`
 
 ##### Sizes
@@ -1005,12 +1009,9 @@
 - Volume Button Pressed
   - 仅左侧静音喇叭按钮区域（`--size-icon-button` × `--size-icon-button`，圆角 `--radius-control`）Background：`--color-player-control-bg-pressed`；拖拽右侧音量滑块不触发按钮 Pressed
 - Muted
-- Low
-- Medium
-- High
+- Unmuted
 - Dragging
 - Disabled
-- Interaction Suppressed
 
 ### C-12.6 Player Title
 
@@ -1020,6 +1021,7 @@
 
 - Label
   - Font Size：`--font-size-body`
+  - Font Weight：`600`
   - Color：`--color-player-text-primary`
   - Shadow：`--shadow-player-topbar-title`
 
