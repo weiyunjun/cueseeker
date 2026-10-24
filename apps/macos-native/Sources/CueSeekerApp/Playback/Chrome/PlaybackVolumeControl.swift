@@ -9,9 +9,6 @@ struct PlaybackVolumeControl: View {
     var body: some View {
         HStack(spacing: 0) {
             Button {
-                guard !timeline.isScrubbing else {
-                    return
-                }
                 viewModel.toggleMute()
             } label: {
                 AppIconImage(
@@ -29,7 +26,7 @@ struct PlaybackVolumeControl: View {
                         style: .continuous
                     )
                     .fill(
-                        !timeline.isScrubbing && isSpeakerPressed
+                        isSpeakerPressed
                             ? PlaybackTheme.controlPressedBackground
                             : Color.clear
                     )
@@ -45,7 +42,6 @@ struct PlaybackVolumeControl: View {
             .focusable(false)
             .workbenchTooltip(
                 scenarioID: "player.control.mute",
-                isActive: !timeline.isScrubbing,
                 label: viewModel.volume <= 0 ? L("tooltip.player.unmute") : L("playback.mute")
             )
             .accessibilityLabel(L("playback.mute"))
@@ -94,7 +90,7 @@ struct PlaybackVolumeControl: View {
                 style: .continuous
             )
             .fill(
-                !timeline.isScrubbing && isHovered
+                isHovered
                     ? PlaybackTheme.controlHoverBackground
                     : Color.clear
             )
@@ -102,14 +98,7 @@ struct PlaybackVolumeControl: View {
         .playerInteractiveRegion()
         .onPointerHover { hovering in
             withAnimation(.easeInOut(duration: PlaybackChromeMetrics.volumeExpandDuration)) {
-                isHovered = timeline.isScrubbing ? false : hovering
-            }
-        }
-        .onChange(of: timeline.isScrubbing) { isScrubbing in
-            if isScrubbing {
-                withAnimation(.easeInOut(duration: PlaybackChromeMetrics.volumeExpandDuration)) {
-                    isHovered = false
-                }
+                isHovered = hovering
             }
         }
     }

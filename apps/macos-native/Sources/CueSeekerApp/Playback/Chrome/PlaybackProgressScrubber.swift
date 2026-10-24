@@ -8,7 +8,6 @@ struct PlaybackProgressScrubber: View {
     @State private var isDragging = false
     @State private var hoverX: CGFloat? = nil
     @State private var isHoveringScrubber = false
-    @State private var tooltipWidth: CGFloat = PlaybackChromeMetrics.progressTimeCapsuleMinWidth
 
     init(
         viewModel: PlaybackViewModel,
@@ -21,15 +20,17 @@ struct PlaybackProgressScrubber: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let duration = max(0, viewModel.duration)
-            let isScrubbing = scrubTimeStore.scrubTime != nil
+            let duration = viewModel.duration.isFinite ? max(0, viewModel.duration) : 0
+            let hasDuration = duration > 0
+            let isScrubbing = hasDuration && scrubTimeStore.scrubTime != nil
+            let isInteractiveHover = hasDuration && isHovered
             let displayTime = scrubTimeStore.scrubTime ?? viewModel.displayedCurrentTime
-            let progress = duration > 0
+            let progress = hasDuration
                 ? min(max(displayTime / duration, 0), 1)
                 : 0
             let width = max(0, geometry.size.width)
             let filledWidth = width * progress
-            let trackHeight: CGFloat = (isHovered || isScrubbing)
+            let trackHeight: CGFloat = (isInteractiveHover || isScrubbing)
                 ? PlaybackChromeMetrics.progressTrackHoverHeight
                 : PlaybackChromeMetrics.progressTrackHeight
 
@@ -49,7 +50,7 @@ struct PlaybackProgressScrubber: View {
                     .fill(PlaybackTheme.progressTrack)
                     .frame(height: trackHeight)
 
-                if !isScrubbing, isHovered, isHoveringScrubber, let hoverX = hoverX {
+                if !isScrubbing, isInteractiveHover, isHoveringScrubber, let hoverX = hoverX {
                     Capsule()
                         .fill(PlaybackTheme.progressHoverTrack)
                         .frame(width: max(0, hoverX), height: trackHeight)
@@ -66,7 +67,7 @@ struct PlaybackProgressScrubber: View {
                         height: PlaybackChromeMetrics.progressThumbSize
                     )
                     .offset(x: filledWidth - PlaybackChromeMetrics.progressThumbSize / 2)
-                    .opacity(isHovered || isScrubbing ? 1 : 0)
+                    .opacity(isInteractiveHover || isScrubbing ? 1 : 0)
             }
             .frame(height: PlaybackChromeMetrics.progressHitAreaHeight, alignment: .center)
             .contentShape(Rectangle())
@@ -85,18 +86,20 @@ struct PlaybackProgressScrubber: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        beginScrubbingIfNeeded()
-                        guard duration > 0, width > 0 else {
+                        guard hasDuration, width > 0 else {
                             return
                         }
+                        beginScrubbingIfNeeded()
                         let targetTime = seekTime(for: value.location.x, width: width, duration: duration)
                         scrubTimeStore.scrubTime = targetTime
                         viewModel.updateTimelineScrubbing(to: targetTime)
                     }
                     .onEnded { value in
-                        guard duration > 0, width > 0 else {
-                            viewModel.cancelTimelineScrubbing()
-                            endScrubbingIfNeeded()
+                        guard hasDuration, width > 0 else {
+                            if isDragging {
+                                viewModel.cancelTimelineScrubbing()
+                                endScrubbingIfNeeded()
+                            }
                             return
                         }
                         let finalTime = seekTime(for: value.location.x, width: width, duration: duration)
@@ -107,35 +110,28 @@ struct PlaybackProgressScrubber: View {
             )
             .overlay(
                 Group {
-                    if let targetX = targetX, ((isHovered && isHoveringScrubber) || isScrubbing), duration > 0 {
-                        let clampedX = min(max(targetX - tooltipWidth / 2, 0), width - tooltipWidth)
-
-                        Text(formatPlaybackTime(tooltipTime))
-                            .font(.system(
-                                size: PlaybackChromeMetrics.progressTimeFontSize,
-                                weight: .semibold,
-                                design: .monospaced
-                            ))
-                            .foregroundStyle(PlaybackTheme.textPrimary)
-                            .monospacedDigit()
-                            .padding(.horizontal, PlaybackChromeMetrics.progressTimeCapsuleHorizontalPadding)
-                            .frame(height: PlaybackChromeMetrics.progressTimeCapsuleHeight)
-                            .background(
-                                GeometryReader { geo in
-                                    Color.clear
-                                        .onAppear { tooltipWidth = geo.size.width }
-                                        .onChange(of: geo.size.width) { tooltipWidth = $0 }
-                                }
-                            )
-                            .background(
-                                RoundedRectangle(
-                                    cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
-                                    style: .continuous
+                    if let targetX = targetX, ((isInteractiveHover && isHoveringScrubber) || isScrubbing) {
+                        PlaybackProgressTimeCapsulePlacementLayout(targetX: targetX) {
+                            Text(formatPlaybackTime(tooltipTime))
+                                .font(.system(
+                                    size: PlaybackChromeMetrics.progressTimeFontSize,
+                                    weight: .semibold,
+                                    design: .monospaced
+                                ))
+                                .foregroundStyle(PlaybackTheme.textPrimary)
+                                .monospacedDigit()
+                                .padding(.horizontal, PlaybackChromeMetrics.progressTimeCapsuleHorizontalPadding)
+                                .frame(height: PlaybackChromeMetrics.progressTimeCapsuleHeight)
+                                .background(
+                                    RoundedRectangle(
+                                        cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
+                                        style: .continuous
+                                    )
+                                    .fill(PlaybackTheme.menuBackground)
                                 )
-                                .fill(PlaybackTheme.menuBackground)
-                            )
-                            .offset(x: clampedX, y: PlaybackChromeMetrics.progressTimeCapsuleYOffset)
-                            .allowsHitTesting(false)
+                        }
+                        .offset(y: PlaybackChromeMetrics.progressTimeCapsuleYOffset)
+                        .allowsHitTesting(false)
                     }
                 },
                 alignment: .topLeading
@@ -187,5 +183,52 @@ struct PlaybackProgressScrubber: View {
         }
 
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+}
+
+struct PlaybackProgressTimeCapsulePlacementLayout: Layout {
+    let targetX: CGFloat
+
+    static func clampedX(
+        targetX: CGFloat,
+        capsuleWidth: CGFloat,
+        containerWidth: CGFloat
+    ) -> CGFloat {
+        let maxX = max(0, containerWidth - max(0, capsuleWidth))
+        return min(max(targetX - max(0, capsuleWidth) / 2, 0), maxX)
+    }
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        let naturalHeight = subviews.first?.sizeThatFits(.unspecified).height ?? 0
+        return CGSize(
+            width: proposal.width ?? 0,
+            height: proposal.height ?? naturalHeight
+        )
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        guard let subview = subviews.first else {
+            return
+        }
+        let naturalSize = subview.sizeThatFits(.unspecified)
+        let x = Self.clampedX(
+            targetX: targetX,
+            capsuleWidth: naturalSize.width,
+            containerWidth: bounds.width
+        )
+        subview.place(
+            at: CGPoint(x: bounds.minX + x, y: bounds.minY),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(naturalSize)
+        )
     }
 }

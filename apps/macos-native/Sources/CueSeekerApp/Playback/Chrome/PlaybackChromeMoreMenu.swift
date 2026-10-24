@@ -381,7 +381,7 @@ struct PlaybackMoreSubmenuLayout {
 /// Hosts a menu surface in the menu hosting view, the way every menu in the
 /// App is hosted, so the submenu's own scrolling sees the wheel first and
 /// nothing underneath takes what it leaves.
-private struct PlaybackMoreMenuHost: NSViewRepresentable {
+struct PlaybackMoreMenuHost: NSViewRepresentable {
     let content: AnyView
 
     func makeNSView(context _: Context) -> MenuHostingView {
@@ -418,7 +418,7 @@ private struct PlaybackMoreMenuTrigger: View {
 
                 AppIconImage(
                     .caretRight,
-                    size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS
+                    size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
                 )
             }
             .foregroundStyle(isEnabled ? PlaybackTheme.textPrimary : PlaybackTheme.textTertiary)
@@ -485,11 +485,11 @@ private struct PlaybackMoreSubmenuItem: View {
             HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing2) {
                 AppIconImage(
                     .check,
-                    size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS
+                    size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
                 )
                 .opacity(isChecked ? 1 : 0)
                 .frame(
-                    width: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS,
+                    width: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS,
                     height: Self.lineHeight
                 )
 

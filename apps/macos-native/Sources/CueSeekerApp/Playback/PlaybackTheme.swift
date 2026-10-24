@@ -581,19 +581,12 @@ enum PlaybackChromeMetrics {
     static let timeFontSize: CGFloat = 12
     static let progressTimeFontSize: CGFloat = 10
 
-    static let speedMenuOverlayTopPadding: CGFloat = 24
-    static let hiddenOffsetPadding: CGFloat = 28
-    static let progressTimeCapsuleMinWidth: CGFloat = 44
     /// --spacing-1: 4px
     static let progressTimeCapsuleGap = WorkbenchControlMetrics.redesignSpacing1
     static let progressTimeCapsuleYOffset: CGFloat = -(progressTimeCapsuleHeight + progressTimeCapsuleGap)
     static let windowControlBorderWidth: CGFloat = 0.5
     static let windowControlZoomGlyphSize: CGFloat = windowControlGlyphSize - 2
 
-    private static let speedMenuContentHeight: CGFloat =
-        CGFloat(7) * WorkbenchControlMetrics.redesignMenuItemHeight + MenuMetrics.padding * 2
-    static let interactiveHeight: CGFloat = height + speedMenuContentHeight + speedMenuGap + speedMenuOverlayTopPadding
-    static let hiddenOffset: CGFloat = interactiveHeight + hiddenOffsetPadding
     /// From the top of the 18px progress scrubber hit area down through the
     /// 44px controls row and 12px bottom padding (`74px`). The 16px
     /// `progressTopPadding` above it belongs to the playback stage tap area.
@@ -638,26 +631,22 @@ enum PlaybackChromeMetrics {
             + windowControlsReturnGap
     }
 
-    /// A trailing function region of `buttonCount` Icon Buttons.
-    static func topbarButtonGroupWidth(buttonCount: Int) -> CGFloat {
-        CGFloat(buttonCount) * WorkbenchControlMetrics.redesignIconButtonSize
-            + CGFloat(max(0, buttonCount - 1)) * WorkbenchControlMetrics.redesignSpacing1
-    }
-
-    /// What a centred title or Tabs may occupy: the bar minus twice the wider
-    /// side, so it stays on the bar's centre line and reaches neither the
-    /// return button nor the trailing buttons.
-    @MainActor
+    /// What a centred title may occupy: the bar minus twice the wider side
+    /// (including the `--spacing-3` safety gap), so it stays on the bar's
+    /// centre line and reaches neither the leading nor the trailing controls.
     static func topbarCenterMaxWidth(
         barWidth: CGFloat,
-        isFullscreen: Bool,
-        trailingButtonCount: Int,
-        trailingPadding: CGFloat
+        leadingOccupiedWidth: CGFloat,
+        trailingOccupiedWidth: CGFloat,
+        safetyGap: CGFloat = WorkbenchControlMetrics.redesignSpacing3
     ) -> CGFloat {
-        let leading = topbarReturnLeadingInset(isFullscreen: isFullscreen)
-            + WorkbenchControlMetrics.redesignIconButtonSize
-        let trailing = trailingPadding
-            + topbarButtonGroupWidth(buttonCount: trailingButtonCount)
-        return max(0, barWidth - 2 * (max(leading, trailing) + topbarHorizontalPadding))
+        let resolvedBarWidth = max(0, barWidth)
+        let resolvedLeading = max(0, leadingOccupiedWidth)
+        let resolvedTrailing = max(0, trailingOccupiedWidth)
+        let resolvedGap = max(0, safetyGap)
+        return max(
+            0,
+            resolvedBarWidth - 2 * (max(resolvedLeading, resolvedTrailing) + resolvedGap)
+        )
     }
 }

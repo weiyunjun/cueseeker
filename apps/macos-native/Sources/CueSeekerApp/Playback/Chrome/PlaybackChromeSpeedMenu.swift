@@ -1,16 +1,87 @@
+import AppKit
 import SwiftUI
+
+struct PlaybackChromeSpeedMenuOverlay: View {
+    @ObservedObject var playback: PlaybackStore
+    @ObservedObject var viewModel: PlaybackViewModel
+    let buttonFrame: CGRect
+    let suppressesInteraction: Bool
+
+    var body: some View {
+        GeometryReader { proxy in
+            let bounds = PlaybackChromeMoreMenuOverlay.bounds(
+                stageSize: proxy.size,
+                buttonFrame: buttonFrame
+            )
+            let maximumHeight = min(MenuMetrics.maximumHeight, bounds.height)
+            let menuView = PlaybackChromeSpeedMenu(
+                selectedSpeed: viewModel.playbackSpeed,
+                maximumHeight: maximumHeight,
+                suppressesInteraction: suppressesInteraction,
+                highlight: playback.speedMenuHighlight,
+                onSelect: { speed in
+                    viewModel.setSpeed(speed)
+                    playback.closeSpeedMenu()
+                }
+            )
+            let menuSize = NSHostingView(rootView: menuView).fittingSize
+            let menuFrame = MenuPlacement.openingFrame(
+                anchor: buttonFrame,
+                menuSize: menuSize,
+                in: bounds,
+                gap: PlaybackChromeMetrics.speedMenuGap
+            )
+
+            ZStack(alignment: .topLeading) {
+                MenuGateClientView(
+                    gate: playback.interfaceLayers.menuGate,
+                    owner: .playbackPage,
+                    kind: .playerSpeedMenu,
+                    menuFrame: menuFrame,
+                    // A press on the speed button is left to the button,
+                    // which toggles the menu itself.
+                    anchorFrame: buttonFrame,
+                    handleKey: { keyCode, isRepeat in
+                        playback.handleSpeedMenuKey(
+                            keyCode,
+                            isRepeat: isRepeat
+                        )
+                    },
+                    dismiss: { _ in
+                        DispatchQueue.main.async {
+                            playback.closeSpeedMenu()
+                        }
+                    }
+                )
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .allowsHitTesting(false)
+
+                PlaybackMoreMenuHost(content: AnyView(menuView))
+                    .frame(width: menuFrame.width, height: menuFrame.height)
+                    .offset(x: menuFrame.minX, y: menuFrame.minY)
+
+                Color.clear
+                    .frame(width: menuFrame.width, height: menuFrame.height)
+                    .playerInteractiveRegion()
+                    .offset(x: menuFrame.minX, y: menuFrame.minY)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+}
 
 struct PlaybackChromeSpeedMenu: View {
     let selectedSpeed: Double
+    var maximumHeight: CGFloat = MenuMetrics.maximumHeight
     var suppressesInteraction = false
     @ObservedObject var highlight: MenuHighlightModel
     let onSelect: (Double) -> Void
 
     var body: some View {
-        MenuItemStack(
-            padding: MenuMetrics.padding,
-            strip: 0,
-            cap: .infinity
+        WorkbenchPopoverPanel(
+            surface: .playerChrome,
+            maximumHeight: maximumHeight,
+            highlight: highlight
         ) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(
@@ -26,12 +97,12 @@ struct PlaybackChromeSpeedMenu: View {
                         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                             AppIconImage(
                                 .check,
-                                size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS
+                                size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
                             )
                             .opacity(abs(selectedSpeed - speed) < 0.01 ? 1 : 0)
                             .frame(
-                                width: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS,
-                                height: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS
+                                width: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS,
+                                height: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
                             )
 
                             Text(PlaybackViewModel.formatSpeed(speed))
@@ -65,29 +136,10 @@ struct PlaybackChromeSpeedMenu: View {
                         )
                     )
                     .focusable(false)
-                    .playerInteractiveRegion()
+                    .id(position)
                 }
             }
         }
-        .background(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignMenuRadius,
-                style: .continuous
-            )
-            .fill(PlaybackTheme.menuBackground)
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignMenuRadius,
-                style: .continuous
-            )
-            .strokeBorder(PlaybackTheme.textTertiary.opacity(0.3), lineWidth: 0.5)
-        )
-        .shadow(
-            color: PlaybackTheme.overlayShadowColor,
-            radius: PlaybackTheme.overlayShadowRadius,
-            y: PlaybackTheme.overlayShadowYOffset
-        )
     }
 }
 

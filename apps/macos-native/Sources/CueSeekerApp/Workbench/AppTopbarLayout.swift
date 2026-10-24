@@ -13,7 +13,9 @@ struct WorkbenchAdaptiveHeaderGeometry: Equatable {
         trailingNaturalSize: CGSize,
         leadingInset: CGFloat,
         trailingInset: CGFloat,
-        minimumGap: CGFloat = WorkbenchControlMetrics.redesignSpacing3
+        minimumGap: CGFloat = WorkbenchControlMetrics.redesignSpacing3,
+        keepsCenterOnMidline: Bool = false,
+        centerMaxWidthCap: CGFloat? = nil
     ) -> WorkbenchAdaptiveHeaderGeometry {
         let containerWidth = max(0, containerSize.width)
         let containerHeight = max(0, containerSize.height)
@@ -38,18 +40,42 @@ struct WorkbenchAdaptiveHeaderGeometry: Equatable {
         let leadingMaxWidth: CGFloat
 
         if centerWidth > 0 {
-            let idealCenterMinX = (containerWidth - centerWidth) / 2
-            let minCenterMinX = resolvedLeadingInset + leadingNaturalWidth + resolvedGap
-            let maxCenterMinX = trailingMinX - resolvedGap - centerWidth
-            let centerMinX = min(max(idealCenterMinX, minCenterMinX), maxCenterMinX)
-            let centerY = (containerHeight - centerNaturalSize.height) / 2
-            centerFrame = CGRect(
-                x: centerMinX,
-                y: centerY,
-                width: centerWidth,
-                height: centerNaturalSize.height
-            )
-            leadingMaxWidth = max(0, centerMinX - resolvedGap - resolvedLeadingInset)
+            if keepsCenterOnMidline {
+                let leadingOccupiedWidth = resolvedLeadingInset + leadingNaturalWidth
+                let trailingOccupiedWidth = resolvedTrailingInset + trailingWidth
+                let availableCenterWidth = PlaybackChromeMetrics.topbarCenterMaxWidth(
+                    barWidth: containerWidth,
+                    leadingOccupiedWidth: leadingOccupiedWidth,
+                    trailingOccupiedWidth: trailingOccupiedWidth,
+                    safetyGap: resolvedGap
+                )
+                let cappedCenterMaxWidth = centerMaxWidthCap.map {
+                    min(availableCenterWidth, max(0, $0))
+                } ?? availableCenterWidth
+                let resolvedCenterWidth = min(centerWidth, cappedCenterMaxWidth)
+                let centerMinX = (containerWidth - resolvedCenterWidth) / 2
+                let centerY = (containerHeight - centerNaturalSize.height) / 2
+                centerFrame = CGRect(
+                    x: centerMinX,
+                    y: centerY,
+                    width: resolvedCenterWidth,
+                    height: centerNaturalSize.height
+                )
+                leadingMaxWidth = leadingNaturalWidth
+            } else {
+                let idealCenterMinX = (containerWidth - centerWidth) / 2
+                let minCenterMinX = resolvedLeadingInset + leadingNaturalWidth + resolvedGap
+                let maxCenterMinX = trailingMinX - resolvedGap - centerWidth
+                let centerMinX = min(max(idealCenterMinX, minCenterMinX), maxCenterMinX)
+                let centerY = (containerHeight - centerNaturalSize.height) / 2
+                centerFrame = CGRect(
+                    x: centerMinX,
+                    y: centerY,
+                    width: centerWidth,
+                    height: centerNaturalSize.height
+                )
+                leadingMaxWidth = max(0, centerMinX - resolvedGap - resolvedLeadingInset)
+            }
         } else {
             centerFrame = CGRect(
                 x: containerWidth / 2,
@@ -81,6 +107,8 @@ struct WorkbenchAdaptiveHeaderBarLayout: Layout {
     let leadingInset: CGFloat
     let trailingInset: CGFloat
     var minimumGap: CGFloat = WorkbenchControlMetrics.redesignSpacing3
+    var keepsCenterOnMidline: Bool = false
+    var centerMaxWidthCap: CGFloat? = nil
 
     func sizeThatFits(
         proposal: ProposedViewSize,
@@ -117,7 +145,9 @@ struct WorkbenchAdaptiveHeaderBarLayout: Layout {
             trailingNaturalSize: trailingNaturalSize,
             leadingInset: leadingInset,
             trailingInset: trailingInset,
-            minimumGap: minimumGap
+            minimumGap: minimumGap,
+            keepsCenterOnMidline: keepsCenterOnMidline,
+            centerMaxWidthCap: centerMaxWidthCap
         )
 
         let leadingProposal = ProposedViewSize(
@@ -172,6 +202,8 @@ struct WorkbenchAdaptiveHeaderBar<
     let leadingInset: CGFloat
     let trailingInset: CGFloat
     var minimumGap: CGFloat = WorkbenchControlMetrics.redesignSpacing3
+    var keepsCenterOnMidline: Bool = false
+    var centerMaxWidthCap: CGFloat? = nil
     @ViewBuilder let leading: () -> Leading
     @ViewBuilder let center: () -> Center
     @ViewBuilder let trailing: () -> Trailing
@@ -180,7 +212,9 @@ struct WorkbenchAdaptiveHeaderBar<
         WorkbenchAdaptiveHeaderBarLayout(
             leadingInset: leadingInset,
             trailingInset: trailingInset,
-            minimumGap: minimumGap
+            minimumGap: minimumGap,
+            keepsCenterOnMidline: keepsCenterOnMidline,
+            centerMaxWidthCap: centerMaxWidthCap
         ) {
             HStack(spacing: 0) {
                 leading()

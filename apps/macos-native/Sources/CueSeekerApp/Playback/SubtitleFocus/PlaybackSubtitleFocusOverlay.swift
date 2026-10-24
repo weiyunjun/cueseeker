@@ -345,7 +345,8 @@ struct PlaybackOverlayTopBar: View {
             WorkbenchAdaptiveHeaderBar(
                 leadingInset: 0,
                 trailingInset: WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding,
-                minimumGap: WorkbenchControlMetrics.redesignSpacing3
+                minimumGap: WorkbenchControlMetrics.redesignSpacing3,
+                keepsCenterOnMidline: isEditingCollage
             ) {
                 PlaybackReturnButton(
                     hoverBackground: WorkbenchRedesignColors

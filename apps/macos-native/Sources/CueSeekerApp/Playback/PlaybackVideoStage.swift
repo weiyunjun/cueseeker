@@ -87,14 +87,14 @@ struct PlaybackVideoStage: View {
                     )
                     .frame(
                         width: max(0, stageSize.width - PlaybackChromeMetrics.horizontalInset * 2),
-                        height: PlaybackChromeMetrics.interactiveHeight,
+                        height: PlaybackChromeMetrics.height,
                         alignment: .bottom
                     )
                     .position(
                         x: stageSize.width / 2,
                         y: max(
-                            PlaybackChromeMetrics.interactiveHeight / 2,
-                            stageSize.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.interactiveHeight / 2
+                            PlaybackChromeMetrics.height / 2,
+                            stageSize.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.height / 2
                         )
                     )
                     .opacity(isBottomChromeVisible ? 1 : 0)
@@ -116,6 +116,9 @@ struct PlaybackVideoStage: View {
             .clipped()
             // Laid over the whole stage, ahead of the clickable controls'
             // report below, so its items report among them.
+            .overlayPreferenceValue(PlaybackSpeedButtonAnchorKey.self) { anchor in
+                speedMenuOverlay(anchor: anchor)
+            }
             .overlayPreferenceValue(PlaybackMoreButtonAnchorKey.self) { anchor in
                 moreMenuOverlay(anchor: anchor)
             }
@@ -185,6 +188,23 @@ struct PlaybackVideoStage: View {
     }
 
     @ViewBuilder
+    private func speedMenuOverlay(anchor: Anchor<CGRect>?) -> some View {
+        if playback.isSpeedMenuOpen,
+           let viewModel = playback.playbackViewModel,
+           let anchor
+        {
+            GeometryReader { proxy in
+                PlaybackChromeSpeedMenuOverlay(
+                    playback: playback,
+                    viewModel: viewModel,
+                    buttonFrame: proxy[anchor],
+                    suppressesInteraction: playback.interfaceLayers.isOpen(.commandPanel)
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
     private func moreMenuOverlay(anchor: Anchor<CGRect>?) -> some View {
         if let menu = playback.moreMenu, let anchor {
             GeometryReader { proxy in
@@ -193,8 +213,7 @@ struct PlaybackVideoStage: View {
                     submenuState: playback.moreSubmenuState,
                     menu: menu,
                     buttonFrame: proxy[anchor],
-                    suppressesInteraction: playback.timeline.isScrubbing
-                        || playback.interfaceLayers.isOpen(.commandPanel),
+                    suppressesInteraction: playback.interfaceLayers.isOpen(.commandPanel),
                     onSelect: { submenu, index in
                         switch submenu {
                         case .audioTrack:

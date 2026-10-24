@@ -3,37 +3,31 @@ import SwiftUI
 struct PlaybackChromeIconButton: View {
     let icon: AppIcon
     var iconWeight: AppIconWeight?
-    var isSelected = false
-    /// The menu it opens is open; it looks hovered for as long.
+    /// The menu or mode it controls is open; it looks hovered for as long.
     var isOpen = false
     var isDisabled = false
-    var suppressesInteraction = false
     let accessibilityLabel: String
     let action: () -> Void
 
     init(
         icon: AppIcon,
         iconWeight: AppIconWeight? = nil,
-        isSelected: Bool = false,
         isOpen: Bool = false,
         isDisabled: Bool = false,
-        suppressesInteraction: Bool = false,
         accessibilityLabel: String,
         action: @escaping () -> Void
     ) {
         self.icon = icon
         self.iconWeight = iconWeight
-        self.isSelected = isSelected
         self.isOpen = isOpen
         self.isDisabled = isDisabled
-        self.suppressesInteraction = suppressesInteraction
         self.accessibilityLabel = accessibilityLabel
         self.action = action
     }
 
     var body: some View {
         Button {
-            guard !isDisabled, !suppressesInteraction else {
+            guard !isDisabled else {
                 return
             }
             action()
@@ -56,9 +50,7 @@ struct PlaybackChromeIconButton: View {
         }
         .buttonStyle(
             PlaybackChromeIconButtonStyle(
-                isSelected: isSelected,
-                isOpen: isOpen,
-                suppressesInteraction: suppressesInteraction
+                isOpen: isOpen
             )
         )
         .disabled(isDisabled)
@@ -69,9 +61,7 @@ struct PlaybackChromeIconButton: View {
 }
 
 private struct PlaybackChromeIconButtonStyle: ButtonStyle {
-    let isSelected: Bool
     let isOpen: Bool
-    let suppressesInteraction: Bool
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
 
@@ -85,16 +75,11 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
                 )
                 .fill(backgroundColor(isPressed: configuration.isPressed))
             )
-            .onPointerHover { isHovered = suppressesInteraction ? false : $0 }
+            .onPointerHover { isHovered = $0 }
             .onChange(of: configuration.isPressed) { newValue in
                 if newValue {
-                    isHovered = !suppressesInteraction
+                    isHovered = true
                 } else if (NSEvent.pressedMouseButtons & 1) != 0 {
-                    isHovered = false
-                }
-            }
-            .onChange(of: suppressesInteraction) { isSuppressed in
-                if isSuppressed {
                     isHovered = false
                 }
             }
@@ -105,19 +90,15 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
     }
 
     private func backgroundColor(isPressed: Bool) -> Color {
-        guard isInteractive else {
+        guard isEnabled else {
             return Color.clear
         }
         if isPressed {
             return PlaybackTheme.controlPressedBackground
         }
-        if isHovered || isOpen || isSelected {
+        if isHovered || isOpen {
             return PlaybackTheme.controlHoverBackground
         }
         return Color.clear
-    }
-
-    private var isInteractive: Bool {
-        isEnabled && !suppressesInteraction
     }
 }

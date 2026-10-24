@@ -55,7 +55,9 @@ struct PlaybackMoreButtonAnchorKey: PreferenceKey {
     }
 }
 
-private struct PlaybackSpeedButtonAnchorKey: PreferenceKey {
+/// The Speed button's bounds, read by the stage, which lays the Speed menu
+/// over the whole video rather than inside the bottom chrome.
+struct PlaybackSpeedButtonAnchorKey: PreferenceKey {
     static let defaultValue: Anchor<CGRect>? = nil
 
     static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
@@ -71,29 +73,13 @@ struct PlaybackChromeView: View {
     @ObservedObject var viewModel: PlaybackViewModel
     @ObservedObject var timeline: PlaybackTimelineInteractionStore
     let controls: PlaybackChromeControls
-    @State private var speedButtonFrame: CGRect = .zero
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.clear
-                .allowsHitTesting(false)
-
-            chromeSurface
-                .zIndex(1)
-        }
-        .frame(height: PlaybackChromeMetrics.interactiveHeight, alignment: .bottom)
-        .overlayPreferenceValue(PlaybackSpeedButtonAnchorKey.self) { anchor in
-            speedMenuOverlay(anchor: anchor)
-        }
-        .background(
-            PlaybackChromeTimelineResetter(
-                timeline: timeline,
-                isSpeedMenuVisible: isSpeedMenuVisibleBinding
-            )
-        )
-        .onDisappear {
-            playback.closeSpeedMenu()
-        }
+        chromeSurface
+            .frame(height: PlaybackChromeMetrics.height, alignment: .bottom)
+            .onDisappear {
+                playback.closeSpeedMenu()
+            }
     }
 
     /// Toggling the menu goes through the store, which also seeds the highlight
@@ -149,72 +135,6 @@ struct PlaybackChromeView: View {
         )
     }
 
-    @MainActor
-    @ViewBuilder
-    private func speedMenuOverlay(anchor: Anchor<CGRect>?) -> some View {
-        if playback.isSpeedMenuOpen, let anchor {
-            GeometryReader { proxy in
-                let buttonFrame = proxy[anchor]
-                let menuView = PlaybackChromeSpeedMenu(
-                    selectedSpeed: viewModel.playbackSpeed,
-                    suppressesInteraction: timeline.isScrubbing
-                        || playback.interfaceLayers.isOpen(.commandPanel),
-                    highlight: playback.speedMenuHighlight,
-                    onSelect: { speed in
-                        viewModel.setSpeed(speed)
-                        playback.closeSpeedMenu()
-                    }
-                )
-                let menuSize = NSHostingView(rootView: menuView).fittingSize
-                // The button sits on the bottom chrome, so the shared rule finds
-                // no room below and opens the menu upward.
-                let menuFrame = MenuPlacement.openingFrame(
-                    anchor: buttonFrame,
-                    menuSize: menuSize,
-                    in: CGRect(origin: .zero, size: proxy.size),
-                    gap: PlaybackChromeMetrics.speedMenuGap,
-                    // Keeps the menu inside the same margin the controls use
-                    // instead of resting on the window edge.
-                    edgeInset: PlaybackChromeMetrics.chromeHorizontalPadding
-                )
-                let menuWidth = menuSize.width
-                let menuHeight = menuSize.height
-                let x = menuFrame.midX
-                let y = menuFrame.midY
-
-                ZStack(alignment: .topLeading) {
-                    MenuGateClientView(
-                        gate: playback.interfaceLayers.menuGate,
-                        owner: .playbackPage,
-                        kind: .playerSpeedMenu,
-                        menuFrame: menuFrame,
-                        // A press on the speed button is left to the button,
-                        // which toggles the menu itself.
-                        anchorFrame: buttonFrame,
-                        handleKey: { keyCode, isRepeat in
-                            playback.handleSpeedMenuKey(
-                                keyCode,
-                                isRepeat: isRepeat
-                            )
-                        },
-                        dismiss: { _ in
-                            DispatchQueue.main.async {
-                                playback.closeSpeedMenu()
-                            }
-                        }
-                    )
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-                    .allowsHitTesting(false)
-
-                    menuView
-                        .frame(width: menuWidth, height: menuHeight)
-                        .position(x: x, y: y)
-                }
-                .zIndex(2)
-            }
-        }
-    }
-
     private var scrubberRow: some View {
         PlaybackProgressScrubberRow(
             viewModel: viewModel,
@@ -249,18 +169,15 @@ struct PlaybackChromeView: View {
         HStack(spacing: PlaybackChromeMetrics.controlsGap) {
             PlaybackPlayPauseChromeButton(
                 viewModel: viewModel,
-                timeline: timeline,
                 action: controls.togglePlayPause
             )
             .workbenchTooltip(
                 scenarioID: "player.control.play_pause",
-                isActive: !timeline.isScrubbing,
                 label: viewModel.isPlaying ? L("playback.pause") : L("playback.play"),
                 shortcut: .action(.playPause)
             )
 
-            PlaybackTimelineChromeIconButton(
-                timeline: timeline,
+            PlaybackChromeIconButton(
                 icon: .skipBack,
                 iconWeight: .fill,
                 isDisabled: !controls.canGoPrevious,
@@ -269,13 +186,11 @@ struct PlaybackChromeView: View {
             )
             .workbenchTooltip(
                 scenarioID: "player.control.previous",
-                isActive: !timeline.isScrubbing,
                 label: previousTooltipLabel,
                 shortcut: controls.canGoPrevious ? .action(.previous) : .none
             )
 
-            PlaybackTimelineChromeIconButton(
-                timeline: timeline,
+            PlaybackChromeIconButton(
                 icon: .skipForward,
                 iconWeight: .fill,
                 isDisabled: !controls.canGoNext,
@@ -284,7 +199,6 @@ struct PlaybackChromeView: View {
             )
             .workbenchTooltip(
                 scenarioID: "player.control.next",
-                isActive: !timeline.isScrubbing,
                 label: nextTooltipLabel,
                 shortcut: controls.canGoNext ? .action(.next) : .none
             )
@@ -298,8 +212,7 @@ struct PlaybackChromeView: View {
 
     private var rightGroup: some View {
         HStack(spacing: PlaybackChromeMetrics.controlsGap) {
-            PlaybackTimelineChromeIconButton(
-                timeline: timeline,
+            PlaybackChromeIconButton(
                 icon: .repeatIcon,
                 isDisabled: !controls.canRepeatCurrentCue,
                 accessibilityLabel: L("playback.repeat"),
@@ -307,33 +220,28 @@ struct PlaybackChromeView: View {
             )
             .workbenchTooltip(
                 scenarioID: "player.control.repeat",
-                isActive: !timeline.isScrubbing,
                 label: controls.canRepeatCurrentCue
                     ? L("playback.repeat")
                     : L("tooltip.player.repeat.disabled"),
                 shortcut: controls.canRepeatCurrentCue ? .action(.repeatCue) : .none
             )
 
-            PlaybackTimelineChromeIconButton(
-                timeline: timeline,
+            PlaybackChromeIconButton(
                 icon: .camera,
                 accessibilityLabel: L("playback.copy_screenshot"),
                 action: viewModel.copyCurrentFrameScreenshot
             )
             .workbenchTooltip(
                 scenarioID: "player.control.copy_screenshot",
-                isActive: !timeline.isScrubbing,
                 label: L("tooltip.player.copy_screenshot"),
                 shortcut: .action(.copyScreenshot)
             )
 
             PlaybackSubtitleChromeButton(
-                viewModel: viewModel,
-                timeline: timeline
+                viewModel: viewModel
             )
             .workbenchTooltip(
                 scenarioID: "player.control.subtitles",
-                isActive: !timeline.isScrubbing,
                 label: viewModel.areSubtitlesVisible
                     ? L("tooltip.player.subtitles.hide")
                     : L("tooltip.player.subtitles.show"),
@@ -342,8 +250,7 @@ struct PlaybackChromeView: View {
 
             speedControl
 
-            PlaybackTimelineChromeIconButton(
-                timeline: timeline,
+            PlaybackChromeIconButton(
                 icon: .dotsThreeVertical,
                 isOpen: playback.moreMenu != nil,
                 accessibilityLabel: L("playback.more"),
@@ -351,8 +258,7 @@ struct PlaybackChromeView: View {
             )
             .anchorPreference(key: PlaybackMoreButtonAnchorKey.self, value: .bounds) { $0 }
 
-            PlaybackTimelineChromeIconButton(
-                timeline: timeline,
+            PlaybackChromeIconButton(
                 icon: controls.isFullscreen ? .cornersIn : .cornersOut,
                 isDisabled: controls.isFullscreenToggleDisabled,
                 accessibilityLabel: L("playback.fullscreen"),
@@ -360,7 +266,6 @@ struct PlaybackChromeView: View {
             )
             .workbenchTooltip(
                 scenarioID: "player.control.fullscreen",
-                isActive: !timeline.isScrubbing,
                 label: controls.isFullscreenToggleDisabled
                     ? L("tooltip.player.fullscreen.disabled")
                     : (controls.isFullscreen
@@ -374,88 +279,25 @@ struct PlaybackChromeView: View {
     private var speedControl: some View {
         PlaybackSpeedChromeButton(
             viewModel: viewModel,
-            timeline: timeline,
-            isSpeedMenuVisible: isSpeedMenuVisibleBinding,
-            speedButtonFrame: $speedButtonFrame
+            isSpeedMenuVisible: isSpeedMenuVisibleBinding
         )
         .workbenchTooltip(
             scenarioID: "player.control.speed",
-            isActive: !timeline.isScrubbing && !playback.isSpeedMenuOpen,
+            isActive: !playback.isSpeedMenuOpen,
             label: L("tooltip.player.speed")
         )
         .anchorPreference(key: PlaybackSpeedButtonAnchorKey.self, value: .bounds) { $0 }
     }
 }
 
-private struct PlaybackChromeTimelineResetter: View {
-    @ObservedObject var timeline: PlaybackTimelineInteractionStore
-    @Binding var isSpeedMenuVisible: Bool
-
-    var body: some View {
-        Color.clear
-            .allowsHitTesting(false)
-            .onChange(of: timeline.isScrubbing) { isScrubbing in
-                if isScrubbing {
-                    isSpeedMenuVisible = false
-                }
-            }
-    }
-}
-
-private struct PlaybackTimelineChromeIconButton: View {
-    @ObservedObject var timeline: PlaybackTimelineInteractionStore
-    let icon: AppIcon
-    var iconWeight: AppIconWeight?
-    var isSelected = false
-    var isOpen = false
-    var isDisabled = false
-    let accessibilityLabel: String
-    let action: () -> Void
-
-    init(
-        timeline: PlaybackTimelineInteractionStore,
-        icon: AppIcon,
-        iconWeight: AppIconWeight? = nil,
-        isSelected: Bool = false,
-        isOpen: Bool = false,
-        isDisabled: Bool = false,
-        accessibilityLabel: String,
-        action: @escaping () -> Void
-    ) {
-        self.timeline = timeline
-        self.icon = icon
-        self.iconWeight = iconWeight
-        self.isSelected = isSelected
-        self.isOpen = isOpen
-        self.isDisabled = isDisabled
-        self.accessibilityLabel = accessibilityLabel
-        self.action = action
-    }
-
-    var body: some View {
-        PlaybackChromeIconButton(
-            icon: icon,
-            iconWeight: iconWeight,
-            isSelected: isSelected,
-            isOpen: isOpen,
-            isDisabled: isDisabled,
-            suppressesInteraction: timeline.isScrubbing,
-            accessibilityLabel: accessibilityLabel,
-            action: action
-        )
-    }
-}
-
 private struct PlaybackPlayPauseChromeButton: View {
     @ObservedObject var viewModel: PlaybackViewModel
-    @ObservedObject var timeline: PlaybackTimelineInteractionStore
     let action: () -> Void
 
     var body: some View {
         PlaybackChromeIconButton(
             icon: viewModel.isPlaying ? .pause : .play,
             iconWeight: .fill,
-            suppressesInteraction: timeline.isScrubbing,
             accessibilityLabel: viewModel.isPlaying ? L("playback.pause") : L("playback.play"),
             action: action
         )
@@ -464,13 +306,11 @@ private struct PlaybackPlayPauseChromeButton: View {
 
 private struct PlaybackSubtitleChromeButton: View {
     @ObservedObject var viewModel: PlaybackViewModel
-    @ObservedObject var timeline: PlaybackTimelineInteractionStore
 
     var body: some View {
         PlaybackChromeIconButton(
             icon: .subtitles,
-            isSelected: viewModel.areSubtitlesVisible,
-            suppressesInteraction: timeline.isScrubbing,
+            isOpen: viewModel.areSubtitlesVisible,
             accessibilityLabel: L("playback.subtitles"),
             action: viewModel.toggleSubtitles
         )
@@ -536,15 +376,10 @@ private struct PlaybackProgressScrubberRow: View {
 
 private struct PlaybackSpeedChromeButton: View {
     @ObservedObject var viewModel: PlaybackViewModel
-    @ObservedObject var timeline: PlaybackTimelineInteractionStore
     @Binding var isSpeedMenuVisible: Bool
-    @Binding var speedButtonFrame: CGRect
 
     var body: some View {
         Button {
-            guard !timeline.isScrubbing else {
-                return
-            }
             isSpeedMenuVisible.toggle()
         } label: {
             Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
@@ -561,8 +396,7 @@ private struct PlaybackSpeedChromeButton: View {
         }
         .buttonStyle(
             PlaybackSpeedChromeButtonStyle(
-                isOpen: isSpeedMenuVisible,
-                suppressesInteraction: timeline.isScrubbing
+                isOpen: isSpeedMenuVisible
             )
         )
         .focusable(false)
@@ -573,24 +407,6 @@ private struct PlaybackSpeedChromeButton: View {
             height: WorkbenchControlMetrics.redesignIconButtonSize,
             alignment: .center
         )
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear {
-                        updateSpeedButtonFrame(geo.frame(in: .global))
-                    }
-                    .onChange(of: geo.frame(in: .global)) { newFrame in
-                        updateSpeedButtonFrame(newFrame)
-                    }
-            }
-        )
-    }
-
-    private func updateSpeedButtonFrame(_ newFrame: CGRect) {
-        guard speedButtonFrame != newFrame else {
-            return
-        }
-        speedButtonFrame = newFrame
     }
 }
 
@@ -609,7 +425,6 @@ private func formatPlaybackSeconds(_ totalSeconds: Int) -> String {
 
 private struct PlaybackSpeedChromeButtonStyle: ButtonStyle {
     var isOpen = false
-    var suppressesInteraction = false
     @State private var isHovered = false
     @Environment(\.isEnabled) private var isEnabled
 
@@ -623,16 +438,11 @@ private struct PlaybackSpeedChromeButtonStyle: ButtonStyle {
                 )
                 .fill(backgroundColor(isPressed: configuration.isPressed))
             )
-            .onPointerHover { isHovered = suppressesInteraction ? false : $0 }
+            .onPointerHover { isHovered = $0 }
             .onChange(of: configuration.isPressed) { newValue in
                 if newValue {
-                    isHovered = !suppressesInteraction
+                    isHovered = true
                 } else if (NSEvent.pressedMouseButtons & 1) != 0 {
-                    isHovered = false
-                }
-            }
-            .onChange(of: suppressesInteraction) { isSuppressed in
-                if isSuppressed {
                     isHovered = false
                 }
             }
@@ -643,7 +453,7 @@ private struct PlaybackSpeedChromeButtonStyle: ButtonStyle {
     }
 
     private func backgroundColor(isPressed: Bool) -> Color {
-        guard isInteractive else {
+        guard isEnabled else {
             return Color.clear
         }
         if isPressed {
@@ -653,9 +463,5 @@ private struct PlaybackSpeedChromeButtonStyle: ButtonStyle {
             return PlaybackTheme.controlHoverBackground
         }
         return Color.clear
-    }
-
-    private var isInteractive: Bool {
-        isEnabled && !suppressesInteraction
     }
 }

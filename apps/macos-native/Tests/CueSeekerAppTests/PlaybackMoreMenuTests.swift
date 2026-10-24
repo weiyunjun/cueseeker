@@ -299,7 +299,7 @@ func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
         + WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
         + WorkbenchControlMetrics.redesignMenuItemTrailingIconPadding
         + WorkbenchControlMetrics.redesignSpacing2
-        + WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS
+        + WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
     #expect(layout.menuFrame.width >= trigger + MenuMetrics.padding * 2)
     #expect(bounds.contains(layout.menuFrame))
 
@@ -311,4 +311,41 @@ func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
         #expect(bounds.contains(frame))
         #expect(frame.maxX <= layout.menuFrame.minX || frame.minX >= layout.menuFrame.maxX)
     }
+}
+
+@Test
+func playerTopbarCenterMaxWidthRespectsWiderControlSideAndSpacing3SafetyGap() {
+    // Bar width 600, leading occupied 123, trailing occupied 160 (e.g. Task badge 99+):
+    // available centered width = 600 - 2 * (160 + 12) = 256.
+    let width = PlaybackChromeMetrics.topbarCenterMaxWidth(
+        barWidth: 600,
+        leadingOccupiedWidth: 123,
+        trailingOccupiedWidth: 160
+    )
+    #expect(width == 256)
+}
+
+@Test
+func progressTimeCapsulePlacementClampsWithinScrubberBounds() {
+    #expect(
+        PlaybackProgressTimeCapsulePlacementLayout.clampedX(
+            targetX: 0,
+            capsuleWidth: 42,
+            containerWidth: 300
+        ) == 0
+    )
+    #expect(
+        PlaybackProgressTimeCapsulePlacementLayout.clampedX(
+            targetX: 150,
+            capsuleWidth: 42,
+            containerWidth: 300
+        ) == 129
+    )
+    #expect(
+        PlaybackProgressTimeCapsulePlacementLayout.clampedX(
+            targetX: 300,
+            capsuleWidth: 42,
+            containerWidth: 300
+        ) == 258
+    )
 }

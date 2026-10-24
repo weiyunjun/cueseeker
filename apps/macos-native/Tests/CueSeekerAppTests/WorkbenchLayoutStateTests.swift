@@ -414,6 +414,26 @@ func adaptiveHeaderGeometryCentersShiftsAndTruncatesWith12PxMinimumGap() {
     #expect(compressed.centerFrame.minX == 242)
     #expect(compressed.leadingFrame.width == 102)
     #expect(compressed.centerFrame.minX - compressed.leadingFrame.maxX == 12)
+
+    // 5. Midline-locked center title (Player Topbar / Playback Overlay Editing Collage):
+    // stays centered on midline and compresses width to leave 12px gap on the wider side.
+    let midlineLocked = WorkbenchAdaptiveHeaderGeometry.resolve(
+        containerSize: CGSize(width: 600, height: 54),
+        leadingNaturalSize: CGSize(width: 120, height: 30),
+        centerNaturalSize: CGSize(width: 400, height: 20),
+        trailingNaturalSize: CGSize(width: 140, height: 30),
+        leadingInset: 0,
+        trailingInset: 40,
+        minimumGap: gap,
+        keepsCenterOnMidline: true,
+        centerMaxWidthCap: 520
+    )
+    // Trailing occupied = 40 + 140 = 180 (> leading 120).
+    // Available centered width = 600 - 2 * (180 + 12) = 216.
+    #expect(midlineLocked.centerFrame.width == 216)
+    #expect(midlineLocked.centerFrame.midX == 300)
+    #expect(midlineLocked.trailingFrame.minX - midlineLocked.centerFrame.maxX == 12)
+    #expect(midlineLocked.centerFrame.minX - midlineLocked.leadingFrame.maxX >= 12)
 }
 
 @Test
