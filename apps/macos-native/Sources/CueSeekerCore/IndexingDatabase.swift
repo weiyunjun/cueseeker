@@ -149,18 +149,18 @@ public final class IndexingDatabase: @unchecked Sendable {
                 try statement.run()
             }
 
-            affectedFolderPaths.formUnion(
-                try removeIndexedDataInCurrentTransaction(
-                    under: index.folder,
-                    keeping: index.keptSubtitlePaths,
-                    missingVideoSubtitlePaths: Set(
-                        index.missingVideoSubtitleFiles.map(\.mediaPath)
-                    ),
-                    removeSearchPath: false,
-                    rebuildSearchDerivedIndex: false,
-                    unavailableReason: .subtitleMissing
-                )
+            let removal = try removeIndexedDataInCurrentTransaction(
+                under: index.folder,
+                keeping: index.keptSubtitlePaths,
+                missingVideoSubtitlePaths: Set(
+                    index.missingVideoSubtitleFiles.map(\.mediaPath)
+                ),
+                removeSearchPath: false,
+                rebuildSearchDerivedIndex: false,
+                unavailableReason: .subtitleMissing
             )
+            changedSubtitlePaths.formUnion(removal.removedSubtitlePaths)
+            affectedFolderPaths.formUnion(removal.affectedFolderPaths)
             try deleteOrphanedVideoFiles()
             try deleteEmptyLibraryFolders(libraryID: libraryID)
             if !affectedFolderPaths.isEmpty {
@@ -780,14 +780,14 @@ public final class IndexingDatabase: @unchecked Sendable {
             let inactiveSearchPaths = try searchPaths()
                 .filter { !Self.folderPath($0, matchesAny: folders) }
             for searchPath in inactiveSearchPaths {
-                let affectedFolderPaths = try removeIndexedDataInCurrentTransaction(
+                let removal = try removeIndexedDataInCurrentTransaction(
                     under: URL.fromMediaPath(searchPath),
                     keeping: [],
                     removeSearchPath: true,
                     rebuildSearchDerivedIndex: false,
                     unavailableReason: .libraryUnavailable
                 )
-                removedIndexedContent = removedIndexedContent || !affectedFolderPaths.isEmpty
+                removedIndexedContent = removedIndexedContent || !removal.affectedFolderPaths.isEmpty
             }
 
             try deleteOrphanedVideoFiles()
@@ -1012,30 +1012,41 @@ public final class IndexingDatabase: @unchecked Sendable {
 
     /// Removes a root and what it holds, except what lies inside the roots
     /// that stay: each of those becomes a Library of its own again, keeping
+    public func compactStorage() throws {
+        try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        try database.execute("VACUUM;")
+        try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+    }
+
     /// its indexed content. One transaction, so either all of it happens or
     /// none of it.
     @discardableResult
     public func removeIndexedFolder(
         _ folder: URL,
-        keepingNestedRoots nestedRoots: [URL] = []
+        keepingNestedRoots nestedRoots: [URL] = [],
+        compactAfterRemovingSubtitles: Bool = true
     ) throws -> Bool {
-        try database.withImmediateTransaction {
+        let removal = try database.withImmediateTransaction {
             var keptSubtitlePaths = Set<String>()
             for nestedRoot in nestedRoots {
                 keptSubtitlePaths.formUnion(try separateNestedLibrary(nestedRoot))
             }
-            let affectedFolderPaths = try removeIndexedDataInCurrentTransaction(
+            let removal = try removeIndexedDataInCurrentTransaction(
                 under: folder,
                 keeping: keptSubtitlePaths,
                 removeSearchPath: true,
                 rebuildSearchDerivedIndex: false,
                 unavailableReason: .libraryUnavailable
             )
-            if !affectedFolderPaths.isEmpty {
+            if !removal.affectedFolderPaths.isEmpty {
                 try CueFacetCountCache.rebuildAll(on: database)
             }
-            return !affectedFolderPaths.isEmpty
+            return removal
         }
+        if compactAfterRemovingSubtitles, !removal.removedSubtitlePaths.isEmpty {
+            try compactStorage()
+        }
+        return !removal.affectedFolderPaths.isEmpty
     }
 
     private struct SearchOrderFile {
@@ -1054,14 +1065,14 @@ public final class IndexingDatabase: @unchecked Sendable {
         unavailableReason: ExcerptUnavailableReason
     ) throws {
         try database.withImmediateTransaction {
-            let affectedFolderPaths = try removeIndexedDataInCurrentTransaction(
+            let removal = try removeIndexedDataInCurrentTransaction(
                 under: folder,
                 keeping: subtitleFiles,
                 removeSearchPath: removeSearchPath,
                 rebuildSearchDerivedIndex: rebuildSearchDerivedIndex,
                 unavailableReason: unavailableReason
             )
-            if !affectedFolderPaths.isEmpty {
+            if !removal.affectedFolderPaths.isEmpty {
                 try CueFacetCountCache.rebuildAll(on: database)
             }
         }
@@ -1074,7 +1085,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         removeSearchPath: Bool,
         rebuildSearchDerivedIndex: Bool,
         unavailableReason: ExcerptUnavailableReason
-    ) throws -> Set<String> {
+    ) throws -> (affectedFolderPaths: Set<String>, removedSubtitlePaths: Set<String>) {
         let folderPathPrefixes = Self.folderPathPrefixes(for: folder)
         let missingVideoVariants = Set(
             missingVideoSubtitlePaths.flatMap {
@@ -1101,6 +1112,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             folderPathPrefixes: folderPathPrefixes,
             subtitleFiles: subtitleFiles
         )
+        let removedSubtitlePaths = Set(staleSubtitleFiles.map(\.path))
         var affectedFolderPaths = Set(
             staleSubtitleFiles.map {
                 Self.folderPath(forSubtitlePath: $0.path)
@@ -1119,7 +1131,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                     try deleteSearchPath(searchPath)
                 }
             }
-            return affectedFolderPaths
+            return (affectedFolderPaths, removedSubtitlePaths)
         }
         for subtitleFile in staleSubtitleFiles {
             let reason: ExcerptUnavailableReason =
@@ -1354,7 +1366,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                 affectedFolderPaths: affectedFolderPaths
             )
         }
-        return affectedFolderPaths
+        return (affectedFolderPaths, removedSubtitlePaths)
     }
 
     private func upsertSubtitleFile(

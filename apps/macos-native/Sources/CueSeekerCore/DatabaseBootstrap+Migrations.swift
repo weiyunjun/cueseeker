@@ -534,6 +534,16 @@ extension DatabaseBootstrap {
         }
     }
 
+    /// Schema 63 compacts existing databases once on upgrade to reclaim freelist
+    /// pages and restore physical page contiguity across all tables and search
+    /// indexes after historical full-library rewrites.
+    static func migrateSchema62To63(on database: SQLiteDatabase) throws {
+        try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        try database.execute("VACUUM;")
+        try database.execute("PRAGMA user_version = 63;")
+        try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+    }
+
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(

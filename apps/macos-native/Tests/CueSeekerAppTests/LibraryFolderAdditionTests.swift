@@ -280,6 +280,89 @@ func indexKeepsPlayingAVideoItTakesOutOfTheLibrary() async throws {
     #expect(app.currentPlaybackItemLeftLibrary)
 }
 
+@MainActor
+@Test
+func tasksCompactDatabaseOnlyWhenSubtitleCuesMutate() async throws {
+    let fixture = try LibraryFolderAdditionFixture()
+    defer { fixture.cleanUp() }
+    let app = fixture.makeApp()
+
+    // 1. Add Folder with subtitle cues -> compacts freelist pages to 0.
+    try fixture.injectFreelistPages()
+    #expect(try fixture.freelistCount() > 0)
+    app.addFolder(fixture.show)
+    await app.tasks.waitUntilIdle()
+    #expect(try fixture.freelistCount() == 0)
+
+    // 2. Index All when nothing changed -> does NOT compact.
+    try fixture.injectFreelistPages()
+    let freelistBeforeUnchangedIndex = try fixture.freelistCount()
+    #expect(freelistBeforeUnchangedIndex > 0)
+    app.indexAllFolders()
+    await app.tasks.waitUntilIdle()
+    #expect(try fixture.freelistCount() == freelistBeforeUnchangedIndex)
+
+    // 3. Index when only raw_cue_count is backfilled -> does NOT compact.
+    try fixture.clearRawCueCounts()
+    app.indexFolder(fixture.show)
+    await app.tasks.waitUntilIdle()
+    #expect(try fixture.freelistCount() > 0)
+
+    // 4. Index when only video binding/metadata changes (subtitle unchanged) -> does NOT compact.
+    let ep1Video = fixture.seasonOne.appendingPathComponent("Episode 1.mkv")
+    try Data([0, 1, 2, 3]).write(to: ep1Video)
+    app.indexFolder(fixture.show)
+    await app.tasks.waitUntilIdle()
+    #expect(try fixture.freelistCount() > 0)
+
+    // 5. Add Folder for a subfolder already covered by an outer root -> does NOT compact.
+    app.addFolder(fixture.seasonOne)
+    await app.tasks.waitUntilIdle()
+    #expect(try fixture.freelistCount() > 0)
+
+    // 6. Remove Folder for a subfolder still covered by an outer root -> does NOT compact.
+    app.removeFolder(fixture.seasonOne)
+    await app.tasks.waitUntilIdle()
+    #expect(try fixture.freelistCount() > 0)
+
+    // 7. Add Folder and Remove Folder for an empty folder (no valid subtitles) -> does NOT compact.
+    let emptyFolder = fixture.container.appendingPathComponent("Empty", isDirectory: true).standardizedFileURL
+    try FileManager.default.createDirectory(at: emptyFolder, withIntermediateDirectories: true)
+    app.addFolder(emptyFolder)
+    await app.tasks.waitUntilIdle()
+    #expect(try fixture.freelistCount() > 0)
+    app.removeFolder(emptyFolder)
+    await app.tasks.waitUntilIdle()
+    #expect(try fixture.freelistCount() > 0)
+
+    // 8. Index when a subtitle file is modified -> compacts freelist pages to 0.
+    let ep1Subtitle = fixture.seasonOne.appendingPathComponent("Episode 1.srt")
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Episode 1 updated line for compaction check
+
+    """.write(to: ep1Subtitle, atomically: true, encoding: .utf8)
+    app.indexFolder(fixture.show)
+    await app.tasks.waitUntilIdle()
+    #expect(try fixture.freelistCount() == 0)
+
+    // 9. Index All when a subtitle file is deleted -> compacts freelist pages to 0.
+    try fixture.injectFreelistPages()
+    #expect(try fixture.freelistCount() > 0)
+    try FileManager.default.removeItem(at: ep1Subtitle)
+    app.indexAllFolders()
+    await app.tasks.waitUntilIdle()
+    #expect(try fixture.freelistCount() == 0)
+
+    // 10. Remove Folder when remaining subtitle cues are deleted -> compacts freelist pages to 0.
+    try fixture.injectFreelistPages()
+    #expect(try fixture.freelistCount() > 0)
+    app.removeFolder(fixture.show)
+    await app.tasks.waitUntilIdle()
+    #expect(try fixture.freelistCount() == 0)
+}
+
 /// The folders the Search and Excerpt Filter Dialogs list.
 @MainActor
 private func filterFolderPaths(of app: AppCoordinator) -> [String] {
@@ -335,6 +418,31 @@ private struct LibraryFolderAdditionFixture {
     func cleanUp() {
         userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: container)
+    }
+
+    func injectFreelistPages() throws {
+        let database = try SQLiteDatabase(path: databaseURL)
+        let largePath = "/" + String(repeating: "f", count: 16_384)
+        try database.execute(
+            """
+            INSERT INTO library_root_folders (path, created_at, updated_at)
+            VALUES ('\(largePath)', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+            DELETE FROM library_root_folders WHERE path = '\(largePath)';
+            PRAGMA wal_checkpoint(TRUNCATE);
+            """
+        )
+    }
+
+    func clearRawCueCounts() throws {
+        let database = try SQLiteDatabase(path: databaseURL)
+        try database.execute("UPDATE subtitle_files SET raw_cue_count = NULL;")
+    }
+
+    func freelistCount() throws -> Int {
+        try DatabaseMaintenanceDatabase(
+            path: databaseURL,
+            access: .readOnly
+        ).storageStats().freelistCount
     }
 
     private static func writeEpisode(named name: String, in folder: URL) throws {

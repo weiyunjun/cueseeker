@@ -13,6 +13,10 @@ actor LibraryFolderRemovalExecutor: LibraryFolderRemovalExecuting {
     @discardableResult
     func removeFolder(_ folder: URL, keepingNestedRoots nestedRoots: [URL], databaseURL: URL) async throws -> Bool {
         let database = try IndexingDatabase(path: databaseURL)
-        return try database.removeIndexedFolder(folder, keepingNestedRoots: nestedRoots)
+        return try database.removeIndexedFolder(
+            folder,
+            keepingNestedRoots: nestedRoots,
+            compactAfterRemovingSubtitles: true
+        )
     }
 }

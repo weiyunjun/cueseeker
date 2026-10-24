@@ -400,6 +400,7 @@ extension AppCoordinator {
             let indexedCount = try await Self.runIndex(
                 folders: [folder],
                 isAllFolders: false,
+                isForFolderAddition: true,
                 onProgress: onProgress,
                 coordinator: self
             )
@@ -419,6 +420,7 @@ extension AppCoordinator {
             return indexedCount
         } catch {
             do {
+                prepareForAutomaticDatabaseCompaction()
                 _ = try await libraryFolderRemovalExecutor.removeFolder(
                     folder,
                     keepingNestedRoots: LibraryRootGroups.representatives(
@@ -597,6 +599,7 @@ extension AppCoordinator {
     nonisolated private static func runIndex(
         folders: [URL],
         isAllFolders: Bool,
+        isForFolderAddition: Bool = false,
         onProgress: @escaping @Sendable (TaskIndexProgress) -> Void,
         coordinator: AppCoordinator?
     ) async throws -> Int {
@@ -691,6 +694,12 @@ extension AppCoordinator {
             } catch is CancellationError {
                 break
             } catch {
+                if !isForFolderAddition,
+                   let aggregateResult,
+                   !aggregateResult.changedSubtitlePaths.isEmpty {
+                    await coordinator.prepareForAutomaticDatabaseCompaction()
+                    try? context.database.compactStorage()
+                }
                 let message = Self.errorMessage(for: error)
                 await coordinator.finishIndexRun(
                     aggregateResult,
@@ -704,6 +713,12 @@ extension AppCoordinator {
         }
 
         guard !Task.isCancelled, let aggregateResult else {
+            if !isForFolderAddition,
+               let aggregateResult,
+               !aggregateResult.changedSubtitlePaths.isEmpty {
+                await coordinator.prepareForAutomaticDatabaseCompaction()
+                try? context.database.compactStorage()
+            }
             await coordinator.finishIndexRun(
                 aggregateResult,
                 folders: folders,
@@ -712,6 +727,11 @@ extension AppCoordinator {
                 status: .idle
             )
             throw CancellationError()
+        }
+
+        if !aggregateResult.changedSubtitlePaths.isEmpty {
+            await coordinator.prepareForAutomaticDatabaseCompaction()
+            try? context.database.compactStorage()
         }
 
         await coordinator.finishIndexRun(
@@ -726,6 +746,15 @@ extension AppCoordinator {
             )
         )
         return indexedSubtitleFiles
+    }
+
+    private func prepareForAutomaticDatabaseCompaction() {
+        databaseStorageStatsTask?.cancel()
+        databaseStorageStatsTask = nil
+        if case .loadingStats = indexing.databaseMaintenanceStatus {
+            indexing.databaseMaintenanceStatus = .idle
+        }
+        cancelDatabaseReadTasksBeforeIndexing()
     }
 
     /// Add Folder keeps the single-folder status the File page has always

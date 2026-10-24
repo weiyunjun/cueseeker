@@ -1443,7 +1443,7 @@ func schema61UpgradesTo62WithFolderTimestampsBackfilled() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 62)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     #expect(
         try sqliteStringValue(
             at: databaseURL,
@@ -1470,5 +1470,40 @@ func schema61UpgradesTo62WithFolderTimestampsBackfilled() throws {
     )
 }
 
+@Test
+func schema62UpgradesTo63AndCompactsDatabase() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
 
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let largeText = String(repeating: "あ", count: 8_192)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        INSERT INTO search_paths (id, type, path, last_successful_index_at, created_at, updated_at)
+        VALUES (1, 'local', '\(largeText)', '2026-01-03T00:00:00Z', '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z');
+        DELETE FROM search_paths WHERE id = 1;
+        PRAGMA wal_checkpoint(TRUNCATE);
+        PRAGMA user_version = 62;
+        """
+    )
+
+    let statsBefore = try DatabaseMaintenanceDatabase(
+        path: databaseURL,
+        access: .readOnly
+    ).storageStats()
+    #expect(statsBefore.freelistCount > 0)
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 63)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    let statsAfter = try DatabaseMaintenanceDatabase(
+        path: databaseURL,
+        access: .readOnly
+    ).storageStats()
+    #expect(statsAfter.freelistCount == 0)
+}
 
