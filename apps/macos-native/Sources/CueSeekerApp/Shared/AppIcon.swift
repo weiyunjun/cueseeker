@@ -886,7 +886,7 @@ private struct AccentDuotoneRenamePencilShape: Shape {
     }
 }
 
-/// System-accent duotone large icons dedicated to `C-09.2 Empty State` across
+/// Neutral-gray duotone large icons dedicated to `C-09.2 Empty State` across
 /// Workbench pages, Dialogs, Playback Overlay, and Command Panel.
 enum AppEmptyStateIcon: String, CaseIterable, Sendable {
     case searchHint = "search-hint"
@@ -904,14 +904,11 @@ enum AppEmptyStateIcon: String, CaseIterable, Sendable {
 enum AppEmptyStateIconMetrics {
     static let iconSize = WorkbenchControlMetrics.redesignEmptyStateIconSize
     static let iconToTextGap = WorkbenchControlMetrics.redesignEmptyStateIconToTextGap
-    static let searchCardOpacity = WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity
-    static let searchLineOpacity = WorkbenchControlMetrics.redesignEmptyIconSearchLineOpacity
-    static let magnifierFillOpacity = WorkbenchControlMetrics.redesignEmptyIconMagnifierFillOpacity
-    static let questionBadgeFillOpacity = WorkbenchControlMetrics.redesignEmptyIconQuestionBadgeFillOpacity
-    static let excerptBookmarkOpacity = WorkbenchControlMetrics.redesignEmptyIconExcerptBookmarkOpacity
-    static let baseOpacity = WorkbenchControlMetrics.redesignCardIconAccentBaseOpacity
-    static let folderTabOpacity = WorkbenchControlMetrics.redesignCardIconAccentFolderTabOpacity
-    static let foregroundOpacity = WorkbenchControlMetrics.redesignCardIconAccentForegroundOpacity
+    static let badgeFillOpacity = WorkbenchControlMetrics.redesignEmptyIconBadgeFillOpacity
+    static let baseOpacity = WorkbenchControlMetrics.redesignEmptyIconBaseOpacity
+    static let midOpacity = WorkbenchControlMetrics.redesignEmptyIconMidOpacity
+    static let lineOpacity = WorkbenchControlMetrics.redesignEmptyIconLineOpacity
+    static let foregroundOpacity = WorkbenchControlMetrics.redesignEmptyIconForegroundOpacity
 }
 
 struct AppEmptyStateIconView: View {
@@ -953,11 +950,11 @@ struct AppEmptyStateIconView: View {
     private var searchHintIconView: some View {
         ZStack {
             AccentDuotoneSearchCardShape()
-                .fill(WorkbenchRedesignColors.emptyIconSearchCard)
+                .fill(WorkbenchRedesignColors.emptyIconBase)
 
             AccentDuotoneSearchHintLinesShape()
                 .stroke(
-                    WorkbenchRedesignColors.emptyIconSearchLine,
+                    WorkbenchRedesignColors.emptyIconLine,
                     style: StrokeStyle(lineWidth: 15 * s, lineCap: .round)
                 )
 
@@ -969,11 +966,11 @@ struct AppEmptyStateIconView: View {
     private var searchNoResultsIconView: some View {
         ZStack {
             AccentDuotoneSearchCardShape()
-                .fill(WorkbenchRedesignColors.emptyIconSearchCard)
+                .fill(WorkbenchRedesignColors.emptyIconBase)
 
             AccentDuotoneSearchNoResultsCrossShape()
                 .stroke(
-                    WorkbenchRedesignColors.cardIconAccentForeground,
+                    WorkbenchRedesignColors.emptyIconForeground,
                     style: StrokeStyle(lineWidth: 16 * s, lineCap: .round)
                 )
 
@@ -996,17 +993,17 @@ struct AppEmptyStateIconView: View {
             .blendMode(.destinationOut)
 
         AccentDuotoneCircleShape(cx: 172, cy: 168, radius: 36)
-            .fill(WorkbenchRedesignColors.emptyIconMagnifierFill)
+            .fill(WorkbenchRedesignColors.emptyIconBadgeFill)
 
         AccentDuotoneCircleShape(cx: 172, cy: 168, radius: 36)
             .stroke(
-                WorkbenchRedesignColors.cardIconAccentForeground,
+                WorkbenchRedesignColors.emptyIconForeground,
                 lineWidth: 16 * s
             )
 
         AccentDuotoneLineSegmentShape(x1: 199, y1: 195, x2: 228, y2: 224)
             .stroke(
-                WorkbenchRedesignColors.cardIconAccentForeground,
+                WorkbenchRedesignColors.emptyIconForeground,
                 style: StrokeStyle(lineWidth: 18 * s, lineCap: .round)
             )
     }
@@ -1014,35 +1011,35 @@ struct AppEmptyStateIconView: View {
     private var videoIconView: some View {
         ZStack {
             AccentDuotoneMediaRectShape()
-                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+                .fill(WorkbenchRedesignColors.emptyIconBase)
 
             AccentDuotonePlayTriangleShape()
-                .fill(WorkbenchRedesignColors.cardIconAccentForeground)
+                .fill(WorkbenchRedesignColors.emptyIconForeground)
         }
     }
 
     private var excerptIconView: some View {
         AccentDuotoneExcerptBookmarkShape()
-            .fill(WorkbenchRedesignColors.emptyIconExcerptBookmark)
+            .fill(WorkbenchRedesignColors.emptyIconMid)
     }
 
     private var folderIconView: some View {
         ZStack {
             AccentDuotoneFolderTabShape()
-                .fill(WorkbenchRedesignColors.cardIconAccentFolderTab)
+                .fill(WorkbenchRedesignColors.emptyIconMid)
 
             AccentDuotoneFolderBodyShape()
-                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+                .fill(WorkbenchRedesignColors.emptyIconBase)
         }
     }
 
     private var folderQuestionIconView: some View {
         ZStack {
             AccentDuotoneFolderTabShape()
-                .fill(WorkbenchRedesignColors.cardIconAccentFolderTab)
+                .fill(WorkbenchRedesignColors.emptyIconMid)
 
             AccentDuotoneFolderBodyShape()
-                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+                .fill(WorkbenchRedesignColors.emptyIconBase)
 
             circledQuestionBadge(cx: 184, cy: 176)
         }
@@ -1052,10 +1049,10 @@ struct AppEmptyStateIconView: View {
     private var videoQuestionIconView: some View {
         ZStack {
             AccentDuotoneMediaRectShape()
-                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+                .fill(WorkbenchRedesignColors.emptyIconBase)
 
             AccentDuotonePlayTriangleShape()
-                .fill(WorkbenchRedesignColors.cardIconAccentForeground)
+                .fill(WorkbenchRedesignColors.emptyIconForeground)
 
             circledQuestionBadge(cx: 184, cy: 176)
         }
@@ -1065,7 +1062,7 @@ struct AppEmptyStateIconView: View {
     private var excerptQuestionIconView: some View {
         ZStack {
             AccentDuotoneExcerptBookmarkShape()
-                .fill(WorkbenchRedesignColors.emptyIconExcerptBookmark)
+                .fill(WorkbenchRedesignColors.emptyIconMid)
 
             circledQuestionBadge(cx: 198, cy: 176)
         }
@@ -1075,11 +1072,11 @@ struct AppEmptyStateIconView: View {
     private var subtitleQuestionIconView: some View {
         ZStack {
             AccentDuotoneMediaRectShape()
-                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+                .fill(WorkbenchRedesignColors.emptyIconBase)
 
             AccentDuotoneSubtitleBarsShape()
                 .stroke(
-                    WorkbenchRedesignColors.cardIconAccentForeground,
+                    WorkbenchRedesignColors.emptyIconForeground,
                     style: StrokeStyle(lineWidth: 20 * s, lineCap: .round)
                 )
 
@@ -1091,11 +1088,11 @@ struct AppEmptyStateIconView: View {
     private var taskTrayIconView: some View {
         ZStack {
             AccentDuotoneTaskTrayBaseShape()
-                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+                .fill(WorkbenchRedesignColors.emptyIconBase)
 
             AccentDuotoneTaskTrayDividerShape()
                 .stroke(
-                    WorkbenchRedesignColors.cardIconAccentForeground,
+                    WorkbenchRedesignColors.emptyIconForeground,
                     style: StrokeStyle(
                         lineWidth: 15 * s,
                         lineCap: .round,
@@ -1112,17 +1109,17 @@ struct AppEmptyStateIconView: View {
             .blendMode(.destinationOut)
 
         AccentDuotoneCircleShape(cx: cx, cy: cy, radius: 40)
-            .fill(WorkbenchRedesignColors.emptyIconQuestionBadgeFill)
+            .fill(WorkbenchRedesignColors.emptyIconBadgeFill)
 
         AccentDuotoneCircleShape(cx: cx, cy: cy, radius: 40)
             .stroke(
-                WorkbenchRedesignColors.cardIconAccentForeground,
+                WorkbenchRedesignColors.emptyIconForeground,
                 lineWidth: 8.5 * s
             )
 
         AccentDuotoneQuestionMarkCurveShape(cx: cx, cy: cy)
             .stroke(
-                WorkbenchRedesignColors.cardIconAccentForeground,
+                WorkbenchRedesignColors.emptyIconForeground,
                 style: StrokeStyle(
                     lineWidth: 8.5 * s,
                     lineCap: .round,
@@ -1131,7 +1128,7 @@ struct AppEmptyStateIconView: View {
             )
 
         AccentDuotoneCircleShape(cx: cx, cy: cy + 21.67, radius: 4.6)
-            .fill(WorkbenchRedesignColors.cardIconAccentForeground)
+            .fill(WorkbenchRedesignColors.emptyIconForeground)
     }
 }
 

@@ -418,16 +418,16 @@ enum WorkbenchControlMetrics {
     static let redesignCardIconAccentAnkiLineOpacity: CGFloat = 0.59
     /// --opacity-card-icon-accent-foreground: 1.0
     static let redesignCardIconAccentForegroundOpacity: CGFloat = 1.0
-    /// --opacity-empty-icon-search-card: 0.30
-    static let redesignEmptyIconSearchCardOpacity: CGFloat = 0.30
-    /// --opacity-empty-icon-search-line: 0.58
-    static let redesignEmptyIconSearchLineOpacity: CGFloat = 0.58
-    /// --opacity-empty-icon-magnifier-fill: 0.22
-    static let redesignEmptyIconMagnifierFillOpacity: CGFloat = 0.22
-    /// --opacity-empty-icon-question-badge-fill: 0.24
-    static let redesignEmptyIconQuestionBadgeFillOpacity: CGFloat = 0.24
-    /// --opacity-empty-icon-excerpt-bookmark: 0.44
-    static let redesignEmptyIconExcerptBookmarkOpacity: CGFloat = 0.44
+    /// --color-empty-icon-badge-fill alpha: 0.24
+    static let redesignEmptyIconBadgeFillOpacity: CGFloat = 0.24
+    /// --color-empty-icon-base alpha: 0.32
+    static let redesignEmptyIconBaseOpacity: CGFloat = 0.32
+    /// --color-empty-icon-mid alpha: 0.52
+    static let redesignEmptyIconMidOpacity: CGFloat = 0.52
+    /// --color-empty-icon-line alpha: 0.58
+    static let redesignEmptyIconLineOpacity: CGFloat = 0.58
+    /// --color-empty-icon-foreground alpha: 1.0
+    static let redesignEmptyIconForegroundOpacity: CGFloat = 1.0
     /// --size-card-chevron: 16px
     static let redesignCardChevronSize: CGFloat = 16
     /// --size-breadcrumb-separator: 12px (C-05.6 Breadcrumb caret-right)

@@ -38,11 +38,48 @@ func workbenchEmptyHintAndDuotoneIconsMatchDesignMetrics() {
     #expect(WorkbenchControlMetrics.redesignEmptyStateTitleFontSize == 15)
     #expect(WorkbenchControlMetrics.redesignEmptyStateMessageMaxWidth == 380)
 
-    #expect(WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity == 0.30)
-    #expect(WorkbenchControlMetrics.redesignEmptyIconSearchLineOpacity == 0.58)
-    #expect(WorkbenchControlMetrics.redesignEmptyIconMagnifierFillOpacity == 0.22)
-    #expect(WorkbenchControlMetrics.redesignEmptyIconQuestionBadgeFillOpacity == 0.24)
-    #expect(WorkbenchControlMetrics.redesignEmptyIconExcerptBookmarkOpacity == 0.44)
+    #expect(WorkbenchControlMetrics.redesignEmptyIconBadgeFillOpacity == 0.24)
+    #expect(WorkbenchControlMetrics.redesignEmptyIconBaseOpacity == 0.32)
+    #expect(WorkbenchControlMetrics.redesignEmptyIconMidOpacity == 0.52)
+    #expect(WorkbenchControlMetrics.redesignEmptyIconLineOpacity == 0.58)
+    #expect(WorkbenchControlMetrics.redesignEmptyIconForegroundOpacity == 1.0)
+    #expect(AppEmptyStateIconMetrics.badgeFillOpacity == 0.24)
+    #expect(AppEmptyStateIconMetrics.baseOpacity == 0.32)
+    #expect(AppEmptyStateIconMetrics.midOpacity == 0.52)
+    #expect(AppEmptyStateIconMetrics.lineOpacity == 0.58)
+    #expect(AppEmptyStateIconMetrics.foregroundOpacity == 1.0)
+
+    if let lightAppearance = NSAppearance(named: .aqua) {
+        lightAppearance.performAsCurrentDrawingAppearance {
+            let fg = WorkbenchRedesignColors.NS.emptyIconForeground.usingColorSpace(.sRGB)
+            let base = WorkbenchRedesignColors.NS.emptyIconBase.usingColorSpace(.sRGB)
+            #expect(fg != nil)
+            #expect(base != nil)
+            if let fg, let base {
+                #expect(abs(fg.redComponent - 113.0 / 255.0) < 0.01)
+                #expect(abs(fg.greenComponent - 113.0 / 255.0) < 0.01)
+                #expect(abs(fg.blueComponent - 113.0 / 255.0) < 0.01)
+                #expect(abs(fg.alphaComponent - 1.0) < 0.01)
+                #expect(abs(base.alphaComponent - 0.32) < 0.01)
+            }
+        }
+    }
+
+    if let darkAppearance = NSAppearance(named: .darkAqua) {
+        darkAppearance.performAsCurrentDrawingAppearance {
+            let fg = WorkbenchRedesignColors.NS.emptyIconForeground.usingColorSpace(.sRGB)
+            let mid = WorkbenchRedesignColors.NS.emptyIconMid.usingColorSpace(.sRGB)
+            #expect(fg != nil)
+            #expect(mid != nil)
+            if let fg, let mid {
+                #expect(abs(fg.redComponent - 151.0 / 255.0) < 0.01)
+                #expect(abs(fg.greenComponent - 151.0 / 255.0) < 0.01)
+                #expect(abs(fg.blueComponent - 151.0 / 255.0) < 0.01)
+                #expect(abs(fg.alphaComponent - 1.0) < 0.01)
+                #expect(abs(mid.alphaComponent - 0.52) < 0.01)
+            }
+        }
+    }
 
     for icon in AppEmptyStateIcon.allCases {
         let iconHostingView = NSHostingView(
