@@ -104,7 +104,7 @@ private struct PlaybackCueQueueToggleButton: View {
             HStack(spacing: PlaybackChromeMetrics.cueQueueToggleDotGap) {
                 Circle()
                     .fill(
-                        isOn
+                        isOn && !isDisabled
                             ? PlaybackTheme.cueControlStatusActive
                             : PlaybackTheme.textTertiary
                     )
@@ -136,7 +136,6 @@ private struct PlaybackCueQueueToggleButton: View {
             PlaybackCueQueueToggleButtonStyle(isOn: isOn)
         )
         .disabled(isDisabled)
-        .opacity(isDisabled ? PlaybackChromeMetrics.cueQueueDisabledOpacity : 1)
         .focusable(false)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(isOn ? "1" : "0")
@@ -170,7 +169,7 @@ private struct PlaybackCueQueueToggleButtonStyle: ButtonStyle {
 
     private func foregroundColor(isPressed: Bool) -> Color {
         guard isEnabled else {
-            return PlaybackTheme.textSecondary
+            return PlaybackTheme.textTertiary
         }
         if isOn || isHovered || isPressed {
             return PlaybackTheme.textPrimary
@@ -185,13 +184,8 @@ private struct PlaybackCueQueueToggleButtonStyle: ButtonStyle {
         if isPressed {
             return PlaybackTheme.controlPressedBackground
         }
-        if isOn {
-            return isHovered
-                ? PlaybackTheme.menuItemSelectedBackground
-                : PlaybackTheme.controlHoverBackground
-        }
-        if isHovered {
-            return PlaybackTheme.menuItemHoverBackground
+        if isHovered || isOn {
+            return PlaybackTheme.controlHoverBackground
         }
         return Color.clear
     }
@@ -206,19 +200,34 @@ private struct PlaybackCueQueueGapStepper: View {
     let onIncrease: () -> Void
 
     var body: some View {
+        let decreaseLabel = L(
+            "tooltip.player.auto_switch_gap.decrease",
+            SettingsStore.autoSwitchCueSequenceGapStepMilliseconds
+        )
+        let decreaseDisabledLabel = L(
+            "tooltip.player.auto_switch_gap.decrease.disabled",
+            SettingsStore.autoSwitchCueSequenceGapMinimumMilliseconds
+        )
+        let increaseLabel = L(
+            "tooltip.player.auto_switch_gap.increase",
+            SettingsStore.autoSwitchCueSequenceGapStepMilliseconds
+        )
+        let increaseDisabledLabel = L(
+            "tooltip.player.auto_switch_gap.increase.disabled",
+            SettingsStore.autoSwitchCueSequenceGapMaximumMilliseconds
+        )
+
         HStack(spacing: 0) {
             PlaybackCueQueueStepperIconButton(
                 icon: .minus,
                 isDisabled: !isEnabled || !canDecrease,
-                accessibilityLabel: L("tooltip.player.auto_switch_gap.decrease"),
+                accessibilityLabel: decreaseLabel,
                 action: onDecrease
             )
             .workbenchTooltip(
                 scenarioID: "player.control.auto_switch_gap.decrease",
                 isActive: isEnabled,
-                label: canDecrease
-                    ? L("tooltip.player.auto_switch_gap.decrease")
-                    : L("tooltip.player.auto_switch_gap.decrease.disabled")
+                label: canDecrease ? decreaseLabel : decreaseDisabledLabel
             )
 
             Text("\(gapMilliseconds) ms")
@@ -230,7 +239,9 @@ private struct PlaybackCueQueueGapStepper: View {
                     )
                 )
                 .monospacedDigit()
-                .foregroundStyle(PlaybackTheme.textPrimary)
+                .foregroundStyle(
+                    isEnabled ? PlaybackTheme.textPrimary : PlaybackTheme.textTertiary
+                )
                 .lineLimit(1)
                 .frame(
                     width: PlaybackChromeMetrics.cueQueueGapValueWidth,
@@ -244,15 +255,13 @@ private struct PlaybackCueQueueGapStepper: View {
             PlaybackCueQueueStepperIconButton(
                 icon: .plus,
                 isDisabled: !isEnabled || !canIncrease,
-                accessibilityLabel: L("tooltip.player.auto_switch_gap.increase"),
+                accessibilityLabel: increaseLabel,
                 action: onIncrease
             )
             .workbenchTooltip(
                 scenarioID: "player.control.auto_switch_gap.increase",
                 isActive: isEnabled,
-                label: canIncrease
-                    ? L("tooltip.player.auto_switch_gap.increase")
-                    : L("tooltip.player.auto_switch_gap.increase.disabled")
+                label: canIncrease ? increaseLabel : increaseDisabledLabel
             )
         }
         .padding(PlaybackChromeMetrics.cueQueueStepperPadding)
@@ -274,7 +283,6 @@ private struct PlaybackCueQueueGapStepper: View {
                 lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
             )
         )
-        .opacity(isEnabled ? 1 : PlaybackChromeMetrics.cueQueueDisabledOpacity)
         .workbenchTooltip(
             scenarioID: "player.control.auto_switch_gap.disabled",
             isActive: !isEnabled,

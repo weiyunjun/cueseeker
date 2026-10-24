@@ -611,18 +611,16 @@ enum PlaybackChromeMetrics {
     static let cueQueueBarPadding = WorkbenchControlMetrics.redesignSpacing1
     /// --gap-player-cue-control-bar: 4px (--spacing-1)
     static let cueQueueBarItemGap = WorkbenchControlMetrics.redesignSpacing1
-    /// --radius-player-cue-control-bar: 10px (--radius-lg)
+    /// --radius-player-cue-control-bar: 10px
     static let cueQueueBarRadius: CGFloat = 10
     /// --height-player-cue-control: 28px
     static let cueQueueControlHeight: CGFloat = 28
     /// --height-player-cue-control-bar: 36px
     static let cueQueueBarHeight: CGFloat = cueQueueControlHeight + cueQueueBarPadding * 2
-    /// --radius-player-cue-control: 7px (--radius-md)
-    static let cueQueueControlRadius: CGFloat = 7
+    /// --radius-player-cue-control: 6px (cueQueueBarRadius - cueQueueBarPadding)
+    static let cueQueueControlRadius: CGFloat = cueQueueBarRadius - cueQueueBarPadding
     /// --font-size-player-cue-toggle: 12px (--font-size-caption)
     static let cueQueueToggleFontSize = WorkbenchControlMetrics.redesignFontSizeCaption
-    /// --opacity-disabled: 0.45
-    static let cueQueueDisabledOpacity: Double = 0.45
     /// --padding-player-cue-toggle-x: 10px
     static let cueQueueToggleHorizontalPadding: CGFloat = 10
     /// --gap-player-cue-toggle-dot: 6px
@@ -631,10 +629,10 @@ enum PlaybackChromeMetrics {
     static let cueQueueStatusDotSize: CGFloat = 6
     /// --padding-player-cue-stepper: 2px
     static let cueQueueStepperPadding: CGFloat = 2
-    /// --size-player-cue-stepper-button: 24px
-    static let cueQueueStepperButtonSize: CGFloat = 24
-    /// --radius-player-cue-stepper-button: 5px
-    static let cueQueueStepperButtonRadius: CGFloat = 5
+    /// --size-player-cue-stepper-button: 24px (cueQueueControlHeight - cueQueueStepperPadding * 2)
+    static let cueQueueStepperButtonSize: CGFloat = cueQueueControlHeight - cueQueueStepperPadding * 2
+    /// --radius-player-cue-stepper-button: 4px (cueQueueControlRadius - cueQueueStepperPadding)
+    static let cueQueueStepperButtonRadius: CGFloat = cueQueueControlRadius - cueQueueStepperPadding
     /// --size-player-cue-stepper-icon: 14px
     static let cueQueueStepperIconSize: CGFloat = 14
     /// --width-player-cue-gap-value: 64px (fits "10000 ms" without jitter)

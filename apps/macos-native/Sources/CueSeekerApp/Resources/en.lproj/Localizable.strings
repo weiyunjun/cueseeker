@@ -806,10 +806,10 @@
 "tooltip.disabled.filter.reset" = "No active filters to reset";
 "tooltip.disabled.settings.play.auto_switch" = "Enable “Auto Pause After a Cue Finishes” first";
 "tooltip.player.auto_switch_gap.disabled" = "Enable “Auto Switch to Next Cues in Playlist” first";
-"tooltip.player.auto_switch_gap.decrease" = "Decrease Auto Switch Gap (100ms)";
-"tooltip.player.auto_switch_gap.decrease.disabled" = "Already at minimum gap (0ms)";
-"tooltip.player.auto_switch_gap.increase" = "Increase Auto Switch Gap (100ms)";
-"tooltip.player.auto_switch_gap.increase.disabled" = "Already at maximum gap (10000ms)";
+"tooltip.player.auto_switch_gap.decrease" = "Decrease Auto Switch Gap (%dms)";
+"tooltip.player.auto_switch_gap.decrease.disabled" = "Already at minimum gap (%dms)";
+"tooltip.player.auto_switch_gap.increase" = "Increase Auto Switch Gap (%dms)";
+"tooltip.player.auto_switch_gap.increase.disabled" = "Already at maximum gap (%dms)";
 "tooltip.disabled.settings.subtitle.restore_defaults" = "All subtitle settings are already at default values";
 "tooltip.disabled.settings.maintenance.actions" = "Unavailable while folder removal or database compaction is running";
 "tooltip.disabled.edit_cover.save" = "Choose an image first";

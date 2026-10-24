@@ -253,6 +253,18 @@ func cueQueueControlBarReportsInteractiveRegionWithStableWidthAcrossGapValuesAnd
         userDefaults.removePersistentDomainAndPlist(forName: suiteName)
     }
     let settings = SettingsStore(userDefaults: userDefaults)
+    #expect(
+        PlaybackChromeMetrics.cueQueueControlRadius
+            == PlaybackChromeMetrics.cueQueueBarRadius - PlaybackChromeMetrics.cueQueueBarPadding
+    )
+    #expect(
+        PlaybackChromeMetrics.cueQueueStepperButtonRadius
+            == PlaybackChromeMetrics.cueQueueControlRadius - PlaybackChromeMetrics.cueQueueStepperPadding
+    )
+    #expect(
+        PlaybackChromeMetrics.cueQueueStepperButtonSize
+            == PlaybackChromeMetrics.cueQueueControlHeight - PlaybackChromeMetrics.cueQueueStepperPadding * 2
+    )
     let stageSize = CGSize(width: 800, height: 600)
     let centerY = PlaybackChromeMetrics.cueQueueBarCenterY(stageHeight: stageSize.height)
     let expectedCenterY: CGFloat = 504

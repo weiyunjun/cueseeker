@@ -391,6 +391,7 @@ struct TooltipTests {
         #expect(WorkbenchControlMetrics.redesignTooltipSkipWindowDelay == 0.3)
     }
 
+    @MainActor
     @Test
     func allTooltipLocalizationKeysAndLegacyCopyUpdatesResolveInAllThreeLanguages() {
         let requiredKeys = [
@@ -445,7 +446,7 @@ struct TooltipTests {
             "tooltip.disabled.file.index_now.no_folder",
             "tooltip.disabled.filter.reset",
             "tooltip.disabled.settings.play.auto_switch",
-            " playback.auto_pause".trimmingCharacters(in: .whitespaces),
+            "playback.auto_pause",
             "playback.auto_switch",
             "tooltip.player.auto_switch_gap.disabled",
             "tooltip.player.auto_switch_gap.decrease",
@@ -479,6 +480,22 @@ struct TooltipTests {
         #expect(localized("settings.shortcuts.action.repeatCue", language: .english) == "Replay Current Cue")
         #expect(localized("settings.shortcuts.action.repeatCue", language: .simplifiedChinese) == "重播当前台词")
         #expect(localized("settings.shortcuts.action.repeatCue", language: .traditionalChinese) == "重播目前台詞")
+
+        let step = SettingsStore.autoSwitchCueSequenceGapStepMilliseconds
+        let minGap = SettingsStore.autoSwitchCueSequenceGapMinimumMilliseconds
+        let maxGap = SettingsStore.autoSwitchCueSequenceGapMaximumMilliseconds
+        #expect(
+            String(format: localized("tooltip.player.auto_switch_gap.decrease", language: .english), step)
+                == "Decrease Auto Switch Gap (100ms)"
+        )
+        #expect(
+            String(format: localized("tooltip.player.auto_switch_gap.decrease.disabled", language: .simplifiedChinese), minGap)
+                == "已达到最小间隔 (0ms)"
+        )
+        #expect(
+            String(format: localized("tooltip.player.auto_switch_gap.increase.disabled", language: .traditionalChinese), maxGap)
+                == "已達到最大間隔 (10000ms)"
+        )
     }
 
     private func localized(_ key: String, language: AppLanguage) -> String {

@@ -806,10 +806,10 @@
 "tooltip.disabled.filter.reset" = "当前没有可重置的筛选条件";
 "tooltip.disabled.settings.play.auto_switch" = "请先开启“台词结束后自动暂停”";
 "tooltip.player.auto_switch_gap.disabled" = "请先开启“自动切换到播放列表中的下一条台词”";
-"tooltip.player.auto_switch_gap.decrease" = "减少自动切换间隔 (100ms)";
-"tooltip.player.auto_switch_gap.decrease.disabled" = "已达到最小间隔 (0ms)";
-"tooltip.player.auto_switch_gap.increase" = "增加自动切换间隔 (100ms)";
-"tooltip.player.auto_switch_gap.increase.disabled" = "已达到最大间隔 (10000ms)";
+"tooltip.player.auto_switch_gap.decrease" = "减少自动切换间隔 (%dms)";
+"tooltip.player.auto_switch_gap.decrease.disabled" = "已达到最小间隔 (%dms)";
+"tooltip.player.auto_switch_gap.increase" = "增加自动切换间隔 (%dms)";
+"tooltip.player.auto_switch_gap.increase.disabled" = "已达到最大间隔 (%dms)";
 "tooltip.disabled.settings.subtitle.restore_defaults" = "当前全部字幕设置均为默认值";
 "tooltip.disabled.settings.maintenance.actions" = "移除文件夹或压缩数据库期间不可用";
 "tooltip.disabled.edit_cover.save" = "请先选择一张图片";
