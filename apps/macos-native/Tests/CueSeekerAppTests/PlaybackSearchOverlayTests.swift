@@ -370,3 +370,79 @@ func commandPanelSearchSynchronizesFilterAndSortWithWorkbenchAndResetsSelection(
     #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 1)
     #expect(app.playback.commandPanelSearchWindow?.selectedOrdinal == 0)
 }
+
+@MainActor
+@Test
+func commandPanelSearchFromNonSearchPageKeepsWorkbenchSearchQueryAndTableStateSynchronized()
+    throws
+{
+    _ = NSApplication.shared
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "playback-command-panel-non-search-sync-\(UUID().uuidString).sqlite"
+        )
+    defer { removeTemporaryDatabase(at: databaseURL) }
+    let app = AppCoordinator(databaseURL: databaseURL)
+    let oldResult = playbackSharedSearchResult(id: 6_001, rank: 0)
+    let newResult = playbackSharedSearchResult(id: 6_002, rank: 0)
+
+    app.navigateWorkbench(to: .search)
+    app.search.updateQuery("hello")
+    app.search.replaceResidentResults([oldResult])
+    app.search.tableViewportAnchor = TableViewportAnchor(entryID: 6_001, rowIndex: 0)
+    var oldSelection = TableSandboxRowSelectionState()
+    oldSelection.toggleAll(rowCount: 1)
+    app.search.tableSelectionState = oldSelection
+    app.search.tableSelectionEntryIDs = [6_001]
+
+    // Switch away to Recent and enter Playback.
+    app.navigateWorkbench(to: .recent)
+    app.search.selectResult(oldResult)
+    app.playback.isPlaybackSurfaceExpanded = true
+    app.search.setTableProjectionResponseActive(false)
+
+    // Search a new keyword in Command Panel and adjust Filter / Sort.
+    #expect(app.presentPlaybackCommandPanelSearch(
+        query: "world",
+        startsSearch: false
+    ))
+    let generation = app.search.prepareSearch(
+        appending: false,
+        filterSet: SubtitleSearchFilterSet()
+    )
+    let snapshot = CueFacetSnapshot(
+        cueIDs: [newResult.entryID],
+        durationFacets: [.underOneSecond],
+        characterFacets: [.oneToTen],
+        characterWidths: [5],
+        languageFacets: [[.japanese]],
+        watchStateFacets: [.unwatched],
+        folderFacets: ["/Media"]
+    )
+    #expect(app.search.commitExactSearchPage(
+        SubtitleSearchPage(
+            results: [newResult],
+            cueIDs: [newResult.entryID],
+            totalCount: 1,
+            fileSummaries: [],
+            facetSnapshot: snapshot
+        ),
+        generation: generation
+    ))
+    app.updateSearchSortOrder(.mostCharacters)
+    app.applySearchFacetFilter(CueFacetFilter(languages: [.japanese]))
+
+    // Close Playback and return to the Search page.
+    _ = app.dismissPlaybackCommandPanelFromUser()
+    app.playback.isPlaybackSurfaceExpanded = false
+    app.navigateWorkbench(to: .search)
+    app.search.setTableProjectionResponseActive(true)
+    app.search.activateResidentSearchTableProjection()
+
+    #expect(app.search.searchQuery == "world")
+    #expect(app.search.searchSortOrder == .mostCharacters)
+    #expect(app.search.searchFacetFilter == CueFacetFilter(languages: [.japanese]))
+    #expect(app.search.tableViewportAnchor == nil)
+    #expect(app.search.tableSelectionEntryIDs.isEmpty)
+    #expect(app.search.tableRowStore.snapshot.orderedEntryIDs == [6_002])
+}

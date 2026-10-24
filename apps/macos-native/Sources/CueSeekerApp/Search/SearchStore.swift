@@ -81,7 +81,6 @@ final class SearchStore: ObservableObject {
     @Published private(set) var searchFacetDistribution: CueFacetDistribution?
     @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
     @Published private(set) var selectedSearchResult: SubtitleSearchResult?
-    @Published var tableSearchDraft = ""
     var tableViewportAnchor: TableViewportAnchor?
     var tableSelectionState = TableSandboxRowSelectionState()
     var tableSelectionEntryIDs: [Int] = []
@@ -471,6 +470,9 @@ final class SearchStore: ObservableObject {
         let normalizedQuery = SearchInputNormalizer.singleLine(query)
         guard normalizedQuery != searchQuery else { return }
         searchQuery = normalizedQuery
+        tableViewportAnchor = nil
+        tableSelectionState = TableSandboxRowSelectionState()
+        tableSelectionEntryIDs = []
         setSearchFacetSnapshot(nil)
     }
 

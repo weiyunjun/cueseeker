@@ -41,7 +41,6 @@ struct WorkbenchSearchView: View {
     @EnvironmentObject private var filterDialog: CueFacetFilterDialogCenter
     private let rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
-    @State private var searchDraft: String
     @State private var tableScrollResetToken = 0
     @State private var tableScrollTargetRow: Int?
     @State private var didRestoreViewport = false
@@ -59,7 +58,6 @@ struct WorkbenchSearchView: View {
     ) {
         self.rowStore = rowStore
         self.isTableResponseActive = isTableResponseActive
-        _searchDraft = State(initialValue: "")
     }
 
     var body: some View {
@@ -167,9 +165,6 @@ struct WorkbenchSearchView: View {
             appState.updateSearchSortOrder(settingsStore.searchSortOrder)
             appState.applySearchFacetFilter(persistedFacetFilter)
             prepareViewportRestoration()
-            searchDraft = search.tableSearchDraft.isEmpty
-                ? search.searchQuery
-                : search.tableSearchDraft
             if showsSearchEmptyHint {
                 search.clearTableProjectionSource()
                 clearTableRows(resetScroll: false)
@@ -181,7 +176,6 @@ struct WorkbenchSearchView: View {
         }
         .onChange(of: search.searchQuery) { newValue in
             exitSelectionMode()
-            searchDraft = newValue
             rowSelection.reset()
             persistSelection()
             search.tableViewportAnchor = nil
@@ -234,7 +228,6 @@ struct WorkbenchSearchView: View {
             exitSelectionMode()
             closeFilterDialog()
             search.setTableProjectionResponseActive(false)
-            persistSearchDraft()
             persistSelection()
             search.tableViewportAnchor = nil
         }
@@ -257,7 +250,6 @@ struct WorkbenchSearchView: View {
 
     private var showsSearchEmptyHint: Bool {
         search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && searchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var showsSearchNoResultsHint: Bool {
@@ -300,9 +292,8 @@ struct WorkbenchSearchView: View {
 
     private var searchInputBinding: Binding<String> {
         Binding(
-            get: { searchDraft },
+            get: { search.searchQuery },
             set: { newValue in
-                searchDraft = newValue
                 updateSearchDraft(newValue)
             }
         )
@@ -449,7 +440,6 @@ struct WorkbenchSearchView: View {
         guard newValue != search.searchQuery else {
             return
         }
-        search.tableSearchDraft = newValue
         tableScrollTargetRow = nil
         appState.updateSearchQuery(newValue)
     }
@@ -781,10 +771,6 @@ struct WorkbenchSearchView: View {
         guard entryIDs == search.tableSelectionEntryIDs else { return }
         rowSelection = search.tableSelectionState
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-    }
-
-    private func persistSearchDraft() {
-        search.tableSearchDraft = searchDraft
     }
 }
 
