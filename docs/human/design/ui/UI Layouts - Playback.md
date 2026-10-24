@@ -349,7 +349,7 @@
 
 - Loading
 - Ready
-- Empty：当前字幕不在数据库中时，显示 Empty State / Empty Hint，文案 `This subtitle is no longer in the library.`
+- Empty：当前字幕不在数据库中时，居中显示 Empty State（图标 `subtitle-question`），文案 `This subtitle is no longer in the library.`
 - Scrolling
 - Settling
 
@@ -385,7 +385,7 @@
 - Video Playlist
 - Loading
 - Ready
-- Empty：播放列表中没有仍在数据库中的项时，显示 Empty State / Empty Hint，文案 `No items in this playlist are in the library.`
+- Empty：播放列表中没有仍在数据库中的项时，居中显示 Empty State（Subtitle Playlist 图标为 `subtitle-question`，Video Playlist 图标为 `video-question`），文案 `No items in this playlist are in the library.`
 
 ### L-08.6 Playback Collage Editor Layout
 
@@ -506,9 +506,9 @@
 #### Variants
 
 - Recent Videos
-  - Content：Recent Watching Card Grid（按 Recent Layout 时间分组展示）
+  - Content：Recent Watching Card Grid（按 Recent Layout 时间分组展示；无记录时居中展示 Empty State，图标 `video`）
 - Recent Excerpt Lists
-  - Content：Excerpt List Card Grid（按 Recent Layout 时间分组展示）
+  - Content：Excerpt List Card Grid（按 Recent Layout 时间分组展示；无记录时居中展示 Empty State，图标 `excerpt`）
 - Search Results
   - Header：右侧依次为 Filter Trigger、Sort Trigger，样式与交互同 Search / Excerpt Toolbar Layout 的 Search
   - Content：Command Panel Search Results Layout
@@ -536,6 +536,6 @@
 
 - Loading
 - Results
-- Empty
+- Empty：无匹配结果时居中展示 Empty State（图标 `search-no-results`）
 - Scrolling
 - Settling

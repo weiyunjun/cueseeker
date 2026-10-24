@@ -74,6 +74,11 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-card-icon-accent-folder-tab`: macOS accent color with Alpha `0.52`
 - `--color-card-icon-accent-anki-line`: macOS accent color with Alpha `0.59`
 - `--color-card-icon-accent-foreground`: macOS accent color
+- `--color-empty-icon-search-card`: macOS accent color with Alpha `0.30`
+- `--color-empty-icon-search-line`: macOS accent color with Alpha `0.58`
+- `--color-empty-icon-magnifier-fill`: macOS accent color with Alpha `0.22`
+- `--color-empty-icon-question-badge-fill`: macOS accent color with Alpha `0.24`
+- `--color-empty-icon-excerpt-bookmark`: macOS accent color with Alpha `0.44`
 
 ### Focus
 
@@ -245,6 +250,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-library-list-meta`: `12px`
 - `--font-size-cover-summary-title`: `22px`
 - `--font-weight-cover-summary-title`: `700`
+- `--font-size-empty-state-title`: `15px`
 
 ### Text Decoration
 
@@ -320,6 +326,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--size-card-icon-container`: `36px`
 - `--size-card-chevron`: `16px`
 - `--size-detail-file-icon-container`: `40px`
+- `--size-empty-state-icon`: `68px`
+- `--max-width-empty-state-message`: `380px`
 - `--min-width-detail-label`: `100px`
 - `--min-width-detail-index-label`: `40px`
 - `--width-task-detail-progress-bar`: `140px`
@@ -407,6 +415,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--gap-cover-summary-progress-label`: `6px`
 - `--gap-cover-summary-progress-actions`: `14px`
 - `--gap-cover-dialog-region`: `20px`
+- `--gap-empty-state-icon-to-text`: `14px`
+- `--gap-empty-state-title-to-message`: `4px`
 
 ### Padding
 

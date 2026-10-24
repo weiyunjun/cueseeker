@@ -352,6 +352,8 @@
 - Section Title
 - Recent Watching Card Layout
 - Excerpt List Card Layout
+- Empty State
+- Spinner
 
 #### Layout
 
@@ -415,6 +417,8 @@
 - Button / Neutral
 - Menu
 - Library Folder Card Layout
+- Empty State
+- Spinner
 
 #### Layout
 
@@ -494,7 +498,8 @@
 
 #### States
 
-- Unknown：文件夹已不在索引中，页面正文为 Empty State / Empty Hint，文案 `This page no longer exists.`
+- Empty：无剧集时，在 Cover Summary 下方剩余区域居中显示 Empty State（图标 `video`）
+- Unknown / Load Failed：文件夹已不在索引中或加载失败时，页面正文居中显示 Empty State（图标 `video-question`；Unknown 文案 `This page no longer exists.`）
 
 ### L-04.4 Library Episode Grid Layout
 
@@ -553,7 +558,7 @@
 - Level 1 统一展示全部根文件夹卡片，顶部标题为 `All Folder`（根目录数量为 1 时）或 `All Folders`（根目录数量大于 1 时），样式为 14px Semibold `--color-text-primary`。
 - 面包屑节点（Level 2 与 Level 3 第二行）：以 `All Folder` / `All Folders` 为起点（点击返回 Level 1）；未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
 - Episode File Group（单集文件分组）：视频与字幕按单集 `Display Title` 合一展示为单张圆角卡片容器（背景 `--color-table-bg`、边框 `--color-border-control`、宽度 `--border-width-control`、圆角 `--radius-settings-group`、内边距 `0`，占满内容区宽度并裁剪圆角）。卡片顶部为标题栏（最小高度 `--height-control`，水平内边距 `--spacing-4`，背景 `--color-file-group-header-bg`），左对齐展示 `Display Title`（14px Medium `--color-text-muted`）；标题栏底部及下方各文件行之间均以与卡片容器等宽的 `--color-border-divider`（宽度 `--border-width-control`）分隔。
-- 没有根目录时显示 Empty State；二级或三级无内容且非加载中时显示 Empty State。异步加载期间展示居中 `Spinner`。
+- 空状态与失效态均在顶部固定栏下方的剩余区域居中展示 Empty State：Level 1 无根目录时展示图标 `folder`（含 Title 与 Message）；Level 2 无内容时展示图标 `folder`；Level 3 子文件夹内容被清空或 Level 2 / Level 3 路径已不在索引中（`This page no longer exists.`）时展示图标 `folder-question`。异步加载期间展示居中 `Spinner`。
 - 移除根目录前弹出 Confirmation Dialog。
 - 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，全部操作按钮为 Disabled。
 
@@ -713,8 +718,8 @@
 #### States
 
 - Default
-- Empty List：列表无内容，正文展示 Empty Hint
-- Unknown：列表已删除，页面正文为 Empty State / Empty Hint，文案 `This page no longer exists.`
+- Empty List：列表无有效内容（含新建空列表、台词清空或列表内仅剩不可用台词），正文居中展示 Empty State（图标 `excerpt`）
+- Unknown：列表已删除，页面正文居中展示 Empty State（图标 `excerpt-question`），文案 `This page no longer exists.`
 
 ### L-05.4 Search / Excerpt Toolbar Layout
 
@@ -774,7 +779,7 @@
 
 - Fixed Header 与 Scrollable Body 使用相同宽度和水平边界，横向滚动时同步移动。
 - Horizontal Scrollbar：Page Viewport Bottom Edge，长度与 Table 宽度一致。
-- 空状态（无数据）时 Fixed Header 隐藏（高度为 0，不显示列名与分割线），正文展示 Empty Hint 并在剩余可视空白区域居中。
+- 空状态（无数据）时 Fixed Header 隐藏（高度为 0，不显示列名与分割线），正文在剩余可视空白区域居中展示 Empty State。
 
 #### Ordering
 
@@ -816,11 +821,11 @@
 
 #### States
 
-- Empty Query：未输入搜索词，表头隐藏，正文居中展示 Empty Hint
+- Empty Query：Search 未输入搜索词，表头隐藏，正文居中展示 Empty State（图标 `search-hint`）
 - Calculating
 - Results：有数据，正常展示表头与数据行
 - Select Mode
-- Empty Results：搜索或筛选结果为 0 条，表头隐藏，正文居中展示 Empty Hint
+- Empty Results：Search 或 Excerpt 搜索/筛选结果为 0 条，表头隐藏，正文居中展示 Empty State（图标 `search-no-results`）
 
 ## 3.6 Dialogs
 
@@ -982,7 +987,7 @@
 - Checkbox
 - Watch Status Badge
 - Spinner
-- Empty State / Empty Hint
+- Empty State
 - Scrollbar / Vertical
 - Button / Neutral
 - Button / Primary
@@ -1009,7 +1014,7 @@
 - Step 1 - Connecting（全部输入框与 `Connect` 按钮为 Disabled，`Connect` 按钮内左侧展示 `Spinner`）
 - Step 2 - Loaded（`Add` 启用；未勾选子文件夹时添加当前目录自身，勾选一个或多个子文件夹时按从上到下顺序依次入队添加；当未勾选任何文件夹，且处于 `SMB Folder` 主机顶层共享文件夹列表、`NFS Folder` 主机顶层导出目录列表、当前目录自身已添加、或当前层级下所有子文件夹均已添加时，`Add` 为 Disabled）
 - Step 2 - Loading Subfolder（列表区居中展示 `Spinner`，`Add` 为 Disabled）
-- Step 2 - Load Failed / Empty（列表区居中展示 `Empty Hint`，加载失败时 `Add` 为 Disabled）
+- Step 2 - Load Failed / Empty（列表区居中展示 `Empty State`：无可用项为图标 `folder`，子目录加载失败为图标 `folder-question` 且 `Add` 为 Disabled）
 
 ### L-06.5 Export to Anki Dialog Layout
 
@@ -1194,6 +1199,7 @@
 - Tabs
 - Tab
 - Icon Button / Dialog Close
+- Empty State
 - Scrollbar / Vertical
 
 #### Sizes
@@ -1217,7 +1223,7 @@
 - Current
 - Completed
 - Incomplete
-- Empty
+- Empty：各标签页为空时独立在列表可视区域居中展示 Empty State（图标 `task-tray`）
 
 ### L-06.10 Task Card Layout
 

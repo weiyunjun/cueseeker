@@ -77,7 +77,7 @@
 | | `C-08.8` | Workbench Page Title | — |
 | | `C-08.9` | Keycap | `Overlay Surface`、`Popover Surface` |
 | **2.9 Feedback** | `C-09.1` | Toast | — |
-| | `C-09.2` | Empty State | `Empty Hint`、`Info Page State` |
+| | `C-09.2` | Empty State | — |
 | | `C-09.3` | Progress Indicator | `Bar` |
 | | `C-09.4` | Spinner | — |
 | | `C-09.5` | Playback Feedback | — |

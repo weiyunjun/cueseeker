@@ -371,28 +371,40 @@
 
 ##### Anatomy
 
+- Icon：68×68px 系统强调色同色深浅大图标（角标区域镂空透底）
+  - `search-hint`：卡片底板（`--color-empty-icon-search-card`）+ 三条横线（`--color-empty-icon-search-line`）+ 右下镂空放大镜（镜面 `--color-empty-icon-magnifier-fill`，描边 `--color-card-icon-accent-foreground`）
+  - `search-no-results`：卡片底板（`--color-empty-icon-search-card`）+ 两条横线（`--color-empty-icon-search-line`）+ 右下镂空叉号放大镜（镜面 `--color-empty-icon-magnifier-fill`，描边与叉号 `--color-card-icon-accent-foreground`）
+  - `video`：视频機身（`--color-card-icon-accent-base`）+ 右侧取景三角（`--color-card-icon-accent-foreground`）
+  - `excerpt`：圆角卡片底板（`--color-empty-icon-search-card`）+ 右上折耳书签（`--color-empty-icon-excerpt-bookmark`）+ 左侧双引号与底部两条横线（`--color-card-icon-accent-foreground`）
+  - `folder`：文件夹后盖标签（`--color-card-icon-accent-folder-tab`）+ 前盖主体（`--color-card-icon-accent-base`）
+  - `folder-question`：`folder` 右下角镂空叠加圆环 `?` 角标（圆内填充 `--color-empty-icon-question-badge-fill`，外圈与问号 `--color-card-icon-accent-foreground`）
+  - `video-question`：`video` 右下角镂空叠加圆环 `?` 角标
+  - `excerpt-question`：`excerpt` 右下角镂空叠加圆环 `?` 角标
+  - `subtitle-question`：圆角字幕卡片底板（`--color-card-icon-accent-base`）+ 内部镂空两行台词条 + 右下角镂空叠加圆环 `?` 角标
+  - `task-tray`：圆角托盘底盘（上下整体 `--color-card-icon-accent-base`）+ 中部凹槽分割线（`--color-card-icon-accent-foreground`）
 - Title
-  - Presence：Optional
+  - Presence：Optional（仅 File 一级空状态显示）
+  - Font Family：`--font-family-base`
+  - Font Size：`--font-size-empty-state-title`
+  - Font Weight：`600`
+  - Text Color：`--color-text-primary`
 - Message
-- Action
-  - Presence：Optional
+  - Font Family：`--font-family-base`
+  - Font Size：`--font-size-body`
+  - Font Weight：`400`
+  - Text Color：`--color-text-muted`
 
 ##### Sizes
+
+- Icon Size：`--size-empty-state-icon`
+- Icon to Text Gap：`--gap-empty-state-icon-to-text`
+- Title to Message Gap：`--gap-empty-state-title-to-message`
+- Message Maximum Width：`--max-width-empty-state-message`
+- Alignment：在承载容器剩余可用空间内水平、垂直居中
 
 ##### States
 
 - Default
-
-#### Variants
-
-##### Empty Hint
-
-- Font Family：`--font-family-base`
-- Font Size：`--font-size-library-meta`
-- Text Color：`--color-text-muted`
-- Alignment：Center
-
-##### Info Page State
 
 ### C-09.3 Progress Indicator
 
