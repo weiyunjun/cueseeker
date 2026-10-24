@@ -22,6 +22,7 @@
 | [`UI Layouts - Workbench.md`](UI%20Layouts%20-%20Workbench.md) | **工作台与弹窗布局（`L-01` ~ `L-06`）**：App 壳层、设置窗口、Recent、Library 与 File、Search 与 Excerpt、全部模态对话框与任务面板。 |
 | [`UI Layouts - Playback.md`](UI%20Layouts%20-%20Playback.md) | **播放相关布局（`L-07` ~ `L-09`）**：播放器顶底栏与反馈层、Playback Overlay（Current / Playlist / Collage Editor）、Command Panel。 |
 | [`Icon Registry.md`](Icon%20Registry.md) | **图标名录**：Phosphor 图标制作规格、尺寸与线宽映射表、全量图标使用位置。 |
+| [`Empty State Icon Registry.md`](Empty%20State%20Icon%20Registry.md) | **空状态图标名录**：`C-09.2 Empty State` 双色调图标制作规格、配色层次与全界面 22 处使用位置。 |
 | [`Toast Usage Registry.md`](Toast%20Usage%20Registry.md) | **Toast 与 HUD 注册表**：全场景提示文案（英/简/繁）、图标、持续时间与 Scenario ID。 |
 | [`Tooltip Usage Registry.md`](Tooltip%20Usage%20Registry.md) | **Tooltip 注册表**：全场景悬停提示文案（英/简/繁）、快捷键跟随规则、触发延迟与 Scenario ID。 |
 

@@ -371,17 +371,17 @@
 
 ##### Anatomy
 
-- Icon：68×68px 系统强调色同色深浅大图标（角标区域镂空透底）
-  - `search-hint`：卡片底板（`--color-empty-icon-search-card`）+ 三条横线（`--color-empty-icon-search-line`）+ 右下镂空放大镜（镜面 `--color-empty-icon-magnifier-fill`，描边 `--color-card-icon-accent-foreground`）
-  - `search-no-results`：卡片底板（`--color-empty-icon-search-card`）+ 两条横线（`--color-empty-icon-search-line`）+ 右下镂空叉号放大镜（镜面 `--color-empty-icon-magnifier-fill`，描边与叉号 `--color-card-icon-accent-foreground`）
-  - `video`：视频機身（`--color-card-icon-accent-base`）+ 右侧取景三角（`--color-card-icon-accent-foreground`）
-  - `excerpt`：圆角卡片底板（`--color-empty-icon-search-card`）+ 右上折耳书签（`--color-empty-icon-excerpt-bookmark`）+ 左侧双引号与底部两条横线（`--color-card-icon-accent-foreground`）
-  - `folder`：文件夹后盖标签（`--color-card-icon-accent-folder-tab`）+ 前盖主体（`--color-card-icon-accent-base`）
-  - `folder-question`：`folder` 右下角镂空叠加圆环 `?` 角标（圆内填充 `--color-empty-icon-question-badge-fill`，外圈与问号 `--color-card-icon-accent-foreground`）
+- Icon：68×68px 双色调大图标（`search-hint` 为系统强调色，其余 9 枚为中性灰色系，角标区域镂空透底，详见 [`Empty State Icon Registry.md`](Empty%20State%20Icon%20Registry.md)）
+  - `search-hint`：圆角卡片底板（`--color-empty-icon-search-card`）+ 5 段水平文本线（`--color-empty-icon-search-line`）+ 右下镂空放大镜（镜面 `--color-empty-icon-magnifier-fill`，外圈与手柄 `--color-card-icon-accent-foreground`）
+  - `search-no-results`：圆角卡片底板（`--color-empty-icon-base`）+ 左上圆头 `✕` 号（`--color-empty-icon-foreground`）+ 右下镂空放大镜（镜面 `--color-empty-icon-badge-fill`，外圈与手柄 `--color-empty-icon-foreground`）
+  - `video`：圆角视频框底板（`--color-empty-icon-base`）+ 居中实心播放三角（`--color-empty-icon-foreground`）
+  - `excerpt`：单层圆角燕尾书签底板（`--color-empty-icon-mid`）
+  - `folder`：文件夹后盖顶签（`--color-empty-icon-mid`）+ 前盖主体（`--color-empty-icon-base`）
+  - `folder-question`：`folder` 右下角镂空叠加圆环 `?` 角标（圆内填充 `--color-empty-icon-badge-fill`，外圈与问号 `--color-empty-icon-foreground`）
   - `video-question`：`video` 右下角镂空叠加圆环 `?` 角标
   - `excerpt-question`：`excerpt` 右下角镂空叠加圆环 `?` 角标
-  - `subtitle-question`：圆角字幕卡片底板（`--color-card-icon-accent-base`）+ 内部镂空两行台词条 + 右下角镂空叠加圆环 `?` 角标
-  - `task-tray`：圆角托盘底盘（上下整体 `--color-card-icon-accent-base`）+ 中部凹槽分割线（`--color-card-icon-accent-foreground`）
+  - `subtitle-question`：圆角字幕卡片底板（`--color-empty-icon-base`）+ 两排圆头实心字幕横条（`--color-empty-icon-foreground`）+ 右下镂空叠加圆环 `?` 角标
+  - `task-tray`：圆角托盘底板（`--color-empty-icon-base`）+ 中下部内凹折线分割线（`--color-empty-icon-foreground`）
 - Title
   - Presence：Optional（仅 File 一级空状态显示）
   - Font Family：`--font-family-base`
