@@ -445,6 +445,13 @@ struct TooltipTests {
             "tooltip.disabled.file.index_now.no_folder",
             "tooltip.disabled.filter.reset",
             "tooltip.disabled.settings.play.auto_switch",
+            " playback.auto_pause".trimmingCharacters(in: .whitespaces),
+            "playback.auto_switch",
+            "tooltip.player.auto_switch_gap.disabled",
+            "tooltip.player.auto_switch_gap.decrease",
+            "tooltip.player.auto_switch_gap.decrease.disabled",
+            "tooltip.player.auto_switch_gap.increase",
+            "tooltip.player.auto_switch_gap.increase.disabled",
             "tooltip.disabled.settings.subtitle.restore_defaults",
             "tooltip.disabled.settings.maintenance.actions",
             "tooltip.disabled.edit_cover.save"

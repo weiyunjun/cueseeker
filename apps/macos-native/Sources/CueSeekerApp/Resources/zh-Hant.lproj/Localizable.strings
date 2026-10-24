@@ -239,6 +239,8 @@
 "playback.close_and_return" = "關閉影片並返回結果";
 "playback.minimize" = "縮小播放";
 "playback.no_video_selected" = "未選擇影片";
+"playback.auto_pause" = "自動暫停";
+"playback.auto_switch" = "自動切換";
 
 /* Playback HUD */
 "playback.hud.cue_text_copied" = "已拷貝台詞文字";
@@ -803,6 +805,11 @@
 "tooltip.disabled.file.index_now.no_folder" = "請先加入資料夾後再索引";
 "tooltip.disabled.filter.reset" = "目前沒有可重設的篩選條件";
 "tooltip.disabled.settings.play.auto_switch" = "請先開啟「台詞結束後自動暫停」";
+"tooltip.player.auto_switch_gap.disabled" = "請先開啟「自動切換至播放列表中的下一條台詞」";
+"tooltip.player.auto_switch_gap.decrease" = "減少自動切換間隔 (100ms)";
+"tooltip.player.auto_switch_gap.decrease.disabled" = "已達到最小間隔 (0ms)";
+"tooltip.player.auto_switch_gap.increase" = "增加自動切換間隔 (100ms)";
+"tooltip.player.auto_switch_gap.increase.disabled" = "已達到最大間隔 (10000ms)";
 "tooltip.disabled.settings.subtitle.restore_defaults" = "目前全部字幕設定皆為預設值";
 "tooltip.disabled.settings.maintenance.actions" = "移除資料夾或壓縮資料庫期間無法使用";
 "tooltip.disabled.edit_cover.save" = "請先選擇一張圖片";

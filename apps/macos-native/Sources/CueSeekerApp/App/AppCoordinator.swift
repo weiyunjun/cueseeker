@@ -204,7 +204,8 @@ final class AppCoordinator: ObservableObject {
                 displayTitle: displayTitle,
                 canGoPrevious: canGoPrevious,
                 canGoNext: canGoNext,
-                hasPlaybackSelection: currentPlaybackVideoPath != nil
+                hasPlaybackSelection: currentPlaybackVideoPath != nil,
+                isCueQueuePlayback: isCueQueuePlaybackActive
             )
         )
     }
@@ -219,6 +220,12 @@ final class AppCoordinator: ObservableObject {
 
     func clearPlaybackChromeSnapshot() {
         playback.clearChromeSnapshot()
+    }
+
+    var isCueQueuePlaybackActive: Bool {
+        (activePlaybackSource == .search || activePlaybackSource == .excerpt)
+            && library.selectedLibraryVideo == nil
+            && (search.selectedSearchResult != nil || excerpt.selectedExcerpt != nil)
     }
 
     var isLibraryPlaybackActive: Bool {

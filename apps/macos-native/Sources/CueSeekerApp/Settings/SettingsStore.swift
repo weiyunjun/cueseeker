@@ -103,6 +103,7 @@ final class SettingsStore: ObservableObject {
     static let autoSwitchCueSequenceGapDefaultMilliseconds = 500
     static let autoSwitchCueSequenceGapMinimumMilliseconds = 0
     static let autoSwitchCueSequenceGapMaximumMilliseconds = 10_000
+    static let autoSwitchCueSequenceGapStepMilliseconds = 100
 
     @Published var appAppearanceMode: AppAppearanceMode {
         didSet {
@@ -314,11 +315,31 @@ final class SettingsStore: ObservableObject {
         Self.applyAppAppearanceMode(loadedAppearance)
     }
 
+    var canDecreaseAutoSwitchCueSequenceGap: Bool {
+        autoSwitchCueSequenceGapMilliseconds > Self.autoSwitchCueSequenceGapMinimumMilliseconds
+    }
+
+    var canIncreaseAutoSwitchCueSequenceGap: Bool {
+        autoSwitchCueSequenceGapMilliseconds < Self.autoSwitchCueSequenceGapMaximumMilliseconds
+    }
+
     func setAutoSwitchCueSequenceGapMilliseconds(_ milliseconds: Int) {
         autoSwitchCueSequenceGapMilliseconds = Self.clampedAutoSwitchCueSequenceGapMilliseconds(milliseconds)
         userDefaults.set(
             autoSwitchCueSequenceGapMilliseconds,
             forKey: Self.autoPlayCueSequenceGapMillisecondsKey
+        )
+    }
+
+    func decreaseAutoSwitchCueSequenceGapMilliseconds() {
+        setAutoSwitchCueSequenceGapMilliseconds(
+            autoSwitchCueSequenceGapMilliseconds - Self.autoSwitchCueSequenceGapStepMilliseconds
+        )
+    }
+
+    func increaseAutoSwitchCueSequenceGapMilliseconds() {
+        setAutoSwitchCueSequenceGapMilliseconds(
+            autoSwitchCueSequenceGapMilliseconds + Self.autoSwitchCueSequenceGapStepMilliseconds
         )
     }
 

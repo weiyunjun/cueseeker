@@ -41,12 +41,14 @@ struct PlaybackChromeSnapshot: Equatable {
     let canGoPrevious: Bool
     let canGoNext: Bool
     let hasPlaybackSelection: Bool
+    var isCueQueuePlayback: Bool = false
 
     static let empty = PlaybackChromeSnapshot(
         displayTitle: L("playback.no_video_selected"),
         canGoPrevious: false,
         canGoNext: false,
-        hasPlaybackSelection: false
+        hasPlaybackSelection: false,
+        isCueQueuePlayback: false
     )
 }
 

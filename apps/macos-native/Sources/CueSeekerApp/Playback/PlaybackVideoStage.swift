@@ -74,6 +74,46 @@ struct PlaybackVideoStage: View {
                 .environment(\.isPlayerUIVisible, isTopBarVisible)
 
                 if let viewModel = playback.playbackViewModel {
+                    let chromeWidth = max(0, stageSize.width - PlaybackChromeMetrics.horizontalInset * 2)
+                    let chromeCenterY = max(
+                        PlaybackChromeMetrics.height / 2,
+                        stageSize.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.height / 2
+                    )
+
+                    PlaybackChromeBottomGradient()
+                        .frame(
+                            width: chromeWidth,
+                            height: PlaybackChromeMetrics.height
+                        )
+                        .position(
+                            x: stageSize.width / 2,
+                            y: chromeCenterY
+                        )
+                        .opacity(isBottomChromeVisible ? 1 : 0)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+
+                    if chromeSnapshot.isCueQueuePlayback {
+                        HStack(spacing: 0) {
+                            PlaybackCueQueueControlBar(settings: appState.settings)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, PlaybackChromeMetrics.chromeHorizontalPadding)
+                        .frame(
+                            width: chromeWidth,
+                            height: PlaybackChromeMetrics.cueQueueBarHeight,
+                            alignment: .leading
+                        )
+                        .position(
+                            x: stageSize.width / 2,
+                            y: PlaybackChromeMetrics.cueQueueBarCenterY(stageHeight: stageSize.height)
+                        )
+                        .opacity(isBottomChromeVisible ? 1 : 0)
+                        .allowsHitTesting(isBottomChromeVisible)
+                        .accessibilityHidden(!isBottomChromeVisible)
+                        .environment(\.isPlayerUIVisible, isBottomChromeVisible)
+                    }
+
                     PlaybackChromeView(
                         playback: playback,
                         viewModel: viewModel,
@@ -83,19 +123,17 @@ struct PlaybackVideoStage: View {
                             snapshot: chromeSnapshot,
                             isFullscreen: fullscreenManager.isFullscreen,
                             isFullscreenToggleDisabled: isFullscreenToggleDisabled
-                        )
+                        ),
+                        showsBackgroundGradient: false
                     )
                     .frame(
-                        width: max(0, stageSize.width - PlaybackChromeMetrics.horizontalInset * 2),
+                        width: chromeWidth,
                         height: PlaybackChromeMetrics.height,
                         alignment: .bottom
                     )
                     .position(
                         x: stageSize.width / 2,
-                        y: max(
-                            PlaybackChromeMetrics.height / 2,
-                            stageSize.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.height / 2
-                        )
+                        y: chromeCenterY
                     )
                     .opacity(isBottomChromeVisible ? 1 : 0)
                     .allowsHitTesting(isBottomChromeVisible)

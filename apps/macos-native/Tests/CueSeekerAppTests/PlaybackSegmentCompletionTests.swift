@@ -1101,6 +1101,68 @@ func staleNaturalLibraryCompletionCannotAdvanceReplacementSelection() async thro
     }
 }
 
+@MainActor
+@Test
+func chromeSnapshotReflectsCueQueuePlaybackOnlyForSearchAndExcerptAndStaysStableAcrossCueSwitches() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        #expect(!app.playback.chromeSnapshot.isCueQueuePlayback)
+
+        // 1. Search cue playback -> isCueQueuePlayback == true
+        let firstCue = segmentCompletionSearchResult(entryID: 1)
+        let secondCue = SubtitleSearchResult(
+            entryID: 2,
+            subtitleFileID: 2,
+            subtitlePath: "/Media/OtherEpisode.srt",
+            subtitleFormat: .srt,
+            videoPath: "/Media/OtherEpisode.mkv",
+            videoName: "OtherEpisode",
+            startMilliseconds: 3_000,
+            endMilliseconds: 4_500,
+            content: "world",
+            cueLines: ["world"],
+            searchRank: 1
+        )
+        app.openSearchResult(firstCue)
+        #expect(app.playback.chromeSnapshot.isCueQueuePlayback)
+
+        // Switching to another Search cue (even in another video) keeps isCueQueuePlayback == true continuously.
+        app.openSearchResult(secondCue)
+        #expect(app.playback.chromeSnapshot.isCueQueuePlayback)
+
+        // 2. Excerpt cue playback -> isCueQueuePlayback == true
+        let excerptItem = Excerpt(
+            id: 10,
+            subtitleFileID: 1,
+            subtitlePath: "/Media/Segment.srt",
+            subtitleFormat: .srt,
+            videoPath: "/Media/Segment.mkv",
+            videoName: "Segment",
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500,
+            content: "hello",
+            isValid: true,
+            createdAt: "2026-10-25T00:00:00Z"
+        )
+        app.openExcerpt(excerptItem, allowsUnavailableTarget: true)
+        #expect(app.playback.chromeSnapshot.isCueQueuePlayback)
+
+        // 3. Library / Recent Videos playback -> isCueQueuePlayback == false immediately
+        let libraryVideo = LibraryVideo(
+            videoPath: "/Media/Show/Episode 1.mkv",
+            videoName: "Episode 1",
+            duration: 100,
+            subtitlePath: "/Media/Show/Episode 1.srt",
+            subtitleFormat: .srt
+        )
+        app.openLibraryVideo(libraryVideo)
+        #expect(!app.playback.chromeSnapshot.isCueQueuePlayback)
+
+        // 4. Stop playback -> isCueQueuePlayback == false
+        app.stopPlayback()
+        #expect(!app.playback.chromeSnapshot.isCueQueuePlayback)
+    }
+}
+
 private func segmentCompletionSearchResult(entryID: Int64) -> SubtitleSearchResult {
     SubtitleSearchResult(
         entryID: entryID,

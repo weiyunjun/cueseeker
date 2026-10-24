@@ -65,6 +65,20 @@ struct PlaybackSpeedButtonAnchorKey: PreferenceKey {
     }
 }
 
+struct PlaybackChromeBottomGradient: View {
+    var body: some View {
+        LinearGradient(
+            colors: [
+                PlaybackTheme.topbarGradientEnd,
+                PlaybackTheme.topbarGradientStart,
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .allowsHitTesting(false)
+    }
+}
+
 @MainActor
 struct PlaybackChromeView: View {
     // Observed so the copy below is re-read when the language changes.
@@ -73,6 +87,7 @@ struct PlaybackChromeView: View {
     @ObservedObject var viewModel: PlaybackViewModel
     @ObservedObject var timeline: PlaybackTimelineInteractionStore
     let controls: PlaybackChromeControls
+    var showsBackgroundGradient: Bool = true
 
     var body: some View {
         chromeSurface
@@ -123,15 +138,11 @@ struct PlaybackChromeView: View {
         )
         .padding(.top, PlaybackChromeMetrics.progressTopPadding)
         .background(
-            LinearGradient(
-                colors: [
-                    PlaybackTheme.topbarGradientEnd,
-                    PlaybackTheme.topbarGradientStart,
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .allowsHitTesting(false)
+            Group {
+                if showsBackgroundGradient {
+                    PlaybackChromeBottomGradient()
+                }
+            }
         )
     }
 

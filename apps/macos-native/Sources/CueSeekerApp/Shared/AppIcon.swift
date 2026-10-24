@@ -36,6 +36,7 @@ enum AppIcon: String, CaseIterable, Sendable {
     case folderPlus = "folder-plus"
     case folderMinus = "folder-minus"
     case plus = "plus"
+    case minus = "minus"
     case arrowClockwise = "arrow-clockwise"
     case arrowCounterClockwise = "arrow-counter-clockwise"
     case minusCircle = "minus-circle"

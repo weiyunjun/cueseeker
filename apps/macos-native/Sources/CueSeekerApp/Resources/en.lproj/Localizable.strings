@@ -239,6 +239,8 @@
 "playback.close_and_return" = "Close video and return to results";
 "playback.minimize" = "Minimize playback";
 "playback.no_video_selected" = "No video selected";
+"playback.auto_pause" = "Auto Pause";
+"playback.auto_switch" = "Auto Switch";
 
 /* Playback HUD */
 "playback.hud.cue_text_copied" = "Cue Text Copied";
@@ -803,6 +805,11 @@
 "tooltip.disabled.file.index_now.no_folder" = "Add a folder before indexing";
 "tooltip.disabled.filter.reset" = "No active filters to reset";
 "tooltip.disabled.settings.play.auto_switch" = "Enable “Auto Pause After a Cue Finishes” first";
+"tooltip.player.auto_switch_gap.disabled" = "Enable “Auto Switch to Next Cues in Playlist” first";
+"tooltip.player.auto_switch_gap.decrease" = "Decrease Auto Switch Gap (100ms)";
+"tooltip.player.auto_switch_gap.decrease.disabled" = "Already at minimum gap (0ms)";
+"tooltip.player.auto_switch_gap.increase" = "Increase Auto Switch Gap (100ms)";
+"tooltip.player.auto_switch_gap.increase.disabled" = "Already at maximum gap (10000ms)";
 "tooltip.disabled.settings.subtitle.restore_defaults" = "All subtitle settings are already at default values";
 "tooltip.disabled.settings.maintenance.actions" = "Unavailable while folder removal or database compaction is running";
 "tooltip.disabled.edit_cover.save" = "Choose an image first";

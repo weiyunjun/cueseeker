@@ -224,6 +224,26 @@ public enum PlaybackTheme {
         Color.white.opacity(0.20)
     }
 
+    /// --color-player-cue-control-bar-border
+    public static var cueControlBarBorder: Color {
+        Color.white.opacity(0.15)
+    }
+
+    /// --color-player-cue-control-stepper-bg
+    public static var cueControlStepperBackground: Color {
+        Color.white.opacity(0.06)
+    }
+
+    /// --color-player-cue-control-stepper-border
+    public static var cueControlStepperBorder: Color {
+        Color.white.opacity(0.12)
+    }
+
+    /// --color-player-cue-control-status-active
+    public static var cueControlStatusActive: Color {
+        Color(red: 52 / 255, green: 211 / 255, blue: 153 / 255)
+    }
+
     /// --color-player-text-primary
     public static var textPrimary: Color {
         Color.white.opacity(0.94)
@@ -587,11 +607,55 @@ enum PlaybackChromeMetrics {
     static let windowControlBorderWidth: CGFloat = 0.5
     static let windowControlZoomGlyphSize: CGFloat = windowControlGlyphSize - 2
 
+    /// --padding-player-cue-control-bar: 4px (--spacing-1)
+    static let cueQueueBarPadding = WorkbenchControlMetrics.redesignSpacing1
+    /// --gap-player-cue-control-bar: 4px (--spacing-1)
+    static let cueQueueBarItemGap = WorkbenchControlMetrics.redesignSpacing1
+    /// --radius-player-cue-control-bar: 10px (--radius-lg)
+    static let cueQueueBarRadius: CGFloat = 10
+    /// --height-player-cue-control: 28px
+    static let cueQueueControlHeight: CGFloat = 28
+    /// --height-player-cue-control-bar: 36px
+    static let cueQueueBarHeight: CGFloat = cueQueueControlHeight + cueQueueBarPadding * 2
+    /// --radius-player-cue-control: 7px (--radius-md)
+    static let cueQueueControlRadius: CGFloat = 7
+    /// --font-size-player-cue-toggle: 12px (--font-size-caption)
+    static let cueQueueToggleFontSize = WorkbenchControlMetrics.redesignFontSizeCaption
+    /// --opacity-disabled: 0.45
+    static let cueQueueDisabledOpacity: Double = 0.45
+    /// --padding-player-cue-toggle-x: 10px
+    static let cueQueueToggleHorizontalPadding: CGFloat = 10
+    /// --gap-player-cue-toggle-dot: 6px
+    static let cueQueueToggleDotGap: CGFloat = 6
+    /// --size-player-cue-status-dot: 6px
+    static let cueQueueStatusDotSize: CGFloat = 6
+    /// --padding-player-cue-stepper: 2px
+    static let cueQueueStepperPadding: CGFloat = 2
+    /// --size-player-cue-stepper-button: 24px
+    static let cueQueueStepperButtonSize: CGFloat = 24
+    /// --radius-player-cue-stepper-button: 5px
+    static let cueQueueStepperButtonRadius: CGFloat = 5
+    /// --size-player-cue-stepper-icon: 14px
+    static let cueQueueStepperIconSize: CGFloat = 14
+    /// --width-player-cue-gap-value: 64px (fits "10000 ms" without jitter)
+    static let cueQueueGapValueWidth: CGFloat = 64
+    /// --gap-player-cue-control-bar-bottom: 4px (--spacing-1) above the 18px scrubber hit area
+    static let cueQueueBarBottomGap = WorkbenchControlMetrics.redesignSpacing1
+
     /// From the top of the 18px progress scrubber hit area down through the
     /// 44px controls row and 12px bottom padding (`74px`). The 16px
     /// `progressTopPadding` above it belongs to the playback stage tap area.
     static let bottomControlRegionHeight: CGFloat =
         progressHitAreaHeight + bottomControlsRowHeight + chromeBottomPadding
+
+    /// Vertical center of the Cue Queue Control Bar in top-left stage coordinates.
+    static func cueQueueBarCenterY(stageHeight: CGFloat) -> CGFloat {
+        let bottomY = max(
+            cueQueueBarHeight,
+            stageHeight - bottomInset - bottomControlRegionHeight - cueQueueBarBottomGap
+        )
+        return bottomY - cueQueueBarHeight / 2
+    }
 
     /// The playback stage region where a single click toggles play/pause.
     /// When Player UI is visible, spans from the bottom of the 54px top bar

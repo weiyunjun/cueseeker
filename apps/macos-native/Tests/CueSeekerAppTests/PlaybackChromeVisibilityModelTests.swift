@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -241,4 +242,103 @@ func draggableTitlebarViewPassesThroughHitTestingWhenPlayerUIIsHidden() {
 
     view.allowsHitTesting = false
     #expect(view.hitTest(NSPoint(x: 400, y: 27)) == nil)
+}
+
+@MainActor
+@Test
+func cueQueueControlBarReportsInteractiveRegionWithStableWidthAcrossGapValuesAndKeepsPlayerUIVisible() {
+    let suiteName = "CueSeekerCueQueueBarTests-\(UUID().uuidString)"
+    let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+    }
+    let settings = SettingsStore(userDefaults: userDefaults)
+    let stageSize = CGSize(width: 800, height: 600)
+    let centerY = PlaybackChromeMetrics.cueQueueBarCenterY(stageHeight: stageSize.height)
+    let expectedCenterY: CGFloat = 504
+    #expect(centerY == expectedCenterY)
+
+    var reportedFrames: [CGRect] = []
+    let rootView = ZStack(alignment: .topLeading) {
+        Color.clear
+        HStack(spacing: 0) {
+            PlaybackCueQueueControlBar(settings: settings)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, PlaybackChromeMetrics.chromeHorizontalPadding)
+        .frame(
+            width: stageSize.width,
+            height: PlaybackChromeMetrics.cueQueueBarHeight,
+            alignment: .leading
+        )
+        .position(x: stageSize.width / 2, y: centerY)
+    }
+    .frame(width: stageSize.width, height: stageSize.height)
+    .overlayPreferenceValue(PlayerInteractiveRegionKey.self) { anchors in
+        GeometryReader { proxy in
+            let frames = anchors.map { proxy[$0] }
+            Color.clear
+                .onAppear { reportedFrames = frames }
+                .onChange(of: frames) { _, newFrames in reportedFrames = newFrames }
+        }
+    }
+    .environmentObject(settings.localization)
+    .environmentObject(settings.playbackShortcuts)
+
+    let host = NSHostingView(rootView: rootView)
+    host.frame = CGRect(origin: .zero, size: stageSize)
+    let window = NSWindow(
+        contentRect: CGRect(origin: .zero, size: stageSize),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+    host.layoutSubtreeIfNeeded()
+    window.displayIfNeeded()
+    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+
+    #expect(reportedFrames.count == 1)
+    let initialFrame = try! #require(reportedFrames.first)
+    #expect(abs(initialFrame.minX - PlaybackChromeMetrics.chromeHorizontalPadding) < 0.5)
+    #expect(abs(initialFrame.height - PlaybackChromeMetrics.cueQueueBarHeight) < 0.5)
+    #expect(abs(initialFrame.maxY - (stageSize.height - PlaybackChromeMetrics.bottomControlRegionHeight - PlaybackChromeMetrics.cueQueueBarBottomGap)) < 0.5)
+    #expect(initialFrame.width > 180 && initialFrame.width < stageSize.width / 2)
+
+    for gap in [0, 100, 500, 1_000, 10_000] {
+        settings.setAutoSwitchCueSequenceGapMilliseconds(gap)
+        host.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        let currentFrame = try! #require(reportedFrames.first)
+        #expect(abs(currentFrame.width - initialFrame.width) < 0.01)
+        #expect(abs(currentFrame.minX - initialFrame.minX) < 0.01)
+        #expect(abs(currentFrame.minY - initialFrame.minY) < 0.01)
+    }
+
+    let area = PlayerArea()
+    defer {
+        area.finish()
+        window.orderOut(nil)
+    }
+    area.model.setInteractiveFrames([initialFrame])
+
+    // Pointer inside the Cue Queue Control Bar (e.g. over the read-only gap value or 4px gap)
+    // counts as hovering a Player UI interactive control and stops the 3s idle countdown.
+    area.movePointer(
+        to: NSPoint(
+            x: initialFrame.midX,
+            y: stageSize.height - initialFrame.midY
+        )
+    )
+    #expect(!area.model.isIdleCountdownRunning)
+
+    // Moving the pointer to the video stage to the right of the dock restarts the idle countdown.
+    area.movePointer(
+        to: NSPoint(
+            x: initialFrame.maxX + 40,
+            y: stageSize.height - initialFrame.midY
+        )
+    )
+    #expect(area.model.isIdleCountdownRunning)
 }

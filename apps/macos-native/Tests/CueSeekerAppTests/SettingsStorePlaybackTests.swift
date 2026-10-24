@@ -134,6 +134,46 @@ func settingsStoreClampsCueSequenceAutoSwitchGap() {
 
 @MainActor
 @Test
+func settingsStoreStepsCueSequenceAutoSwitchGapByHundredMillisecondsAndClampsAtBoundaries() {
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
+        #expect(store.autoSwitchCueSequenceGapMilliseconds == 500)
+        #expect(store.canDecreaseAutoSwitchCueSequenceGap)
+        #expect(store.canIncreaseAutoSwitchCueSequenceGap)
+
+        store.decreaseAutoSwitchCueSequenceGapMilliseconds()
+        #expect(store.autoSwitchCueSequenceGapMilliseconds == 400)
+
+        store.increaseAutoSwitchCueSequenceGapMilliseconds()
+        #expect(store.autoSwitchCueSequenceGapMilliseconds == 500)
+
+        store.setAutoSwitchCueSequenceGapMilliseconds(100)
+        #expect(store.canDecreaseAutoSwitchCueSequenceGap)
+        store.decreaseAutoSwitchCueSequenceGapMilliseconds()
+        #expect(store.autoSwitchCueSequenceGapMilliseconds == 0)
+        #expect(!store.canDecreaseAutoSwitchCueSequenceGap)
+        #expect(store.canIncreaseAutoSwitchCueSequenceGap)
+
+        store.decreaseAutoSwitchCueSequenceGapMilliseconds()
+        #expect(store.autoSwitchCueSequenceGapMilliseconds == 0)
+
+        store.setAutoSwitchCueSequenceGapMilliseconds(9_900)
+        #expect(store.canIncreaseAutoSwitchCueSequenceGap)
+        store.increaseAutoSwitchCueSequenceGapMilliseconds()
+        #expect(store.autoSwitchCueSequenceGapMilliseconds == 10_000)
+        #expect(!store.canIncreaseAutoSwitchCueSequenceGap)
+        #expect(store.canDecreaseAutoSwitchCueSequenceGap)
+
+        store.increaseAutoSwitchCueSequenceGapMilliseconds()
+        #expect(store.autoSwitchCueSequenceGapMilliseconds == 10_000)
+
+        let reloadedStore = SettingsStore(userDefaults: userDefaults)
+        #expect(reloadedStore.autoSwitchCueSequenceGapMilliseconds == 10_000)
+    }
+}
+
+@MainActor
+@Test
 func settingsStoreKeepsTheSRTSubtitleStyleAcrossLaunches() {
     withTemporaryPlaybackSettingsUserDefaults { userDefaults in
         let store = SettingsStore(userDefaults: userDefaults)
