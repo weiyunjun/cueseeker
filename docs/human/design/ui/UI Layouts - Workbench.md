@@ -1164,7 +1164,7 @@
    1. File Header Row：文件夹/文件图标与名称
    2. Property Groups：Settings 风格卡片组
       - Folder（Root Folder / Subfolder）：`Folder Info`（Path、Folder Count、Video Count、Subtitle Count）、`Index Info`（Added、Updated）
-      - Video File：`Video`（Resolution `W × H`、Frame Rate、Codec、Bit Depth、Pixel Format、Bitrate、Duration）、`Audio #N`（Codec、Channels `<N>ch`、Sample Rate、Bit Depth、Language、Title，仅展示有效项）、`Subtitles`、`File Details`（File Size、Format、Path、Created、Modified）
+      - Video File：`Video`（Resolution `W × H`、Frame Rate、Codec、Bit Depth、Pixel Format、Bitrate、Duration）、`Audio #N`（无有效音轨时不显示此分组；Codec、Channels `<N>ch`、Sample Rate、Bit Depth、Language、Title，仅展示有效项）、`Subtitles`、`File Details`（File Size、Format、Path、Created、Modified）
       - Subtitle File：`Subtitle Specifications`（Encoding、Raw Lines、Valid Lines）、`Video`、`File Details`（File Size、Format、Path、Created、Modified）
 
 #### Sizes
@@ -1176,7 +1176,6 @@
 
 - Inset：`--inset-dialog`
 - Region Gap：`--spacing-4`
-- File Header Spacing：`--inset-dialog`
 - File Header Gap：`--spacing-4`
 
 ### L-06.9 Task Panel Layout
@@ -1313,9 +1312,10 @@
 
 - Width：`--width-dialog-x-large`
 - Task Icon Size：`--size-detail-file-icon-container`（40×40px，无底框系统强调色同色深浅大图标）
+- Progress Bar Width：`--width-task-detail-progress-bar`
 
 #### Spacing
 
 - Inset：`--inset-dialog`
 - Region Gap：`--spacing-4`
-- Task Header Spacing：`--inset-dialog`
+- Task Header Gap：`--spacing-4`

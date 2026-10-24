@@ -322,6 +322,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--size-detail-file-icon-container`: `40px`
 - `--min-width-detail-label`: `100px`
 - `--min-width-detail-index-label`: `40px`
+- `--width-task-detail-progress-bar`: `140px`
 - `--width-player-volume-slider`: `68px`
 - `--size-player-volume-thumb`: `10px`
 - `--width-player-volume-value`: `32px`
