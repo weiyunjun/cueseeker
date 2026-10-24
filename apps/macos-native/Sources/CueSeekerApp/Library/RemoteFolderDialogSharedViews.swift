@@ -288,10 +288,10 @@ struct RemoteFolderDialogContainer<
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let errorMessage = session.directoryErrorMessage {
-            WorkbenchEmptyHint(message: errorMessage)
+            WorkbenchEmptyHint(icon: .folderQuestion, message: errorMessage)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if session.items.isEmpty {
-            WorkbenchEmptyHint(message: L(style.emptyFolderItemsKey))
+            WorkbenchEmptyHint(icon: .folder, message: L(style.emptyFolderItemsKey))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             WorkbenchScrollView {

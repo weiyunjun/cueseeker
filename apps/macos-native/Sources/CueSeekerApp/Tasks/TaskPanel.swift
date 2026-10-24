@@ -395,8 +395,13 @@ struct TaskPanel: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         if isEmpty {
-            WorkbenchEmptyHint(message: emptyMessage)
-                .frame(minHeight: WorkbenchControlMetrics.redesignTaskPanelHeight / 2)
+            WorkbenchEmptyHint(icon: .taskTray, message: emptyMessage)
+                .frame(
+                    minHeight: max(
+                        WorkbenchControlMetrics.redesignTaskPanelHeight / 2,
+                        viewportSize.height - WorkbenchControlMetrics.redesignDialogInset
+                    )
+                )
         } else {
             LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 content()

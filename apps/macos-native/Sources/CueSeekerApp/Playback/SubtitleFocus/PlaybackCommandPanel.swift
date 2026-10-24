@@ -641,6 +641,7 @@ private struct PlaybackCommandPanelSearchResults: View {
                     if let windowStore {
                         PlaybackCommandPanelSearchReel(
                             windowStore: windowStore,
+                            isSearching: searchStore.isSearching,
                             showsCueGroup: cueGroupPresentation.isEnabled,
                             viewportSize: geometry.size,
                             keyboardNavigationRequest: keyboardNavigationRequest,
@@ -648,6 +649,11 @@ private struct PlaybackCommandPanelSearchResults: View {
                             onCommitSelection: onCommitSelection,
                             onCopySelectedText: onCopySelectedText,
                             onSearchSelectedText: onSearchSelectedText
+                        )
+                    } else if !searchStore.isSearching {
+                        WorkbenchEmptyHint(
+                            icon: .searchNoResults,
+                            message: L("table.search_no_results")
                         )
                     }
                 }
@@ -727,6 +733,7 @@ private struct PlaybackCommandPanelSearchReel: View {
     @ObservedObject var windowStore: PlaybackCueResultSessionWindowStore
     @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
+    let isSearching: Bool
     let showsCueGroup: Bool
     let viewportSize: CGSize
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
@@ -742,35 +749,44 @@ private struct PlaybackCommandPanelSearchReel: View {
             viewportSize.height - contentInset * 2
         )
 
-        PlaybackCueResultReelRepresentable(
-            windowStore: windowStore,
-            showsCueGroup: showsCueGroup,
-            selectedOrdinal: windowStore.selectedOrdinal,
-            uiProbeScope: nil,
-            keyboardNavigationRequest: keyboardNavigationRequest,
-            reducesMotion: reducesMotion,
-            isInteractionEnabled: true,
-            cancelsWheelMotion: false,
-            onCommitSelection: onCommitSelection,
-            onCopySelectedText: onCopySelectedText,
-            onSearchSelectedText: onSearchSelectedText,
-            // A dialog drawn over the panel owns the wheel, even where it lies
-            // over the reel; the reel lets it through untouched.
-            allowsNativeWheelInput: { [isCovered = layerContext.isCovered] in !isCovered },
-            allowsNativeScrollbarInput: { true },
-            onScrollbarDraggingChanged: { _ in },
-            onNativeMotionGateChanged: { _ in },
-            onKeyboardMotionChanged: { _ in },
-            interfaceLayers: interfaceLayers,
-            menuOwner: .commandPanel
-        )
-        .id("command-search:\(windowStore.reelDatasetID ?? "empty")")
-        .frame(
-            width: viewportSize.width,
-            height: reelViewportHeight,
-            alignment: .top
-        )
-        .offset(y: contentInset)
+        if windowStore.snapshot.totalCount == 0 {
+            if !isSearching {
+                WorkbenchEmptyHint(
+                    icon: .searchNoResults,
+                    message: L("table.search_no_results")
+                )
+            }
+        } else {
+            PlaybackCueResultReelRepresentable(
+                windowStore: windowStore,
+                showsCueGroup: showsCueGroup,
+                selectedOrdinal: windowStore.selectedOrdinal,
+                uiProbeScope: nil,
+                keyboardNavigationRequest: keyboardNavigationRequest,
+                reducesMotion: reducesMotion,
+                isInteractionEnabled: true,
+                cancelsWheelMotion: false,
+                onCommitSelection: onCommitSelection,
+                onCopySelectedText: onCopySelectedText,
+                onSearchSelectedText: onSearchSelectedText,
+                // A dialog drawn over the panel owns the wheel, even where it lies
+                // over the reel; the reel lets it through untouched.
+                allowsNativeWheelInput: { [isCovered = layerContext.isCovered] in !isCovered },
+                allowsNativeScrollbarInput: { true },
+                onScrollbarDraggingChanged: { _ in },
+                onNativeMotionGateChanged: { _ in },
+                onKeyboardMotionChanged: { _ in },
+                interfaceLayers: interfaceLayers,
+                menuOwner: .commandPanel
+            )
+            .id("command-search:\(windowStore.reelDatasetID ?? "empty")")
+            .frame(
+                width: viewportSize.width,
+                height: reelViewportHeight,
+                alignment: .top
+            )
+            .offset(y: contentInset)
+        }
     }
 }
 
@@ -785,6 +801,8 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
     /// name the same item.
     let itemIDs: [String]
     let sectionItemCounts: [Int]
+    let emptyIcon: AppEmptyStateIcon
+    let emptyMessage: String
     let footerStatus: String
     let onBack: () -> Bool
     let onSynchronize: () -> Void
@@ -857,39 +875,52 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
                     )
                 }()
 
-                WorkbenchScrollView {
-                    grid(highlight, coordinateSpaceName) { frames in
-                        itemFramesByID = frames
+                if itemIDs.isEmpty {
+                    WorkbenchEmptyHint(
+                        icon: emptyIcon,
+                        message: emptyMessage
+                    )
+                    .onAppear {
+                        onGridLayoutChange(columnCount)
                     }
-                    .environment(\.mediaCardGridContainerWidth, gridWidth)
-                    .background(alignment: .topLeading) {
-                        PlaybackMediaScrollPositionBridge(
-                            restorationOffsetY: 0,
-                            restoresInitialOffset: false,
-                            scrollRequest: scrollRequest,
-                            isFirstRowSelection: isFirstRowSelection,
-                            itemFramesByID: itemFramesByID,
-                            topPadding: WorkbenchControlMetrics.redesignSpacing2,
-                            bottomPadding: WorkbenchControlMetrics.redesignSpacing2,
-                            onOffsetChanged: { _ in }
+                    .onChange(of: columnCount) { newColumnCount in
+                        onGridLayoutChange(newColumnCount)
+                    }
+                } else {
+                    WorkbenchScrollView {
+                        grid(highlight, coordinateSpaceName) { frames in
+                            itemFramesByID = frames
+                        }
+                        .environment(\.mediaCardGridContainerWidth, gridWidth)
+                        .background(alignment: .topLeading) {
+                            PlaybackMediaScrollPositionBridge(
+                                restorationOffsetY: 0,
+                                restoresInitialOffset: false,
+                                scrollRequest: scrollRequest,
+                                isFirstRowSelection: isFirstRowSelection,
+                                itemFramesByID: itemFramesByID,
+                                topPadding: WorkbenchControlMetrics.redesignSpacing2,
+                                bottomPadding: WorkbenchControlMetrics.redesignSpacing2,
+                                onOffsetChanged: { _ in }
+                            )
+                            .frame(width: 0, height: 0)
+                        }
+                        .padding(
+                            .horizontal,
+                            PlaybackCommandPanelMetrics.contentInset
                         )
-                        .frame(width: 0, height: 0)
+                        .padding(
+                            .vertical,
+                            WorkbenchControlMetrics.redesignSpacing2
+                        )
+                        .coordinateSpace(name: coordinateSpaceName)
                     }
-                    .padding(
-                        .horizontal,
-                        PlaybackCommandPanelMetrics.contentInset
-                    )
-                    .padding(
-                        .vertical,
-                        WorkbenchControlMetrics.redesignSpacing2
-                    )
-                    .coordinateSpace(name: coordinateSpaceName)
-                }
-                .onAppear {
-                    onGridLayoutChange(columnCount)
-                }
-                .onChange(of: columnCount) { newColumnCount in
-                    onGridLayoutChange(newColumnCount)
+                    .onAppear {
+                        onGridLayoutChange(columnCount)
+                    }
+                    .onChange(of: columnCount) { newColumnCount in
+                        onGridLayoutChange(newColumnCount)
+                    }
                 }
             }
 
@@ -978,6 +1009,8 @@ private struct PlaybackCommandPanelRecentVideos: View {
                 items,
                 timestamp: \.updatedAt
             ).map(\.items.count),
+            emptyIcon: .video,
+            emptyMessage: L("library.recent_watching_empty"),
             footerStatus: PlaybackCueFooterStatus.videos(totalCount: items.count),
             onBack: onBack,
             onSynchronize: onSynchronize,
@@ -1020,6 +1053,8 @@ private struct PlaybackCommandPanelRecentExcerpts: View {
                 summaries,
                 timestamp: \.list.recentPlayedAt
             ).map(\.items.count),
+            emptyIcon: .excerpt,
+            emptyMessage: L("library.recent_excerpts_empty"),
             footerStatus: PlaybackCueFooterStatus.excerptLists(totalCount: summaries.count),
             onBack: onBack,
             onSynchronize: onSynchronize,

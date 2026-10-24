@@ -142,9 +142,15 @@ struct WorkbenchSearchView: View {
                     )
 
                     if showsSearchEmptyHint {
-                        WorkbenchEmptyHint(message: L("table.search_empty_hint"))
+                        WorkbenchEmptyHint(
+                            icon: .searchHint,
+                            message: L("table.search_empty_hint")
+                        )
                     } else if showsSearchNoResultsHint {
-                        WorkbenchEmptyHint(message: L("table.search_no_results"))
+                        WorkbenchEmptyHint(
+                            icon: .searchNoResults,
+                            message: L("table.search_no_results")
+                        )
                     }
                 }
                 .onChange(of: snapshot.version) { _ in

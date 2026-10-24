@@ -28,16 +28,16 @@ struct WorkbenchFileView: View {
         Group {
             switch routeState.currentRoute {
             case .fileFolder(let rootPath):
-                fileScrollSurface(id: rootPath) {
-                    subfolderContent(rootPath: rootPath)
+                fileScrollSurface(id: rootPath) { emptyMinHeight in
+                    subfolderContent(rootPath: rootPath, emptyMinHeight: emptyMinHeight)
                 }
             case .fileFiles(let rootPath, let folderPath):
-                fileScrollSurface(id: "\(rootPath)/\(folderPath)") {
-                    filesContent(rootPath: rootPath, folderPath: folderPath)
+                fileScrollSurface(id: "\(rootPath)/\(folderPath)") { emptyMinHeight in
+                    filesContent(rootPath: rootPath, folderPath: folderPath, emptyMinHeight: emptyMinHeight)
                 }
             default:
-                fileScrollSurface(id: "root") {
-                    rootContent
+                fileScrollSurface(id: "root") { emptyMinHeight in
+                    rootContent(emptyMinHeight: emptyMinHeight)
                 }
             }
         }
@@ -56,7 +56,7 @@ struct WorkbenchFileView: View {
 
     private func fileScrollSurface<Content: View>(
         id: AnyHashable,
-        @ViewBuilder content: @escaping () -> Content
+        @ViewBuilder content: @escaping (CGFloat) -> Content
     ) -> some View {
         GeometryReader { geometry in
             VStack(alignment: .leading, spacing: 0) {
@@ -75,13 +75,20 @@ struct WorkbenchFileView: View {
                 .workbenchPageInlinePadding()
                 .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
 
-                WorkbenchScrollView([.vertical]) {
-                    content()
-                        .workbenchPageInlinePadding()
-                        .padding(.bottom, WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)
-                        .frame(width: geometry.size.width, alignment: .topLeading)
+                GeometryReader { scrollGeometry in
+                    let emptyMinHeight = max(
+                        0,
+                        scrollGeometry.size.height
+                            - WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                    )
+                    WorkbenchScrollView([.vertical]) {
+                        content(emptyMinHeight)
+                            .workbenchPageInlinePadding()
+                            .padding(.bottom, WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)
+                            .frame(width: scrollGeometry.size.width, alignment: .topLeading)
+                    }
+                    .id(id)
                 }
-                .id(id)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             .frame(
@@ -215,8 +222,8 @@ struct WorkbenchFileView: View {
 
     // MARK: - Level 1: Roots
 
-    private var rootContent: some View {
-        folderRegion
+    private func rootContent(emptyMinHeight: CGFloat) -> some View {
+        folderRegion(emptyMinHeight: emptyMinHeight)
             .onAppear {
                 if !indexing.isDatabaseOperationActive {
                     indexing.clearTransientNotice()
@@ -339,16 +346,16 @@ struct WorkbenchFileView: View {
     }
 
     @ViewBuilder
-    private var folderRegion: some View {
+    private func folderRegion(emptyMinHeight: CGFloat) -> some View {
         let folders = FileFolderGroupingResolver.rootFolders(for: indexing.selectedFolders)
 
         if folders.isEmpty {
-            EmptyStateView(
-                title: L("settings.library.empty_title"),
+            WorkbenchEmptyHint(
                 icon: .folder,
+                title: L("settings.library.empty_title"),
                 message: L("settings.library.empty_message")
             )
-            .frame(maxWidth: .infinity, alignment: .top)
+            .frame(minHeight: emptyMinHeight)
         } else {
             LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 ForEach(folders, id: \.self) { folder in
@@ -420,7 +427,7 @@ struct WorkbenchFileView: View {
     // MARK: - Level 2: Subfolders & Direct Content
 
     @ViewBuilder
-    private func subfolderContent(rootPath: String) -> some View {
+    private func subfolderContent(rootPath: String, emptyMinHeight: CGFloat) -> some View {
         let allFolders = library.fileSubfolders(for: rootPath)
         let directObjects = library.fileObjects(for: rootPath)
         let partition = FileFolderGroupingResolver.level2Partition(
@@ -438,15 +445,21 @@ struct WorkbenchFileView: View {
 
         Group {
             if appState.isWorkbenchRouteUnknown(.fileFolder(rootPath: rootPath)) {
-                WorkbenchEmptyHint(message: L("library.folder.not_found"))
-                    .frame(maxWidth: .infinity, alignment: .top)
+                WorkbenchEmptyHint(
+                    icon: .folderQuestion,
+                    message: L("library.folder.not_found")
+                )
+                .frame(minHeight: emptyMinHeight)
             } else if partition.subfolders.isEmpty && partition.directEpisodeGroups.isEmpty {
                 if isLoading {
                     WorkbenchSpinner()
-                        .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+                        .frame(maxWidth: .infinity, minHeight: emptyMinHeight, alignment: .center)
                 } else {
-                    WorkbenchEmptyHint(message: L("file.empty_folder_items"))
-                        .frame(maxWidth: .infinity, alignment: .top)
+                    WorkbenchEmptyHint(
+                        icon: .folder,
+                        message: L("file.empty_folder_items")
+                    )
+                    .frame(minHeight: emptyMinHeight)
                 }
             } else {
                 VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
@@ -515,22 +528,28 @@ struct WorkbenchFileView: View {
     // MARK: - Level 3: Files
 
     @ViewBuilder
-    private func filesContent(rootPath: String, folderPath: String) -> some View {
+    private func filesContent(rootPath: String, folderPath: String, emptyMinHeight: CGFloat) -> some View {
         let objects = library.fileObjects(for: folderPath)
         let episodeGroups = FileFolderGroupingResolver.displayableEpisodeGroups(from: objects)
         let status = library.fileObjectStatus(for: folderPath)
 
         Group {
             if appState.isWorkbenchRouteUnknown(.fileFiles(rootPath: rootPath, folderPath: folderPath)) {
-                WorkbenchEmptyHint(message: L("library.folder.not_found"))
-                    .frame(maxWidth: .infinity, alignment: .top)
+                WorkbenchEmptyHint(
+                    icon: .folderQuestion,
+                    message: L("library.folder.not_found")
+                )
+                .frame(minHeight: emptyMinHeight)
             } else if episodeGroups.isEmpty {
                 if case .loading = status {
                     WorkbenchSpinner()
-                        .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+                        .frame(maxWidth: .infinity, minHeight: emptyMinHeight, alignment: .center)
                 } else {
-                    WorkbenchEmptyHint(message: L("file.empty_folder_items"))
-                        .frame(maxWidth: .infinity, alignment: .top)
+                    WorkbenchEmptyHint(
+                        icon: .folderQuestion,
+                        message: L("file.empty_folder_items")
+                    )
+                    .frame(minHeight: emptyMinHeight)
                 }
             } else {
                 episodeGroupsList(objects: episodeGroups, folderPath: folderPath)

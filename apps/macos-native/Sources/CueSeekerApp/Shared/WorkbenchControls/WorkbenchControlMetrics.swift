@@ -418,6 +418,16 @@ enum WorkbenchControlMetrics {
     static let redesignCardIconAccentAnkiLineOpacity: CGFloat = 0.59
     /// --opacity-card-icon-accent-foreground: 1.0
     static let redesignCardIconAccentForegroundOpacity: CGFloat = 1.0
+    /// --opacity-empty-icon-search-card: 0.30
+    static let redesignEmptyIconSearchCardOpacity: CGFloat = 0.30
+    /// --opacity-empty-icon-search-line: 0.58
+    static let redesignEmptyIconSearchLineOpacity: CGFloat = 0.58
+    /// --opacity-empty-icon-magnifier-fill: 0.22
+    static let redesignEmptyIconMagnifierFillOpacity: CGFloat = 0.22
+    /// --opacity-empty-icon-question-badge-fill: 0.24
+    static let redesignEmptyIconQuestionBadgeFillOpacity: CGFloat = 0.24
+    /// --opacity-empty-icon-excerpt-bookmark: 0.44
+    static let redesignEmptyIconExcerptBookmarkOpacity: CGFloat = 0.44
     /// --size-card-chevron: 16px
     static let redesignCardChevronSize: CGFloat = 16
     /// --size-breadcrumb-separator: 12px (C-05.6 Breadcrumb caret-right)
@@ -455,8 +465,16 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryCoverEditOverlayIconSize: CGFloat = 42
     /// Provisional: the glyph a cover without artwork shows, 57px icon box.
     static let redesignCoverPlaceholderIconSize: CGFloat = 57
-    /// Provisional: the glyph above an empty state's title, 47px icon box.
-    static let redesignEmptyStateIconSize: CGFloat = 47
+    /// --size-empty-state-icon: 68px duotone icon container above an empty state's copy.
+    static let redesignEmptyStateIconSize: CGFloat = 68
+    /// --gap-empty-state-icon-to-text: 14px vertical gap between the 68px duotone icon and copy.
+    static let redesignEmptyStateIconToTextGap: CGFloat = 14
+    /// --gap-empty-state-title-to-message: 4px (--spacing-1)
+    static let redesignEmptyStateTitleToMessageGap = redesignSpacing1
+    /// --font-size-empty-state-title: 15px (--font-size-library-list-title)
+    static let redesignEmptyStateTitleFontSize = redesignFontSizeLibraryListTitle
+    /// --max-width-empty-state-message: 380px
+    static let redesignEmptyStateMessageMaxWidth: CGFloat = 380
     /// Provisional: a glyph standing in for a key name inside a keycap, 16px icon box.
     static let redesignKeycapIconSize: CGFloat = 16
     /// --radius-library-time-badge: 4px

@@ -146,9 +146,15 @@ private struct WorkbenchExcerptTableContent: View {
                 )
 
                 if showsEmptyListHint {
-                    excerptEmptyHint(message: L("excerpt.table.empty_hint"))
+                    excerptEmptyHint(
+                        icon: .excerpt,
+                        message: L("excerpt.table.empty_hint")
+                    )
                 } else if showsEmptyResultsHint {
-                    excerptEmptyHint(message: L("excerpt.table.no_results"))
+                    excerptEmptyHint(
+                        icon: .searchNoResults,
+                        message: L("excerpt.table.no_results")
+                    )
                 }
             }
         }
@@ -423,7 +429,10 @@ private struct WorkbenchExcerptTableContent: View {
     }
 
     @ViewBuilder
-    private func excerptEmptyHint(message: String) -> some View {
+    private func excerptEmptyHint(
+        icon: AppEmptyStateIcon,
+        message: String
+    ) -> some View {
         GeometryReader { geometry in
             let contentWidth = max(
                 0,
@@ -439,7 +448,7 @@ private struct WorkbenchExcerptTableContent: View {
             VStack(spacing: 0) {
                 Spacer()
                     .frame(height: topChromeHeight)
-                WorkbenchEmptyHint(message: message)
+                WorkbenchEmptyHint(icon: icon, message: message)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .allowsHitTesting(false)

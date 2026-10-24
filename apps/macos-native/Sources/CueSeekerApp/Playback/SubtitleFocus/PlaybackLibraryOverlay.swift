@@ -128,10 +128,13 @@ private struct PlaybackLibraryEpisodeList: View {
 
     @ViewBuilder
     private func contentBody(viewportHeight: CGFloat) -> some View {
+        let emptyMinHeight = max(
+            0,
+            viewportHeight - PlaybackSubtitleFocusMetrics.contentInset
+        )
         if case .loading = store.detailStatus, store.detail == nil {
-            PlaybackEmptyHint {
-                WorkbenchSpinner()
-            }
+            WorkbenchSpinner()
+                .frame(maxWidth: .infinity, minHeight: emptyMinHeight, alignment: .center)
         } else if let detail = store.detail, !detail.videos.isEmpty {
             CompleteLibraryEpisodeGrid(
                 folderTitle: detail.folderTitle,
@@ -164,7 +167,11 @@ private struct PlaybackLibraryEpisodeList: View {
             }
         } else {
             // The folder kept no video the library still holds.
-            PlaybackEmptyHint(L("playback.playlist.left_library"))
+            WorkbenchEmptyHint(
+                icon: .videoQuestion,
+                message: L("playback.playlist.left_library")
+            )
+            .frame(minHeight: emptyMinHeight)
         }
     }
 
@@ -179,25 +186,5 @@ private struct PlaybackLibraryEpisodeList: View {
                 .redesignLibraryRecentCardMinWidth,
             itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
         )
-    }
-}
-
-/// Empty State / Empty Hint on the Playback Overlay.
-struct PlaybackEmptyHint<Content: View>: View {
-    private let content: Content
-
-    init(_ message: String) where Content == Text {
-        content = Text(message)
-    }
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
-    var body: some View {
-        content
-            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeLibraryMeta))
-            .foregroundStyle(WorkbenchRedesignColors.textMuted)
-            .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
     }
 }

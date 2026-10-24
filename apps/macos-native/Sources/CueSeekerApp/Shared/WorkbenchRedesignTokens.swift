@@ -138,6 +138,26 @@ enum WorkbenchRedesignColors {
             darkAlpha: WorkbenchControlMetrics.redesignCardIconAccentAnkiLineOpacity
         )
         static let cardIconAccentForeground = NSColor.controlAccentColor
+        static let emptyIconSearchCard = NSColor.controlAccent(
+            lightAlpha: WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity,
+            darkAlpha: WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity
+        )
+        static let emptyIconSearchLine = NSColor.controlAccent(
+            lightAlpha: WorkbenchControlMetrics.redesignEmptyIconSearchLineOpacity,
+            darkAlpha: WorkbenchControlMetrics.redesignEmptyIconSearchLineOpacity
+        )
+        static let emptyIconMagnifierFill = NSColor.controlAccent(
+            lightAlpha: WorkbenchControlMetrics.redesignEmptyIconMagnifierFillOpacity,
+            darkAlpha: WorkbenchControlMetrics.redesignEmptyIconMagnifierFillOpacity
+        )
+        static let emptyIconQuestionBadgeFill = NSColor.controlAccent(
+            lightAlpha: WorkbenchControlMetrics.redesignEmptyIconQuestionBadgeFillOpacity,
+            darkAlpha: WorkbenchControlMetrics.redesignEmptyIconQuestionBadgeFillOpacity
+        )
+        static let emptyIconExcerptBookmark = NSColor.controlAccent(
+            lightAlpha: WorkbenchControlMetrics.redesignEmptyIconExcerptBookmarkOpacity,
+            darkAlpha: WorkbenchControlMetrics.redesignEmptyIconExcerptBookmarkOpacity
+        )
 
         // Primary Button
         static let primaryButtonBg = NSColor.controlAccentColor
@@ -349,6 +369,11 @@ enum WorkbenchRedesignColors {
     static let cardIconAccentFolderTab = Color(nsColor: NS.cardIconAccentFolderTab)
     static let cardIconAccentAnkiLine = Color(nsColor: NS.cardIconAccentAnkiLine)
     static let cardIconAccentForeground = Color(nsColor: NS.cardIconAccentForeground)
+    static let emptyIconSearchCard = Color(nsColor: NS.emptyIconSearchCard)
+    static let emptyIconSearchLine = Color(nsColor: NS.emptyIconSearchLine)
+    static let emptyIconMagnifierFill = Color(nsColor: NS.emptyIconMagnifierFill)
+    static let emptyIconQuestionBadgeFill = Color(nsColor: NS.emptyIconQuestionBadgeFill)
+    static let emptyIconExcerptBookmark = Color(nsColor: NS.emptyIconExcerptBookmark)
 
     // Primary Button
     static let primaryButtonBg = Color.accentColor

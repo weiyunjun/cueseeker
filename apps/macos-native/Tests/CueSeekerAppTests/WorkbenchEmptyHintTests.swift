@@ -10,7 +10,7 @@ func workbenchEmptyHintPassesMouseHitTestingToUnderlyingTableSurface() {
     let hostingView = NSHostingView(
         rootView: ZStack {
             WorkbenchEmptyHintHitProbe(probe: probe)
-            WorkbenchEmptyHint(message: "No rows")
+            WorkbenchEmptyHint(icon: .searchHint, message: "No rows")
         }
         .frame(width: 320, height: 200)
     )
@@ -26,6 +26,43 @@ func workbenchEmptyHintPassesMouseHitTestingToUnderlyingTableSurface() {
     hostingView.layoutSubtreeIfNeeded()
 
     #expect(hostingView.hitTest(CGPoint(x: 160, y: 100)) === probe)
+}
+
+@MainActor
+@Test
+func workbenchEmptyHintAndDuotoneIconsMatchDesignMetrics() {
+    #expect(AppEmptyStateIcon.allCases.count == 10)
+    #expect(WorkbenchControlMetrics.redesignEmptyStateIconSize == 68)
+    #expect(WorkbenchControlMetrics.redesignEmptyStateIconToTextGap == 14)
+    #expect(WorkbenchControlMetrics.redesignEmptyStateTitleToMessageGap == 4)
+    #expect(WorkbenchControlMetrics.redesignEmptyStateTitleFontSize == 15)
+    #expect(WorkbenchControlMetrics.redesignEmptyStateMessageMaxWidth == 380)
+
+    #expect(WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity == 0.30)
+    #expect(WorkbenchControlMetrics.redesignEmptyIconSearchLineOpacity == 0.58)
+    #expect(WorkbenchControlMetrics.redesignEmptyIconMagnifierFillOpacity == 0.22)
+    #expect(WorkbenchControlMetrics.redesignEmptyIconQuestionBadgeFillOpacity == 0.24)
+    #expect(WorkbenchControlMetrics.redesignEmptyIconExcerptBookmarkOpacity == 0.44)
+
+    for icon in AppEmptyStateIcon.allCases {
+        let iconHostingView = NSHostingView(
+            rootView: AppEmptyStateIconView(icon: icon)
+        )
+        iconHostingView.layoutSubtreeIfNeeded()
+        #expect(iconHostingView.fittingSize.width == 68)
+        #expect(iconHostingView.fittingSize.height == 68)
+
+        let hintHostingView = NSHostingView(
+            rootView: WorkbenchEmptyHint(
+                icon: icon,
+                title: icon == .folder ? "No Folders Selected" : nil,
+                message: "Empty state message for \(icon.rawValue)"
+            )
+            .frame(width: 480, height: 320)
+        )
+        hintHostingView.layoutSubtreeIfNeeded()
+        #expect(hintHostingView.fittingSize == CGSize(width: 480, height: 320))
+    }
 }
 
 @MainActor

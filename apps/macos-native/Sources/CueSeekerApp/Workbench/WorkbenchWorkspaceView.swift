@@ -116,7 +116,10 @@ struct WorkbenchWorkspaceView: View {
 
             if let listID = routeState.selectedExcerptListID {
                 if appState.isWorkbenchRouteUnknown(.excerptList(id: listID)) {
-                    WorkbenchEmptyHint(message: L("excerpt.list.not_found"))
+                    WorkbenchEmptyHint(
+                        icon: .excerptQuestion,
+                        message: L("excerpt.list.not_found")
+                    )
                 } else {
                     WorkbenchExcerptTableView(
                         isTableResponseActive: !appState.isPlaybackPageVisible

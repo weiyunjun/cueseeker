@@ -33,6 +33,7 @@ struct WorkbenchLibraryView: View {
                         WorkbenchScrollView {
                             folderPageContent(
                                 folderPath: folderPath,
+                                viewportSize: geometry.size,
                                 toggleAnchorMenu: toggleAnchorMenu,
                                 activeMenuOwnerID: activeMenuOwnerID
                             )
@@ -170,16 +171,23 @@ struct WorkbenchLibraryView: View {
 
     @ViewBuilder
     private func completeLibraryContent(viewportSize: CGSize) -> some View {
+        let emptyMinHeight = max(
+            0,
+            viewportSize.height
+                - WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+                - WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+        )
         if case .loading = library.completeLibraryStatus, library.completeLibraryFolderSummaries.isEmpty {
-            LibraryEmptyHint {
-                WorkbenchSpinner()
-            }
-            .workbenchPageInlinePadding()
+            WorkbenchSpinner()
+                .frame(maxWidth: .infinity, minHeight: emptyMinHeight, alignment: .center)
+                .workbenchPageInlinePadding()
         } else if case .failed(let message) = library.completeLibraryStatus {
-            LibraryEmptyHint(message)
+            WorkbenchEmptyHint(icon: .videoQuestion, message: message)
+                .frame(minHeight: emptyMinHeight)
                 .workbenchPageInlinePadding()
         } else if library.completeLibraryFolderSummaries.isEmpty {
-            LibraryEmptyHint(L("library.empty"))
+            WorkbenchEmptyHint(icon: .video, message: L("library.empty"))
+                .frame(minHeight: emptyMinHeight)
                 .workbenchPageInlinePadding()
         } else {
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
@@ -294,41 +302,67 @@ struct WorkbenchLibraryView: View {
     @ViewBuilder
     private func folderPageContent(
         folderPath: String,
+        viewportSize: CGSize,
         toggleAnchorMenu: @escaping ([LibraryCardContextMenuItem], MenuAnchorHandle, String) -> Void,
         activeMenuOwnerID: String?
     ) -> some View {
+        let pageEmptyMinHeight = max(
+            0,
+            viewportSize.height
+                - WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
+                - WorkbenchLibraryMetrics.pageBottomPadding
+        )
         if appState.isWorkbenchRouteUnknown(.libraryFolder(folderPath: folderPath)) {
-            WorkbenchEmptyHint(message: L("library.folder.not_found"))
-                .workbenchPageInlinePadding()
+            WorkbenchEmptyHint(
+                icon: .videoQuestion,
+                message: L("library.folder.not_found")
+            )
+            .frame(minHeight: pageEmptyMinHeight)
+            .workbenchPageInlinePadding()
         } else if let selectedFolder {
             folderDetailContent(
                 for: selectedFolder,
+                viewportSize: viewportSize,
+                pageEmptyMinHeight: pageEmptyMinHeight,
                 toggleAnchorMenu: toggleAnchorMenu,
                 activeMenuOwnerID: activeMenuOwnerID
             )
         } else {
-            LibraryEmptyHint {
-                WorkbenchSpinner()
-            }
-            .workbenchPageInlinePadding()
+            WorkbenchSpinner()
+                .frame(maxWidth: .infinity, minHeight: pageEmptyMinHeight, alignment: .center)
+                .workbenchPageInlinePadding()
         }
     }
 
     @ViewBuilder
     private func folderDetailContent(
         for folder: CompleteLibraryFolderSummaryPresentation,
+        viewportSize: CGSize,
+        pageEmptyMinHeight: CGFloat,
         toggleAnchorMenu: @escaping ([LibraryCardContextMenuItem], MenuAnchorHandle, String) -> Void,
         activeMenuOwnerID: String?
     ) -> some View {
         if case .loading = folderDetailStatus, folderDetail?.folderPath != folder.folderPath {
-            LibraryEmptyHint {
-                WorkbenchSpinner()
-            }
-            .workbenchPageInlinePadding()
+            WorkbenchSpinner()
+                .frame(maxWidth: .infinity, minHeight: pageEmptyMinHeight, alignment: .center)
+                .workbenchPageInlinePadding()
         } else if case .failed(let message) = folderDetailStatus {
-            LibraryEmptyHint(message)
+            WorkbenchEmptyHint(icon: .videoQuestion, message: message)
+                .frame(minHeight: pageEmptyMinHeight)
                 .workbenchPageInlinePadding()
         } else if let folderDetail, folderDetail.folderPath == folder.folderPath {
+            let contentWidth = max(
+                0,
+                viewportSize.width
+                    - WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
+                    - WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding
+            )
+            let episodesEmptyMinHeight = max(
+                0,
+                pageEmptyMinHeight
+                    - CoverSummaryCardLayout.height(forCardWidth: contentWidth)
+                    - WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
+            )
             VStack(
                 alignment: .leading,
                 spacing: WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
@@ -345,6 +379,7 @@ struct WorkbenchLibraryView: View {
                     folderTitle: folderDetail.folderTitle,
                     videos: folderDetail.videos,
                     highlight: highlight,
+                    emptyMinHeight: episodesEmptyMinHeight,
                     onOpen: { video in
                         appState.prepareLibraryNavigationVideos(folderDetail.videos)
                         appState.openLibraryVideo(
@@ -356,10 +391,9 @@ struct WorkbenchLibraryView: View {
                 .workbenchMediaCardGridInlinePadding()
             }
         } else {
-            LibraryEmptyHint {
-                WorkbenchSpinner()
-            }
-            .workbenchPageInlinePadding()
+            WorkbenchSpinner()
+                .frame(maxWidth: .infinity, minHeight: pageEmptyMinHeight, alignment: .center)
+                .workbenchPageInlinePadding()
         }
     }
 
@@ -520,25 +554,6 @@ enum WorkbenchLibraryMetrics {
     static let titleSize = WorkbenchControlMetrics.redesignFontSizeLibraryTitle
     static let metaSize = WorkbenchControlMetrics.redesignFontSizeLibraryMeta
     static let timeBadgeSize = WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge
-}
-
-struct LibraryEmptyHint<Content: View>: View {
-    private let content: Content
-
-    init(_ message: String) where Content == Text {
-        content = Text(message)
-    }
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
-    var body: some View {
-        content
-            .font(.system(size: WorkbenchLibraryMetrics.metaSize))
-            .foregroundStyle(WorkbenchRedesignColors.textMuted)
-            .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
-    }
 }
 
 struct LibrarySortMenuState: Identifiable {

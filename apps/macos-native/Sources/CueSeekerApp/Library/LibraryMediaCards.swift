@@ -455,13 +455,18 @@ struct CompleteLibraryEpisodeGrid: View {
     let folderTitle: String
     let videos: [CompleteLibraryVideoPresentation]
     @ObservedObject var highlight: CardHighlightModel
+    var emptyMinHeight: CGFloat = 0
     var itemFrameCoordinateSpace: String? = nil
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     let onOpen: (CompleteLibraryVideoPresentation) -> Void
 
     var body: some View {
         if videos.isEmpty {
-            LibraryEmptyHint(L("library.episodes_empty"))
+            WorkbenchEmptyHint(
+                icon: .video,
+                message: L("library.episodes_empty")
+            )
+            .frame(minHeight: emptyMinHeight)
         } else {
             LibraryVideoCardGrid(
                 items: videos,

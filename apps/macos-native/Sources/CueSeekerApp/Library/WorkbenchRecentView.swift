@@ -22,14 +22,24 @@ struct WorkbenchRecentView: View {
         GeometryReader { geometry in
             WorkbenchScrollView {
                 VStack(alignment: .leading, spacing: WorkbenchLibraryMetrics.sectionSpacing) {
+                    let emptyMinHeight = max(
+                        0,
+                        geometry.size.height
+                            - WorkbenchLibraryMetrics.pageTopPadding
+                            - WorkbenchLibraryMetrics.pageBottomPadding
+                    )
                     switch routeState.selectedRecentSection {
                     case .videos:
                         recentVideosContent(
                             status: library.testRecentWatchingStatus,
-                            items: library.testRecentWatchingItems
+                            items: library.testRecentWatchingItems,
+                            emptyMinHeight: emptyMinHeight
                         )
                     case .excerpts:
-                        recentExcerptsContent(excerpt.recentListSummaries)
+                        recentExcerptsContent(
+                            excerpt.recentListSummaries,
+                            emptyMinHeight: emptyMinHeight
+                        )
                     }
                 }
                 .padding(.top, WorkbenchLibraryMetrics.pageTopPadding)
@@ -76,19 +86,24 @@ struct WorkbenchRecentView: View {
     @ViewBuilder
     private func recentVideosContent(
         status: LibraryStatus,
-        items: [RecentLibraryWatchingPresentation]
+        items: [RecentLibraryWatchingPresentation],
+        emptyMinHeight: CGFloat
     ) -> some View {
         if case .loading = status, items.isEmpty {
-            LibraryEmptyHint {
-                WorkbenchSpinner()
-            }
-            .workbenchPageInlinePadding()
+            WorkbenchSpinner()
+                .frame(maxWidth: .infinity, minHeight: emptyMinHeight, alignment: .center)
+                .workbenchPageInlinePadding()
         } else if case .failed(let message) = status {
-            LibraryEmptyHint(message)
+            WorkbenchEmptyHint(icon: .videoQuestion, message: message)
+                .frame(minHeight: emptyMinHeight)
                 .workbenchPageInlinePadding()
         } else if items.isEmpty {
-            LibraryEmptyHint(L("library.recent_watching_empty"))
-                .workbenchPageInlinePadding()
+            WorkbenchEmptyHint(
+                icon: .video,
+                message: L("library.recent_watching_empty")
+            )
+            .frame(minHeight: emptyMinHeight)
+            .workbenchPageInlinePadding()
         } else {
             RecentWatchingGrid(
                 items: items,
@@ -105,16 +120,20 @@ struct WorkbenchRecentView: View {
 
     @ViewBuilder
     private func recentExcerptsContent(
-        _ summaries: [ExcerptListSummary]
+        _ summaries: [ExcerptListSummary],
+        emptyMinHeight: CGFloat
     ) -> some View {
         if !excerpt.hasLoadedListOverview, summaries.isEmpty {
-            LibraryEmptyHint {
-                WorkbenchSpinner()
-            }
-            .workbenchPageInlinePadding()
-        } else if summaries.isEmpty {
-            LibraryEmptyHint(L("library.recent_excerpts_empty"))
+            WorkbenchSpinner()
+                .frame(maxWidth: .infinity, minHeight: emptyMinHeight, alignment: .center)
                 .workbenchPageInlinePadding()
+        } else if summaries.isEmpty {
+            WorkbenchEmptyHint(
+                icon: .excerpt,
+                message: L("library.recent_excerpts_empty")
+            )
+            .frame(minHeight: emptyMinHeight)
+            .workbenchPageInlinePadding()
         } else {
             ExcerptListCardGrid(
                 summaries: summaries,

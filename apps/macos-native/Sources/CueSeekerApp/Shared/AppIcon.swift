@@ -886,3 +886,438 @@ private struct AccentDuotoneRenamePencilShape: Shape {
     }
 }
 
+/// System-accent duotone large icons dedicated to `C-09.2 Empty State` across
+/// Workbench pages, Dialogs, Playback Overlay, and Command Panel.
+enum AppEmptyStateIcon: String, CaseIterable, Sendable {
+    case searchHint = "search-hint"
+    case searchNoResults = "search-no-results"
+    case video = "video"
+    case excerpt = "excerpt"
+    case folder = "folder"
+    case folderQuestion = "folder-question"
+    case videoQuestion = "video-question"
+    case excerptQuestion = "excerpt-question"
+    case subtitleQuestion = "subtitle-question"
+    case taskTray = "task-tray"
+}
+
+enum AppEmptyStateIconMetrics {
+    static let iconSize = WorkbenchControlMetrics.redesignEmptyStateIconSize
+    static let iconToTextGap = WorkbenchControlMetrics.redesignEmptyStateIconToTextGap
+    static let searchCardOpacity = WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity
+    static let searchLineOpacity = WorkbenchControlMetrics.redesignEmptyIconSearchLineOpacity
+    static let magnifierFillOpacity = WorkbenchControlMetrics.redesignEmptyIconMagnifierFillOpacity
+    static let questionBadgeFillOpacity = WorkbenchControlMetrics.redesignEmptyIconQuestionBadgeFillOpacity
+    static let excerptBookmarkOpacity = WorkbenchControlMetrics.redesignEmptyIconExcerptBookmarkOpacity
+    static let baseOpacity = WorkbenchControlMetrics.redesignCardIconAccentBaseOpacity
+    static let folderTabOpacity = WorkbenchControlMetrics.redesignCardIconAccentFolderTabOpacity
+    static let foregroundOpacity = WorkbenchControlMetrics.redesignCardIconAccentForegroundOpacity
+}
+
+struct AppEmptyStateIconView: View {
+    let icon: AppEmptyStateIcon
+    var size: CGFloat = WorkbenchControlMetrics.redesignEmptyStateIconSize
+
+    private var s: CGFloat {
+        size / 256.0
+    }
+
+    var body: some View {
+        Group {
+            switch icon {
+            case .searchHint:
+                searchHintIconView
+            case .searchNoResults:
+                searchNoResultsIconView
+            case .video:
+                videoIconView
+            case .excerpt:
+                excerptIconView
+            case .folder:
+                folderIconView
+            case .folderQuestion:
+                folderQuestionIconView
+            case .videoQuestion:
+                videoQuestionIconView
+            case .excerptQuestion:
+                excerptQuestionIconView
+            case .subtitleQuestion:
+                subtitleQuestionIconView
+            case .taskTray:
+                taskTrayIconView
+            }
+        }
+        .frame(width: size, height: size)
+    }
+
+    private var searchHintIconView: some View {
+        ZStack {
+            AccentDuotoneSearchCardShape()
+                .fill(WorkbenchRedesignColors.emptyIconSearchCard)
+
+            AccentDuotoneSearchHintLinesShape()
+                .stroke(
+                    WorkbenchRedesignColors.emptyIconSearchLine,
+                    style: StrokeStyle(lineWidth: 15 * s, lineCap: .round)
+                )
+
+            searchMagnifierKnockoutAndForeground
+        }
+        .compositingGroup()
+    }
+
+    private var searchNoResultsIconView: some View {
+        ZStack {
+            AccentDuotoneSearchCardShape()
+                .fill(WorkbenchRedesignColors.emptyIconSearchCard)
+
+            AccentDuotoneSearchNoResultsCrossShape()
+                .stroke(
+                    WorkbenchRedesignColors.cardIconAccentForeground,
+                    style: StrokeStyle(lineWidth: 16 * s, lineCap: .round)
+                )
+
+            searchMagnifierKnockoutAndForeground
+        }
+        .compositingGroup()
+    }
+
+    @ViewBuilder
+    private var searchMagnifierKnockoutAndForeground: some View {
+        AccentDuotoneCircleShape(cx: 172, cy: 168, radius: 52)
+            .fill(Color.black)
+            .blendMode(.destinationOut)
+
+        AccentDuotoneLineSegmentShape(x1: 208, y1: 204, x2: 234, y2: 230)
+            .stroke(
+                Color.black,
+                style: StrokeStyle(lineWidth: 34 * s, lineCap: .round)
+            )
+            .blendMode(.destinationOut)
+
+        AccentDuotoneCircleShape(cx: 172, cy: 168, radius: 36)
+            .fill(WorkbenchRedesignColors.emptyIconMagnifierFill)
+
+        AccentDuotoneCircleShape(cx: 172, cy: 168, radius: 36)
+            .stroke(
+                WorkbenchRedesignColors.cardIconAccentForeground,
+                lineWidth: 16 * s
+            )
+
+        AccentDuotoneLineSegmentShape(x1: 199, y1: 195, x2: 228, y2: 224)
+            .stroke(
+                WorkbenchRedesignColors.cardIconAccentForeground,
+                style: StrokeStyle(lineWidth: 18 * s, lineCap: .round)
+            )
+    }
+
+    private var videoIconView: some View {
+        ZStack {
+            AccentDuotoneMediaRectShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+
+            AccentDuotonePlayTriangleShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentForeground)
+        }
+    }
+
+    private var excerptIconView: some View {
+        AccentDuotoneExcerptBookmarkShape()
+            .fill(WorkbenchRedesignColors.emptyIconExcerptBookmark)
+    }
+
+    private var folderIconView: some View {
+        ZStack {
+            AccentDuotoneFolderTabShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentFolderTab)
+
+            AccentDuotoneFolderBodyShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+        }
+    }
+
+    private var folderQuestionIconView: some View {
+        ZStack {
+            AccentDuotoneFolderTabShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentFolderTab)
+
+            AccentDuotoneFolderBodyShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+
+            circledQuestionBadge(cx: 184, cy: 176)
+        }
+        .compositingGroup()
+    }
+
+    private var videoQuestionIconView: some View {
+        ZStack {
+            AccentDuotoneMediaRectShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+
+            AccentDuotonePlayTriangleShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentForeground)
+
+            circledQuestionBadge(cx: 184, cy: 176)
+        }
+        .compositingGroup()
+    }
+
+    private var excerptQuestionIconView: some View {
+        ZStack {
+            AccentDuotoneExcerptBookmarkShape()
+                .fill(WorkbenchRedesignColors.emptyIconExcerptBookmark)
+
+            circledQuestionBadge(cx: 198, cy: 176)
+        }
+        .compositingGroup()
+    }
+
+    private var subtitleQuestionIconView: some View {
+        ZStack {
+            AccentDuotoneMediaRectShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+
+            AccentDuotoneSubtitleBarsShape()
+                .stroke(
+                    WorkbenchRedesignColors.cardIconAccentForeground,
+                    style: StrokeStyle(lineWidth: 20 * s, lineCap: .round)
+                )
+
+            circledQuestionBadge(cx: 184, cy: 176)
+        }
+        .compositingGroup()
+    }
+
+    private var taskTrayIconView: some View {
+        ZStack {
+            AccentDuotoneTaskTrayBaseShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+
+            AccentDuotoneTaskTrayDividerShape()
+                .stroke(
+                    WorkbenchRedesignColors.cardIconAccentForeground,
+                    style: StrokeStyle(
+                        lineWidth: 15 * s,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
+        }
+    }
+
+    @ViewBuilder
+    private func circledQuestionBadge(cx: CGFloat, cy: CGFloat) -> some View {
+        AccentDuotoneCircleShape(cx: cx, cy: cy, radius: 52)
+            .fill(Color.black)
+            .blendMode(.destinationOut)
+
+        AccentDuotoneCircleShape(cx: cx, cy: cy, radius: 40)
+            .fill(WorkbenchRedesignColors.emptyIconQuestionBadgeFill)
+
+        AccentDuotoneCircleShape(cx: cx, cy: cy, radius: 40)
+            .stroke(
+                WorkbenchRedesignColors.cardIconAccentForeground,
+                lineWidth: 8.5 * s
+            )
+
+        AccentDuotoneQuestionMarkCurveShape(cx: cx, cy: cy)
+            .stroke(
+                WorkbenchRedesignColors.cardIconAccentForeground,
+                style: StrokeStyle(
+                    lineWidth: 8.5 * s,
+                    lineCap: .round,
+                    lineJoin: .round
+                )
+            )
+
+        AccentDuotoneCircleShape(cx: cx, cy: cy + 21.67, radius: 4.6)
+            .fill(WorkbenchRedesignColors.cardIconAccentForeground)
+    }
+}
+
+private struct AccentDuotoneSearchCardShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        let cardRect = CGRect(
+            x: rect.minX + 24 * s,
+            y: rect.minY + 28 * s,
+            width: 188 * s,
+            height: 184 * s
+        )
+        return Path(roundedRect: cardRect, cornerRadius: 34 * s, style: .circular)
+    }
+}
+
+private struct AccentDuotoneSearchHintLinesShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(58, 74))
+        path.addLine(to: pt(96, 74))
+        path.move(to: pt(120, 74))
+        path.addLine(to: pt(176, 74))
+        path.move(to: pt(58, 112))
+        path.addLine(to: pt(156, 112))
+        path.move(to: pt(58, 150))
+        path.addLine(to: pt(114, 150))
+        path.move(to: pt(58, 184))
+        path.addLine(to: pt(88, 184))
+        return path
+    }
+}
+
+private struct AccentDuotoneSearchNoResultsCrossShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(71, 71))
+        path.addLine(to: pt(113, 113))
+        path.move(to: pt(113, 71))
+        path.addLine(to: pt(71, 113))
+        return path
+    }
+}
+
+private struct AccentDuotoneCircleShape: Shape {
+    let cx: CGFloat
+    let cy: CGFloat
+    let radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        let circleRect = CGRect(
+            x: rect.minX + (cx - radius) * s,
+            y: rect.minY + (cy - radius) * s,
+            width: radius * 2 * s,
+            height: radius * 2 * s
+        )
+        return Path(ellipseIn: circleRect)
+    }
+}
+
+private struct AccentDuotoneLineSegmentShape: Shape {
+    let x1: CGFloat
+    let y1: CGFloat
+    let x2: CGFloat
+    let y2: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + x1 * s, y: rect.minY + y1 * s))
+        path.addLine(to: CGPoint(x: rect.minX + x2 * s, y: rect.minY + y2 * s))
+        return path
+    }
+}
+
+private struct AccentDuotoneExcerptBookmarkShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(52, 56))
+        path.addCurve(
+            to: pt(80, 28),
+            control1: pt(52, 40.536),
+            control2: pt(64.536, 28)
+        )
+        path.addLine(to: pt(176, 28))
+        path.addCurve(
+            to: pt(204, 56),
+            control1: pt(191.464, 28),
+            control2: pt(204, 40.536)
+        )
+        path.addLine(to: pt(204, 214))
+        path.addCurve(
+            to: pt(194.6, 218.9),
+            control1: pt(204, 218.8),
+            control2: pt(198.6, 221.6)
+        )
+        path.addLine(to: pt(128, 174))
+        path.addLine(to: pt(61.4, 218.9))
+        path.addCurve(
+            to: pt(52, 214),
+            control1: pt(57.4, 221.6),
+            control2: pt(52, 218.8)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct AccentDuotoneTaskTrayBaseShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        let trayRect = CGRect(
+            x: rect.minX + 28 * s,
+            y: rect.minY + 32 * s,
+            width: 200 * s,
+            height: 192 * s
+        )
+        return Path(roundedRect: trayRect, cornerRadius: 34 * s, style: .circular)
+    }
+}
+
+private struct AccentDuotoneTaskTrayDividerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(36, 152))
+        path.addLine(to: pt(88, 152))
+        path.addLine(to: pt(104, 176))
+        path.addLine(to: pt(152, 176))
+        path.addLine(to: pt(168, 152))
+        path.addLine(to: pt(220, 152))
+        return path
+    }
+}
+
+private struct AccentDuotoneQuestionMarkCurveShape: Shape {
+    let cx: CGFloat
+    let cy: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(cx, cy + 6.67))
+        path.addLine(to: pt(cx, cy + 3.34))
+        path.addCurve(
+            to: pt(cx + 13.33, cy - 8.33),
+            control1: pt(cx + 7.36, cy + 3.34),
+            control2: pt(cx + 13.33, cy - 1.89)
+        )
+        path.addCurve(
+            to: pt(cx, cy - 20.0),
+            control1: pt(cx + 13.33, cy - 14.77),
+            control2: pt(cx + 7.36, cy - 20.0)
+        )
+        path.addCurve(
+            to: pt(cx - 13.33, cy - 8.33),
+            control1: pt(cx - 7.36, cy - 20.0),
+            control2: pt(cx - 13.33, cy - 14.77)
+        )
+        path.addLine(to: pt(cx - 13.33, cy - 6.66))
+        return path
+    }
+}
+
+

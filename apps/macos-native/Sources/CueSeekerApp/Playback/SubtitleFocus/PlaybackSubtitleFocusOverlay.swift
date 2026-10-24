@@ -151,9 +151,11 @@ struct PlaybackOverlay: View {
                 )
             } else {
                 // The playlist kept nothing the library still holds.
-                PlaybackEmptyHint(L("playback.playlist.left_library"))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .background(PlaybackTheme.subtitleFocusOverlayBackground)
+                WorkbenchEmptyHint(
+                    icon: .subtitleQuestion,
+                    message: L("playback.playlist.left_library")
+                )
+                .background(PlaybackTheme.subtitleFocusOverlayBackground)
             }
         } else {
             PlaybackTheme.subtitleFocusOverlayBackground
@@ -166,9 +168,11 @@ struct PlaybackOverlay: View {
         if let snapshot {
             currentSubtitleOverlay(snapshot: snapshot)
         } else {
-            PlaybackEmptyHint(L("playback.current.left_library"))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .background(PlaybackTheme.subtitleFocusOverlayBackground)
+            WorkbenchEmptyHint(
+                icon: .subtitleQuestion,
+                message: L("playback.current.left_library")
+            )
+            .background(PlaybackTheme.subtitleFocusOverlayBackground)
         }
     }
 
@@ -443,16 +447,24 @@ private struct PlaybackSubtitlePlaylist: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PlaybackCueResultOverlay(
-                session: session,
-                windowStore: windowStore,
-                module: .playlist,
-                uiProbeScope: uiProbeScope,
-                onCopySelectedText: onCopySelectedText,
-                onSearchSelectedText: onSearchSelectedText,
-                onExecuteAction: onExecuteAction
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if windowStore.snapshot.totalCount == 0 {
+                WorkbenchEmptyHint(
+                    icon: .subtitleQuestion,
+                    message: L("playback.playlist.left_library")
+                )
+                .background(PlaybackTheme.subtitleFocusOverlayBackground)
+            } else {
+                PlaybackCueResultOverlay(
+                    session: session,
+                    windowStore: windowStore,
+                    module: .playlist,
+                    uiProbeScope: uiProbeScope,
+                    onCopySelectedText: onCopySelectedText,
+                    onSearchSelectedText: onSearchSelectedText,
+                    onExecuteAction: onExecuteAction
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
 
             PlaybackCueFooter(
                 surface: .playbackOverlay,
