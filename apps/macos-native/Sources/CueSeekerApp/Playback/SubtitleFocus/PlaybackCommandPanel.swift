@@ -591,13 +591,7 @@ private struct PlaybackCommandPanelSearchResults: View {
     @EnvironmentObject private var filterDialog: CueFacetFilterDialogCenter
     @EnvironmentObject private var cueGroupPresentation:
         CueGroupPresentationStore
-    @Environment(\.interfaceLayers) private var interfaceLayers
-    @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var sortMenuHostAnchor = MenuAnchorHandle()
-    @State private var sortButtonAnchor = MenuAnchorHandle()
-    @State private var activeSortMenu: SchemaWorkbenchSortMenuState?
-    @StateObject private var sortMenuHighlight = MenuHighlightModel()
 
     private var sortOptions: [SchemaWorkbenchSortOption] {
         SearchSortOrder.workbenchSortOptions
@@ -605,12 +599,6 @@ private struct PlaybackCommandPanelSearchResults: View {
 
     private var selectedSortOptionID: String {
         searchStore.searchSortOrder.rawValue
-    }
-
-    private var selectedSortTitle: String {
-        sortOptions.first { $0.id == selectedSortOptionID }?.title
-            ?? sortOptions.first?.title
-            ?? L("search.sort.default")
     }
 
     private var isFilterDialogOpen: Bool {
@@ -625,115 +613,57 @@ private struct PlaybackCommandPanelSearchResults: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            PlaybackCommandPanelSecondaryHeader(
-                title: presentation.query,
-                onBack: onBack
-            ) {
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                    WorkbenchButton(
-                        title: L("table.filter"),
-                        icon: .funnel,
-                        count: filterSelectionCount,
-                        isOpen: isFilterDialogOpen,
-                        action: openFilterDialog
-                    )
-                    .accessibilityLabel(L("table.filter"))
-
-                    WorkbenchButton(
-                        title: selectedSortTitle,
-                        icon: .funnelSimple,
-                        isOpen: activeSortMenu != nil,
-                        action: toggleSortMenu
-                    )
-                    .background(MenuAnchorProbe(handle: sortButtonAnchor))
-                    .accessibilityLabel(selectedSortTitle)
-                }
-            }
-
-            GeometryReader { geometry in
-                if let windowStore {
-                    PlaybackCommandPanelSearchReel(
-                        windowStore: windowStore,
-                        showsCueGroup: cueGroupPresentation.isEnabled,
-                        viewportSize: geometry.size,
-                        keyboardNavigationRequest: keyboardNavigationRequest,
-                        reducesMotion: reduceMotion,
-                        onCommitSelection: onCommitSelection,
-                        onCopySelectedText: onCopySelectedText,
-                        onSearchSelectedText: onSearchSelectedText
-                    )
-                }
-            }
-
-            PlaybackCueFooter(
-                surface: .commandPanel,
-                status: resultStatus,
-                actions: PlaybackCueFooterAction.cueActions(
-                    playTitle: L("playback.play"),
-                    request: onRequestAction
-                )
-            )
-            .padding(
-                .horizontal,
-                PlaybackCommandPanelMetrics.contentInset
-            )
-        }
-        .background(MenuAnchorProbe(handle: sortMenuHostAnchor))
-        .overlay(alignment: .topLeading) {
-            if let activeSortMenu {
-                let menuFrame = activeSortMenu.menuFrame
-                ZStack(alignment: .topLeading) {
-                    MenuGateClientView(
-                        gate: interfaceLayers?.menuGate,
-                        owner: layerContext.layer,
-                        kind: .cardMenu,
-                        menuFrame: menuFrame,
-                        anchorFrame: activeSortMenu.anchorFrame,
-                        handleKey: { keyCode, _ in
-                            switch keyCode {
-                            case 53:
-                                dismissSortMenu()
-                                return true
-                            case 126:
-                                _ = sortMenuHighlight.moveHighlight(by: -1)
-                                return true
-                            case 125:
-                                _ = sortMenuHighlight.moveHighlight(by: 1)
-                                return true
-                            case 123, 124:
-                                return true
-                            case 36, 76:
-                                activateHighlightedSortItem()
-                                return true
-                            default:
-                                return false
-                            }
+        SchemaWorkbenchSortMenuHost(
+            sortOptions: sortOptions,
+            selectedSortOptionID: selectedSortOptionID,
+            onSelectSortOption: selectSortOption,
+            isFilterDialogOpen: isFilterDialogOpen
+        ) { sortMenu in
+            VStack(spacing: 0) {
+                PlaybackCommandPanelSecondaryHeader(
+                    title: presentation.query,
+                    onBack: onBack
+                ) {
+                    SchemaWorkbenchFilterAndSortControls(
+                        filterSelectionCount: filterSelectionCount,
+                        isFilterDialogOpen: isFilterDialogOpen,
+                        sortTitle: sortMenu.sortTitle,
+                        isSortMenuOpen: sortMenu.isSortMenuOpen,
+                        sortButtonAnchor: sortMenu.sortButtonAnchor,
+                        onFilter: {
+                            openFilterDialog(dismissSortMenu: sortMenu.dismissSortMenu)
                         },
-                        dismiss: { _ in
-                            dismissSortMenu()
-                        }
+                        onSort: sortMenu.toggleSortMenu
                     )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .allowsHitTesting(false)
-
-                    PlaybackCommandPanelSortMenuSurfaceHost(
-                        menu: SchemaWorkbenchSortMenuPopover(
-                            options: sortOptions,
-                            selectedOptionID: selectedSortOptionID,
-                            highlight: sortMenuHighlight,
-                            onSelect: { optionID in
-                                selectSortOption(optionID)
-                            },
-                            onDismiss: {
-                                dismissSortMenu()
-                            }
-                        )
-                    )
-                    .frame(width: menuFrame.width, height: menuFrame.height)
-                    .offset(x: menuFrame.minX, y: menuFrame.minY)
                 }
-                .zIndex(1001)
+
+                GeometryReader { geometry in
+                    if let windowStore {
+                        PlaybackCommandPanelSearchReel(
+                            windowStore: windowStore,
+                            showsCueGroup: cueGroupPresentation.isEnabled,
+                            viewportSize: geometry.size,
+                            keyboardNavigationRequest: keyboardNavigationRequest,
+                            reducesMotion: reduceMotion,
+                            onCommitSelection: onCommitSelection,
+                            onCopySelectedText: onCopySelectedText,
+                            onSearchSelectedText: onSearchSelectedText
+                        )
+                    }
+                }
+
+                PlaybackCueFooter(
+                    surface: .commandPanel,
+                    status: resultStatus,
+                    actions: PlaybackCueFooterAction.cueActions(
+                        playTitle: L("playback.play"),
+                        request: onRequestAction
+                    )
+                )
+                .padding(
+                    .horizontal,
+                    PlaybackCommandPanelMetrics.contentInset
+                )
             }
         }
         .onAppear(perform: onSynchronize)
@@ -741,12 +671,11 @@ private struct PlaybackCommandPanelSearchResults: View {
             onSynchronize()
         }
         .onDisappear {
-            dismissSortMenu()
             closeFilterDialog()
         }
     }
 
-    private func openFilterDialog() {
+    private func openFilterDialog(dismissSortMenu: () -> Void) {
         dismissSortMenu()
         filterDialog.session = CueFacetFilterDialogSession(
             source: .search,
@@ -762,56 +691,6 @@ private struct PlaybackCommandPanelSearchResults: View {
         filterDialog.session = nil
     }
 
-    private func toggleSortMenu() {
-        if activeSortMenu != nil {
-            dismissSortMenu()
-        } else {
-            openSortMenu()
-        }
-    }
-
-    private func openSortMenu() {
-        guard !sortOptions.isEmpty,
-              let viewportSize = sortMenuHostAnchor.bounds?.size,
-              let anchorFrame = sortButtonAnchor.frame(in: sortMenuHostAnchor)
-        else {
-            return
-        }
-        let naturalSize = measuredSortMenuSize()
-        let container = CGRect(origin: .zero, size: viewportSize)
-        let openingFrame = MenuPlacement.openingFrame(
-            anchor: anchorFrame,
-            menuSize: naturalSize,
-            in: container,
-            gap: WorkbenchControlMetrics.redesignSpacing1,
-            shrinksToFit: false
-        )
-        activeSortMenu = SchemaWorkbenchSortMenuState(
-            anchorFrame: anchorFrame,
-            menuFrame: openingFrame
-        )
-        sortMenuHighlight.open(
-            selectablePositions: Array(sortOptions.indices),
-            defaultPosition: 0
-        )
-    }
-
-    private func dismissSortMenu() {
-        activeSortMenu = nil
-        sortMenuHighlight.close()
-    }
-
-    private func activateHighlightedSortItem() {
-        guard let position = sortMenuHighlight.highlightedPosition,
-              sortOptions.indices.contains(position)
-        else {
-            return
-        }
-        let option = sortOptions[position]
-        selectSortOption(option.id)
-        dismissSortMenu()
-    }
-
     private func selectSortOption(_ optionID: String) {
         guard let order = SearchSortOrder(rawValue: optionID),
               searchStore.searchSortOrder != order
@@ -819,20 +698,6 @@ private struct PlaybackCommandPanelSearchResults: View {
             return
         }
         onUpdateSortOrder(order)
-    }
-
-    private func measuredSortMenuSize() -> CGSize {
-        let host = NSHostingView(
-            rootView: SchemaWorkbenchSortMenuPopover(
-                options: sortOptions,
-                selectedOptionID: selectedSortOptionID,
-                highlight: sortMenuHighlight,
-                onSelect: { _ in },
-                onDismiss: {}
-            )
-        )
-        host.layoutSubtreeIfNeeded()
-        return host.fittingSize
     }
 
     private var resultStatus: String {
@@ -855,18 +720,6 @@ private struct PlaybackCommandPanelSearchResults: View {
             searchStore.searchResultTotalCount,
             searchStore.searchResults.count
         )
-    }
-}
-
-private struct PlaybackCommandPanelSortMenuSurfaceHost: NSViewRepresentable {
-    let menu: SchemaWorkbenchSortMenuPopover
-
-    func makeNSView(context _: Context) -> MenuHostingView {
-        MenuHostingView(rootView: AnyView(menu))
-    }
-
-    func updateNSView(_ nsView: MenuHostingView, context _: Context) {
-        nsView.rootView = AnyView(menu)
     }
 }
 

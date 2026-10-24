@@ -446,3 +446,44 @@ func commandPanelSearchFromNonSearchPageKeepsWorkbenchSearchQueryAndTableStateSy
     #expect(app.search.tableSelectionEntryIDs.isEmpty)
     #expect(app.search.tableRowStore.snapshot.orderedEntryIDs == [6_002])
 }
+
+@Test
+func workbenchSortOptionsResolveTitlesAcrossSearchCommandPanelAndExcerpt() {
+    let searchOptions = SearchSortOrder.workbenchSortOptions
+    #expect(searchOptions.map(\.id) == [
+        SearchSortOrder.default.rawValue,
+        SearchSortOrder.mostCharacters.rawValue,
+        SearchSortOrder.fewestCharacters.rawValue,
+    ])
+    for order in SearchSortOrder.allCases {
+        #expect(
+            searchOptions.resolvedSortTitle(for: order.rawValue) == order.title
+        )
+    }
+    #expect(
+        searchOptions.resolvedSortTitle(for: "unknown-sort-id")
+            == SearchSortOrder.default.title
+    )
+
+    let excerptOptions = ExcerptSortOrder.workbenchSortOptions
+    #expect(excerptOptions.map(\.id) == [
+        ExcerptSortOrder.earliestDateAdded.rawValue,
+        ExcerptSortOrder.latestDateAdded.rawValue,
+        ExcerptSortOrder.mostCharacters.rawValue,
+        ExcerptSortOrder.fewestCharacters.rawValue,
+    ])
+    for order in ExcerptSortOrder.allCases {
+        #expect(
+            excerptOptions.resolvedSortTitle(for: order.rawValue) == order.title
+        )
+    }
+    #expect(
+        excerptOptions.resolvedSortTitle(for: "unknown-sort-id")
+            == ExcerptSortOrder.earliestDateAdded.title
+    )
+
+    let emptyOptions: [SchemaWorkbenchSortOption] = []
+    #expect(
+        emptyOptions.resolvedSortTitle(for: "any") == L("search.sort.default")
+    )
+}
