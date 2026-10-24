@@ -48,14 +48,14 @@
 | `search-no-results` | 圆角卡片底板（`base`）+ 左上圆头 `✕` 号（`foreground`）+ 右下镂空放大镜（镜面 `badge-fill`，外圈与手柄 `foreground`） | 搜索或筛选无结果 | Search Page（搜索或筛选无结果）；Excerpt List Detail（搜索或筛选无结果）；Command Panel Secondary / Search Results（搜索或筛选无结果） |
 | `video` | 圆角矩形视频框底板（`base`）+ 居中实心圆角播放三角（`foreground`） | 暂无视频内容 | Recent Page / Videos（为空）；Library Overview（为空）；Library Folder Detail（文件夹内无剧集）；Command Panel Secondary / Recent Videos（为空） |
 | `excerpt` | 单层圆角燕尾书签底板（`mid`） | 暂无摘录内容 | Recent Page / Excerpts（为空）；Excerpt List Detail（列表无有效摘录）；Command Panel Secondary / Recent Excerpt Lists（为空） |
-| `folder` | 左上后盖顶签（`mid`）+ 圆角矩形前盖主体（`base`） | 暂无文件夹或目录为空 | File Page / Level 1（无根文件夹）；File Page / Level 2（根文件夹内无已入库内容）；WebDav / SMB / FTP / NFS Folder Dialog Step 2（子目录为空） |
+| `folder` | 左上后盖顶签（`mid`）+ 圆角矩形前盖主体（`base`） | 暂无文件夹或目录为空 | File Page / Level 1（无根文件夹）；File Page / Level 2（根文件夹内无已入库内容）；WebDAV / SMB / FTP / NFS Folder Dialog Step 2（子目录为空） |
 | `task-tray` | 圆角矩形托盘底板（`base`）+ 中下部内凹折线分割线（`foreground`） | 暂无任务 | Task Panel / Current（无进行中任务）；Task Panel / Completed（无已完成任务）；Task Panel / Incomplete（无未完成任务） |
 
 ## 3.2 边界失效与加载失败状态
 
 | 图标 | 造型结构 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
-| `folder-question` | `folder` + 右下镂空圆环 `?` 角标（内底 `badge-fill`，外圈与问号 `foreground`） | 文件夹已不在库中或子目录加载失败 | File Page / Level 2、Level 3（所属根文件夹已不在媒体库中）；File Page / Level 3（子文件夹因内容清空重新索引而失效变空）；WebDav / SMB / FTP / NFS Folder Dialog Step 2（子目录加载失败） |
+| `folder-question` | `folder` + 右下镂空圆环 `?` 角标（内底 `badge-fill`，外圈与问号 `foreground`） | 文件夹已不在库中或子目录加载失败 | File Page / Level 2、Level 3（所属根文件夹已不在媒体库中）；File Page / Level 3（子文件夹因内容清空重新索引而失效变空）；WebDAV / SMB / FTP / NFS Folder Dialog Step 2（子目录加载失败） |
 | `video-question` | `video` + 右下镂空圆环 `?` 角标（内底 `badge-fill`，外圈与问号 `foreground`） | 视频所属文件夹或视频播放列表已失效 | Library Folder Detail（所属文件夹已不在媒体库中或加载失败）；Playback Overlay / Playlist（Video Playlist 全部视频已不在媒体库中） |
 | `excerpt-question` | `excerpt` + 右下镂空圆环 `?` 角标（略微右移保留燕尾缺口；内底 `badge-fill`，外圈与问号 `foreground`） | 摘录列表已不在库中 | Excerpt List Detail（当前摘录列表已不在媒体库中） |
 | `subtitle-question` | 圆角矩形字幕框底板（`base`）+ 两排圆头实心字幕横条（`foreground`）+ 右下镂空圆环 `?` 角标（内底 `badge-fill`，外圈与问号 `foreground`） | 当前字幕或字幕播放列表已失效 | Playback Overlay / Current（当前字幕已不在媒体库中）；Playback Overlay / Playlist（Subtitle Playlist 全部条目已不在媒体库中） |

@@ -81,8 +81,8 @@
 
 ### 6. 播放页返回工作台（Player Return Action）
 - 英文：Return to Workbench
-- 简体中文：返回到工作台
-- 繁体中文：返回到工作台
+- 简体中文：返回工作台
+- 繁体中文：返回工作台
 - 快捷键：无
 - 触发延迟：1秒
 - Scenario ID：player.topbar.return
@@ -90,8 +90,8 @@
 
 ### 7. 播放覆盖层返回工作台（Playback Overlay Return Action）
 - 英文：Return to Workbench
-- 简体中文：返回到工作台
-- 繁体中文：返回到工作台
+- 简体中文：返回工作台
+- 繁体中文：返回工作台
 - 快捷键：无
 - 触发延迟：1秒
 - Scenario ID：playback_overlay.topbar.return
@@ -103,7 +103,7 @@
 - 简体中文（未开启时）：编辑长截图
 - 简体中文（编辑中 Open 态）：退出长截图
 - 繁体中文（未开启时）：編輯長截圖
-- 繁体中文（编辑中 Open 态）：結束長截圖
+- 繁体中文（编辑中 Open 态）：退出長截圖
 - 快捷键：默认 `P`（动态跟随 `Settings / Shortcuts -> Edit Collage`）
 - 触发延迟：1秒
 - Scenario ID：playback_overlay.topbar.collage
@@ -147,10 +147,10 @@
 - **视频播放列表（Library 进入）**：
   - 英文（可用）：Previous Video
   - 简体中文（可用）：上一个视频
-  - 繁体中文（可用）：上一個影片
+  - 繁体中文（可用）：上一部影片
   - 英文（Disabled - 已在首项或无可用项）：Already at first video
   - 简体中文（Disabled - 已在首项或无可用项）：已经是第一个视频
-  - 繁体中文（Disabled - 已在首项或无可用项）：已經是第一個影片
+  - 繁体中文（Disabled - 已在首项或无可用项）：已經是第一部影片
 - 快捷键（可用）：默认 `A`（动态跟随 `Settings / Shortcuts -> Previous`）
 - 触发延迟：1秒
 - Scenario ID：player.control.previous
@@ -167,10 +167,10 @@
 - **视频播放列表（Library 进入）**：
   - 英文（可用）：Next Video
   - 简体中文（可用）：下一个视频
-  - 繁体中文（可用）：下一個影片
+  - 繁体中文（可用）：下一部影片
   - 英文（Disabled - 已在末项或无可用项）：Already at last video
   - 简体中文（Disabled - 已在末项或无可用项）：已经是最后一个视频
-  - 繁体中文（Disabled - 已在末项或无可用项）：已經是最後一個影片
+  - 繁体中文（Disabled - 已在末项或无可用项）：已經是最後一部影片
 - 快捷键（可用）：默认 `D`（动态跟随 `Settings / Shortcuts -> Next`）
 - 触发延迟：1秒
 - Scenario ID：player.control.next
@@ -237,7 +237,7 @@
 - 简体中文（未全屏时）：进入全屏
 - 简体中文（已全屏时）：退出全屏
 - 繁体中文（未全屏时）：進入全螢幕
-- 繁体中文（已全屏时）：結束全螢幕
+- 繁体中文（已全屏时）：退出全螢幕
 - 快捷键：默认 `F`（动态跟随 `Settings / Shortcuts -> Toggle Fullscreen`）
 - 英文（Disabled）：Fullscreen is currently unavailable
 - 简体中文（Disabled）：当前无法切换全屏

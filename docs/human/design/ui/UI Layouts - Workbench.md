@@ -546,7 +546,7 @@
 - Confirmation Dialog
 - File Card Layout
 - Rename Dialog Layout
-- WebDav / SMB / FTP / NFS Folder Dialog Layout
+- WebDAV / SMB / FTP / NFS Folder Dialog Layout
 
 #### Layout
 
@@ -605,7 +605,7 @@
 - Trailing Actions：
   - 文件夹卡片最右侧常驻不可点击的 `caret-right` 指示箭头（`--size-card-chevron` 16px，`--color-text-muted`），`dots-three` 按钮位于其左侧（间距 `--spacing-2`）；文件卡片无 `caret-right` 箭头，最右侧仅保留 `dots-three` 按钮。
   - `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px）默认隐藏，仅在卡片 Hover 或该卡片菜单打开时显示；Hover 按钮自身及菜单打开时底色为 `--color-row-selected`，Pressed 底色为 `--color-row-action-bg-pressed`（按住该按钮时卡片自身维持 Hover 背景色）。
-  - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDav Folder`（`folder-webdav`）+ `SMB Folder`（`folder-smb`）+ `FTP Folder`（`folder-ftp`）+ `NFS Folder`（`folder-nfs`）
+  - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDAV Folder`（`folder-webdav`）+ `SMB Folder`（`folder-smb`）+ `FTP Folder`（`folder-ftp`）+ `NFS Folder`（`folder-nfs`）
   - 卡片弹出菜单：
     - Root Folder Card：`Get Info`（Neutral）+ `Rename This Folder`（Neutral）+ `Index This Folder`（Neutral）+ `Remove This Folder`（Destructive 警告项）
     - Subfolder Card：`Get Info`（Neutral）+ `Rename This Folder`（Neutral）
@@ -961,20 +961,20 @@
 - Default
 - Validation Error
 
-### L-06.4 WebDav / SMB / FTP / NFS Folder Dialog Layout
+### L-06.4 WebDAV / SMB / FTP / NFS Folder Dialog Layout
 
 #### Structure
 
 1. Step 1: Connection
-   1. Header：`WebDav Folder`、`SMB Folder`、`FTP Folder` 或 `NFS Folder` + Close Button
+   1. Header：`WebDAV Folder`、`SMB Folder`、`FTP Folder` 或 `NFS Folder` + Close Button
    2. Form Region：
-      - `WebDav Folder`：`Address Field`、`Username Field`、`Password Field`（密文掩码）
+      - `WebDAV Folder`：`Address Field`、`Username Field`、`Password Field`（密文掩码）
       - `SMB Folder`：`Address Field`、`Port Field`（默认预填 `445`）、`Username Field`、`Password Field`（密文掩码）
       - `FTP Folder`：`Address Field`、`Port Field`（默认预填 `21`）、`Username Field`、`Password Field`（密文掩码）
       - `NFS Folder`：`Address Field`
    3. Footer：`Cancel`、`Connect`
 2. Step 2: Folder Browser
-   1. Header：`WebDav Folder`、`SMB Folder`、`FTP Folder` 或 `NFS Folder` + Close Button
+   1. Header：`WebDAV Folder`、`SMB Folder`、`FTP Folder` 或 `NFS Folder` + Close Button
    2. Breadcrumb Navigation
    3. Browser Card List
    4. Footer：左侧 `Back`；右侧 `Cancel`、`Add`

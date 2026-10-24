@@ -20,8 +20,8 @@
 
 ### 1. 复制单行台词文本
 - 英文：Cue Text Copied
-- 简体中文：已复制台词
-- 繁体中文：已拷貝台詞
+- 简体中文：已复制台词文本
+- 繁体中文：已拷貝台詞文字
 - 图标：copy
 - 持续时间：1.5秒
 - Scenario ID：table.row.copy_cue_text
@@ -60,8 +60,8 @@
 
 ### 5. 复制选中多行 Deep Links
 - 英文：Deep Links Copied
-- 简体中文：已复制 Deep Link
-- 繁体中文：已拷貝 Deep Link
+- 简体中文：已复制 Deep Links
+- 繁体中文：已拷貝 Deep Links
 - 图标：copy
 - 持续时间：1.5秒
 - Scenario ID：table.selection.copy_deep_links
@@ -169,7 +169,7 @@
 ### 15. 台词不在媒体库中
 - 英文：Cue Not in Library
 - 简体中文：台词不在媒体库中
-- 繁体中文：台詞不在資料庫中
+- 繁体中文：台詞不在媒體庫中
 - 图标：warning
 - 持续时间：3秒
 - Scenario ID：cue_not_in_library
@@ -180,7 +180,7 @@
 ### 16. 文件夹不在媒体库中
 - 英文：Folder Not in Library
 - 简体中文：文件夹不在媒体库中
-- 繁体中文：檔案夾不在資料庫中
+- 繁体中文：資料夾不在媒體庫中
 - 图标：warning
 - 持续时间：3秒
 - Scenario ID：library.folder.not_in_library
@@ -206,8 +206,8 @@
 
 #### 17. 复制单句字幕台词
 - 英文：Cue Text Copied
-- 简体中文：已复制台词
-- 繁体中文：已拷貝台詞
+- 简体中文：已复制台词文本
+- 繁体中文：已拷貝台詞文字
 - 图标：copy
 - 持续时间：1.5秒
 - Scenario ID：playback.feedback.cue_text_copied
@@ -321,7 +321,7 @@
 #### 28. 播放中台词不在媒体库中
 - 英文：Cue Not in Library
 - 简体中文：台词不在媒体库中
-- 繁体中文：台詞不在資料庫中
+- 繁体中文：台詞不在媒體庫中
 - 图标：warning
 - 持续时间：3秒
 - Scenario ID：playback.feedback.not_in_library
@@ -396,7 +396,7 @@
 #### 35. 全屏切换
 - 英文：Enter Fullscreen / Exit Fullscreen
 - 简体中文：进入全屏 / 退出全屏
-- 繁体中文：進入全螢幕 / 結束全螢幕
+- 繁体中文：進入全螢幕 / 退出全螢幕
 - 图标：无
 - 持续时间：1秒
 - Scenario ID：playback.hud.fullscreen
@@ -415,7 +415,7 @@
 
 #### 37. 播放列表到达边界
 - 英文：Already at First Result / Already at Last Result / Already at First Video / Already at Last Video / Already at First Excerpt / Already at Last Excerpt
-- 简体中文：已经是第一个结果 / 已经是最后一个结果 / 已经是第一个视频 / 已经是最后一个视频 / 已经是第一条摘录 / 已经是最后一条摘录
+- 简体中文：已经是第一条结果 / 已经是最后一条结果 / 已经是第一个视频 / 已经是最后一个视频 / 已经是第一条摘录 / 已经是最后一条摘录
 - 繁体中文：已經是第一筆結果 / 已經是最後一筆結果 / 已經是第一部影片 / 已經是最後一部影片 / 已經是第一條摘錄 / 已經是最後一條摘錄
 - 图标：caretLeft / caretRight
 - 持续时间：1秒

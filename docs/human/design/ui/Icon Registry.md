@@ -68,7 +68,7 @@
 | --- | --- | --- | --- |
 | `folder-plus` | Regular | 添加文件夹 | File Page / Add Folder；Task Card / Add Folder |
 | `folder-minus` | Regular | 移除文件夹 | File Page / Root Folder Card 菜单 / Remove This Folder；Task Card / Remove Folder |
-| `folder-webdav` | Regular | WebDAV 文件夹 | File Page / Add Folder 菜单 / WebDav Folder；File Page / WebDAV 文件夹卡片 |
+| `folder-webdav` | Regular | WebDAV 文件夹 | File Page / Add Folder 菜单 / WebDAV Folder；File Page / WebDAV 文件夹卡片 |
 | `folder-smb` | Regular | SMB 文件夹 | File Page / Add Folder 菜单 / SMB Folder；File Page / SMB 文件夹卡片 |
 | `folder-ftp` | Regular | FTP 文件夹 | File Page / Add Folder 菜单 / FTP Folder；File Page / FTP 文件夹卡片 |
 | `folder-nfs` | Regular | NFS 文件夹 | File Page / Add Folder 菜单 / NFS Folder；File Page / NFS 文件夹卡片 |
