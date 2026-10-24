@@ -541,20 +541,10 @@ private struct TaskProgressBarRow: View {
     let fraction: Double
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(WorkbenchRedesignColors.libraryProgressTrack)
-
-                Capsule()
-                    .fill(WorkbenchRedesignColors.libraryProgressFill)
-                    .frame(width: max(0, min(proxy.size.width, proxy.size.width * fraction)))
-            }
-            .frame(height: WorkbenchControlMetrics.redesignTaskProgressBarHeight)
+        WorkbenchProgressBar(fraction: fraction)
             .frame(maxHeight: .infinity, alignment: .center)
-        }
-        .frame(height: WorkbenchControlMetrics.redesignTaskCardLine3Height)
-        .accessibilityIdentifier("task-progress-bar")
+            .frame(height: WorkbenchControlMetrics.redesignTaskCardLine3Height)
+            .accessibilityIdentifier("task-progress-bar")
     }
 }
 
@@ -813,73 +803,15 @@ struct TaskDetailDialog: View {
     let progress: TaskProgressModel?
     let onClose: () -> Void
 
-    @Environment(\.workbenchDialogAvailableSize) private var availableSize
-
     var body: some View {
-        VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            WorkbenchDialogHeader(title: L("task_detail.title"))
-                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
-
-            WorkbenchScrollView {
-                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                    taskHeaderRow
-                    businessGroups
-                    taskStatusGroup
-                }
-                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
-                .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
-            }
-        }
-        .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
-        .frame(
-            maxHeight: max(
-                100,
-                availableSize.height
-                    - WorkbenchControlMetrics.redesignDialogTopPadding
-                    - WorkbenchControlMetrics.redesignDialogInset
-            )
-        )
-        .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthXLarge)
-        .background(WorkbenchRedesignColors.bgDialog)
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignDialogCornerRadius,
-                style: .continuous
-            )
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignDialogCornerRadius,
-                style: .continuous
-            )
-            .strokeBorder(
-                WorkbenchRedesignColors.borderDivider,
-                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
-            )
-        )
-        .workbenchDialogCloseButton(closesOnEscape: true, onClose: onClose)
-    }
-
-    private var taskHeaderRow: some View {
-        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignDialogInset) {
-            WorkbenchCardIcon(
-                icon: record.icon,
-                size: WorkbenchControlMetrics.redesignDetailFileIconContainerSize
-            )
-
-            Text(record.typeTitle)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: WorkbenchControlMetrics.redesignFontWeightControl
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: 2 * WorkbenchControlMetrics.redesignDetailFileTitleLineHeight,
-                    alignment: .leading
-                )
+        WorkbenchDetailDialogContainer(
+            dialogTitle: L("task_detail.title"),
+            icon: record.icon,
+            headerTitle: record.typeTitle,
+            onClose: onClose
+        ) {
+            businessGroups
+            taskStatusGroup
         }
     }
 
@@ -920,11 +852,15 @@ struct TaskDetailDialog: View {
             }
 
             SettingsGroup(title: L("task_detail.section.original_file_names")) {
-                indexedFileNamesRows(record.oldPaths)
+                WorkbenchDetailIndexedRows(
+                    values: record.oldPaths.map { LibraryRenamer.lastPathComponent(of: $0) }
+                )
             }
 
             SettingsGroup(title: L("task_detail.section.new_file_names")) {
-                indexedFileNamesRows(record.newPaths)
+                WorkbenchDetailIndexedRows(
+                    values: record.newPaths.map { LibraryRenamer.lastPathComponent(of: $0) }
+                )
             }
         case .index:
             if !record.fileName.isEmpty {
@@ -957,7 +893,7 @@ struct TaskDetailDialog: View {
                 }
 
                 SettingsGroup(title: L("task_detail.section.target_folders")) {
-                    indexedPathRows(record.oldPaths)
+                    WorkbenchDetailIndexedRows(values: record.oldPaths)
                 }
             }
         case .addFolder:
@@ -979,42 +915,6 @@ struct TaskDetailDialog: View {
                 FileDetailRow(
                     label: L("task_detail.path"),
                     value: record.oldPaths.first ?? "-"
-                )
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func indexedFileNamesRows(_ paths: [String]) -> some View {
-        if paths.isEmpty {
-            FileDetailRow(label: "#1", value: "-", isIndex: true)
-        } else {
-            ForEach(Array(paths.enumerated()), id: \.offset) { index, path in
-                if index > 0 {
-                    SettingsRowDivider()
-                }
-                FileDetailRow(
-                    label: "#\(index + 1)",
-                    value: LibraryRenamer.lastPathComponent(of: path),
-                    isIndex: true
-                )
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func indexedPathRows(_ paths: [String]) -> some View {
-        if paths.isEmpty {
-            FileDetailRow(label: "#1", value: "-", isIndex: true)
-        } else {
-            ForEach(Array(paths.enumerated()), id: \.offset) { index, path in
-                if index > 0 {
-                    SettingsRowDivider()
-                }
-                FileDetailRow(
-                    label: "#\(index + 1)",
-                    value: path,
-                    isIndex: true
                 )
             }
         }
@@ -1103,27 +1003,10 @@ private struct TaskDetailProgressRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            Text(label)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                .frame(
-                    minWidth: WorkbenchControlMetrics.redesignDetailLabelMinWidth,
-                    alignment: .leading
-                )
-
-            Spacer(minLength: WorkbenchControlMetrics.redesignSpacing4)
-
+        WorkbenchDetailRow(label: label, alignment: .center) {
             HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(WorkbenchRedesignColors.libraryProgressTrack)
-
-                    Capsule()
-                        .fill(WorkbenchRedesignColors.libraryProgressFill)
-                        .frame(width: 140 * clampedFraction)
-                }
-                .frame(width: 140, height: WorkbenchControlMetrics.redesignTaskProgressBarHeight)
+                WorkbenchProgressBar(fraction: clampedFraction)
+                    .frame(width: WorkbenchControlMetrics.redesignTaskDetailProgressBarWidth)
 
                 Text("\(Int((clampedFraction * 100).rounded()))%")
                     .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
@@ -1131,8 +1014,5 @@ private struct TaskDetailProgressRow: View {
                     .foregroundStyle(WorkbenchRedesignColors.textPrimary)
             }
         }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
-        .padding(.vertical, WorkbenchControlMetrics.redesignSettingsRowVerticalPadding)
-        .frame(minHeight: WorkbenchControlMetrics.redesignSettingsRowMinHeight)
     }
 }

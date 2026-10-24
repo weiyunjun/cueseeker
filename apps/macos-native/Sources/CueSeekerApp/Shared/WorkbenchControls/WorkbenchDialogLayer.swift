@@ -157,10 +157,11 @@ struct WorkbenchDialogColumn: Layout {
         var heights = subviews.map {
             $0.sizeThatFits(ProposedViewSize(width: width, height: nil)).height
         }
-        guard heights.count == 3 else {
-            return heights
+        if heights.count == 3 {
+            heights[1] = max(0, min(heights[1], maxHeight - heights[0] - heights[2] - 2 * spacing))
+        } else if heights.count == 2 {
+            heights[1] = max(0, min(heights[1], maxHeight - heights[0] - spacing))
         }
-        heights[1] = max(0, min(heights[1], maxHeight - heights[0] - heights[2] - 2 * spacing))
         return heights
     }
 }

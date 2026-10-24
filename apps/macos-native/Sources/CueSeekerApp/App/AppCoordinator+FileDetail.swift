@@ -99,12 +99,15 @@ extension AppCoordinator {
         } else {
             let url = URL.fromMediaPath(subtitlePath)
             let attrs = subtitlePath.isRemoteMediaPath ? nil : (try? FileManager.default.attributesOfItem(atPath: subtitlePath))
+            let encoding = (try? WebDAVSubtitleCache.shared.readSubtitleData(from: url))
+                .map { SubtitleTextDecoder.detectedEncodingName(in: $0) }
+                ?? "-"
             let info = FileDetailSubtitleInfo(
                 path: subtitlePath,
                 name: url.lastPathComponent,
                 fileSize: (attrs?[.size] as? NSNumber)?.int64Value ?? 0,
                 format: SubtitleFormat(fileExtension: url.pathExtension) ?? .srt,
-                encoding: "UTF-8",
+                encoding: encoding,
                 cueCount: 0,
                 rawCueCount: 0,
                 associatedVideoPath: nil,

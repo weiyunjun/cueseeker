@@ -637,14 +637,14 @@
 "excerpt.list.not_found" = "该列表已不在媒体库中。";
 
 /* Universal File Detail Dialog */
-"file_detail.get_info" = "显示简介";
+"file_detail.get_info" = "查看详情";
 "file_detail.title" = "文件详情";
 "file_detail.folder_title" = "文件夹详情";
 "file_detail.section.folder_info" = "文件夹信息";
 "file_detail.section.index_info" = "索引信息";
-"file_detail.folder_count" = "文件夹数";
-"file_detail.video_count" = "视频数";
-"file_detail.subtitle_count" = "字幕数";
+"file_detail.folder_count" = "文件夹数量";
+"file_detail.video_count" = "视频数量";
+"file_detail.subtitle_count" = "字幕数量";
 "file_detail.added" = "添加时间";
 "file_detail.updated" = "更新时间";
 "file_detail.video" = "视频";
@@ -687,12 +687,12 @@
 "task_detail.section.folder_info" = "文件夹信息";
 "task_detail.section.task_status" = "任务状态";
 "task_detail.file_name" = "文件名称";
-"task_detail.location" = "所在路径";
+"task_detail.location" = "位置";
 "task_detail.card_count" = "卡片数量";
 "task_detail.original_path" = "原路径";
 "task_detail.new_path" = "新路径";
 "task_detail.file_count" = "文件数量";
-"task_detail.path" = "路径";
+"task_detail.path" = "位置";
 "task_detail.folder_count" = "文件夹数量";
 "task_detail.indexed_subtitles" = "已索引字幕";
 "task_detail.status" = "状态";

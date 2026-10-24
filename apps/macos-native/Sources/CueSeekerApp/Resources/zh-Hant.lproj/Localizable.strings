@@ -637,14 +637,14 @@
 "excerpt.list.not_found" = "該列表已不在媒體庫中。";
 
 /* Universal File Detail Dialog */
-"file_detail.get_info" = "顯示簡介";
+"file_detail.get_info" = "查看詳情";
 "file_detail.title" = "檔案詳情";
 "file_detail.folder_title" = "資料夾詳情";
 "file_detail.section.folder_info" = "資料夾資訊";
 "file_detail.section.index_info" = "索引資訊";
-"file_detail.folder_count" = "資料夾數";
-"file_detail.video_count" = "影片數";
-"file_detail.subtitle_count" = "字幕數";
+"file_detail.folder_count" = "資料夾數量";
+"file_detail.video_count" = "影片數量";
+"file_detail.subtitle_count" = "字幕數量";
 "file_detail.added" = "加入時間";
 "file_detail.updated" = "更新時間";
 "file_detail.video" = "影片";
@@ -687,12 +687,12 @@
 "task_detail.section.folder_info" = "資料夾資訊";
 "task_detail.section.task_status" = "任務狀態";
 "task_detail.file_name" = "檔案名稱";
-"task_detail.location" = "所在路徑";
+"task_detail.location" = "位置";
 "task_detail.card_count" = "卡片數量";
 "task_detail.original_path" = "原路徑";
 "task_detail.new_path" = "新路徑";
 "task_detail.file_count" = "檔案數量";
-"task_detail.path" = "路徑";
+"task_detail.path" = "位置";
 "task_detail.folder_count" = "資料夾數量";
 "task_detail.indexed_subtitles" = "已索引字幕";
 "task_detail.status" = "狀態";

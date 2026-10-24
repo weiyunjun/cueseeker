@@ -93,22 +93,26 @@ struct FileDetailDialogTests {
         #expect(L("file_detail.updated") == "Updated")
 
         AppLocalization.apply(.simplifiedChinese)
+        #expect(L("file_detail.get_info") == "查看详情")
         #expect(L("file_detail.folder_title") == "文件夹详情")
         #expect(L("file_detail.section.folder_info") == "文件夹信息")
         #expect(L("file_detail.section.index_info") == "索引信息")
-        #expect(L("file_detail.folder_count") == "文件夹数")
-        #expect(L("file_detail.video_count") == "视频数")
-        #expect(L("file_detail.subtitle_count") == "字幕数")
+        #expect(L("file_detail.folder_count") == "文件夹数量")
+        #expect(L("file_detail.video_count") == "视频数量")
+        #expect(L("file_detail.subtitle_count") == "字幕数量")
+        #expect(L("file_detail.path") == "位置")
         #expect(L("file_detail.added") == "添加时间")
         #expect(L("file_detail.updated") == "更新时间")
 
         AppLocalization.apply(.traditionalChinese)
+        #expect(L("file_detail.get_info") == "查看詳情")
         #expect(L("file_detail.folder_title") == "資料夾詳情")
         #expect(L("file_detail.section.folder_info") == "資料夾資訊")
         #expect(L("file_detail.section.index_info") == "索引資訊")
-        #expect(L("file_detail.folder_count") == "資料夾數")
-        #expect(L("file_detail.video_count") == "影片數")
-        #expect(L("file_detail.subtitle_count") == "字幕數")
+        #expect(L("file_detail.folder_count") == "資料夾數量")
+        #expect(L("file_detail.video_count") == "影片數量")
+        #expect(L("file_detail.subtitle_count") == "字幕數量")
+        #expect(L("file_detail.path") == "位置")
         #expect(L("file_detail.added") == "加入時間")
         #expect(L("file_detail.updated") == "更新時間")
     }
@@ -119,6 +123,7 @@ struct FileDetailDialogTests {
         #expect(WorkbenchControlMetrics.redesignDetailFileTitleLineHeight == 20)
         #expect(WorkbenchControlMetrics.redesignDetailLabelMinWidth == 100)
         #expect(WorkbenchControlMetrics.redesignDetailIndexLabelMinWidth == 40)
+        #expect(WorkbenchControlMetrics.redesignTaskDetailProgressBarWidth == 140)
         #expect(WorkbenchControlMetrics.redesignDialogWidthXLarge == 720)
         #expect(WorkbenchControlMetrics.redesignDialogInset == 24)
         #expect(WorkbenchControlMetrics.redesignSettingsGroupRadius == 10)
@@ -166,5 +171,97 @@ struct FileDetailDialogTests {
         AppLocalization.apply(.simplifiedChinese)
         #expect(WorkbenchFileDetailDialog.languageText("eng") == "英语")
         #expect(WorkbenchFileDetailDialog.languageText("jpn") == "日语")
+
+        // 1024-based binary file size formatting aligned with File cards
+        #expect(WorkbenchFileDetailDialog.fileSizeText(1024 * 1024 * 100) == "100.00 MB")
+        #expect(WorkbenchFileDetailDialog.fileSizeText(1_536 * 1024 * 1024) == "1.50 GB")
+        #expect(WorkbenchFileDetailDialog.fileSizeText(0) == "0 B")
+
+        // Centralized dictionary mappings in MediaDetailFormatter
+        #expect(MediaDetailFormatter.codecText("hevc") == "HEVC / H.265")
+        #expect(MediaDetailFormatter.codecText("h264") == "H.264 / AVC")
+        #expect(MediaDetailFormatter.codecText("flac") == "FLAC")
+        #expect(MediaDetailFormatter.codecText(nil) == "-")
+
+        #expect(MediaDetailFormatter.fileFormatText(path: "/Videos/ep01.mkv") == "Matroska Video (.mkv)")
+        #expect(MediaDetailFormatter.fileFormatText(path: "/Videos/ep01.mp4") == "MPEG-4 Video (.mp4)")
+        #expect(MediaDetailFormatter.fileFormatText(path: "/Videos/ep01.ass") == "Advanced SubStation Alpha (.ass)")
+
+        // Empty audio tracks produce no displayable properties (so Audio #1 card is omitted)
+        let emptyTrack = VideoAudioTrack(
+            language: nil,
+            title: nil,
+            codec: "",
+            channels: nil,
+            sampleRate: nil,
+            bitDepth: nil
+        )
+        #expect(MediaDetailFormatter.audioTrackProperties(for: emptyTrack, locale: Locale(identifier: "en_US")).isEmpty)
+
+        let validTrack = VideoAudioTrack(
+            language: "jpn",
+            title: "Main",
+            codec: "flac",
+            channels: 2,
+            sampleRate: 48_000,
+            bitDepth: 24
+        )
+        #expect(MediaDetailFormatter.audioTrackProperties(for: validTrack, locale: Locale(identifier: "en_US")).count == 6)
+    }
+
+    @Test
+    func fileDetailDialogRendersInHostingViewAcrossAllKinds() {
+        let videoWithoutAudio = FileDetailVideoInfo(
+            path: "/Videos/Show/EP01.mkv",
+            name: "EP01.mkv",
+            fileSize: 1024 * 1024 * 250,
+            duration: 1420,
+            videoWidth: 1920,
+            videoHeight: 1080,
+            frameRate: 23.976,
+            videoCodec: "hevc",
+            audioTracks: [],
+            subtitles: [],
+            createdAt: nil,
+            modifiedAt: nil
+        )
+        let subtitleInfo = FileDetailSubtitleInfo(
+            path: "/Videos/Show/EP01.ass",
+            name: "EP01.ass",
+            fileSize: 32_768,
+            format: .ass,
+            encoding: "-",
+            cueCount: 350,
+            rawCueCount: 380,
+            associatedVideoPath: nil,
+            createdAt: nil,
+            modifiedAt: nil
+        )
+        let folderInfo = FileDetailFolderInfo(
+            path: "smb://nas.local/Media/Show%20Name",
+            name: "Show Name",
+            isRootFolder: true,
+            folderCount: 2,
+            videoCount: 12,
+            subtitleCount: 12,
+            addedAt: nil,
+            updatedAt: nil
+        )
+
+        for kind in [
+            FileDetailDialogSession.DetailKind.video(videoWithoutAudio),
+            .subtitle(subtitleInfo),
+            .folder(folderInfo)
+        ] {
+            let dialog = WorkbenchFileDetailDialog(
+                session: FileDetailDialogSession(kind: kind),
+                onClose: {}
+            )
+            let host = NSHostingView(rootView: dialog)
+            host.layoutSubtreeIfNeeded()
+            let fittingSize = host.fittingSize
+            #expect(fittingSize.width == WorkbenchControlMetrics.redesignDialogWidthXLarge)
+            #expect(fittingSize.height > 100)
+        }
     }
 }

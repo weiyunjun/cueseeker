@@ -327,6 +327,9 @@ struct TaskCardMenuTests {
         AppLocalization.apply(.simplifiedChinese)
         #expect(L("task_detail.get_info") == "查看详情")
         #expect(L("task_detail.title") == "任务详情")
+        #expect(L("task_detail.location") == "位置")
+        #expect(L("task_detail.path") == "位置")
+        #expect(L("task_detail.folder_count") == "文件夹数量")
         #expect(L("task_detail.status.in_progress") == "正在执行")
         for key in allKeys {
             #expect(L(key) != key)
@@ -336,6 +339,9 @@ struct TaskCardMenuTests {
         AppLocalization.apply(.traditionalChinese)
         #expect(L("task_detail.get_info") == "查看詳情")
         #expect(L("task_detail.title") == "任務詳情")
+        #expect(L("task_detail.location") == "位置")
+        #expect(L("task_detail.path") == "位置")
+        #expect(L("task_detail.folder_count") == "資料夾數量")
         #expect(L("task_detail.status.in_progress") == "正在執行")
         for key in allKeys {
             #expect(L(key) != key)

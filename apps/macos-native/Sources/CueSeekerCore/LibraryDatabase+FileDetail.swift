@@ -231,7 +231,7 @@ extension LibraryDatabase {
                 fallbackRawCueCount = nil
             }
         } else {
-            encoding = "UTF-8"
+            encoding = "-"
             fallbackRawCueCount = nil
         }
 
@@ -340,6 +340,185 @@ extension LibraryDatabase {
             updatedAt: updatedAt
         )
     }
+}
+
+public struct MediaDetailPropertyItem: Equatable, Sendable {
+    public let labelKey: String
+    public let value: String
+
+    public init(labelKey: String, value: String) {
+        self.labelKey = labelKey
+        self.value = value
+    }
+}
+
+public enum MediaDetailFormatter {
+    private static let videoCodecMappings: [(tokens: [String], displayName: String)] = [
+        (["hevc", "h265", "h.265"], "HEVC / H.265"),
+        (["h264", "avc", "h.264"], "H.264 / AVC"),
+        (["av1"], "AV1"),
+        (["vp9"], "VP9")
+    ]
+
+    private static let fileFormatDisplayNames: [String: String] = [
+        "mkv": "Matroska Video (.mkv)",
+        "mp4": "MPEG-4 Video (.mp4)",
+        "mov": "QuickTime Movie (.mov)",
+        "avi": "AVI Video (.avi)",
+        "webm": "WebM Video (.webm)",
+        "ass": "Advanced SubStation Alpha (.ass)",
+        "ssa": "SubStation Alpha (.ssa)",
+        "srt": "SubRip Subtitle (.srt)",
+        "vtt": "WebVTT Subtitle (.vtt)"
+    ]
+
+    private static let detailDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter
+    }()
+
+    private static let decimalGroupingFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = ","
+        formatter.usesGroupingSeparator = true
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter
+    }()
+
+    public static func fileSizeText(_ bytes: Int64) -> String {
+        FileSizeFormatter.format(bytes: bytes)
+    }
+
+    public static func dateText(_ date: Date?) -> String {
+        guard let date else { return "-" }
+        return detailDateFormatter.string(from: date)
+    }
+
+    public static func durationText(_ duration: Double?) -> String {
+        guard let duration, duration > 0 else { return "-" }
+        let totalSeconds = Int(duration.rounded())
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+
+    public static func resolutionText(width: Int?, height: Int?) -> String {
+        guard let width, let height, width > 0, height > 0 else { return "-" }
+        return "\(width) × \(height)"
+    }
+
+    public static func frameRateText(_ fps: Double?) -> String {
+        guard let fps, fps > 0 else { return "-" }
+        let rounded = (fps * 1000).rounded() / 1000
+        if rounded == rounded.rounded() {
+            return "\(Int(rounded)) fps"
+        }
+        return String(format: "%.3f fps", rounded)
+    }
+
+    public static func bitrateText(fileSize: Int64, duration: Double?) -> String {
+        guard let duration, duration > 0, fileSize > 0 else { return "-" }
+        let bps = Double(fileSize * 8) / duration
+        let kbps = Int((bps / 1000).rounded())
+        let formattedKbps = decimalGroupingFormatter.string(from: NSNumber(value: kbps)) ?? "\(kbps)"
+        return "\(formattedKbps) kbps"
+    }
+
+    public static func codecText(_ codec: String?) -> String {
+        guard let trimmed = codec?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return "-"
+        }
+        let lower = trimmed.lowercased()
+        for mapping in videoCodecMappings where mapping.tokens.contains(where: { lower.contains($0) }) {
+            return mapping.displayName
+        }
+        return trimmed.uppercased()
+    }
+
+    public static func bitDepthText(_ bitDepth: Int?) -> String {
+        guard let bitDepth, bitDepth > 0 else { return "-" }
+        return "\(bitDepth) bit"
+    }
+
+    public static func pixelFormatText(_ pixelFormat: String?) -> String {
+        guard let trimmed = pixelFormat?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return "-"
+        }
+        return trimmed
+    }
+
+    public static func channelsText(_ channels: Int?) -> String? {
+        guard let channels, channels > 0 else { return nil }
+        return "\(channels)ch"
+    }
+
+    public static func sampleRateText(_ sampleRate: Int?) -> String? {
+        guard let sampleRate, sampleRate > 0 else { return nil }
+        let formatted = decimalGroupingFormatter.string(from: NSNumber(value: sampleRate)) ?? "\(sampleRate)"
+        return "\(formatted) Hz"
+    }
+
+    public static func audioBitDepthText(_ bitDepth: Int?) -> String? {
+        guard let bitDepth, bitDepth > 0 else { return nil }
+        return "\(bitDepth) bit"
+    }
+
+    public static func languageText(_ languageCode: String?, locale: Locale) -> String? {
+        guard let trimmed = languageCode?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        let localized = locale.localizedString(forLanguageCode: trimmed)
+            ?? locale.localizedString(forIdentifier: trimmed)
+        if let localized = localized?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !localized.isEmpty {
+            return localized
+        }
+        return trimmed
+    }
+
+    public static func fileFormatText(path: String) -> String {
+        let ext = URL.fromMediaPath(path).pathExtension.lowercased()
+        if let displayName = fileFormatDisplayNames[ext] {
+            return displayName
+        }
+        return ext.isEmpty ? "-" : "\(ext.uppercased()) (.\(ext))"
+    }
+
+    public static func audioTrackProperties(
+        for track: VideoAudioTrack,
+        locale: Locale
+    ) -> [MediaDetailPropertyItem] {
+        var items: [MediaDetailPropertyItem] = []
+        if let codec = track.codec?.trimmingCharacters(in: .whitespacesAndNewlines), !codec.isEmpty {
+            items.append(MediaDetailPropertyItem(labelKey: "file_detail.codec", value: codec.uppercased()))
+        }
+        if let channels = channelsText(track.channels) {
+            items.append(MediaDetailPropertyItem(labelKey: "file_detail.channels", value: channels))
+        }
+        if let sampleRate = sampleRateText(track.sampleRate) {
+            items.append(MediaDetailPropertyItem(labelKey: "file_detail.sample_rate", value: sampleRate))
+        }
+        if let bitDepth = audioBitDepthText(track.bitDepth) {
+            items.append(MediaDetailPropertyItem(labelKey: "file_detail.bit_depth", value: bitDepth))
+        }
+        if let lang = languageText(track.language, locale: locale) {
+            items.append(MediaDetailPropertyItem(labelKey: "file_detail.language", value: lang))
+        }
+        if let title = track.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            items.append(MediaDetailPropertyItem(labelKey: "file_detail.track_title", value: title))
+        }
+        return items
+    }
+}
+
+extension LibraryDatabase {
 
     private static func folderScopeStrings(
         for folderPath: String
