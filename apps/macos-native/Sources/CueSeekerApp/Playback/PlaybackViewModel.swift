@@ -377,7 +377,7 @@ public final class PlaybackViewModel: ObservableObject {
             showFeedback(
                 PlaybackFeedback(
                     icon: .caretRight,
-                    text: "+ \(accumulatedForwardSeconds)s"
+                    text: L("playback.hud.seek_forward", accumulatedForwardSeconds)
                 ),
                 durationMilliseconds: 1_000
             )
@@ -387,7 +387,7 @@ public final class PlaybackViewModel: ObservableObject {
             showFeedback(
                 PlaybackFeedback(
                     icon: .caretLeft,
-                    text: "- \(accumulatedRewindSeconds)s"
+                    text: L("playback.hud.seek_backward", accumulatedRewindSeconds)
                 ),
                 durationMilliseconds: 1_000
             )

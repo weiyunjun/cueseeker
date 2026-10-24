@@ -279,6 +279,8 @@
 "playback.hud.subtitles_on" = "Subtitles On";
 "playback.hud.subtitles_off" = "Subtitles Off";
 "playback.hud.muted" = "Muted";
+"playback.hud.seek_forward" = "+ %ds";
+"playback.hud.seek_backward" = "- %ds";
 
 /* Playback subtitle focus, collage and command panel */
 "playback.copy_selected_text" = "Copy Selected Text";
@@ -648,6 +650,7 @@
 "file_detail.added" = "Added";
 "file_detail.updated" = "Updated";
 "file_detail.video" = "Video";
+"file_detail.associated_video" = "Video";
 "file_detail.audio" = "Audio";
 "file_detail.subtitles" = "Subtitles";
 "file_detail.file_details" = "File Details";
@@ -712,8 +715,8 @@
 "file.all_folders.one" = "All Folder";
 "file.all_folders.other" = "All Folders";
 "file.add_folder.local" = "Local Folder";
-"file.add_folder.webdav" = "WebDav Folder";
-"webdav.dialog.title" = "WebDav Folder";
+"file.add_folder.webdav" = "WebDAV Folder";
+"webdav.dialog.title" = "WebDAV Folder";
 "webdav.field.name" = "Name";
 "webdav.field.name.placeholder" = "Optional, defaults to folder name";
 "webdav.field.address" = "Address";

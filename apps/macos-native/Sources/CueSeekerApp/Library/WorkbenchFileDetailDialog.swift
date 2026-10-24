@@ -204,7 +204,7 @@ struct WorkbenchFileDetailDialog: View {
             )
         }
 
-        SettingsGroup(title: L("file_detail.video")) {
+        SettingsGroup(title: L("file_detail.associated_video")) {
             let videoNames: [String] = {
                 guard let videoPath = info.associatedVideoPath, !videoPath.isEmpty else { return [] }
                 return [URL.fromMediaPath(videoPath).lastPathComponent]

@@ -50,7 +50,7 @@
 "common.close" = "關閉";
 
 /* Table */
-"table.column.cues" = "台詞數";
+"table.column.cues" = "台詞";
 "table.column.display_title" = "顯示標題";
 "table.column.time_range" = "時間範圍";
 "table.column.date_added" = "加入日期";
@@ -84,7 +84,7 @@
 "table.toolbar.anki" = "匯出至 Anki";
 "table.toolbar.copy_deep_links" = "拷貝 Deep Links";
 "table.toolbar.copy_table" = "拷貝表格";
-"table.toolbar.exit" = "結束";
+"table.toolbar.exit" = "退出";
 "search.sort.default" = "預設排序";
 "search.sort.most_characters" = "字元數最多";
 "search.sort.fewest_characters" = "字元數最少";
@@ -106,7 +106,7 @@
 "row_menu.remove_excerpt" = "移除摘錄";
 
 /* Facet filter */
-"facet.duration" = "時間長度";
+"facet.duration" = "時長";
 "facet.character" = "字元數";
 "facet.language" = "語言";
 "facet.watch_status" = "觀看狀態";
@@ -153,7 +153,7 @@
 "library.video_subtitle_count" = "%1$d 部影片  %2$d 個字幕";
 "library.view_in_file" = "在檔案中檢視";
 "library.empty" = "尚無媒體庫影片。";
-"library.recent_watching_empty" = "尚無最近觀看。";
+"library.recent_watching_empty" = "尚無最近觀看的影片。";
 "library.recent_excerpts_empty" = "尚無最近的摘錄集。";
 "recent.section.last_7_days" = "最近 7 天";
 "recent.section.last_30_days" = "最近 30 天";
@@ -164,7 +164,7 @@
 "library.sort.default" = "預設排序";
 "library.sort.latest_added" = "最晚入庫";
 "library.sort.oldest_added" = "最早入庫";
-"library.folder_count.one" = "%d 個資料夾";
+"library.folder_count.one" = "1 個資料夾";
 "library.folder_count.other" = "%d 個資料夾";
 
 /* Library cover editing */
@@ -177,10 +177,10 @@
 
 /* Excerpt */
 "excerpt.overview.summary" = "%1$@  %2$@";
-"excerpt.list_count.one" = "%d 個列表";
-"excerpt.list_count.other" = "%d 個列表";
-"excerpt.cue_count.one" = "%d 條字幕";
-"excerpt.cue_count.other" = "%d 條字幕";
+"excerpt.list_count.one" = "1 個摘錄集";
+"excerpt.list_count.other" = "%d 個摘錄集";
+"excerpt.cue_count.one" = "1 條台詞";
+"excerpt.cue_count.other" = "%d 條台詞";
 "excerpt.new_list" = "新增摘錄集";
 "excerpt.edit_list" = "編輯摘錄集";
 "excerpt.delete_list" = "刪除摘錄集";
@@ -208,15 +208,15 @@
 "toast.excerpt.save_failed" = "儲存至「%@」時發生錯誤";
 "toast.excerpt.duplicate_failed" = "複製摘錄時發生錯誤";
 "toast.excerpt.already_exists" = "「%@」中已有此摘錄";
-"toast.table.cue_text_copied" = "已拷貝台詞";
+"toast.table.cue_text_copied" = "已拷貝台詞文字";
 "toast.table.deep_link_copied" = "已拷貝 Deep Link";
 "toast.table.cue_group_text_copied" = "已拷貝台詞組文字";
 "toast.table.time_range_copied" = "已拷貝時間範圍";
-"toast.table.deep_links_copied" = "已拷貝 Deep Link";
+"toast.table.deep_links_copied" = "已拷貝 Deep Links";
 "toast.table.table_copied" = "已拷貝表格";
-"toast.cue_not_in_library" = "台詞不在資料庫中";
-"toast.cues_not_in_library" = "台詞不在資料庫中";
-"toast.library.folder_not_in_library" = "檔案夾不在資料庫中";
+"toast.cue_not_in_library" = "台詞不在媒體庫中";
+"toast.cues_not_in_library" = "台詞不在媒體庫中";
+"toast.library.folder_not_in_library" = "資料夾不在媒體庫中";
 
 /* Playback chrome */
 "playback.play" = "播放";
@@ -229,9 +229,9 @@
 "playback.speed" = "播放速度";
 "playback.fullscreen" = "全螢幕";
 "playback.more" = "更多";
-"playback.more.audio_track" = "音訊來源";
+"playback.more.audio_track" = "音軌";
 "playback.more.subtitle" = "字幕";
-"playback.more.default_audio_track" = "預設音訊來源";
+"playback.more.default_audio_track" = "預設音軌";
 "playback.more.default_subtitle" = "預設字幕";
 "playback.more.default_tag" = "預設";
 "playback.more.current_tag" = "目前";
@@ -241,7 +241,7 @@
 "playback.no_video_selected" = "未選擇影片";
 
 /* Playback HUD */
-"playback.hud.cue_text_copied" = "已拷貝台詞";
+"playback.hud.cue_text_copied" = "已拷貝台詞文字";
 "playback.hud.selected_text_copied" = "已拷貝選取文字";
 "playback.hud.screenshot_copied" = "已拷貝截圖";
 "playback.hud.deep_link_copied" = "已拷貝 Deep Link";
@@ -273,19 +273,21 @@
 "playback.hud.no_available_results" = "沒有可用的結果";
 "playback.hud.no_available_excerpts" = "沒有可用的摘錄";
 "playback.hud.no_available_videos" = "沒有可用的影片";
-"playback.hud.not_in_library" = "台詞不在資料庫中";
+"playback.hud.not_in_library" = "台詞不在媒體庫中";
 "playback.hud.enter_fullscreen" = "進入全螢幕";
-"playback.hud.exit_fullscreen" = "結束全螢幕";
+"playback.hud.exit_fullscreen" = "退出全螢幕";
 "playback.hud.subtitles_on" = "字幕已開";
 "playback.hud.subtitles_off" = "字幕已關";
 "playback.hud.muted" = "已靜音";
+"playback.hud.seek_forward" = "+ %d秒";
+"playback.hud.seek_backward" = "- %d秒";
 
 /* Playback subtitle focus, collage and command panel */
 "playback.copy_selected_text" = "拷貝選取文字";
 "playback.search_selected_text" = "搜尋選取文字";
 "playback.collage" = "長截圖";
-"playback.collage.exit" = "結束";
-"playback.collage.editing" = "正在編輯長截圖…";
+"playback.collage.exit" = "退出";
+"playback.collage.editing" = "正在編輯長截圖⋯";
 "playback.collage.preview" = "長截圖預覽";
 "playback.collage.copy" = "拷貝長截圖";
 "playback.collage.export" = "匯出長截圖";
@@ -323,18 +325,18 @@
 
 /* File page */
 "file.breadcrumb.home" = "首頁";
-"file.status.indexed" = "已完成索引: %@";
+"file.status.indexed" = "已完成索引：%@";
 "file.status.indexed_all" = "已完成全部索引";
-"file.status.indexing" = "正在索引: %@";
+"file.status.indexing" = "正在索引：%@";
 "file.status.indexing_all" = "正在索引全部資料夾";
-"file.status.failed" = "索引失敗: %@";
-"file.status.removing" = "正在移除: %@";
-"file.status.removed" = "已移除: %@";
-"file.status.removal_failed" = "移除失敗: %@";
-"file.status.last_indexed" = "上次索引: %@";
-"file.status.last_indexed_never" = "上次索引: --";
-"file.status.last_updated" = "上次更新: %@";
-"file.status.last_updated_never" = "上次更新: --";
+"file.status.failed" = "索引失敗：%@";
+"file.status.removing" = "正在移除：%@";
+"file.status.removed" = "已移除：%@";
+"file.status.removal_failed" = "移除失敗：%@";
+"file.status.last_indexed" = "上次索引：%@";
+"file.status.last_indexed_never" = "上次索引：--";
+"file.status.last_updated" = "上次更新：%@";
+"file.status.last_updated_never" = "上次更新：--";
 "file.description" = "字幕檔案與同名的影片檔案配對。同一個資料夾下的影片與字幕算作一組，並以該資料夾的名稱作為組名，子資料夾不計入其中。";
 "file.empty_folder_items" = "此資料夾中沒有仍在媒體庫中的項目。";
 "file.direct_content_suffix" = "（根目錄直屬內容）";
@@ -552,7 +554,7 @@
 "task.tab.completed" = "已完成";
 "task.tab.incomplete" = "未完成";
 "task.status.in_progress" = "進行中";
-"task.status.queued" = "佇列中";
+"task.status.queued" = "排隊中";
 "task.name.anki_export" = "匯出至 Anki";
 "task.progress.exported" = "已匯出 %1$d / %2$d 張卡片";
 "task.card_count" = "%d 張卡片";
@@ -634,7 +636,7 @@
 "anki_export.replace.message" = "資料夾「%@」中已有同名的檔案或資料夾。取代它將覆寫其目前內容。";
 "anki_export.replace.confirm" = "取代";
 "library.folder.not_found" = "該資料夾已不在媒體庫中。";
-"excerpt.list.not_found" = "該列表已不在媒體庫中。";
+"excerpt.list.not_found" = "該摘錄集已不在媒體庫中。";
 
 /* Universal File Detail Dialog */
 "file_detail.get_info" = "查看詳情";
@@ -648,6 +650,7 @@
 "file_detail.added" = "加入時間";
 "file_detail.updated" = "更新時間";
 "file_detail.video" = "影片";
+"file_detail.associated_video" = "關聯影片";
 "file_detail.audio" = "音訊";
 "file_detail.subtitles" = "關聯字幕";
 "file_detail.file_details" = "詳細資訊";
@@ -696,7 +699,7 @@
 "task_detail.folder_count" = "資料夾數量";
 "task_detail.indexed_subtitles" = "已索引字幕";
 "task_detail.status" = "狀態";
-"task_detail.status.in_progress" = "正在執行";
+"task_detail.status.in_progress" = "進行中";
 "task_detail.status.queued" = "排隊中";
 "task_detail.status.completed" = "已完成";
 "task_detail.status.incomplete" = "未完成";
@@ -712,8 +715,8 @@
 "file.all_folders.one" = "全部資料夾";
 "file.all_folders.other" = "全部資料夾";
 "file.add_folder.local" = "本機資料夾";
-"file.add_folder.webdav" = "WebDav 資料夾";
-"webdav.dialog.title" = "WebDav 資料夾";
+"file.add_folder.webdav" = "WebDAV 資料夾";
+"webdav.dialog.title" = "WebDAV 資料夾";
 "webdav.field.name" = "名稱";
 "webdav.field.name.placeholder" = "選填，預設使用資料夾名稱";
 "webdav.field.address" = "位址";
@@ -767,18 +770,18 @@
 /* Tooltips */
 "tooltip.topbar.back.disabled" = "沒有可後退的頁面";
 "tooltip.topbar.forward.disabled" = "沒有可前進的頁面";
-"tooltip.playback.return_to_workbench" = "返回到工作台";
+"tooltip.playback.return_to_workbench" = "返回工作台";
 "tooltip.playback_overlay.collage.edit" = "編輯長截圖";
-"tooltip.playback_overlay.collage.exit" = "結束長截圖";
+"tooltip.playback_overlay.collage.exit" = "退出長截圖";
 "tooltip.command_panel.back" = "返回上一級";
 "tooltip.player.previous.cue" = "上一條台詞";
 "tooltip.player.previous.cue.disabled" = "已經是第一條台詞";
-"tooltip.player.previous.video" = "上一個影片";
-"tooltip.player.previous.video.disabled" = "已經是第一個影片";
+"tooltip.player.previous.video" = "上一部影片";
+"tooltip.player.previous.video.disabled" = "已經是第一部影片";
 "tooltip.player.next.cue" = "下一條台詞";
 "tooltip.player.next.cue.disabled" = "已經是最後一條台詞";
-"tooltip.player.next.video" = "下一個影片";
-"tooltip.player.next.video.disabled" = "已經是最後一個影片";
+"tooltip.player.next.video" = "下一部影片";
+"tooltip.player.next.video.disabled" = "已經是最後一部影片";
 "tooltip.player.unmute" = "取消靜音";
 "tooltip.player.repeat.disabled" = "目前沒有可重播的台詞";
 "tooltip.player.copy_screenshot" = "拷貝目前截圖";
@@ -786,7 +789,7 @@
 "tooltip.player.subtitles.hide" = "關閉字幕";
 "tooltip.player.speed" = "播放速度";
 "tooltip.player.fullscreen.enter" = "進入全螢幕";
-"tooltip.player.fullscreen.exit" = "結束全螢幕";
+"tooltip.player.fullscreen.exit" = "退出全螢幕";
 "tooltip.player.fullscreen.disabled" = "目前無法切換全螢幕";
 "tooltip.input.search.clear" = "清除已輸入內容";
 "tooltip.input.shortcut.clear" = "清除快速鍵";
