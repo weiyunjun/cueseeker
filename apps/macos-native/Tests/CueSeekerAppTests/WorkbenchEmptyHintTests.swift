@@ -38,15 +38,19 @@ func workbenchEmptyHintAndDuotoneIconsMatchDesignMetrics() {
     #expect(WorkbenchControlMetrics.redesignEmptyStateTitleFontSize == 15)
     #expect(WorkbenchControlMetrics.redesignEmptyStateMessageMaxWidth == 380)
 
+    #expect(WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity == 0.30)
+    #expect(WorkbenchControlMetrics.redesignEmptyIconSearchLineOpacity == 0.58)
+    #expect(WorkbenchControlMetrics.redesignEmptyIconMagnifierFillOpacity == 0.22)
     #expect(WorkbenchControlMetrics.redesignEmptyIconBadgeFillOpacity == 0.24)
     #expect(WorkbenchControlMetrics.redesignEmptyIconBaseOpacity == 0.32)
     #expect(WorkbenchControlMetrics.redesignEmptyIconMidOpacity == 0.52)
-    #expect(WorkbenchControlMetrics.redesignEmptyIconLineOpacity == 0.58)
     #expect(WorkbenchControlMetrics.redesignEmptyIconForegroundOpacity == 1.0)
+    #expect(AppEmptyStateIconMetrics.searchCardOpacity == 0.30)
+    #expect(AppEmptyStateIconMetrics.searchLineOpacity == 0.58)
+    #expect(AppEmptyStateIconMetrics.magnifierFillOpacity == 0.22)
     #expect(AppEmptyStateIconMetrics.badgeFillOpacity == 0.24)
     #expect(AppEmptyStateIconMetrics.baseOpacity == 0.32)
     #expect(AppEmptyStateIconMetrics.midOpacity == 0.52)
-    #expect(AppEmptyStateIconMetrics.lineOpacity == 0.58)
     #expect(AppEmptyStateIconMetrics.foregroundOpacity == 1.0)
 
     if let lightAppearance = NSAppearance(named: .aqua) {

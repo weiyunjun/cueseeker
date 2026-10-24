@@ -886,8 +886,10 @@ private struct AccentDuotoneRenamePencilShape: Shape {
     }
 }
 
-/// Neutral-gray duotone large icons dedicated to `C-09.2 Empty State` across
-/// Workbench pages, Dialogs, Playback Overlay, and Command Panel.
+/// Duotone large icons dedicated to `C-09.2 Empty State` across Workbench
+/// pages, Dialogs, Playback Overlay, and Command Panel (`search-hint` uses the
+/// system accent palette; the other 9 empty/unavailable icons use the neutral
+/// gray palette).
 enum AppEmptyStateIcon: String, CaseIterable, Sendable {
     case searchHint = "search-hint"
     case searchNoResults = "search-no-results"
@@ -904,10 +906,12 @@ enum AppEmptyStateIcon: String, CaseIterable, Sendable {
 enum AppEmptyStateIconMetrics {
     static let iconSize = WorkbenchControlMetrics.redesignEmptyStateIconSize
     static let iconToTextGap = WorkbenchControlMetrics.redesignEmptyStateIconToTextGap
+    static let searchCardOpacity = WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity
+    static let searchLineOpacity = WorkbenchControlMetrics.redesignEmptyIconSearchLineOpacity
+    static let magnifierFillOpacity = WorkbenchControlMetrics.redesignEmptyIconMagnifierFillOpacity
     static let badgeFillOpacity = WorkbenchControlMetrics.redesignEmptyIconBadgeFillOpacity
     static let baseOpacity = WorkbenchControlMetrics.redesignEmptyIconBaseOpacity
     static let midOpacity = WorkbenchControlMetrics.redesignEmptyIconMidOpacity
-    static let lineOpacity = WorkbenchControlMetrics.redesignEmptyIconLineOpacity
     static let foregroundOpacity = WorkbenchControlMetrics.redesignEmptyIconForegroundOpacity
 }
 
@@ -950,15 +954,18 @@ struct AppEmptyStateIconView: View {
     private var searchHintIconView: some View {
         ZStack {
             AccentDuotoneSearchCardShape()
-                .fill(WorkbenchRedesignColors.emptyIconBase)
+                .fill(WorkbenchRedesignColors.emptyIconSearchCard)
 
             AccentDuotoneSearchHintLinesShape()
                 .stroke(
-                    WorkbenchRedesignColors.emptyIconLine,
+                    WorkbenchRedesignColors.emptyIconSearchLine,
                     style: StrokeStyle(lineWidth: 15 * s, lineCap: .round)
                 )
 
-            searchMagnifierKnockoutAndForeground
+            searchMagnifierKnockoutAndForeground(
+                lensFill: WorkbenchRedesignColors.emptyIconMagnifierFill,
+                foreground: WorkbenchRedesignColors.cardIconAccentForeground
+            )
         }
         .compositingGroup()
     }
@@ -974,13 +981,19 @@ struct AppEmptyStateIconView: View {
                     style: StrokeStyle(lineWidth: 16 * s, lineCap: .round)
                 )
 
-            searchMagnifierKnockoutAndForeground
+            searchMagnifierKnockoutAndForeground(
+                lensFill: WorkbenchRedesignColors.emptyIconBadgeFill,
+                foreground: WorkbenchRedesignColors.emptyIconForeground
+            )
         }
         .compositingGroup()
     }
 
     @ViewBuilder
-    private var searchMagnifierKnockoutAndForeground: some View {
+    private func searchMagnifierKnockoutAndForeground(
+        lensFill: Color,
+        foreground: Color
+    ) -> some View {
         AccentDuotoneCircleShape(cx: 172, cy: 168, radius: 52)
             .fill(Color.black)
             .blendMode(.destinationOut)
@@ -993,17 +1006,17 @@ struct AppEmptyStateIconView: View {
             .blendMode(.destinationOut)
 
         AccentDuotoneCircleShape(cx: 172, cy: 168, radius: 36)
-            .fill(WorkbenchRedesignColors.emptyIconBadgeFill)
+            .fill(lensFill)
 
         AccentDuotoneCircleShape(cx: 172, cy: 168, radius: 36)
             .stroke(
-                WorkbenchRedesignColors.emptyIconForeground,
+                foreground,
                 lineWidth: 16 * s
             )
 
         AccentDuotoneLineSegmentShape(x1: 199, y1: 195, x2: 228, y2: 224)
             .stroke(
-                WorkbenchRedesignColors.emptyIconForeground,
+                foreground,
                 style: StrokeStyle(lineWidth: 18 * s, lineCap: .round)
             )
     }

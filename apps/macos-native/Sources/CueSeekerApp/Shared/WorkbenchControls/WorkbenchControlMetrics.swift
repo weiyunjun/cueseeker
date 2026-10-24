@@ -418,14 +418,18 @@ enum WorkbenchControlMetrics {
     static let redesignCardIconAccentAnkiLineOpacity: CGFloat = 0.59
     /// --opacity-card-icon-accent-foreground: 1.0
     static let redesignCardIconAccentForegroundOpacity: CGFloat = 1.0
+    /// --color-empty-icon-search-card alpha: 0.30
+    static let redesignEmptyIconSearchCardOpacity: CGFloat = 0.30
+    /// --color-empty-icon-search-line alpha: 0.58
+    static let redesignEmptyIconSearchLineOpacity: CGFloat = 0.58
+    /// --color-empty-icon-magnifier-fill alpha: 0.22
+    static let redesignEmptyIconMagnifierFillOpacity: CGFloat = 0.22
     /// --color-empty-icon-badge-fill alpha: 0.24
     static let redesignEmptyIconBadgeFillOpacity: CGFloat = 0.24
     /// --color-empty-icon-base alpha: 0.32
     static let redesignEmptyIconBaseOpacity: CGFloat = 0.32
     /// --color-empty-icon-mid alpha: 0.52
     static let redesignEmptyIconMidOpacity: CGFloat = 0.52
-    /// --color-empty-icon-line alpha: 0.58
-    static let redesignEmptyIconLineOpacity: CGFloat = 0.58
     /// --color-empty-icon-foreground alpha: 1.0
     static let redesignEmptyIconForegroundOpacity: CGFloat = 1.0
     /// --size-card-chevron: 16px
