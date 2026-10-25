@@ -172,6 +172,32 @@ struct PlaybackProgressScrubberHoverState: Equatable {
     var isDragging = false
     var hoverX: CGFloat? = nil
 
+    mutating func handlePointerHoverLocation(
+        _ location: CGPoint?,
+        trackWidth: CGFloat? = nil
+    ) {
+        if let location {
+            let resolvedX: CGFloat
+            if let trackWidth, trackWidth > 0 {
+                resolvedX = min(max(location.x, 0), trackWidth)
+            } else {
+                resolvedX = max(0, location.x)
+            }
+            isHovered = true
+            isHoveringScrubber = true
+            if !isDragging {
+                hoverX = resolvedX
+            }
+        } else {
+            guard !isDragging else {
+                return
+            }
+            isHovered = false
+            isHoveringScrubber = false
+            hoverX = nil
+        }
+    }
+
     mutating func handlePointerHover(_ hovered: Bool) {
         isHovered = hovered
     }
@@ -300,21 +326,19 @@ struct PlaybackProgressScrubber: View {
             .frame(height: PlaybackChromeMetrics.progressHitAreaHeight, alignment: .center)
             .contentShape(Rectangle())
             .playerInteractiveRegion()
-            .onPointerHover { hovered in
-                hoverState.handlePointerHover(hovered)
-                if !hoverState.isDragging {
-                    syncThumbnailPreview(width: width, duration: duration)
-                }
-            }
-            .onContinuousHover { phase in
-                switch phase {
-                case .active(let point):
-                    hoverState.handleContinuousHoverActive(x: point.x)
-                case .ended:
-                    hoverState.handleContinuousHoverEnded()
-                }
-                if !hoverState.isDragging {
-                    syncThumbnailPreview(width: width, duration: duration)
+            .onPointerHoverLocation { location in
+                var nextHoverState = hoverState
+                nextHoverState.handlePointerHoverLocation(
+                    location,
+                    trackWidth: width
+                )
+                hoverState = nextHoverState
+                if !nextHoverState.isDragging {
+                    syncThumbnailPreview(
+                        hoverState: nextHoverState,
+                        width: width,
+                        duration: duration
+                    )
                 }
             }
             .gesture(
@@ -331,8 +355,9 @@ struct PlaybackProgressScrubber: View {
                         let targetTime = seekTime(for: clampedX, width: width, duration: duration)
                         scrubTimeStore.scrubTime = targetTime
                         viewModel.updateTimelineScrubbing(to: targetTime)
-                        viewModel.updateTimelineThumbnailPreview(
-                            at: targetTime,
+                        let progress = Double(min(max(clampedX / max(width, 1), 0), 1))
+                        viewModel.updateTimelineHoverPreview(
+                            progress: progress,
                             backingScaleFactor: displayScale
                         )
                     }
@@ -342,25 +367,41 @@ struct PlaybackProgressScrubber: View {
                                 viewModel.cancelTimelineScrubbing()
                                 endScrubbingIfNeeded()
                             }
-                            _ = hoverState.handleDragEnded(
+                            var nextHoverState = hoverState
+                            _ = nextHoverState.handleDragEnded(
                                 location: value.location,
                                 trackWidth: width
                             )
-                            syncThumbnailPreview(width: width, duration: duration)
+                            hoverState = nextHoverState
+                            syncThumbnailPreview(
+                                hoverState: nextHoverState,
+                                width: width,
+                                duration: duration
+                            )
                             return
                         }
-                        let clampedX = hoverState.handleDragEnded(
+                        var nextHoverState = hoverState
+                        let clampedX = nextHoverState.handleDragEnded(
                             location: value.location,
                             trackWidth: width
                         )
+                        hoverState = nextHoverState
                         let finalTime = seekTime(for: clampedX, width: width, duration: duration)
                         scrubTimeStore.scrubTime = finalTime
                         viewModel.endTimelineScrubbing(to: finalTime)
                         endScrubbingIfNeeded()
-                        syncThumbnailPreview(width: width, duration: duration)
+                        syncThumbnailPreview(
+                            hoverState: nextHoverState,
+                            width: width,
+                            duration: duration
+                        )
                     }
             )
             .onChange(of: viewModel.duration) { _ in
+                let nextDuration = viewModel.duration.isFinite ? max(0, viewModel.duration) : 0
+                syncThumbnailPreview(width: width, duration: nextDuration)
+            }
+            .onChange(of: viewModel.timelineThumbnailContextRevision) { _ in
                 let nextDuration = viewModel.duration.isFinite ? max(0, viewModel.duration) : 0
                 syncThumbnailPreview(width: width, duration: nextDuration)
             }
@@ -440,34 +481,42 @@ struct PlaybackProgressScrubber: View {
                 viewModel.cancelTimelineScrubbing()
             }
             endScrubbingIfNeeded()
-            viewModel.clearTimelineThumbnailPreview()
+            viewModel.clearTimelineHoverPreview()
         }
     }
 
-    private func syncThumbnailPreview(width: CGFloat, duration: Double) {
-        guard duration > 0, width > 0 else {
-            viewModel.clearTimelineThumbnailPreview()
+    private func syncThumbnailPreview(
+        hoverState state: PlaybackProgressScrubberHoverState? = nil,
+        width: CGFloat,
+        duration: Double
+    ) {
+        let resolvedHoverState = state ?? hoverState
+        guard width > 0 else {
+            viewModel.clearTimelineHoverPreview()
             return
         }
 
-        if let scrubTime = scrubTimeStore.scrubTime {
-            viewModel.updateTimelineThumbnailPreview(
-                at: scrubTime,
+        if let scrubTime = scrubTimeStore.scrubTime, duration > 0 {
+            let progress = min(max(scrubTime / duration, 0), 1)
+            viewModel.updateTimelineHoverPreview(
+                progress: progress,
                 backingScaleFactor: displayScale
             )
             return
         }
 
-        if hoverState.isHovered, hoverState.isHoveringScrubber, let hoverX = hoverState.hoverX {
-            let targetTime = seekTime(for: hoverX, width: width, duration: duration)
-            viewModel.updateTimelineThumbnailPreview(
-                at: targetTime,
+        if resolvedHoverState.isHovered,
+           resolvedHoverState.isHoveringScrubber,
+           let hoverX = resolvedHoverState.hoverX {
+            let progress = Double(min(max(hoverX / max(width, 1), 0), 1))
+            viewModel.updateTimelineHoverPreview(
+                progress: progress,
                 backingScaleFactor: displayScale
             )
             return
         }
 
-        viewModel.clearTimelineThumbnailPreview()
+        viewModel.clearTimelineHoverPreview()
     }
 
     private func beginScrubbingIfNeeded() {

@@ -25,12 +25,19 @@ public final class PlaybackViewModel: ObservableObject {
     private static let defaultPlaybackSpeed = 1.0
 
     public let player: PlaybackPlayer
-    let timelineThumbnailStore: PlaybackTimelineThumbnailStore
+    var timelineThumbnailStore: PlaybackTimelineThumbnailStore
 
     @Published public var isPlaying: Bool = false
     public private(set) var currentTime: Double = 0
     @Published public private(set) var displayedCurrentTime: Double = 0
-    @Published public var duration: Double = 0
+    @Published public var duration: Double = 0 {
+        didSet {
+            if oldValue != duration {
+                refreshActiveTimelineThumbnailPreviewIfNeeded()
+            }
+        }
+    }
+    @Published private(set) var timelineThumbnailContextRevision: UInt = 0
     @Published public var volume: Double = 100
     @Published public var playbackSpeed: Double = 1.0
     @Published public var areSubtitlesVisible: Bool = true
@@ -62,6 +69,9 @@ public final class PlaybackViewModel: ObservableObject {
     private let onSubtitleSourceLoadFailure: (URL) -> Void
     private let uiProbeScope: String?
     private var pendingPresentation: PendingPresentation?
+    private var activeTimelineHoverProgress: Double?
+    private var activeTimelineThumbnailScaleFactor: CGFloat = 2.0
+    private var needsTimelineThumbnailRefreshAfterReset = false
     private var screenshotRequestGeneration: UInt = 0
     private var lastCommittedScreenshotGeneration: UInt = 0
 
@@ -176,6 +186,37 @@ public final class PlaybackViewModel: ObservableObject {
         isPlaying = false
         updatePlaybackTime(0, publishesControlsImmediately: true)
         isPlayerEmpty = true
+    }
+
+    func updateTimelineHoverPreview(
+        progress: Double,
+        backingScaleFactor: CGFloat
+    ) {
+        let clampedProgress = progress.isFinite ? min(max(progress, 0), 1) : 0
+        activeTimelineHoverProgress = clampedProgress
+        if backingScaleFactor.isFinite, backingScaleFactor > 0 {
+            activeTimelineThumbnailScaleFactor = backingScaleFactor
+        }
+        refreshActiveTimelineThumbnailPreviewIfNeeded()
+    }
+
+    func clearTimelineHoverPreview() {
+        activeTimelineHoverProgress = nil
+        timelineThumbnailStore.clear()
+    }
+
+    func refreshActiveTimelineThumbnailPreviewIfNeeded() {
+        guard let progress = activeTimelineHoverProgress else {
+            return
+        }
+        guard !isPlayerEmpty, duration > 0 else {
+            timelineThumbnailStore.clear()
+            return
+        }
+        updateTimelineThumbnailPreview(
+            at: progress * duration,
+            backingScaleFactor: activeTimelineThumbnailScaleFactor
+        )
     }
 
     func updateTimelineThumbnailPreview(
@@ -708,12 +749,26 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
     }
 
     nonisolated public func player(_ player: PlaybackPlayer, didUpdateDuration seconds: Double) {
-        Task { @MainActor in
+        let applyUpdate = { @MainActor in
             guard self.pendingPresentation == nil else {
                 return
             }
             if self.duration != seconds {
                 self.duration = seconds
+            }
+            if self.needsTimelineThumbnailRefreshAfterReset, seconds > 0 {
+                self.needsTimelineThumbnailRefreshAfterReset = false
+                self.timelineThumbnailContextRevision &+= 1
+            }
+            self.refreshActiveTimelineThumbnailPreviewIfNeeded()
+        }
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                applyUpdate()
+            }
+        } else {
+            Task { @MainActor in
+                applyUpdate()
             }
         }
     }
@@ -775,6 +830,7 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
 
     nonisolated public func playerDidFinishPlayback(_ player: PlaybackPlayer) {
         Task { @MainActor in
+            self.needsTimelineThumbnailRefreshAfterReset = true
             self.clearTimelineThumbnailPreview()
             self.isPlaying = false
             self.publishDisplayedCurrentTimeIfNeeded(force: true)
@@ -785,10 +841,12 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
     nonisolated public func playerDidResetTimelineThumbnails(_ player: PlaybackPlayer) {
         if Thread.isMainThread {
             MainActor.assumeIsolated {
+                self.needsTimelineThumbnailRefreshAfterReset = true
                 self.clearTimelineThumbnailPreview()
             }
         } else {
             Task { @MainActor in
+                self.needsTimelineThumbnailRefreshAfterReset = true
                 self.clearTimelineThumbnailPreview()
             }
         }
@@ -838,6 +896,9 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
         if duration != committedDuration {
             duration = committedDuration
         }
+        needsTimelineThumbnailRefreshAfterReset = false
+        timelineThumbnailContextRevision &+= 1
+        refreshActiveTimelineThumbnailPreviewIfNeeded()
         updatePlaybackTime(
             Double(max(0, milliseconds)) / 1_000,
             publishesControlsImmediately: true

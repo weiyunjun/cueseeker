@@ -435,6 +435,12 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
         performWithoutNextResponder {
             super.mouseEntered(with: event)
         }
+        if let window {
+            PointerHoverSession.notifyMouseMoved(
+                in: window,
+                locationInWindow: event.locationInWindow
+            )
+        }
     }
 
     override func mouseMoved(with event: NSEvent) {
@@ -456,6 +462,12 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
             }
             super.mouseMoved(with: event)
         }
+        if let window {
+            PointerHoverSession.notifyMouseMoved(
+                in: window,
+                locationInWindow: event.locationInWindow
+            )
+        }
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -466,6 +478,9 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
         needsMouseReenterInSuper = false
         performWithoutNextResponder {
             super.mouseExited(with: event)
+        }
+        if let window {
+            PointerHoverSession.notifyMouseExited(in: window)
         }
     }
 
@@ -500,6 +515,7 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
                   )
             else {
                 needsMouseReenterInSuper = true
+                PointerHoverSession.syncWindowFocusChanged(in: window)
                 return
             }
             needsMouseReenterInSuper = false
@@ -507,6 +523,7 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
                 super.mouseEntered(with: moveEvent)
                 super.mouseMoved(with: moveEvent)
             }
+            PointerHoverSession.syncWindowFocusChanged(in: window)
             if AppPointerShape.manages(window) {
                 AppPointerShape.pointerMoved(in: window, at: locationInWindow)
             }
@@ -525,6 +542,7 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
                     super.mouseExited(with: offscreenEvent)
                 }
             }
+            PointerHoverSession.syncWindowFocusChanged(in: window)
         }
     }
 

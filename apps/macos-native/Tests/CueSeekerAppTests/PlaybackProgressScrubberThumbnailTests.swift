@@ -1,9 +1,13 @@
+import AppKit
 import CoreGraphics
 import Foundation
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 @testable import CueSeekerPlayback
 
+@Suite(.serialized)
+struct PlaybackProgressScrubberThumbnailTests {
 @MainActor
 @Test
 func progressThumbnailTokensAndGeometryFollowSpec() {
@@ -225,6 +229,233 @@ func scrubberHoverStateKeepsReleasePositionInsideHitAreaAndClearsOutsideHitArea(
     #expect(state.isHovered == false)
 }
 
+@MainActor
+@Test
+func scrubberFreezesHoverLocationAndThumbnailWhileUpperLayerIsOpenAndRestoresStationaryPointerOnClose() throws {
+    AppCursorVisibility.resetForTesting()
+    PointerHoverScrollState.shared.resetForTesting()
+    defer { PointerHoverScrollState.shared.resetForTesting() }
+
+    let imageA = try #require(makeTestSolidCGImage(width: 320, height: 180, gray: 60))
+    let imageB = try #require(makeTestSolidCGImage(width: 320, height: 180, gray: 180))
+
+    var requestedMilliseconds: [Int] = []
+    var cancelCount = 0
+
+    let player = PlaybackPlayer()
+    let viewModel = PlaybackViewModel(player: player)
+    viewModel.duration = 1_000
+    viewModel.timelineThumbnailStore = PlaybackTimelineThumbnailStore(
+        keyframeLookup: { ms in (max(0, ms) / 1_000) * 1_000 },
+        requestThumbnail: { milliseconds, _, completion in
+            requestedMilliseconds.append(milliseconds)
+            completion(milliseconds < 300_000 ? imageA : imageB, milliseconds, CGSize(width: 1920, height: 1080))
+        },
+        cancelRequests: {
+            cancelCount += 1
+        }
+    )
+
+    let timeline = PlaybackTimelineInteractionStore()
+    let layers = InterfaceLayerRegistry()
+    layers.setOpen(.playbackPage, true)
+
+    let rootView = VStack(spacing: 0) {
+        Spacer(minLength: 0)
+        PlaybackProgressScrubber(
+            viewModel: viewModel,
+            timeline: timeline,
+            windowWidth: 800
+        )
+        .frame(width: 800, height: PlaybackChromeMetrics.progressHitAreaHeight)
+    }
+    .frame(width: 800, height: 200)
+    .interfaceLayer(.playbackPage)
+    .modifier(InterfaceLayerCoverageBridge(layers: layers))
+
+    let window = CueSeekerWindow(
+        contentRect: NSRect(x: -5_000, y: -5_000, width: 800, height: 200),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.isWindowFocusedOverrideForTesting = true
+    let host = CueSeekerHostingView(rootView: rootView)
+    window.contentView = host
+    window.orderFrontRegardless()
+    defer {
+        window.contentView = nil
+        window.orderOut(nil)
+    }
+    host.layoutSubtreeIfNeeded()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+
+    func sendMouseMoved(at point: CGPoint) {
+        host.mouseLocationOverrideForTesting = point
+        if let event = NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: point,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) {
+            host.mouseMoved(with: event)
+        }
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+    }
+
+    // 1. Hover scrubber at x = 160 (20% of 800 -> 200,000 ms), y = 9 (inside bottom 18pt hit area):
+    sendMouseMoved(at: CGPoint(x: 160, y: 9))
+    #expect(requestedMilliseconds == [200_000])
+    #expect(viewModel.timelineThumbnailStore.thumbnailImage === imageA)
+    #expect(cancelCount == 0)
+
+    // 2. Scenario A: Open Command Panel (`K`), then move pointer along the scrubber to x = 480 (600,000 ms)
+    //    and then move pointer completely outside the scrubber to (480, 120):
+    //    Scrubber must remain frozen at 200,000 ms (imageA stays displayed, no new request, no clear).
+    layers.setOpen(.commandPanel, true)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+    #expect(layers.isFrozen(.playbackPage))
+
+    sendMouseMoved(at: CGPoint(x: 480, y: 9))
+    #expect(requestedMilliseconds == [200_000])
+    #expect(viewModel.timelineThumbnailStore.thumbnailImage === imageA)
+    #expect(cancelCount == 0)
+
+    sendMouseMoved(at: CGPoint(x: 480, y: 120))
+    #expect(requestedMilliseconds == [200_000])
+    #expect(viewModel.timelineThumbnailStore.thumbnailImage === imageA)
+    #expect(cancelCount == 0)
+
+    // 3. Close Command Panel (`Esc`) while pointer is stationary outside at (480, 120):
+    //    Scrubber immediately unfreezes and clears the frozen thumbnail without requiring mouse movement.
+    layers.setOpen(.commandPanel, false)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+    #expect(!layers.isFrozen(.playbackPage))
+    #expect(viewModel.timelineThumbnailStore.thumbnailImage == nil)
+    #expect(cancelCount == 1)
+
+    // 4. Scenario B: Open Command Panel (`K`) while unhovered, move pointer onto scrubber at x = 480 (600,000 ms)
+    //    and stop there, then press `Esc` to close Command Panel without moving the mouse again:
+    //    While Command Panel is open, no thumbnail is requested; the instant Command Panel closes,
+    //    the stationary pointer at x = 480 immediately triggers the thumbnail at 600,000 ms!
+    layers.setOpen(.commandPanel, true)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+    sendMouseMoved(at: CGPoint(x: 480, y: 9))
+    #expect(requestedMilliseconds == [200_000])
+    #expect(viewModel.timelineThumbnailStore.thumbnailImage == nil)
+
+    layers.setOpen(.commandPanel, false)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+    #expect(requestedMilliseconds == [200_000, 600_000])
+    #expect(viewModel.timelineThumbnailStore.thumbnailImage === imageB)
+}
+
+@MainActor
+@Test
+func stationaryScrubberPointerRefreshesThumbnailWhenSwitchingToEpisodeWithIdenticalDuration() throws {
+    AppCursorVisibility.resetForTesting()
+    PointerHoverScrollState.shared.resetForTesting()
+    defer { PointerHoverScrollState.shared.resetForTesting() }
+
+    let episode1Image = try #require(makeTestSolidCGImage(width: 320, height: 180, gray: 70))
+    let episode2Image = try #require(makeTestSolidCGImage(width: 320, height: 180, gray: 200))
+
+    var activeEpisode = 1
+    var requestedEpisodesAndMilliseconds: [(episode: Int, milliseconds: Int)] = []
+
+    let player = PlaybackPlayer()
+    let viewModel = PlaybackViewModel(player: player)
+    // Both Episode 1 and Episode 2 have the exact same duration (1421.090s).
+    let sharedDuration = 1_421.090
+    viewModel.duration = sharedDuration
+    viewModel.timelineThumbnailStore = PlaybackTimelineThumbnailStore(
+        keyframeLookup: { ms in (max(0, ms) / 2_000) * 2_000 },
+        requestThumbnail: { milliseconds, _, completion in
+            requestedEpisodesAndMilliseconds.append((activeEpisode, milliseconds))
+            let image = activeEpisode == 1 ? episode1Image : episode2Image
+            completion(image, milliseconds, CGSize(width: 1920, height: 1080))
+        },
+        cancelRequests: {}
+    )
+
+    let timeline = PlaybackTimelineInteractionStore()
+    let layers = InterfaceLayerRegistry()
+    layers.setOpen(.playbackPage, true)
+
+    let rootView = VStack(spacing: 0) {
+        Spacer(minLength: 0)
+        PlaybackProgressScrubber(
+            viewModel: viewModel,
+            timeline: timeline,
+            windowWidth: 800
+        )
+        .frame(width: 800, height: PlaybackChromeMetrics.progressHitAreaHeight)
+    }
+    .frame(width: 800, height: 200)
+    .interfaceLayer(.playbackPage)
+    .modifier(InterfaceLayerCoverageBridge(layers: layers))
+
+    let window = CueSeekerWindow(
+        contentRect: NSRect(x: -5_000, y: -5_000, width: 800, height: 200),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.isWindowFocusedOverrideForTesting = true
+    let host = CueSeekerHostingView(rootView: rootView)
+    window.contentView = host
+    window.orderFrontRegardless()
+    defer {
+        window.contentView = nil
+        window.orderOut(nil)
+    }
+    host.layoutSubtreeIfNeeded()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+
+    // 1. Hover near the end of Episode 1 (x = 799 of 800 -> ~1419.314s = 23:39) and keep pointer stationary:
+    let stationaryPoint = CGPoint(x: 799, y: 9)
+    host.mouseLocationOverrideForTesting = stationaryPoint
+    if let event = NSEvent.mouseEvent(
+        with: .mouseMoved,
+        location: stationaryPoint,
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 0,
+        pressure: 0
+    ) {
+        host.mouseMoved(with: event)
+    }
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+
+    #expect(requestedEpisodesAndMilliseconds.count == 1)
+    #expect(requestedEpisodesAndMilliseconds[0].episode == 1)
+    #expect(viewModel.timelineThumbnailStore.thumbnailImage === episode1Image)
+
+    // 2. Episode 1 finishes and switches to Episode 2 (which has the exact same duration 1421.090s)
+    //    while the pointer remains completely stationary on the progress bar:
+    activeEpisode = 2
+    viewModel.playerDidResetTimelineThumbnails(player)
+    #expect(viewModel.timelineThumbnailStore.thumbnailImage == nil)
+
+    // Simulate Episode 2 committing its presentation with the identical duration (1421.090s):
+    viewModel.player(player, didUpdateDuration: sharedDuration)
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+
+    // Without moving the mouse, Episode 2's thumbnail at the stationary position is immediately fetched and displayed!
+    #expect(requestedEpisodesAndMilliseconds.count == 2)
+    #expect(requestedEpisodesAndMilliseconds[1].episode == 2)
+    #expect(requestedEpisodesAndMilliseconds[1].milliseconds == requestedEpisodesAndMilliseconds[0].milliseconds)
+    #expect(viewModel.timelineThumbnailStore.thumbnailImage === episode2Image)
+}
+
 private func makeTestSolidCGImage(
     width: Int,
     height: Int,
@@ -255,4 +486,5 @@ private func makeTestSolidCGImage(
         shouldInterpolate: true,
         intent: .defaultIntent
     )
+}
 }
