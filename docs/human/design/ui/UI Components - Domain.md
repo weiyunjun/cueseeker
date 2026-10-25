@@ -951,6 +951,10 @@
 
 ##### Anatomy
 
+- Thumbnail
+  - Radius：`--radius-library-cover`
+  - Aspect Ratio：当前视频实际宽高比
+  - Content：指示时间点所属的关键帧画面（画面就绪前隐藏，切换关键帧时无过渡替换）
 - Container
   - Background：`--color-player-menu-bg`
   - Radius：`--radius-field`
@@ -961,9 +965,12 @@
 
 ##### Sizes
 
+- Thumbnail Width：`--width-player-progress-thumbnail`
+- Thumbnail Bottom to Capsule Gap：`--spacing-1`
 - Height：`--height-player-progress-time-capsule`
 - Padding Inline：`--padding-player-progress-time-capsule-x`
 - Bottom to Hit Area Gap：`--spacing-1`
+- Window Edge Clamp Inset：`--spacing-1`（缩略图与时间胶囊以指示位置为中心，靠近窗口左右边缘时各自按自身宽度独立限位）
 
 ##### States
 
