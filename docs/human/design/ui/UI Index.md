@@ -96,6 +96,7 @@
 | | `C-12.4` | Player Progress Time Capsule | — |
 | | `C-12.5` | Player Volume Control | — |
 | | `C-12.6` | Player Title | — |
+| | `C-12.7` | Player Cue Queue Control Bar | `Toggle Button`、`Gap Stepper` |
 | **2.13 Playback Content** | `C-13.1` | Playback Cue Metadata | — |
 | | `C-13.2` | Subtitle Focus Cue | — |
 | | `C-13.3` | Playback Cue Result | — |

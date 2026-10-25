@@ -98,7 +98,8 @@
 | --- | --- | --- | --- |
 | `pencil-simple` | Regular | 重命名、编辑封面 | File Page 菜单 / Rename This Folder、Rename Files；Cover / Editor Action |
 | `note-pencil` | Regular | 编辑 | Excerpt List 卡片菜单 / Edit List |
-| `plus` | Regular | 新建、添加 | Excerpt List Overview / New List；Export to Anki Dialog / Add Card Item，16px |
+| `plus` | Regular | 新建、添加、增加 | Excerpt List Overview / New List；Export to Anki Dialog / Add Card Item，16px；Player Cue Queue Control Bar / Increase Gap，14px |
+| `minus` | Regular | 减少 | Player Cue Queue Control Bar / Decrease Gap，14px |
 | `list-checks` | Regular | 选择模式 | 预留，暂无使用位置 |
 | `dots-six-vertical` | Regular | 拖拽手柄 | Export to Anki Dialog / Card Item Handle，12px |
 | `sign-out` | Regular | 退出选择 | Search / Excerpt Toolbar / Exit Selection |

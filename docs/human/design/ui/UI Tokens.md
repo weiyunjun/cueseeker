@@ -195,6 +195,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-player-progress-hover-track`: Light `rgba(255,255,255,0.38)`; Dark `rgba(255,255,255,0.38)`
 - `--color-player-topbar-gradient-start`: Light `rgba(18,18,24,0.66)`; Dark `rgba(18,18,24,0.66)`
 - `--color-player-topbar-gradient-end`: Light `rgba(18,18,24,0)`; Dark `rgba(18,18,24,0)`
+- `--color-player-cue-control-bar-border`: Light `rgba(255,255,255,0.15)`; Dark `rgba(255,255,255,0.15)`
+- `--color-player-cue-control-stepper-bg`: Light `rgba(255,255,255,0.06)`; Dark `rgba(255,255,255,0.06)`
+- `--color-player-cue-control-stepper-border`: Light `rgba(255,255,255,0.12)`; Dark `rgba(255,255,255,0.12)`
+- `--color-player-cue-control-status-active`: Light `#34D399`; Dark `#34D399`
 - `--color-player-error-bg`: Light `#B42318`; Dark `#B42318`
 - `--color-player-error-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 
@@ -283,6 +287,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--height-player-progress-track`: `3px`
 - `--height-player-progress-track-hover`: `6px`
 - `--height-player-progress-time-capsule`: `22px`
+- `--height-player-cue-control`: `28px`
+- `--height-player-cue-control-bar`: `--height-player-cue-control` 与两倍 `--spacing-1` 之和 (`36px`)
 - `--height-playback-feedback`: `52px`
 - `--height-library-progress-bar`: `4px`
 - `--height-task-progress-bar`: `4px`
@@ -338,6 +344,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-player-volume-value`: `32px`
 - `--max-width-player-audio-track-menu`: `300px`
 - `--size-player-progress-thumb`: `12px`
+- `--size-player-cue-status-dot`: `6px`
+- `--size-player-cue-stepper-button`: `--height-player-cue-control` 减去两倍 `--padding-player-cue-stepper` (`24px`)
+- `--size-player-cue-stepper-icon`: `14px`
+- `--width-player-cue-gap-value`: `64px`
 - `--width-player-topbar-title-max`: `520px`
 - `--size-player-error-icon`: `16px`
 - `--size-playback-feedback-icon`: `31px`
@@ -405,6 +415,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--gap-app-topbar-content`: `12px`
 - `--gap-player-window-controls-return`: `16px`
 - `--gap-player-speed-menu-from-button`: `8px`
+- `--gap-player-cue-toggle-dot`: `6px`
 - `--gap-library-recent-grid`: `8px`
 - `--gap-library-episode-grid`: `8px`
 - `--gap-library-list-item`: `20px`
@@ -447,6 +458,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--padding-player-speed-button-x`: `10px`
 - `--padding-player-volume-trailing`: `10px`
 - `--padding-player-progress-time-capsule-x`: `8px`
+- `--padding-player-cue-toggle-x`: `10px`
+- `--padding-player-cue-stepper`: `2px`
 - `--padding-player-topbar-x`: `16px`
 - `--padding-player-error-x`: `12px`
 - `--padding-player-error-y`: `10px`
@@ -483,6 +496,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--radius-settings-color-swatch`: `4px`
 - `--radius-playback-feedback`: `16px`
 - `--radius-player-error`: `10px`
+- `--radius-player-cue-control-bar`: `10px`
+- `--radius-player-cue-control`: `--radius-player-cue-control-bar` 减去 `--spacing-1` (`6px`)
+- `--radius-player-cue-stepper-button`: `--radius-player-cue-control` 减去 `--padding-player-cue-stepper` (`4px`)
 - `--radius-library-cover`: `8px`
 - `--radius-library-time-badge`: `4px`
 - `--radius-library-folder-card`: `8px`

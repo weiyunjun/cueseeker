@@ -12,7 +12,7 @@
 - **允许拥有按下态的组件白名单**：
   1. **按钮与快捷动作**：`C-03.1 Button`（`Neutral`、`Cover Summary`、`Primary`、`Destructive` 及设置页字体下拉触发器）、`C-03.2 Icon Button`（含 `C-05.2 Sidebar Toggle`、卡片右侧 `dots-three` 按钮、设置页恢复默认按钮、导出 Anki 的 `+` 与条目 `✕` 按钮）、`C-03.3 Shortcut Action Button`（内部 `C-08.9 Keycap` 同步进入 `Pressed`）。
   2. **筛选筹码与文件夹卡片**：`C-02.5 Filter Chip`（未选中与已选中）、`L-04.6 File Card Layout` 中的一级与二级可点击文件夹卡片（按住右侧 `dots-three` 按钮时仅按钮自身进入 `Pressed`，卡片维持 `Hover`）。
-  3. **播放控制按钮**：`C-12.1 Player Speed Button`、播放页顶底栏 `Icon Button`、`C-12.5 Player Volume Control` 左侧静音喇叭按钮（拖拽音量滑块不触发按钮 `Pressed`）。
+  3. **播放控制按钮**：`C-12.1 Player Speed Button`、播放页顶底栏 `Icon Button`、`C-12.5 Player Volume Control` 左侧静音喇叭按钮（拖拽音量滑块不触发按钮 `Pressed`）、`C-12.7 Player Cue Queue Control Bar` 内部按钮。
 - **几何零缩放与 `Open` 态衔接**：`Pressed` 态严禁缩放几何尺寸或偏移内容，仅将背景色在 `Hover` 态基础上推进一档（带边框控件保持 `Hover` 边框色）；处于 `Open` 态（外观同 `Hover`）的按钮再次被按住时，同样切换为 `Pressed` 外观。
 - **非白名单维持原貌**：媒体卡片 `C-11.5`、File 剧集分组文件行、远程目录浏览弹窗卡片、任务卡片 `L-06.10`、表头与表格行 `C-06.2`/`C-06.3`、Sidebar 项 `C-05.3`、标签页 `C-05.5`、面包屑 `C-05.6`、菜单项 `C-04.3`、分段控制器 `C-02.4`、复选框 `C-02.1`、开关 `C-02.2`、输入框 `C-01` 等按住期间保持既有外观不变。
 
@@ -66,7 +66,7 @@
 
 ## 3.3 固定深色表面（Mode-Invariant Dark Surfaces）
 - 以下表面在 Light Mode 与 Dark Mode 下使用同一套深色视觉规则，不随系统明暗模式反色：
-  1. **播放页舞台与播控组件（Player Chrome）**：视频背景、顶底栏渐变、底栏播控控件、进度条、播放菜单、Playback Feedback 与 Player Error Banner。  - **Dialog 对话框内**：需要校验的输入框下方（间距 `--spacing-1: 4px`）恒定预留 `1` 行红字高度（左边缘与所属输入框左边缘对齐），确保报错出现或消失时对话框高度不发生跳动（`WebDav Folder` 对话框仅在最下方 `Password` 输入框下预留 1 行）。
+  1. **播放页舞台与播控组件（Player Chrome）**：视频背景、顶底栏渐变、底栏播控控件、进度条、台词队列控制栏、播放菜单、Playback Feedback 与 Player Error Banner。  - **Dialog 对话框内**：需要校验的输入框下方（间距 `--spacing-1: 4px`）恒定预留 `1` 行红字高度（左边缘与所属输入框左边缘对齐），确保报错出现或消失时对话框高度不发生跳动（`WebDav Folder` 对话框仅在最下方 `Password` 输入框下预留 1 行）。
   2. **Cover Summary 的 Backdrop Form**：背景大图铺满叠加从左向右衰减的黑色 Scrim（`--color-cover-summary-scrim`）与白色文字（`--color-cover-summary-text`）。（注：`Cover Summary` 的 `Split Form` 则分别适配 Light Mode 与 Dark Mode。）
 
 ---

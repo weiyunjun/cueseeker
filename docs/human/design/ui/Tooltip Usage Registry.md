@@ -246,6 +246,60 @@
 - Scenario ID：player.control.fullscreen
 - 所在位置：Player Bottom Control Bar
 
+### 18.1 台词结束后自动暂停（Cue Queue Auto Pause）
+- 英文：Auto Pause After a Cue Finishes
+- 简体中文：台词结束后自动暂停
+- 繁体中文：台詞結束後自動暫停
+- 快捷键：无
+- 触发延迟：1秒
+- Scenario ID：player.control.auto_pause
+- 所在位置：Player Cue Queue Control Bar
+
+### 18.2 自动切换到下一条台词（Cue Queue Auto Switch）
+- 英文（可用）：Auto Switch to Next Cues in Playlist
+- 简体中文（可用）：自动切换到播放列表中的下一条台词
+- 繁体中文（可用）：自動切換至播放列表中的下一條台詞
+- 英文（Disabled - 未开启自动暂停）：Enable “Auto Pause After a Cue Finishes” first
+- 简体中文（Disabled - 未开启自动暂停）：请先开启“台词结束后自动暂停”
+- 繁体中文（Disabled - 未开启自动暂停）：請先開啟「台詞結束後自動暫停」
+- 快捷键：无
+- 触发延迟：1秒
+- Scenario ID：player.control.auto_switch
+- 所在位置：Player Cue Queue Control Bar
+
+### 18.3 减少自动切换间隔（Decrease Auto Switch Gap）
+- 英文（可用）：Decrease Auto Switch Gap (100ms)
+- 简体中文（可用）：减少自动切换间隔 (100ms)
+- 繁体中文（可用）：減少自動切換間隔 (100ms)
+- 英文（Disabled - 已达最小间隔）：Already at minimum gap (0ms)
+- 简体中文（Disabled - 已达最小间隔）：已达到最小间隔 (0ms)
+- 繁体中文（Disabled - 已达最小间隔）：已達到最小間隔 (0ms)
+- 快捷键：无
+- 触发延迟：1秒
+- Scenario ID：player.control.auto_switch_gap.decrease
+- 所在位置：Player Cue Queue Control Bar（`Auto Switch` 开启时）
+
+### 18.4 增加自动切换间隔（Increase Auto Switch Gap）
+- 英文（可用）：Increase Auto Switch Gap (100ms)
+- 简体中文（可用）：增加自动切换间隔 (100ms)
+- 繁体中文（可用）：增加自動切換間隔 (100ms)
+- 英文（Disabled - 已达最大间隔）：Already at maximum gap (10000ms)
+- 简体中文（Disabled - 已达最大间隔）：已达到最大间隔 (10000ms)
+- 繁体中文（Disabled - 已达最大间隔）：已達到最大間隔 (10000ms)
+- 快捷键：无
+- 触发延迟：1秒
+- Scenario ID：player.control.auto_switch_gap.increase
+- 所在位置：Player Cue Queue Control Bar（`Auto Switch` 开启时）
+
+### 18.5 自动切换间隔步进框禁用（Auto Switch Gap Stepper Disabled）
+- 英文：Enable “Auto Switch to Next Cues in Playlist” first
+- 简体中文：请先开启“自动切换到播放列表中的下一条台词”
+- 繁体中文：請先開啟「自動切換至播放列表中的下一條台詞」
+- 快捷键：无
+- 触发延迟：1秒
+- Scenario ID：player.control.auto_switch_gap.disabled
+- 所在位置：Player Cue Queue Control Bar（`Auto Switch` 关闭时整框触发）
+
 ---
 
 ## 三、通用输入、对话框与设置纯图标按钮（Inputs, Dialogs & Settings Icon Tooltips）

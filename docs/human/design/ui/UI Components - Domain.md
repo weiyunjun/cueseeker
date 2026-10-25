@@ -1046,6 +1046,59 @@
 - Default
 - Truncated：中间截断，尾部的 ` - 序号` 不省略
 
+### C-12.7 Player Cue Queue Control Bar
+
+#### Shared
+
+##### Anatomy
+
+- Container
+  - Background：`--color-player-menu-bg`
+  - Border Color：`--color-player-cue-control-bar-border`
+  - Border Width：`--border-width-control`
+  - Radius：`--radius-player-cue-control-bar`
+- Toggle Button（`Auto Pause`、`Auto Switch`）
+  - Radius：`--radius-player-cue-control`
+  - Status Dot：直径 `--size-player-cue-status-dot`
+  - Label：Font Size `--font-size-caption`，Font Weight `600`
+- Gap Stepper
+  - Background：`--color-player-cue-control-stepper-bg`
+  - Border Color：`--color-player-cue-control-stepper-border`
+  - Border Width：`--border-width-control`
+  - Radius：`--radius-player-cue-control`
+  - Step Buttons（`minus`、`plus`）：Radius `--radius-player-cue-stepper-button`，Icon Size `--size-player-cue-stepper-icon`
+  - Value Label：只读等宽数字（`<N> ms`），Font Size `--font-size-player-time`，Font Weight `600`，居中对齐，不接受输入或聚焦
+
+##### Sizes
+
+- Height：`--height-player-cue-control-bar`
+- Padding：`--spacing-1`
+- Item Gap：`--spacing-1`
+- Control Height：`--height-player-cue-control`
+- Toggle Padding Inline：`--padding-player-cue-toggle-x`
+- Toggle Dot to Label Gap：`--gap-player-cue-toggle-dot`
+- Stepper Padding：`--padding-player-cue-stepper`
+- Stepper Button Size：`--size-player-cue-stepper-button`
+- Gap Value Width：`--width-player-cue-gap-value`
+
+##### Interaction
+
+- 与 `Settings -> Play` 中的台词队列播放设置实时双向同步，生效时机与联动约束完全一致（切换下一条或上一条台词时生效；`Auto Pause` 关闭时 `Auto Switch` 自动关闭并进入 `Disabled`；`Auto Switch` 关闭时 `Gap Stepper` 整体进入 `Disabled`）
+- 步进按钮步长 `100ms`，范围 `0 ~ 10000 ms`
+- 操作本组件内任意控件均不触发 `Playback Feedback` 或 `Toast`
+
+##### States
+
+- Toggle Button
+  - Default（Off）：Background `Transparent`；Dot `--color-player-text-tertiary`；Label `--color-player-text-secondary`
+  - Hover（Off）：Background `--color-player-control-bg-hover`；Dot `--color-player-text-tertiary`；Label `--color-player-text-primary`
+  - Open（On，含 Hover）：Background `--color-player-control-bg-hover`；Dot `--color-player-cue-control-status-active`；Label `--color-player-text-primary`
+  - Pressed：Background `--color-player-control-bg-pressed`；Label `--color-player-text-primary`
+  - Disabled：Background `Transparent`；Dot 与 Label 均为 `--color-player-text-tertiary`
+- Gap Stepper
+  - Enabled：Value Label `--color-player-text-primary`；两侧按钮 Default `Transparent`、Hover `--color-player-control-bg-hover`、Pressed `--color-player-control-bg-pressed`，到达 `0 ms` 或 `10000 ms` 边界时对应按钮进入 `Disabled`（图标色 `--color-player-text-tertiary`）
+  - Disabled（`Auto Switch` 关闭）：两侧按钮与中间 Value Label 均为 `--color-player-text-tertiary`
+
 ## 2.13 Playback Content
 
 ### C-13.1 Playback Cue Metadata

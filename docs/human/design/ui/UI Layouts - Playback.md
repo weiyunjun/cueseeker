@@ -52,14 +52,17 @@
 
 #### Structure
 
-1. Progress Region
-2. Controls Row
+1. Player Cue Queue Control Bar
+   - Presence：仅台词队列播放（Search / Excerpt 来源）显示；视频列表播放（Library / Recent 来源）隐藏
+2. Progress Region
+3. Controls Row
    1. Left Control Group
    2. Flexible Spacer
    3. Right Control Group
 
 #### Components
 
+- Player Cue Queue Control Bar
 - Player Progress Scrubber Layout
 - Icon Button / Default
 - Player Volume Control
@@ -74,6 +77,8 @@
 - Progress Top Padding：`--padding-player-progress-top`
 - Left Control Gap：`--spacing-1`
 - Right Control Gap：`--spacing-1`
+- Cue Queue Control Bar Leading：`--padding-player-chrome-x`（与左侧播放按钮左缘对齐）
+- Cue Queue Control Bar Bottom to Progress Hit Area Gap：`--spacing-1`（位于 `Player Progress Time Capsule` 层级之下）
 
 #### Surface
 
