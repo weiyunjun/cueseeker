@@ -720,6 +720,7 @@
     if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, _seekSeconds, _timelineOriginSeconds, error)) {
         return NO;
     }
+    [self populateKeyframeStreamTimestamps];
 
     avcodec_flush_buffers(_videoCodecContext);
     if (_audioCodecContext != NULL) {
@@ -728,6 +729,98 @@
     _perfInitialSeekMs = (CACurrentMediaTime() - s6Start) * 1000.0;
 
     return YES;
+}
+
+- (void)populateKeyframeStreamTimestamps {
+    if (_keyframeStreamTimestamps != NULL) {
+        free(_keyframeStreamTimestamps);
+        _keyframeStreamTimestamps = NULL;
+    }
+    _keyframeStreamTimestampCount = 0;
+    _videoStreamTimeBase = (AVRational){0, 1};
+
+    if (_formatContext == NULL
+        || _videoStreamIndex < 0
+        || _videoStreamIndex >= (int)_formatContext->nb_streams) {
+        return;
+    }
+
+    AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
+    if (videoStream == NULL || videoStream->time_base.num <= 0 || videoStream->time_base.den <= 0) {
+        return;
+    }
+    _videoStreamTimeBase = videoStream->time_base;
+
+    int entryCount = avformat_index_get_entries_count(videoStream);
+    if (entryCount <= 0) {
+        return;
+    }
+
+    int64_t *timestamps = calloc((size_t)entryCount, sizeof(int64_t));
+    if (timestamps == NULL) {
+        return;
+    }
+
+    NSUInteger count = 0;
+    for (int index = 0; index < entryCount; index++) {
+        const AVIndexEntry *entry = avformat_index_get_entry(videoStream, index);
+        if (entry == NULL
+            || (entry->flags & AVINDEX_KEYFRAME) == 0
+            || entry->timestamp == AV_NOPTS_VALUE) {
+            continue;
+        }
+        if (count > 0 && entry->timestamp <= timestamps[count - 1]) {
+            continue;
+        }
+        timestamps[count] = entry->timestamp;
+        count += 1;
+    }
+
+    if (count == 0) {
+        free(timestamps);
+        return;
+    }
+
+    _keyframeStreamTimestamps = timestamps;
+    _keyframeStreamTimestampCount = count;
+}
+
+- (NSInteger)keyframeTimestampMillisecondsForTargetMilliseconds:(NSInteger)milliseconds {
+    if (_keyframeStreamTimestamps == NULL
+        || _keyframeStreamTimestampCount == 0
+        || _videoStreamTimeBase.num <= 0
+        || _videoStreamTimeBase.den <= 0) {
+        return -1;
+    }
+
+    double timeBaseSeconds = av_q2d(_videoStreamTimeBase);
+    if (!isfinite(timeBaseSeconds) || timeBaseSeconds <= 0) {
+        return -1;
+    }
+
+    double targetSeconds = fmax(0.0, (double)milliseconds / 1000.0);
+    int64_t targetStreamTimestamp = (int64_t)llround((targetSeconds + _timelineOriginSeconds) / timeBaseSeconds);
+
+    NSUInteger matchedIndex = 0;
+    if (targetStreamTimestamp > _keyframeStreamTimestamps[0]) {
+        NSUInteger low = 0;
+        NSUInteger high = _keyframeStreamTimestampCount;
+        while (low < high) {
+            NSUInteger mid = low + (high - low) / 2;
+            if (_keyframeStreamTimestamps[mid] <= targetStreamTimestamp) {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        matchedIndex = low > 0 ? (low - 1) : 0;
+    }
+
+    double keyframeSeconds = (double)_keyframeStreamTimestamps[matchedIndex] * timeBaseSeconds - _timelineOriginSeconds;
+    if (!isfinite(keyframeSeconds)) {
+        return -1;
+    }
+    return MAX(0, (NSInteger)llround(keyframeSeconds * 1000.0));
 }
 
 - (BOOL)prepareVideoWithError:(NSError **)error {

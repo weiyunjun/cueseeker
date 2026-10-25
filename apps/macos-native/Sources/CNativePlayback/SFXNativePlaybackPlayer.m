@@ -18,8 +18,8 @@
     BOOL _audioOutputRecoveryScheduled;
     BOOL _audioOutputRecoveryRequested;
     dispatch_queue_t _scrubPreviewQueue;
+    SFXKeyframeThumbnailDecoder *_thumbnailDecoder;
     NSUInteger _scrubPreviewGeneration;
-    NSInteger _lastScrubPreviewFrameMilliseconds;
     CVPixelBufferRef _latestSubmittedPixelBuffer;
     SFXNativePlaybackFrameSnapshot *_latestSubmittedVideoFrameSnapshot;
 }
@@ -45,7 +45,7 @@
     _playbackRate = 1.0;
     _decodeMode = SFXNativePlaybackDecodeModeAuto;
     _scrubPreviewQueue = dispatch_queue_create("CueSeeker.NativePlayback.ScrubPreview", DISPATCH_QUEUE_SERIAL);
-    _lastScrubPreviewFrameMilliseconds = -1;
+    _thumbnailDecoder = [[SFXKeyframeThumbnailDecoder alloc] init];
     _nativeView = [[SFXNativePlaybackView alloc] initWithFrame:NSZeroRect];
     return self;
 }
@@ -374,7 +374,17 @@ flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
 allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
            error:(NSError **)error {
     CFTimeInterval openStart = CACurrentMediaTime();
-    [self cancelTimelineScrubPreviewRequests];
+    BOOL isSamePath = NO;
+    @synchronized (self) {
+        isSamePath = (_currentPath != nil && [_currentPath isEqualToString:path]);
+    }
+    if (!isSamePath) {
+        [self cancelTimelineThumbnailRequests];
+        SFXKeyframeThumbnailDecoder *thumbnailDecoder = _thumbnailDecoder;
+        dispatch_async(_scrubPreviewQueue, ^{
+            [thumbnailDecoder invalidate];
+        });
+    }
     CFTimeInterval s2Start = CACurrentMediaTime();
     [self stopAndFlushDisplay:flushDisplayBeforeStart];
     double s2StopPrevMs = (CACurrentMediaTime() - s2Start) * 1000.0;
@@ -490,7 +500,6 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
     SFXNativePlaybackSession *session = _session;
     NSUInteger previousPresentationGeneration = session.presentationGeneration;
-    [self cancelTimelineScrubPreviewRequests];
     NSUInteger presentationGeneration = [self beginPresentationTransition];
     if (session.isFinished) {
         return [self openPath:_currentPath
@@ -534,33 +543,48 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     }
 
     if (active) {
-        _lastScrubPreviewFrameMilliseconds = -1;
         [_session setReadAheadSuspended:YES];
         [_session setPaused:YES];
     } else {
-        [self cancelTimelineScrubPreviewRequests];
         [_session setReadAheadSuspended:NO];
     }
     return YES;
 }
 
-- (void)requestTimelineScrubPreviewAtMilliseconds:(NSInteger)milliseconds {
+- (NSInteger)keyframeTimestampMillisecondsForTargetMilliseconds:(NSInteger)milliseconds {
+    SFXNativePlaybackSession *session = nil;
+    @synchronized (self) {
+        session = _session;
+    }
+    if (session == nil) {
+        return -1;
+    }
+    return [session keyframeTimestampMillisecondsForTargetMilliseconds:MAX(0, milliseconds)];
+}
+
+- (void)requestTimelineThumbnailAtMilliseconds:(NSInteger)milliseconds
+                              targetPixelWidth:(NSInteger)targetPixelWidth
+                                    completion:(void (^)(CGImageRef _Nullable image, NSInteger keyframeMilliseconds, NSInteger videoWidth, NSInteger videoHeight))completion {
     NSString *path = nil;
     NSString *httpHeaders = nil;
-    AVSampleBufferDisplayLayer *displayLayer = nil;
+    SFXKeyframeThumbnailDecoder *thumbnailDecoder = nil;
     NSUInteger generation = 0;
     @synchronized (self) {
         if (_currentPath == nil) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completion(NULL, -1, 0, 0);
+            });
             return;
         }
         _scrubPreviewGeneration += 1;
         generation = _scrubPreviewGeneration;
         path = [_currentPath copy];
         httpHeaders = [_httpHeaders copy];
-        displayLayer = _nativeView.displayLayer;
+        thumbnailDecoder = _thumbnailDecoder;
     }
 
     NSInteger targetMilliseconds = MAX(0, milliseconds);
+    NSInteger safePixelWidth = MAX(1, targetPixelWidth);
     dispatch_async(_scrubPreviewQueue, ^{
         @autoreleasepool {
             @synchronized (self) {
@@ -571,65 +595,49 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
                 }
             }
 
-            CMTime presentationTime = CMTimeMake(targetMilliseconds, 1000);
-            NSInteger frameMilliseconds = -1;
-            CVPixelBufferRef pixelBuffer = SFXCopyBGRAKeyframePreviewPixelBuffer(
-                path,
-                httpHeaders,
-                targetMilliseconds,
-                &presentationTime,
-                &frameMilliseconds
-            );
-            if (pixelBuffer == NULL) {
-                return;
-            }
+            NSInteger keyframeMilliseconds = targetMilliseconds;
+            NSInteger videoWidth = 0;
+            NSInteger videoHeight = 0;
+            CGImageRef image = [thumbnailDecoder copyThumbnailImageForPath:path
+                                                               httpHeaders:httpHeaders
+                                                            atMilliseconds:targetMilliseconds
+                                                          targetPixelWidth:safePixelWidth
+                                                   keyframeMillisecondsOut:&keyframeMilliseconds
+                                                             videoWidthOut:&videoWidth
+                                                            videoHeightOut:&videoHeight];
 
             @synchronized (self) {
                 if (generation != _scrubPreviewGeneration
                     || _currentPath == nil
                     || ![_currentPath isEqualToString:path]) {
-                    CVPixelBufferRelease(pixelBuffer);
+                    if (image != NULL) {
+                        CGImageRelease(image);
+                    }
                     return;
                 }
-
-                if (frameMilliseconds >= 0 && frameMilliseconds == _lastScrubPreviewFrameMilliseconds) {
-                    CVPixelBufferRelease(pixelBuffer);
-                    return;
-                }
-                _lastScrubPreviewFrameMilliseconds = frameMilliseconds;
             }
 
-            CVPixelBufferRetain(pixelBuffer);
             dispatch_async(dispatch_get_main_queue(), ^{
+                BOOL isCurrent = NO;
                 @synchronized (self) {
-                    if (generation != _scrubPreviewGeneration
-                        || _currentPath == nil
-                        || ![_currentPath isEqualToString:path]) {
-                        CVPixelBufferRelease(pixelBuffer);
-                        return;
-                    }
+                    isCurrent = (generation == _scrubPreviewGeneration
+                        && _currentPath != nil
+                        && [_currentPath isEqualToString:path]);
                 }
-
-                CMSampleBufferRef sampleBuffer = SFXSampleBufferForPixelBuffer(
-                    pixelBuffer,
-                    presentationTime
-                );
-                if (sampleBuffer != NULL) {
-                    [displayLayer flush];
-                    [displayLayer enqueueSampleBuffer:sampleBuffer];
-                    CFRelease(sampleBuffer);
+                if (isCurrent) {
+                    completion(image, keyframeMilliseconds, videoWidth, videoHeight);
                 }
-                CVPixelBufferRelease(pixelBuffer);
+                if (image != NULL) {
+                    CGImageRelease(image);
+                }
             });
-            CVPixelBufferRelease(pixelBuffer);
         }
     });
 }
 
-- (void)cancelTimelineScrubPreviewRequests {
+- (void)cancelTimelineThumbnailRequests {
     @synchronized (self) {
         _scrubPreviewGeneration += 1;
-        _lastScrubPreviewFrameMilliseconds = -1;
     }
 }
 
@@ -781,7 +789,13 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 }
 
 - (void)stopAndFlushDisplay:(BOOL)flushDisplay {
-    [self cancelTimelineScrubPreviewRequests];
+    if (flushDisplay) {
+        [self cancelTimelineThumbnailRequests];
+        SFXKeyframeThumbnailDecoder *thumbnailDecoder = _thumbnailDecoder;
+        dispatch_async(_scrubPreviewQueue, ^{
+            [thumbnailDecoder invalidate];
+        });
+    }
     [_session stopAndWait];
     @synchronized (self) {
         _session = nil;

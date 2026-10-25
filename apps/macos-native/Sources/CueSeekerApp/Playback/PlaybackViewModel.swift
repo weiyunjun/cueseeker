@@ -25,6 +25,7 @@ public final class PlaybackViewModel: ObservableObject {
     private static let defaultPlaybackSpeed = 1.0
 
     public let player: PlaybackPlayer
+    let timelineThumbnailStore: PlaybackTimelineThumbnailStore
 
     @Published public var isPlaying: Bool = false
     public private(set) var currentTime: Double = 0
@@ -84,6 +85,7 @@ public final class PlaybackViewModel: ObservableObject {
         onSubtitleSourceLoadFailure: @escaping (URL) -> Void = { _ in }
     ) {
         self.player = player
+        self.timelineThumbnailStore = PlaybackTimelineThumbnailStore(player: player)
         self.onVolumeChanged = onVolumeChanged
         self.onLastNonzeroVolumeChanged = onLastNonzeroVolumeChanged
         self.onPlaybackSpeedChanged = onPlaybackSpeedChanged
@@ -168,11 +170,31 @@ public final class PlaybackViewModel: ObservableObject {
     /// numbers would otherwise stay on screen.
     func resetPresentationForStoppedPlayback() {
         cancelPendingPresentation()
+        clearTimelineThumbnailPreview()
         clearSubtitleCues()
         duration = 0
         isPlaying = false
         updatePlaybackTime(0, publishesControlsImmediately: true)
         isPlayerEmpty = true
+    }
+
+    func updateTimelineThumbnailPreview(
+        at seconds: Double,
+        backingScaleFactor: CGFloat
+    ) {
+        guard !isPlayerEmpty, duration > 0 else {
+            timelineThumbnailStore.clear()
+            return
+        }
+        let targetTime = clampedPlaybackTime(seconds)
+        timelineThumbnailStore.updatePreview(
+            forSeconds: targetTime,
+            backingScaleFactor: backingScaleFactor
+        )
+    }
+
+    func clearTimelineThumbnailPreview() {
+        timelineThumbnailStore.clear()
     }
 
     @discardableResult
@@ -753,9 +775,22 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
 
     nonisolated public func playerDidFinishPlayback(_ player: PlaybackPlayer) {
         Task { @MainActor in
+            self.clearTimelineThumbnailPreview()
             self.isPlaying = false
             self.publishDisplayedCurrentTimeIfNeeded(force: true)
             self.onPlaybackFinished()
+        }
+    }
+
+    nonisolated public func playerDidResetTimelineThumbnails(_ player: PlaybackPlayer) {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                self.clearTimelineThumbnailPreview()
+            }
+        } else {
+            Task { @MainActor in
+                self.clearTimelineThumbnailPreview()
+            }
         }
     }
 

@@ -133,13 +133,16 @@ CMSampleBufferRef _Nullable SFXSampleBufferForPixelBuffer(
 );
 int SFXOutputChannelCount(int inputChannels);
 
-CVPixelBufferRef _Nullable SFXCopyBGRAKeyframePreviewPixelBuffer(
-    NSString *path,
-    NSString * _Nullable httpHeaders,
-    NSInteger milliseconds,
-    CMTime * _Nullable presentationTimeOut,
-    NSInteger * _Nullable frameMillisecondsOut
-);
+@interface SFXKeyframeThumbnailDecoder : NSObject
+- (nullable CGImageRef)copyThumbnailImageForPath:(NSString *)path
+                                     httpHeaders:(nullable NSString *)httpHeaders
+                                  atMilliseconds:(NSInteger)milliseconds
+                                targetPixelWidth:(NSInteger)targetPixelWidth
+                         keyframeMillisecondsOut:(nullable NSInteger *)keyframeMillisecondsOut
+                                   videoWidthOut:(nullable NSInteger *)videoWidthOut
+                                  videoHeightOut:(nullable NSInteger *)videoHeightOut CF_RETURNS_RETAINED;
+- (void)invalidate;
+@end
 
 @interface SFXNativePlaybackView : NSView
 @property (nonatomic, strong, readonly) AVSampleBufferDisplayLayer *displayLayer;
@@ -174,7 +177,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
                            presentationGeneration:(NSUInteger)presentationGeneration;
 - (void)requestAudioOutputRecoveryForSession:(SFXNativePlaybackSession *)session;
 - (void)performPendingAudioOutputRecovery;
-- (void)cancelTimelineScrubPreviewRequests;
+- (void)cancelTimelineThumbnailRequests;
 - (NSUInteger)beginPresentationTransition;
 - (void)restoreCurrentPresentationGeneration:(NSUInteger)previousGeneration
                     ifCurrentGenerationIs:(NSUInteger)failedGeneration;
@@ -244,6 +247,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 
     int _videoStreamIndex;
     int _audioStreamIndex;
+    int64_t * _Nullable _keyframeStreamTimestamps;
+    NSUInteger _keyframeStreamTimestampCount;
+    AVRational _videoStreamTimeBase;
     NSInteger _requestedAudioTrackIndex;
     NSInteger _audioTrackIndex;
     int _audioOutputSampleRate;
@@ -401,6 +407,8 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 - (BOOL)recoverAudioOutputWithError:(NSError **)error;
 - (void)requestAudioOutputRecovery;
 - (BOOL)prepareWithError:(NSError **)error;
+- (void)populateKeyframeStreamTimestamps;
+- (NSInteger)keyframeTimestampMillisecondsForTargetMilliseconds:(NSInteger)milliseconds;
 - (BOOL)prepareVideoWithError:(NSError **)error;
 - (void)resetVideoDecoderState;
 - (BOOL)prepareHardwareVideoWithError:(NSError **)error;

@@ -15,6 +15,7 @@ public protocol PlaybackPlayerDelegate: AnyObject {
     func player(_ player: PlaybackPlayer, didFailToLoadSubtitleSource url: URL)
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int)
     func playerDidFinishPlayback(_ player: PlaybackPlayer)
+    func playerDidResetTimelineThumbnails(_ player: PlaybackPlayer)
     func player(_ player: PlaybackPlayer, didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int)
     @MainActor func player(
         _ player: PlaybackPlayer,
@@ -35,6 +36,7 @@ public extension PlaybackPlayerDelegate {
     func player(_ player: PlaybackPlayer, didFailToLoadSubtitleSource url: URL) {}
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int) {}
     func playerDidFinishPlayback(_ player: PlaybackPlayer) {}
+    func playerDidResetTimelineThumbnails(_ player: PlaybackPlayer) {}
     func player(_ player: PlaybackPlayer, didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int) {}
     @MainActor func player(
         _ player: PlaybackPlayer,
@@ -127,6 +129,8 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
               request.videoURL.mediaPath,
               request.startMilliseconds,
               decodeMode.rawValue)
+        nativePlayer.cancelTimelineThumbnailRequests()
+        delegate?.playerDidResetTimelineThumbnails(self)
         reachedAutoStopBoundaryMilliseconds = nil
         let autoPauseBoundary = request.autoStopAtMilliseconds.map {
             PlaybackAutoStopBoundary(
@@ -396,11 +400,41 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         try nativePlayer.setTimelineScrubbing(true)
     }
 
-    public func requestTimelineScrubPreview(toMilliseconds milliseconds: Int) {
+    public func keyframeTimestampMilliseconds(forTargetMilliseconds milliseconds: Int) -> Int? {
+        let resolved = nativePlayer.keyframeTimestampMilliseconds(
+            forTargetMilliseconds: max(0, milliseconds)
+        )
+        return resolved >= 0 ? resolved : nil
+    }
+
+    public func requestTimelineThumbnail(
+        atMilliseconds milliseconds: Int,
+        targetPixelWidth: Int,
+        completion: @escaping @MainActor (CGImage?, Int, CGSize?) -> Void
+    ) {
         let safeMilliseconds = max(0, milliseconds)
-        clearHeldSubtitlePresentationWithoutRendering()
-        nativePlayer.requestTimelineScrubPreview(atMilliseconds: safeMilliseconds)
-        updateASSSubtitleTime(milliseconds: safeMilliseconds)
+        let safePixelWidth = max(1, targetPixelWidth)
+        nativePlayer.requestTimelineThumbnail(
+            atMilliseconds: safeMilliseconds,
+            targetPixelWidth: safePixelWidth
+        ) { image, keyframeMilliseconds, videoWidth, videoHeight in
+            let videoSize: CGSize? = (videoWidth > 0 && videoHeight > 0)
+                ? CGSize(width: videoWidth, height: videoHeight)
+                : nil
+            if Thread.isMainThread {
+                MainActor.assumeIsolated {
+                    completion(image, keyframeMilliseconds, videoSize)
+                }
+            } else {
+                Task { @MainActor in
+                    completion(image, keyframeMilliseconds, videoSize)
+                }
+            }
+        }
+    }
+
+    public func cancelTimelineThumbnailRequests() {
+        nativePlayer.cancelTimelineThumbnailRequests()
     }
 
     public func endTimelineScrubbing() throws {
@@ -444,6 +478,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     public func stop() throws {
         nativePlayer.stop()
+        delegate?.playerDidResetTimelineThumbnails(self)
         currentRequest = nil
         currentVideoURL = nil
         pendingPresentation = nil

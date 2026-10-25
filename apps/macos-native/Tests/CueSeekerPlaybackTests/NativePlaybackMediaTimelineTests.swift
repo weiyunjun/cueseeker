@@ -991,3 +991,104 @@ func nativePlaybackFallsBackToSoftwareAndPresentsFramesForHEVC12BitAndVP9HighChr
     }
 }
 
+@Test
+@MainActor
+func nativePlaybackExtractsKeyframeTimestampsAndScaledTimelineThumbnails() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping keyframe thumbnail test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let mediaURL = directory.appendingPathComponent("keyframe-thumbnail-4x3.mp4")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=duration=3.5:size=320x240:rate=24",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-g",
+            "24",
+            "-keyint_min",
+            "24",
+            "-sc_threshold",
+            "0",
+            "-pix_fmt",
+            "yuv420p",
+            "-y",
+            mediaURL.path
+        ]
+    )
+
+    let player = PlaybackPlayer()
+    defer {
+        try? player.stop()
+    }
+
+    let request = try PlaybackRequest(
+        videoURL: mediaURL,
+        startMilliseconds: 0
+    )
+    _ = try player.open(request)
+
+    let firstKeyframe = player.keyframeTimestampMilliseconds(forTargetMilliseconds: 350)
+    let sameIntervalKeyframe = player.keyframeTimestampMilliseconds(forTargetMilliseconds: 850)
+    let secondKeyframe = player.keyframeTimestampMilliseconds(forTargetMilliseconds: 1_450)
+    let thirdKeyframe = player.keyframeTimestampMilliseconds(forTargetMilliseconds: 2_350)
+
+    #expect(firstKeyframe == 0)
+    #expect(sameIntervalKeyframe == firstKeyframe)
+    #expect(secondKeyframe == 1_000)
+    #expect(thirdKeyframe == 2_000)
+
+    var firstDecodedImage: CGImage?
+    var firstDecodedVideoSize: CGSize?
+    player.requestTimelineThumbnail(
+        atMilliseconds: 350,
+        targetPixelWidth: 320
+    ) { image, _, videoSize in
+        firstDecodedImage = image
+        firstDecodedVideoSize = videoSize
+    }
+
+    let gotFirstThumbnail = await waitUntil(timeoutSeconds: 4) {
+        firstDecodedImage != nil
+    }
+    #expect(gotFirstThumbnail)
+    #expect(firstDecodedImage?.width == 320)
+    #expect(firstDecodedImage?.height == 240)
+    #expect(firstDecodedVideoSize == CGSize(width: 320, height: 240))
+
+    var secondDecodedImage: CGImage?
+    var secondKeyframeMilliseconds = -1
+    player.requestTimelineThumbnail(
+        atMilliseconds: 2_350,
+        targetPixelWidth: 160
+    ) { image, keyframeMilliseconds, _ in
+        secondDecodedImage = image
+        secondKeyframeMilliseconds = keyframeMilliseconds
+    }
+
+    let gotSecondThumbnail = await waitUntil(timeoutSeconds: 4) {
+        secondDecodedImage != nil
+    }
+    #expect(gotSecondThumbnail)
+    #expect(secondDecodedImage?.width == 160)
+    #expect(secondDecodedImage?.height == 120)
+    #expect(abs(secondKeyframeMilliseconds - 2_000) <= 50)
+}
+
+

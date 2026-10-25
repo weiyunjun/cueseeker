@@ -604,6 +604,27 @@ enum PlaybackChromeMetrics {
     /// --spacing-1: 4px
     static let progressTimeCapsuleGap = WorkbenchControlMetrics.redesignSpacing1
     static let progressTimeCapsuleYOffset: CGFloat = -(progressTimeCapsuleHeight + progressTimeCapsuleGap)
+    /// --width-player-progress-thumbnail: 160px
+    static let progressThumbnailWidth: CGFloat = 160
+    /// --radius-library-cover: 8px
+    static let progressThumbnailRadius = WorkbenchControlMetrics.redesignLibraryCoverRadius
+    /// --spacing-1: 4px
+    static let progressThumbnailGap = WorkbenchControlMetrics.redesignSpacing1
+    /// --delay-player-progress-thumbnail-debounce: 30ms
+    static let progressThumbnailDebounceDelay: TimeInterval = 0.03
+
+    static func progressThumbnailSize(aspectRatio: Double) -> CGSize {
+        let resolvedAspectRatio = (aspectRatio.isFinite && aspectRatio > 0)
+            ? CGFloat(aspectRatio)
+            : WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
+        let height = (progressThumbnailWidth / resolvedAspectRatio).rounded()
+        return CGSize(width: progressThumbnailWidth, height: max(1, height))
+    }
+
+    static func progressThumbnailYOffset(thumbnailHeight: CGFloat) -> CGFloat {
+        progressTimeCapsuleYOffset - progressThumbnailGap - max(0, thumbnailHeight)
+    }
+
     static let windowControlBorderWidth: CGFloat = 0.5
     static let windowControlZoomGlyphSize: CGFloat = windowControlGlyphSize - 2
 

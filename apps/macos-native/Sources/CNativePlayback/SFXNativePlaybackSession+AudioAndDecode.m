@@ -1575,6 +1575,11 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     avcodec_free_context(&_videoCodecContext);
     av_buffer_unref(&_hardwareDeviceContext);
     avformat_close_input(&_formatContext);
+    if (_keyframeStreamTimestamps != NULL) {
+        free(_keyframeStreamTimestamps);
+        _keyframeStreamTimestamps = NULL;
+    }
+    _keyframeStreamTimestampCount = 0;
 
 }
 

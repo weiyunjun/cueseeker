@@ -132,7 +132,13 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
 /// keeping the position, the pause and the segment end.
 - (BOOL)selectAudioTrackIndex:(NSInteger)audioTrackIndex error:(NSError **)error;
 - (BOOL)setTimelineScrubbing:(BOOL)active error:(NSError **)error;
-- (void)requestTimelineScrubPreviewAtMilliseconds:(NSInteger)milliseconds;
+- (NSInteger)keyframeTimestampMillisecondsForTargetMilliseconds:(NSInteger)milliseconds
+    NS_SWIFT_NAME(keyframeTimestampMilliseconds(forTargetMilliseconds:));
+- (void)requestTimelineThumbnailAtMilliseconds:(NSInteger)milliseconds
+                              targetPixelWidth:(NSInteger)targetPixelWidth
+                                    completion:(void (^)(CGImageRef _Nullable image, NSInteger keyframeMilliseconds, NSInteger videoWidth, NSInteger videoHeight))completion
+    NS_SWIFT_NAME(requestTimelineThumbnail(atMilliseconds:targetPixelWidth:completion:));
+- (void)cancelTimelineThumbnailRequests;
 - (void)requestAudioOutputRecoveryForTesting;
 - (void)stop;
 
