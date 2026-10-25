@@ -610,8 +610,8 @@ enum PlaybackChromeMetrics {
     static let progressThumbnailRadius = WorkbenchControlMetrics.redesignLibraryCoverRadius
     /// --spacing-1: 4px
     static let progressThumbnailGap = WorkbenchControlMetrics.redesignSpacing1
-    /// --delay-player-progress-thumbnail-debounce: 30ms
-    static let progressThumbnailDebounceDelay: TimeInterval = 0.03
+    /// --spacing-1: 4px
+    static let progressWindowEdgeClampInset = WorkbenchControlMetrics.redesignSpacing1
 
     static func progressThumbnailSize(aspectRatio: Double) -> CGSize {
         let resolvedAspectRatio = (aspectRatio.isFinite && aspectRatio > 0)

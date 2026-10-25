@@ -10,7 +10,7 @@ func progressThumbnailTokensAndGeometryFollowSpec() {
     #expect(PlaybackChromeMetrics.progressThumbnailWidth == 160)
     #expect(PlaybackChromeMetrics.progressThumbnailRadius == 8)
     #expect(PlaybackChromeMetrics.progressThumbnailGap == 4)
-    #expect(PlaybackChromeMetrics.progressThumbnailDebounceDelay == 0.03)
+    #expect(PlaybackChromeMetrics.progressWindowEdgeClampInset == 4)
 
     let size16x9 = PlaybackChromeMetrics.progressThumbnailSize(aspectRatio: 16.0 / 9.0)
     #expect(size16x9 == CGSize(width: 160, height: 90))
@@ -31,60 +31,81 @@ func progressThumbnailTokensAndGeometryFollowSpec() {
 
 @MainActor
 @Test
-func progressThumbnailAndTimeCapsuleClampIndependentlyAtTrackEdges() {
-    let containerWidth: CGFloat = 800
+func progressThumbnailAndTimeCapsuleClampAgainstWindowEdgesWithSpacing1Inset() {
+    let windowWidth: CGFloat = 1_000
+    let scrubberOriginXInWindow: CGFloat = 80
+    let scrubberWidth: CGFloat = 840
     let thumbnailWidth = PlaybackChromeMetrics.progressThumbnailWidth // 160
     let capsuleWidth: CGFloat = 46
 
-    // Near left edge (targetX = 40): thumbnail clamps to 0 while time capsule stays centered at 17.
+    // Left end of progress bar (targetX = 0, which is x = 80 in window):
+    // Thumbnail ideal x in scrubber coords is -80 (x = 0 in window), so it clamps to -76 (x = 4 in window, 4px inset).
+    // Time capsule ideal x in scrubber coords is -23 (x = 57 in window), so it stays centered on targetX = 0.
     let leftThumbnailX = PlaybackProgressTimeCapsulePlacementLayout.clampedX(
-        targetX: 40,
+        targetX: 0,
         capsuleWidth: thumbnailWidth,
-        containerWidth: containerWidth
+        containerWidth: scrubberWidth,
+        containerOriginXInWindow: scrubberOriginXInWindow,
+        windowWidth: windowWidth
     )
     let leftCapsuleX = PlaybackProgressTimeCapsulePlacementLayout.clampedX(
-        targetX: 40,
+        targetX: 0,
         capsuleWidth: capsuleWidth,
-        containerWidth: containerWidth
+        containerWidth: scrubberWidth,
+        containerOriginXInWindow: scrubberOriginXInWindow,
+        windowWidth: windowWidth
     )
-    #expect(leftThumbnailX == 0)
-    #expect(leftCapsuleX == 17)
+    #expect(leftThumbnailX == -76)
+    #expect(leftThumbnailX + scrubberOriginXInWindow == 4)
+    #expect(leftCapsuleX == -23)
 
-    // Middle (targetX = 400): both center on 400.
+    // Middle of progress bar (targetX = 420): both center on 420.
     let centerThumbnailX = PlaybackProgressTimeCapsulePlacementLayout.clampedX(
-        targetX: 400,
+        targetX: 420,
         capsuleWidth: thumbnailWidth,
-        containerWidth: containerWidth
+        containerWidth: scrubberWidth,
+        containerOriginXInWindow: scrubberOriginXInWindow,
+        windowWidth: windowWidth
     )
     let centerCapsuleX = PlaybackProgressTimeCapsulePlacementLayout.clampedX(
-        targetX: 400,
+        targetX: 420,
         capsuleWidth: capsuleWidth,
-        containerWidth: containerWidth
+        containerWidth: scrubberWidth,
+        containerOriginXInWindow: scrubberOriginXInWindow,
+        windowWidth: windowWidth
     )
-    #expect(centerThumbnailX == 320)
-    #expect(centerCapsuleX == 377)
+    #expect(centerThumbnailX == 340)
+    #expect(centerCapsuleX == 397)
 
-    // Near right edge (targetX = 760): thumbnail clamps to 640 while time capsule stays centered at 737.
+    // Right end of progress bar (targetX = 840, which is x = 920 in window):
+    // Thumbnail ideal x in scrubber coords is 760 (right edge at 760 + 80 + 160 = 1000 in window),
+    // so it clamps to 756 (right edge at 756 + 80 + 160 = 996 = 1000 - 4 in window).
+    // Time capsule ideal x in scrubber coords is 817 (right edge at 817 + 80 + 46 = 943 <= 996), so it stays centered.
     let rightThumbnailX = PlaybackProgressTimeCapsulePlacementLayout.clampedX(
-        targetX: 760,
+        targetX: 840,
         capsuleWidth: thumbnailWidth,
-        containerWidth: containerWidth
+        containerWidth: scrubberWidth,
+        containerOriginXInWindow: scrubberOriginXInWindow,
+        windowWidth: windowWidth
     )
     let rightCapsuleX = PlaybackProgressTimeCapsulePlacementLayout.clampedX(
-        targetX: 760,
+        targetX: 840,
         capsuleWidth: capsuleWidth,
-        containerWidth: containerWidth
+        containerWidth: scrubberWidth,
+        containerOriginXInWindow: scrubberOriginXInWindow,
+        windowWidth: windowWidth
     )
-    #expect(rightThumbnailX == 640)
-    #expect(rightCapsuleX == 737)
+    #expect(rightThumbnailX == 756)
+    #expect(rightThumbnailX + scrubberOriginXInWindow + thumbnailWidth == windowWidth - 4)
+    #expect(rightCapsuleX == 817)
 }
 
 @MainActor
 @Test
-func timelineThumbnailStoreFiresFirstRequestImmediatelyAndDeduplicatesSameKeyframeAndDebouncesCrossKeyframe() async throws {
+func timelineThumbnailStoreFiresImmediatelyWhenIdleAndCoalescesToLatestWhileInFlight() throws {
     let image0 = try #require(makeTestSolidCGImage(width: 320, height: 180, gray: 40))
-    let image2000 = try #require(makeTestSolidCGImage(width: 320, height: 180, gray: 160))
-    let image4000 = try #require(makeTestSolidCGImage(width: 320, height: 180, gray: 220))
+    let image2000 = try #require(makeTestSolidCGImage(width: 320, height: 180, gray: 120))
+    let image6000 = try #require(makeTestSolidCGImage(width: 320, height: 180, gray: 220))
 
     var requestedTargets: [(milliseconds: Int, pixelWidth: Int)] = []
     var pendingCompletion: (@MainActor (CGImage?, Int, CGSize?) -> Void)?
@@ -92,7 +113,6 @@ func timelineThumbnailStoreFiresFirstRequestImmediatelyAndDeduplicatesSameKeyfra
 
     // Keyframes every 2000ms: [0, 2000, 4000, 6000]
     let store = PlaybackTimelineThumbnailStore(
-        debounceDelay: 0.03,
         keyframeLookup: { ms in
             (max(0, ms) / 2_000) * 2_000
         },
@@ -105,7 +125,7 @@ func timelineThumbnailStoreFiresFirstRequestImmediatelyAndDeduplicatesSameKeyfra
         }
     )
 
-    // 1. First hover enters at 0.3s (keyframe 0ms): fires immediately (0ms debounce), no placeholder image before decode finishes.
+    // 1. First hover enters at 0.3s (keyframe 0ms): fires immediately (0ms), no placeholder before decode finishes.
     store.updatePreview(forSeconds: 0.3, backingScaleFactor: 2.0)
     #expect(requestedTargets.count == 1)
     #expect(requestedTargets[0].milliseconds == 300)
@@ -116,7 +136,7 @@ func timelineThumbnailStoreFiresFirstRequestImmediatelyAndDeduplicatesSameKeyfra
     store.updatePreview(forSeconds: 0.8, backingScaleFactor: 2.0)
     #expect(requestedTargets.count == 1)
 
-    // Complete first decode: image appears and aspect ratio updates.
+    // Complete first decode: image0 appears and aspect ratio updates.
     pendingCompletion?(image0, 0, CGSize(width: 1920, height: 1080))
     #expect(store.thumbnailImage === image0)
     #expect(store.thumbnailAspectRatio == 16.0 / 9.0)
@@ -126,58 +146,93 @@ func timelineThumbnailStoreFiresFirstRequestImmediatelyAndDeduplicatesSameKeyfra
     #expect(requestedTargets.count == 1)
     #expect(store.thumbnailImage === image0)
 
-    // 4. Cross into keyframe 2000ms (at 2.2s), then move within keyframe 2000ms (2.6s) after 15ms:
-    //    Should NOT fire immediately, and moving within keyframe 2000ms must NOT reset the 30ms debounce timer.
+    // 4. Cross into keyframe 2000ms (at 2.2s) while idle: fires immediately (0ms)!
     store.updatePreview(forSeconds: 2.2, backingScaleFactor: 2.0)
-    #expect(requestedTargets.count == 1)
-    #expect(store.thumbnailImage === image0)
-
-    try await Task.sleep(nanoseconds: 15_000_000)
-    store.updatePreview(forSeconds: 2.6, backingScaleFactor: 2.0)
-    #expect(requestedTargets.count == 1)
-
-    // Wait another 25ms (total ~40ms since crossing into keyframe 2000ms, but only 25ms since the 2.6s micro-move):
-    // Because the 2.6s move stayed in keyframe 2000ms and did NOT reset the debounce timer, the request has now fired!
-    try await Task.sleep(nanoseconds: 25_000_000)
     #expect(requestedTargets.count == 2)
     #expect(requestedTargets[1].milliseconds == 2_200)
     // Previous thumbnail stays visible until the new keyframe finishes decoding.
     #expect(store.thumbnailImage === image0)
 
-    pendingCompletion?(image2000, 2_000, CGSize(width: 1920, height: 1080))
-    #expect(store.thumbnailImage === image2000)
-
-    // 5. Rapidly cross into keyframe 4000ms (at 4.1s) and then back into already-displayed keyframe 2000ms (at 2.9s) within 10ms:
-    //    Cancels the pending 4000ms debounce and does not re-decode 2000ms.
-    store.updatePreview(forSeconds: 4.1, backingScaleFactor: 2.0)
-    try await Task.sleep(nanoseconds: 10_000_000)
-    store.updatePreview(forSeconds: 2.9, backingScaleFactor: 2.0)
-    try await Task.sleep(nanoseconds: 35_000_000)
+    // 5. While keyframe 2000ms is in-flight, user scrubs rapidly across keyframe 4000ms (4.3s) to keyframe 6000ms (6.4s):
+    //    Should coalesce intermediate keyframes and keep only the latest target (6.4s -> keyframe 6000ms).
+    store.updatePreview(forSeconds: 4.3, backingScaleFactor: 2.0)
+    store.updatePreview(forSeconds: 6.4, backingScaleFactor: 2.0)
     #expect(requestedTargets.count == 2)
+
+    // As soon as keyframe 2000ms finishes decoding, image2000 is displayed AND keyframe 6000ms starts immediately!
+    let completionFor2000 = pendingCompletion
+    completionFor2000?(image2000, 2_000, CGSize(width: 1920, height: 1080))
     #expect(store.thumbnailImage === image2000)
-
-    // 6. Cross into keyframe 4000ms (at 4.5s) and wait for debounce:
-    store.updatePreview(forSeconds: 4.5, backingScaleFactor: 2.0)
-    try await Task.sleep(nanoseconds: 45_000_000)
     #expect(requestedTargets.count == 3)
-    pendingCompletion?(image4000, 4_000, CGSize(width: 1440, height: 1080))
-    #expect(store.thumbnailImage === image4000)
-    #expect(store.thumbnailAspectRatio == 4.0 / 3.0)
+    #expect(requestedTargets[2].milliseconds == 6_400)
 
-    // 7. Pointer leaves scrubber (clear()): immediately clears thumbnail state and cancels native requests.
+    // Complete keyframe 6000ms: image6000 is displayed and no further request is pending.
+    pendingCompletion?(image6000, 6_000, CGSize(width: 1920, height: 1080))
+    #expect(store.thumbnailImage === image6000)
+    #expect(requestedTargets.count == 3)
+
+    // 6. Clear when pointer exits scrubber: immediately clears image, aspect ratio, and cancels native decoder.
     store.clear()
     #expect(store.thumbnailImage == nil)
     #expect(store.thumbnailAspectRatio == nil)
     #expect(cancelCallCount == 1)
-
-    // 8. Re-entering scrubber after clear fires immediately again without debounce.
-    store.updatePreview(forSeconds: 0.4, backingScaleFactor: 2.0)
-    #expect(requestedTargets.count == 4)
 }
 
-private func makeTestSolidCGImage(width: Int, height: Int, gray: UInt8) -> CGImage? {
-    let bytesPerRow = width * 4
-    var pixels = [UInt8](repeating: gray, count: bytesPerRow * height)
+@MainActor
+@Test
+func scrubberHoverStateKeepsReleasePositionInsideHitAreaAndClearsOutsideHitArea() {
+    var state = PlaybackProgressScrubberHoverState()
+    let trackWidth: CGFloat = 800
+
+    // Hover enters at x = 100 (drag start).
+    state.handlePointerHover(true)
+    state.handleContinuousHoverActive(x: 100)
+    #expect(state.hoverX == 100)
+    #expect(state.isHoveringScrubber == true)
+    #expect(state.isHovered == true)
+
+    // User drags to x = 520; during drag on macOS, .onContinuousHover may fire .ended if cursor drifts vertically,
+    // which must be ignored while dragging, and hoverX must track the drag location.
+    let draggedX = state.handleDragChanged(locationX: 520, trackWidth: trackWidth)
+    state.handleContinuousHoverEnded()
+    #expect(draggedX == 520)
+    #expect(state.isDragging == true)
+    #expect(state.hoverX == 520)
+
+    // Release inside the 18px hit area at (520, 9): hoverX stays at 520 (does NOT flash back to 100).
+    let releasedInsideX = state.handleDragEnded(
+        location: CGPoint(x: 520, y: 9),
+        trackWidth: trackWidth,
+        hitAreaHeight: 18
+    )
+    #expect(releasedInsideX == 520)
+    #expect(state.isDragging == false)
+    #expect(state.hoverX == 520)
+    #expect(state.isHoveringScrubber == true)
+    #expect(state.isHovered == true)
+
+    // Start another drag to x = 680, then release outside the hit area at (680, -30):
+    _ = state.handleDragChanged(locationX: 680, trackWidth: trackWidth)
+    let releasedOutsideX = state.handleDragEnded(
+        location: CGPoint(x: 680, y: -30),
+        trackWidth: trackWidth,
+        hitAreaHeight: 18
+    )
+    #expect(releasedOutsideX == 680)
+    #expect(state.isDragging == false)
+    #expect(state.hoverX == nil)
+    #expect(state.isHoveringScrubber == false)
+    #expect(state.isHovered == false)
+}
+
+private func makeTestSolidCGImage(
+    width: Int,
+    height: Int,
+    gray: UInt8
+) -> CGImage? {
+    let bytesPerPixel = 4
+    let bytesPerRow = width * bytesPerPixel
+    var pixels = [UInt8](repeating: gray, count: height * bytesPerRow)
     for index in stride(from: 3, to: pixels.count, by: 4) {
         pixels[index] = 255
     }
@@ -197,7 +252,7 @@ private func makeTestSolidCGImage(width: Int, height: Int, gray: UInt8) -> CGIma
         bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
         provider: provider,
         decode: nil,
-        shouldInterpolate: false,
+        shouldInterpolate: true,
         intent: .defaultIntent
     )
 }

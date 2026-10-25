@@ -12,24 +12,27 @@ final class PlaybackTimelineThumbnailStore: ObservableObject {
     ) -> Void
     typealias CancelRequests = @MainActor () -> Void
 
+    private struct PendingRequest: Equatable {
+        let targetMilliseconds: Int
+        let keyframeIdentity: Int
+        let targetPixelWidth: Int
+    }
+
     @Published private(set) var thumbnailImage: CGImage?
     @Published private(set) var thumbnailAspectRatio: Double?
 
     private let keyframeLookup: KeyframeLookup
     private let requestThumbnail: ThumbnailRequester
     private let cancelRequests: CancelRequests
-    private let debounceDelay: TimeInterval
 
     private var isSessionActive = false
-    private var activeTargetKeyframeIdentity: Int?
     private var displayedKeyframeIdentity: Int?
-    private var inFlightKeyframeIdentity: Int?
-    private var debounceTask: Task<Void, Never>?
+    private var inFlightRequest: PendingRequest?
+    private var pendingLatestRequest: PendingRequest?
     private var activeRequestGeneration: UInt64 = 0
 
     convenience init(player: PlaybackPlayer) {
         self.init(
-            debounceDelay: PlaybackChromeMetrics.progressThumbnailDebounceDelay,
             keyframeLookup: { [weak player] milliseconds in
                 player?.keyframeTimestampMilliseconds(forTargetMilliseconds: milliseconds)
             },
@@ -51,12 +54,10 @@ final class PlaybackTimelineThumbnailStore: ObservableObject {
     }
 
     init(
-        debounceDelay: TimeInterval = PlaybackChromeMetrics.progressThumbnailDebounceDelay,
         keyframeLookup: @escaping KeyframeLookup,
         requestThumbnail: @escaping ThumbnailRequester,
         cancelRequests: @escaping CancelRequests
     ) {
-        self.debounceDelay = debounceDelay
         self.keyframeLookup = keyframeLookup
         self.requestThumbnail = requestThumbnail
         self.cancelRequests = cancelRequests
@@ -76,56 +77,38 @@ final class PlaybackTimelineThumbnailStore: ObservableObject {
             Int((PlaybackChromeMetrics.progressThumbnailWidth * resolvedScale).rounded())
         )
         let keyframeIdentity = keyframeLookup(targetMilliseconds) ?? targetMilliseconds
+        let candidate = PendingRequest(
+            targetMilliseconds: targetMilliseconds,
+            keyframeIdentity: keyframeIdentity,
+            targetPixelWidth: targetPixelWidth
+        )
 
-        if !isSessionActive {
-            isSessionActive = true
-            activeTargetKeyframeIdentity = keyframeIdentity
-            performThumbnailRequest(
-                targetMilliseconds: targetMilliseconds,
-                keyframeIdentity: keyframeIdentity,
-                targetPixelWidth: targetPixelWidth
-            )
-            return
-        }
+        isSessionActive = true
 
-        guard keyframeIdentity != activeTargetKeyframeIdentity else {
-            return
-        }
-
-        activeTargetKeyframeIdentity = keyframeIdentity
-        debounceTask?.cancel()
-        debounceTask = nil
-
-        if (displayedKeyframeIdentity == keyframeIdentity && thumbnailImage != nil && inFlightKeyframeIdentity == nil)
-            || inFlightKeyframeIdentity == keyframeIdentity {
-            return
-        }
-
-        let delayNanoseconds = UInt64(max(0, debounceDelay) * 1_000_000_000)
-        debounceTask = Task { @MainActor [weak self] in
-            if delayNanoseconds > 0 {
-                try? await Task.sleep(nanoseconds: delayNanoseconds)
-            }
-            guard !Task.isCancelled,
-                  let self,
-                  self.isSessionActive,
-                  self.activeTargetKeyframeIdentity == keyframeIdentity
-            else {
+        if let inFlight = inFlightRequest {
+            if inFlight.keyframeIdentity == keyframeIdentity {
+                pendingLatestRequest = nil
                 return
             }
-            self.debounceTask = nil
-            self.performThumbnailRequest(
-                targetMilliseconds: targetMilliseconds,
-                keyframeIdentity: keyframeIdentity,
-                targetPixelWidth: targetPixelWidth
-            )
+            if pendingLatestRequest?.keyframeIdentity == keyframeIdentity {
+                return
+            }
+            pendingLatestRequest = candidate
+            return
         }
+
+        if displayedKeyframeIdentity == keyframeIdentity, thumbnailImage != nil {
+            pendingLatestRequest = nil
+            return
+        }
+
+        startRequest(candidate)
     }
 
     func clear() {
         let hadActiveState = isSessionActive
-            || debounceTask != nil
-            || inFlightKeyframeIdentity != nil
+            || inFlightRequest != nil
+            || pendingLatestRequest != nil
             || thumbnailImage != nil
             || thumbnailAspectRatio != nil
         guard hadActiveState else {
@@ -133,11 +116,9 @@ final class PlaybackTimelineThumbnailStore: ObservableObject {
         }
 
         isSessionActive = false
-        activeTargetKeyframeIdentity = nil
         displayedKeyframeIdentity = nil
-        inFlightKeyframeIdentity = nil
-        debounceTask?.cancel()
-        debounceTask = nil
+        inFlightRequest = nil
+        pendingLatestRequest = nil
         activeRequestGeneration &+= 1
         if thumbnailImage != nil {
             thumbnailImage = nil
@@ -148,59 +129,118 @@ final class PlaybackTimelineThumbnailStore: ObservableObject {
         cancelRequests()
     }
 
-    private func performThumbnailRequest(
-        targetMilliseconds: Int,
-        keyframeIdentity: Int,
-        targetPixelWidth: Int
-    ) {
+    private func startRequest(_ request: PendingRequest) {
         activeRequestGeneration &+= 1
         let generation = activeRequestGeneration
-        inFlightKeyframeIdentity = keyframeIdentity
+        inFlightRequest = request
 
-        requestThumbnail(targetMilliseconds, targetPixelWidth) { [weak self] image, _, videoSize in
+        requestThumbnail(request.targetMilliseconds, request.targetPixelWidth) { [weak self] image, _, videoSize in
             guard let self,
-                  self.isSessionActive,
-                  self.activeRequestGeneration == generation
+                 self.isSessionActive,
+                 self.activeRequestGeneration == generation
             else {
                 return
             }
 
-            self.inFlightKeyframeIdentity = nil
-            guard let image else {
-                return
+            self.inFlightRequest = nil
+            if let image {
+                if let videoSize, videoSize.width > 0, videoSize.height > 0 {
+                    let nextAspectRatio = Double(videoSize.width / videoSize.height)
+                    if nextAspectRatio.isFinite,
+                       nextAspectRatio > 0,
+                       self.thumbnailAspectRatio != nextAspectRatio {
+                        self.thumbnailAspectRatio = nextAspectRatio
+                    }
+                }
+                self.displayedKeyframeIdentity = request.keyframeIdentity
+                self.thumbnailImage = image
             }
 
-            if let videoSize, videoSize.width > 0, videoSize.height > 0 {
-                let nextAspectRatio = Double(videoSize.width / videoSize.height)
-                if nextAspectRatio.isFinite,
-                   nextAspectRatio > 0,
-                   self.thumbnailAspectRatio != nextAspectRatio {
-                    self.thumbnailAspectRatio = nextAspectRatio
+            if let nextRequest = self.pendingLatestRequest {
+                self.pendingLatestRequest = nil
+                if nextRequest.keyframeIdentity != self.displayedKeyframeIdentity || self.thumbnailImage == nil {
+                    self.startRequest(nextRequest)
                 }
             }
-            self.displayedKeyframeIdentity = keyframeIdentity
-            self.thumbnailImage = image
         }
     }
 }
 
+struct PlaybackProgressScrubberHoverState: Equatable {
+    var isHovered = false
+    var isHoveringScrubber = false
+    var isDragging = false
+    var hoverX: CGFloat? = nil
+
+    mutating func handlePointerHover(_ hovered: Bool) {
+        isHovered = hovered
+    }
+
+    mutating func handleContinuousHoverActive(x: CGFloat) {
+        hoverX = x
+        isHoveringScrubber = true
+    }
+
+    mutating func handleContinuousHoverEnded() {
+        guard !isDragging else {
+            return
+        }
+        hoverX = nil
+        isHoveringScrubber = false
+    }
+
+    mutating func handleDragChanged(locationX: CGFloat, trackWidth: CGFloat) -> CGFloat {
+        isDragging = true
+        let clampedX = min(max(locationX, 0), max(0, trackWidth))
+        hoverX = clampedX
+        return clampedX
+    }
+
+    mutating func handleDragEnded(
+        location: CGPoint,
+        trackWidth: CGFloat,
+        hitAreaHeight: CGFloat = PlaybackChromeMetrics.progressHitAreaHeight
+    ) -> CGFloat {
+        isDragging = false
+        let clampedX = min(max(location.x, 0), max(0, trackWidth))
+        let hitBounds = CGRect(
+            x: 0,
+            y: 0,
+            width: max(0, trackWidth),
+            height: max(0, hitAreaHeight)
+        )
+        if hitBounds.contains(location) {
+            hoverX = clampedX
+            isHoveringScrubber = true
+            isHovered = true
+        } else {
+            hoverX = nil
+            isHoveringScrubber = false
+            isHovered = false
+        }
+        return clampedX
+    }
+}
+
 struct PlaybackProgressScrubber: View {
+    static let windowCoordinateSpaceName = "PlaybackProgressScrubberWindowSpace"
+
     @Environment(\.displayScale) private var displayScale
     @ObservedObject var viewModel: PlaybackViewModel
     @ObservedObject var timeline: PlaybackTimelineInteractionStore
     @ObservedObject private var scrubTimeStore: PlaybackTimelineScrubTimeStore
     @ObservedObject private var thumbnailStore: PlaybackTimelineThumbnailStore
-    @State private var isHovered = false
-    @State private var isDragging = false
-    @State private var hoverX: CGFloat? = nil
-    @State private var isHoveringScrubber = false
+    let windowWidth: CGFloat?
+    @State private var hoverState = PlaybackProgressScrubberHoverState()
 
     init(
         viewModel: PlaybackViewModel,
-        timeline: PlaybackTimelineInteractionStore
+        timeline: PlaybackTimelineInteractionStore,
+        windowWidth: CGFloat? = nil
     ) {
         self.viewModel = viewModel
         self.timeline = timeline
+        self.windowWidth = windowWidth
         _scrubTimeStore = ObservedObject(wrappedValue: timeline.scrubTimeStore)
         _thumbnailStore = ObservedObject(wrappedValue: viewModel.timelineThumbnailStore)
     }
@@ -210,23 +250,24 @@ struct PlaybackProgressScrubber: View {
             let duration = viewModel.duration.isFinite ? max(0, viewModel.duration) : 0
             let hasDuration = duration > 0
             let isScrubbing = hasDuration && scrubTimeStore.scrubTime != nil
-            let isInteractiveHover = hasDuration && isHovered
+            let isInteractiveHover = hasDuration && hoverState.isHovered
             let displayTime = scrubTimeStore.scrubTime ?? viewModel.displayedCurrentTime
             let progress = hasDuration
                 ? min(max(displayTime / duration, 0), 1)
                 : 0
             let width = max(0, geometry.size.width)
+            let scrubberOriginXInWindow = geometry.frame(in: .named(Self.windowCoordinateSpaceName)).minX
             let filledWidth = width * progress
             let trackHeight: CGFloat = (isInteractiveHover || isScrubbing)
                 ? PlaybackChromeMetrics.progressTrackHoverHeight
                 : PlaybackChromeMetrics.progressTrackHeight
 
-            let targetX = isScrubbing ? filledWidth : hoverX
+            let targetX = isScrubbing ? filledWidth : hoverState.hoverX
             let tooltipTime: Double = {
                 if let scrubTime = scrubTimeStore.scrubTime {
                     return scrubTime
                 }
-                if let hoverX = hoverX {
+                if let hoverX = hoverState.hoverX {
                     return seekTime(for: hoverX, width: width, duration: duration)
                 }
                 return viewModel.displayedCurrentTime
@@ -237,7 +278,7 @@ struct PlaybackProgressScrubber: View {
                     .fill(PlaybackTheme.progressTrack)
                     .frame(height: trackHeight)
 
-                if !isScrubbing, isInteractiveHover, isHoveringScrubber, let hoverX = hoverX {
+                if !isScrubbing, isInteractiveHover, hoverState.isHoveringScrubber, let hoverX = hoverState.hoverX {
                     Capsule()
                         .fill(PlaybackTheme.progressHoverTrack)
                         .frame(width: max(0, hoverX), height: trackHeight)
@@ -260,19 +301,21 @@ struct PlaybackProgressScrubber: View {
             .contentShape(Rectangle())
             .playerInteractiveRegion()
             .onPointerHover { hovered in
-                isHovered = hovered
-                syncThumbnailPreview(width: width, duration: duration)
+                hoverState.handlePointerHover(hovered)
+                if !hoverState.isDragging {
+                    syncThumbnailPreview(width: width, duration: duration)
+                }
             }
             .onContinuousHover { phase in
                 switch phase {
                 case .active(let point):
-                    hoverX = point.x
-                    isHoveringScrubber = true
+                    hoverState.handleContinuousHoverActive(x: point.x)
                 case .ended:
-                    hoverX = nil
-                    isHoveringScrubber = false
+                    hoverState.handleContinuousHoverEnded()
                 }
-                syncThumbnailPreview(width: width, duration: duration)
+                if !hoverState.isDragging {
+                    syncThumbnailPreview(width: width, duration: duration)
+                }
             }
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -281,7 +324,11 @@ struct PlaybackProgressScrubber: View {
                             return
                         }
                         beginScrubbingIfNeeded()
-                        let targetTime = seekTime(for: value.location.x, width: width, duration: duration)
+                        let clampedX = hoverState.handleDragChanged(
+                            locationX: value.location.x,
+                            trackWidth: width
+                        )
+                        let targetTime = seekTime(for: clampedX, width: width, duration: duration)
                         scrubTimeStore.scrubTime = targetTime
                         viewModel.updateTimelineScrubbing(to: targetTime)
                         viewModel.updateTimelineThumbnailPreview(
@@ -291,14 +338,22 @@ struct PlaybackProgressScrubber: View {
                     }
                     .onEnded { value in
                         guard hasDuration, width > 0 else {
-                            if isDragging {
+                            if hoverState.isDragging {
                                 viewModel.cancelTimelineScrubbing()
                                 endScrubbingIfNeeded()
                             }
+                            _ = hoverState.handleDragEnded(
+                                location: value.location,
+                                trackWidth: width
+                            )
                             syncThumbnailPreview(width: width, duration: duration)
                             return
                         }
-                        let finalTime = seekTime(for: value.location.x, width: width, duration: duration)
+                        let clampedX = hoverState.handleDragEnded(
+                            location: value.location,
+                            trackWidth: width
+                        )
+                        let finalTime = seekTime(for: clampedX, width: width, duration: duration)
                         scrubTimeStore.scrubTime = finalTime
                         viewModel.endTimelineScrubbing(to: finalTime)
                         endScrubbingIfNeeded()
@@ -311,13 +366,17 @@ struct PlaybackProgressScrubber: View {
             }
             .overlay(
                 Group {
-                    if let targetX = targetX, ((isInteractiveHover && isHoveringScrubber) || isScrubbing) {
+                    if let targetX = targetX, ((isInteractiveHover && hoverState.isHoveringScrubber) || isScrubbing) {
                         if let thumbnailImage = thumbnailStore.thumbnailImage {
                             let aspectRatio = thumbnailStore.thumbnailAspectRatio ?? viewModel.videoAspectRatio
                             let thumbnailSize = PlaybackChromeMetrics.progressThumbnailSize(
                                 aspectRatio: aspectRatio
                             )
-                            PlaybackProgressTimeCapsulePlacementLayout(targetX: targetX) {
+                            PlaybackProgressTimeCapsulePlacementLayout(
+                                targetX: targetX,
+                                containerOriginXInWindow: scrubberOriginXInWindow,
+                                windowWidth: windowWidth
+                            ) {
                                 Image(
                                     decorative: thumbnailImage,
                                     scale: max(1, displayScale),
@@ -344,7 +403,11 @@ struct PlaybackProgressScrubber: View {
                             .allowsHitTesting(false)
                         }
 
-                        PlaybackProgressTimeCapsulePlacementLayout(targetX: targetX) {
+                        PlaybackProgressTimeCapsulePlacementLayout(
+                            targetX: targetX,
+                            containerOriginXInWindow: scrubberOriginXInWindow,
+                            windowWidth: windowWidth
+                        ) {
                             Text(formatPlaybackTime(tooltipTime))
                                 .font(.system(
                                     size: PlaybackChromeMetrics.progressTimeFontSize,
@@ -373,7 +436,7 @@ struct PlaybackProgressScrubber: View {
         }
         .frame(height: PlaybackChromeMetrics.progressHitAreaHeight)
         .onDisappear {
-            if isDragging {
+            if hoverState.isDragging {
                 viewModel.cancelTimelineScrubbing()
             }
             endScrubbingIfNeeded()
@@ -395,7 +458,7 @@ struct PlaybackProgressScrubber: View {
             return
         }
 
-        if isHovered, isHoveringScrubber, let hoverX {
+        if hoverState.isHovered, hoverState.isHoveringScrubber, let hoverX = hoverState.hoverX {
             let targetTime = seekTime(for: hoverX, width: width, duration: duration)
             viewModel.updateTimelineThumbnailPreview(
                 at: targetTime,
@@ -408,21 +471,17 @@ struct PlaybackProgressScrubber: View {
     }
 
     private func beginScrubbingIfNeeded() {
-        guard !isDragging else {
+        guard !hoverState.isDragging else {
             return
         }
 
-        isDragging = true
+        hoverState.isDragging = true
         viewModel.beginTimelineScrubbing()
         timeline.isScrubbing = true
     }
 
     private func endScrubbingIfNeeded() {
-        guard isDragging else {
-            return
-        }
-
-        isDragging = false
+        hoverState.isDragging = false
         scrubTimeStore.scrubTime = nil
         timeline.isScrubbing = false
     }
@@ -449,14 +508,27 @@ struct PlaybackProgressScrubber: View {
 
 struct PlaybackProgressTimeCapsulePlacementLayout: Layout {
     let targetX: CGFloat
+    var containerOriginXInWindow: CGFloat = 0
+    var windowWidth: CGFloat? = nil
+    var windowEdgeInset: CGFloat = PlaybackChromeMetrics.progressWindowEdgeClampInset
 
     static func clampedX(
         targetX: CGFloat,
         capsuleWidth: CGFloat,
-        containerWidth: CGFloat
+        containerWidth: CGFloat,
+        containerOriginXInWindow: CGFloat = 0,
+        windowWidth: CGFloat? = nil,
+        windowEdgeInset: CGFloat = PlaybackChromeMetrics.progressWindowEdgeClampInset
     ) -> CGFloat {
-        let maxX = max(0, containerWidth - max(0, capsuleWidth))
-        return min(max(targetX - max(0, capsuleWidth) / 2, 0), maxX)
+        let resolvedItemWidth = max(0, capsuleWidth)
+        if let windowWidth, windowWidth.isFinite, windowWidth > 0 {
+            let resolvedInset = max(0, windowEdgeInset)
+            let minX = -containerOriginXInWindow + resolvedInset
+            let maxX = max(minX, windowWidth - containerOriginXInWindow - resolvedInset - resolvedItemWidth)
+            return min(max(targetX - resolvedItemWidth / 2, minX), maxX)
+        }
+        let maxX = max(0, containerWidth - resolvedItemWidth)
+        return min(max(targetX - resolvedItemWidth / 2, 0), maxX)
     }
 
     func sizeThatFits(
@@ -484,7 +556,10 @@ struct PlaybackProgressTimeCapsulePlacementLayout: Layout {
         let x = Self.clampedX(
             targetX: targetX,
             capsuleWidth: naturalSize.width,
-            containerWidth: bounds.width
+            containerWidth: bounds.width,
+            containerOriginXInWindow: containerOriginXInWindow,
+            windowWidth: windowWidth,
+            windowEdgeInset: windowEdgeInset
         )
         subview.place(
             at: CGPoint(x: bounds.minX + x, y: bounds.minY),

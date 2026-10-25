@@ -147,11 +147,16 @@ struct PlaybackChromeView: View {
     }
 
     private var scrubberRow: some View {
-        PlaybackProgressScrubberRow(
-            viewModel: viewModel,
-            timeline: timeline
-        )
-        .padding(.horizontal, PlaybackChromeMetrics.progressRowHorizontalPadding)
+        GeometryReader { rowGeometry in
+            PlaybackProgressScrubberRow(
+                viewModel: viewModel,
+                timeline: timeline,
+                windowWidth: rowGeometry.size.width
+            )
+            .padding(.horizontal, PlaybackChromeMetrics.progressRowHorizontalPadding)
+            .coordinateSpace(name: PlaybackProgressScrubber.windowCoordinateSpaceName)
+        }
+        .frame(height: PlaybackChromeMetrics.progressHitAreaHeight)
     }
 
     private var previousTooltipLabel: String {
@@ -332,13 +337,16 @@ private struct PlaybackProgressScrubberRow: View {
     @ObservedObject var viewModel: PlaybackViewModel
     @ObservedObject var timeline: PlaybackTimelineInteractionStore
     @ObservedObject private var scrubTimeStore: PlaybackTimelineScrubTimeStore
+    let windowWidth: CGFloat?
 
     init(
         viewModel: PlaybackViewModel,
-        timeline: PlaybackTimelineInteractionStore
+        timeline: PlaybackTimelineInteractionStore,
+        windowWidth: CGFloat? = nil
     ) {
         self.viewModel = viewModel
         self.timeline = timeline
+        self.windowWidth = windowWidth
         _scrubTimeStore = ObservedObject(wrappedValue: timeline.scrubTimeStore)
     }
 
@@ -356,7 +364,8 @@ private struct PlaybackProgressScrubberRow: View {
 
             PlaybackProgressScrubber(
                 viewModel: viewModel,
-                timeline: timeline
+                timeline: timeline,
+                windowWidth: windowWidth
             )
 
             Text("-\(formatPlaybackSeconds(displayedRemainingSeconds))")
