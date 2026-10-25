@@ -344,7 +344,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-player-volume-value`: `32px`
 - `--max-width-player-audio-track-menu`: `300px`
 - `--size-player-progress-thumb`: `12px`
-- `--width-player-progress-thumbnail`: `160px`
+- `--width-player-progress-thumbnail`: `240px`
 - `--size-player-cue-status-dot`: `6px`
 - `--size-player-cue-stepper-button`: `--height-player-cue-control` 减去两倍 `--padding-player-cue-stepper` (`24px`)
 - `--size-player-cue-stepper-icon`: `14px`
