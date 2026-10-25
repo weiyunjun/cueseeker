@@ -604,8 +604,8 @@ enum PlaybackChromeMetrics {
     /// --spacing-1: 4px
     static let progressTimeCapsuleGap = WorkbenchControlMetrics.redesignSpacing1
     static let progressTimeCapsuleYOffset: CGFloat = -(progressTimeCapsuleHeight + progressTimeCapsuleGap)
-    /// --width-player-progress-thumbnail: 160px
-    static let progressThumbnailWidth: CGFloat = 160
+    /// --width-player-progress-thumbnail: 240px
+    static let progressThumbnailWidth: CGFloat = 240
     /// --radius-library-cover: 8px
     static let progressThumbnailRadius = WorkbenchControlMetrics.redesignLibraryCoverRadius
     /// --spacing-1: 4px

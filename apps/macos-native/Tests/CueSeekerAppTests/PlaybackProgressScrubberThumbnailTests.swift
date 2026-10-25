@@ -11,26 +11,26 @@ struct PlaybackProgressScrubberThumbnailTests {
 @MainActor
 @Test
 func progressThumbnailTokensAndGeometryFollowSpec() {
-    #expect(PlaybackChromeMetrics.progressThumbnailWidth == 160)
+    #expect(PlaybackChromeMetrics.progressThumbnailWidth == 240)
     #expect(PlaybackChromeMetrics.progressThumbnailRadius == 8)
     #expect(PlaybackChromeMetrics.progressThumbnailGap == 4)
     #expect(PlaybackChromeMetrics.progressWindowEdgeClampInset == 4)
 
     let size16x9 = PlaybackChromeMetrics.progressThumbnailSize(aspectRatio: 16.0 / 9.0)
-    #expect(size16x9 == CGSize(width: 160, height: 90))
+    #expect(size16x9 == CGSize(width: 240, height: 135))
 
     let size4x3 = PlaybackChromeMetrics.progressThumbnailSize(aspectRatio: 4.0 / 3.0)
-    #expect(size4x3 == CGSize(width: 160, height: 120))
+    #expect(size4x3 == CGSize(width: 240, height: 180))
 
     let size21x9 = PlaybackChromeMetrics.progressThumbnailSize(aspectRatio: 2.39)
-    #expect(size21x9 == CGSize(width: 160, height: 67))
+    #expect(size21x9 == CGSize(width: 240, height: 100))
 
     let fallbackSize = PlaybackChromeMetrics.progressThumbnailSize(aspectRatio: 0)
-    #expect(fallbackSize == CGSize(width: 160, height: 90))
+    #expect(fallbackSize == CGSize(width: 240, height: 135))
 
-    let yOffset = PlaybackChromeMetrics.progressThumbnailYOffset(thumbnailHeight: 90)
-    // Time capsule top is at -26 (-22 height - 4 gap), thumbnail bottom is 4px above it (-30), so top is -120.
-    #expect(yOffset == -120)
+    let yOffset = PlaybackChromeMetrics.progressThumbnailYOffset(thumbnailHeight: 135)
+    // Time capsule top is at -26 (-22 height - 4 gap), thumbnail bottom is 4px above it (-30), so top is -165.
+    #expect(yOffset == -165)
 }
 
 @MainActor
@@ -39,11 +39,11 @@ func progressThumbnailAndTimeCapsuleClampAgainstWindowEdgesWithSpacing1Inset() {
     let windowWidth: CGFloat = 1_000
     let scrubberOriginXInWindow: CGFloat = 80
     let scrubberWidth: CGFloat = 840
-    let thumbnailWidth = PlaybackChromeMetrics.progressThumbnailWidth // 160
+    let thumbnailWidth = PlaybackChromeMetrics.progressThumbnailWidth // 240
     let capsuleWidth: CGFloat = 46
 
     // Left end of progress bar (targetX = 0, which is x = 80 in window):
-    // Thumbnail ideal x in scrubber coords is -80 (x = 0 in window), so it clamps to -76 (x = 4 in window, 4px inset).
+    // Thumbnail ideal x in scrubber coords is -120 (x = -40 in window), so it clamps to -76 (x = 4 in window, 4px inset).
     // Time capsule ideal x in scrubber coords is -23 (x = 57 in window), so it stays centered on targetX = 0.
     let leftThumbnailX = PlaybackProgressTimeCapsulePlacementLayout.clampedX(
         targetX: 0,
@@ -78,12 +78,12 @@ func progressThumbnailAndTimeCapsuleClampAgainstWindowEdgesWithSpacing1Inset() {
         containerOriginXInWindow: scrubberOriginXInWindow,
         windowWidth: windowWidth
     )
-    #expect(centerThumbnailX == 340)
+    #expect(centerThumbnailX == 300)
     #expect(centerCapsuleX == 397)
 
     // Right end of progress bar (targetX = 840, which is x = 920 in window):
-    // Thumbnail ideal x in scrubber coords is 760 (right edge at 760 + 80 + 160 = 1000 in window),
-    // so it clamps to 756 (right edge at 756 + 80 + 160 = 996 = 1000 - 4 in window).
+    // Thumbnail ideal x in scrubber coords is 720 (right edge at 720 + 80 + 240 = 1040 in window),
+    // so it clamps to 676 (right edge at 676 + 80 + 240 = 996 = 1000 - 4 in window).
     // Time capsule ideal x in scrubber coords is 817 (right edge at 817 + 80 + 46 = 943 <= 996), so it stays centered.
     let rightThumbnailX = PlaybackProgressTimeCapsulePlacementLayout.clampedX(
         targetX: 840,
@@ -99,7 +99,7 @@ func progressThumbnailAndTimeCapsuleClampAgainstWindowEdgesWithSpacing1Inset() {
         containerOriginXInWindow: scrubberOriginXInWindow,
         windowWidth: windowWidth
     )
-    #expect(rightThumbnailX == 756)
+    #expect(rightThumbnailX == 676)
     #expect(rightThumbnailX + scrubberOriginXInWindow + thumbnailWidth == windowWidth - 4)
     #expect(rightCapsuleX == 817)
 }
@@ -133,7 +133,7 @@ func timelineThumbnailStoreFiresImmediatelyWhenIdleAndCoalescesToLatestWhileInFl
     store.updatePreview(forSeconds: 0.3, backingScaleFactor: 2.0)
     #expect(requestedTargets.count == 1)
     #expect(requestedTargets[0].milliseconds == 300)
-    #expect(requestedTargets[0].pixelWidth == 320)
+    #expect(requestedTargets[0].pixelWidth == 480)
     #expect(store.thumbnailImage == nil)
 
     // 2. Micro-movement within the same keyframe interval (0.8s -> keyframe 0ms) while in-flight: no duplicate request.
