@@ -3,10 +3,18 @@ import CoreText
 import CueSeekerCore
 import Foundation
 
-/// Fonts for one layout, each sized directly at the scaled point size.
+/// Fonts for one layout, each scaled so its libass line height (`WinAscent +
+/// WinDescent`) equals `lineHeight`.
 struct SRTFontCache {
+    struct ResolvedFont {
+        let font: CTFont
+        let ascent: CGFloat
+        let descent: CGFloat
+        let syntheticBoldWidth: CGFloat
+    }
+
     let lineHeight: CGFloat
-    private var fonts: [String: (font: CTFont, syntheticBoldWidth: CGFloat)] = [:]
+    private var fonts: [String: ResolvedFont] = [:]
 
     init(lineHeight: CGFloat) {
         self.lineHeight = lineHeight
@@ -18,7 +26,7 @@ struct SRTFontCache {
         for face: CTFont,
         bold: Bool,
         italic: Bool
-    ) -> (font: CTFont, syntheticBoldWidth: CGFloat) {
+    ) -> ResolvedFont {
         let key = "\(CTFontCopyPostScriptName(face))|\(bold)|\(italic)"
         if let cached = fonts[key] {
             return cached
@@ -40,7 +48,8 @@ struct SRTFontCache {
             needsSyntheticItalic = false
         }
 
-        let pointSize = lineHeight
+        let metrics = Self.lineMetrics(for: font, lineHeight: lineHeight)
+        let pointSize = metrics.pointSize
         if needsSyntheticItalic {
             var slant = CGAffineTransform(
                 a: 1,
@@ -56,12 +65,63 @@ struct SRTFontCache {
         }
 
         // libass widens a synthetic bold outline by a 64th of the size.
-        let resolved = (
+        let resolved = ResolvedFont(
             font: font,
+            ascent: metrics.ascent,
+            descent: metrics.descent,
             syntheticBoldWidth: needsSyntheticBold ? pointSize / 64 : 0
         )
         fonts[key] = resolved
         return resolved
+    }
+
+    /// Matches libass `ass_font_get_asc_desc`: prefers OS/2 `usWinAscent` and
+    /// `usWinDescent`, then `sTypoAscender` and `-sTypoDescender`, then the
+    /// face's CoreText ascent and descent.
+    private static func lineMetrics(
+        for font: CTFont,
+        lineHeight: CGFloat
+    ) -> (pointSize: CGFloat, ascent: CGFloat, descent: CGFloat) {
+        let unitsPerEm = CGFloat(max(1, CTFontGetUnitsPerEm(font)))
+        if let os2 = CTFontCopyTable(font, CTFontTableTag(kCTFontTableOS2), []) as Data? {
+            if os2.count >= 78 {
+                let winAscent = Int(readInt16BE(os2, offset: 74))
+                let winDescent = Int(readInt16BE(os2, offset: 76))
+                if winAscent + winDescent > 0 {
+                    let asc = CGFloat(winAscent)
+                    let desc = CGFloat(winDescent)
+                    let total = asc + desc
+                    let pointSize = lineHeight * (unitsPerEm / total)
+                    let ascent = lineHeight * (asc / total)
+                    return (pointSize, ascent, lineHeight - ascent)
+                }
+            }
+            if os2.count >= 72 {
+                let typoAscent = Int(readInt16BE(os2, offset: 68))
+                let typoDescent = Int(readInt16BE(os2, offset: 70))
+                if typoAscent - typoDescent > 0 {
+                    let asc = CGFloat(typoAscent)
+                    let desc = CGFloat(-typoDescent)
+                    let total = asc + desc
+                    let pointSize = lineHeight * (unitsPerEm / total)
+                    let ascent = lineHeight * (asc / total)
+                    return (pointSize, ascent, lineHeight - ascent)
+                }
+            }
+        }
+        let baseSize = max(1, CTFontGetSize(font))
+        let asc = max(0, CTFontGetAscent(font))
+        let desc = max(0, CTFontGetDescent(font))
+        let total = max(1, asc + desc)
+        let pointSize = lineHeight * (baseSize / total)
+        let ascent = lineHeight * (asc / total)
+        return (pointSize, ascent, lineHeight - ascent)
+    }
+
+    private static func readInt16BE(_ data: Data, offset: Int) -> Int16 {
+        let high = UInt16(data[data.startIndex + offset])
+        let low = UInt16(data[data.startIndex + offset + 1])
+        return Int16(bitPattern: (high << 8) | low)
     }
 
     /// libass slants PostScript outlines by 10° and TrueType ones by GDI's
@@ -76,7 +136,10 @@ struct SRTFontCache {
 }
 
 enum SRTInlineText {
+    static let ascentKey = NSAttributedString.Key("CueSeekerSRTAscent")
+    static let descentKey = NSAttributedString.Key("CueSeekerSRTDescent")
     static let syntheticBoldWidthKey = NSAttributedString.Key("CueSeekerSRTSyntheticBoldWidth")
+    static let underlineKey = NSAttributedString.Key("CueSeekerSRTUnderline")
 
     private struct Style {
         var bold = 0
@@ -212,13 +275,19 @@ enum SRTInlineText {
             var attributes: [NSAttributedString.Key: Any] = [
                 .font: resolved.font,
                 .foregroundColor: style.colors.last ?? metrics.style.textColor.nsColor,
-                .paragraphStyle: paragraph
+                .paragraphStyle: paragraph,
+                ascentKey: resolved.ascent,
+                descentKey: resolved.descent
             ]
-            if metrics.letterSpacing != 0 {
-                attributes[.kern] = metrics.letterSpacing
+            let extraAdvance = metrics.letterSpacing + resolved.syntheticBoldWidth
+            if extraAdvance != 0 {
+                attributes[.kern] = extraAdvance
+            }
+            if metrics.letterSpacing > 0 {
+                attributes[.ligature] = 0
             }
             if style.underline > 0 {
-                attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                attributes[underlineKey] = true
             }
             if resolved.syntheticBoldWidth > 0 {
                 attributes[syntheticBoldWidthKey] = resolved.syntheticBoldWidth

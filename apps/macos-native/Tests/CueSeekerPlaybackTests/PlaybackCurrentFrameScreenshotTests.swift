@@ -235,6 +235,6 @@ private func containsBrightPixel(_ image: CGImage) -> Bool {
         in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
     )
     return stride(from: 0, to: bytes.count, by: 4).contains {
-        bytes[$0] > 240 && bytes[$0 + 1] > 240 && bytes[$0 + 2] > 240
+        bytes[$0] > 180 && bytes[$0 + 1] > 180 && bytes[$0 + 2] > 180
     }
 }

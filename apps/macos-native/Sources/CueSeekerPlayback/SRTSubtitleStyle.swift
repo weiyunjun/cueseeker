@@ -2,8 +2,8 @@ import Foundation
 
 /// How SRT subtitles look and where they sit. Lengths are pixels of a
 /// 1080-high picture and scale with the picture's height; ASS subtitles never
-/// read it. See `docs/human/requirements/20261016-UI-Subtitle Settings
-/// Simplification And Controls Refinement.md`.
+/// read it. See `docs/human/requirements/20261026-Feature-SRT Subtitle Rendering
+/// Visual And Layout Alignment With Libass.md`.
 public struct SRTSubtitleStyle: Codable, Equatable, Sendable {
     public enum BorderType: String, Codable, CaseIterable, Sendable {
         /// Outlined text with a shadow.
@@ -62,7 +62,8 @@ public struct SRTSubtitleStyle: Codable, Equatable, Sendable {
 
     /// The chosen font's PostScript name; nil is the system font.
     public var fontName: String?
-    /// The font point size at 1080p reference height.
+    /// The full line height (ascent + descent) in points at 1080p reference height,
+    /// matching libass Fontsize.
     public var size: Double = 28
     public var isBold = false
     public var isItalic = false
