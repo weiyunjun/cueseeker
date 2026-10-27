@@ -983,3 +983,46 @@ func reconcileIndexedContentPrunesDataOutsideActiveFolders() throws {
     let newStaleSearchPathID = try database.addSearchPath(staleFolder)
     #expect(newStaleSearchPathID != staleSearchPathID)
 }
+
+@Test
+func removingDecomposedKanaRootFolderCleansUpSubtitlesVideosAndPlaybackState() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    let folder = URL(fileURLWithPath: "/Volumes/Test/机动战士ガンダム")
+    _ = try database.addSearchPath(folder)
+    let subtitleURL = folder.appendingPathComponent("Episode01.srt")
+    let videoURL = folder.appendingPathComponent("Episode01.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleURL,
+        videoFile: videoURL,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Gundam launch."
+            )
+        ]
+    )
+
+    let libraryDatabase = try LibraryDatabase(path: databaseURL)
+    try libraryDatabase.upsertLibraryPlaybackHistory(
+        videoFile: videoURL,
+        positionMilliseconds: 42_000,
+        duration: 120
+    )
+
+    try database.reconcileIndexedContent(activeFolders: [])
+
+    #expect(try database.subtitleFiles().isEmpty)
+    #expect(try database.searchPaths().isEmpty)
+}
+

@@ -365,3 +365,32 @@ func pathRewritingKeepsEachPathsOwnForm() {
     #expect(LibraryRenamer.rewrite("/Volumes/A/Show/EP01.mkv", from: "/Volumes/A/Show", to: "/Volumes/A/New") == "/Volumes/A/New/EP01.mkv")
     #expect(LibraryRenamer.rewrite("/Volumes/A/Showcase/EP01.mkv", from: "/Volumes/A/Show", to: "/Volumes/A/New") == nil)
 }
+
+@Test
+func renamingLocalSubfolderToComposedKanaNormalizesPathAndAllowsSubsequentRenameAndRemoval() throws {
+    let fixture = try RenameFixture()
+    defer { fixture.cleanUp() }
+    try fixture.index()
+    let renamer = LibraryRenamer(database: fixture.database)
+
+    let firstPlan = try renamer.checkConflicts(
+        .folder(path: fixture.show.path, newName: "机动战士ガンダム")
+    )
+    try renamer.perform(firstPlan)
+    let firstRenamedPath = firstPlan.steps[0].newPath
+
+    let secondPlan = try renamer.checkConflicts(
+        .folder(path: firstRenamedPath, newName: "机动战士ガンダムガ")
+    )
+    try renamer.perform(secondPlan)
+    let secondRenamedPath = secondPlan.steps[0].newPath
+
+    let libraryDatabase = try LibraryDatabase(path: fixture.databaseURL)
+    let detail = try libraryDatabase.fileDetailFolderInfo(for: secondRenamedPath, isRootFolder: false)
+    #expect(detail.videoCount == 2)
+    #expect(detail.addedAt != nil)
+
+    try fixture.database.reconcileIndexedContent(activeFolders: [])
+    #expect(try fixture.database.subtitleFiles().isEmpty)
+}
+

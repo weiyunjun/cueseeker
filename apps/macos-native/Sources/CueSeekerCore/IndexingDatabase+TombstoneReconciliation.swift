@@ -362,7 +362,7 @@ extension IndexingDatabase {
         )
         var bindIndex: Int32 = 1
         for prefix in folderPathPrefixes {
-            try select.bind(prefix.count, at: bindIndex)
+            try select.bind(prefix.unicodeScalars.count, at: bindIndex)
             bindIndex += 1
             try select.bind(prefix, at: bindIndex)
             bindIndex += 1
@@ -680,7 +680,7 @@ extension IndexingDatabase {
             try statement.bind(libraryID, at: bindIndex)
             bindIndex += 1
             for prefix in prefixes {
-                try statement.bind(prefix.count, at: bindIndex)
+                try statement.bind(prefix.unicodeScalars.count, at: bindIndex)
                 bindIndex += 1
                 try statement.bind(prefix, at: bindIndex)
                 bindIndex += 1

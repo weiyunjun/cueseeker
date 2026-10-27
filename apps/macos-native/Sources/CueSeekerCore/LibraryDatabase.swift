@@ -682,7 +682,6 @@ extension LibraryDatabase {
             return nil
         }
         let relativePath = String(filePath.dropFirst(prefix.count))
-            .precomposedStringWithCanonicalMapping
         return relativePath.isEmpty ? nil : relativePath
     }
 

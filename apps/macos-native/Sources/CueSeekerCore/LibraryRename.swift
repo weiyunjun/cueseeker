@@ -323,7 +323,10 @@ public struct LibraryRenamer: Sendable {
             ) else {
                 throw LibraryRenameConflict.filesChangedSinceIndex
             }
-            renamedNames[name] = renamed
+            renamedNames[name] = Self.normalizedPathComponent(
+                renamed,
+                inParentPath: directoryPath
+            )
         }
         for name in groupNames {
             let renamed = renamedNames[name] ?? name
@@ -604,12 +607,26 @@ public struct LibraryRenamer: Sendable {
         return (path as NSString).deletingLastPathComponent
     }
 
+    private static func normalizedPathComponent(
+        _ component: String,
+        inParentPath parentPath: String
+    ) -> String {
+        guard !component.isEmpty else {
+            return component
+        }
+        if parentPath.isRemoteMediaPath {
+            return component.precomposedStringWithCanonicalMapping
+        }
+        return URL(fileURLWithPath: "/" + component, isDirectory: false).lastPathComponent
+    }
+
     public static func replacingLastPathComponent(of path: String, with newName: String) -> String {
         let parent = parentPath(of: path)
+        let normalizedName = normalizedPathComponent(newName, inParentPath: parent)
         if parent == "/" {
-            return "/" + newName
+            return "/" + normalizedName
         }
-        return parent + "/" + newName
+        return parent + "/" + normalizedName
     }
 
     /// `/var/...` and `/private/var/...` name the same place, and the index

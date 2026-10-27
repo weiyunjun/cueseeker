@@ -304,7 +304,6 @@ extension IndexingDatabase {
             return nil
         }
         let relativePath = String(canonicalPath.dropFirst(prefix.count))
-            .precomposedStringWithCanonicalMapping
         return relativePath.isEmpty ? nil : relativePath
     }
 

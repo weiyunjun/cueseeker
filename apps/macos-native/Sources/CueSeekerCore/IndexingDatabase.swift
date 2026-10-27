@@ -2297,7 +2297,7 @@ public final class IndexingDatabase: @unchecked Sendable {
     ) throws {
         var bindIndex: Int32 = 1
         for prefix in folderPathPrefixes {
-            try statement.bind(prefix.count, at: bindIndex)
+            try statement.bind(prefix.unicodeScalars.count, at: bindIndex)
             bindIndex += 1
             try statement.bind(prefix, at: bindIndex)
             bindIndex += 1
