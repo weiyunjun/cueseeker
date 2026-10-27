@@ -184,8 +184,42 @@ func prefersRequiredVideoExtensionOrderWithinNameMatch() throws {
     #expect(try matcher.matchingVideo(for: subtitle) == preferredVideo)
     #expect(
         VideoMatcher.defaultVideoExtensions
-            == ["mkv", "mp4", "webm", "flv", "avi", "mov"]
+            == [
+                "mkv", "mp4", "webm", "flv", "avi", "mov",
+                "ts", "m2ts", "mts", "m4v", "rmvb", "rm",
+                "wmv", "mpg", "mpeg", "vob", "asf", "f4v",
+                "ogv", "3gp"
+            ]
     )
+}
+
+@Test
+func matchesExtendedVideoFormatsInPriorityOrder() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerVideoMatcherTests-\(UUID().uuidString)")
+
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let subtitle = root.appendingPathComponent("Episode.srt")
+    let tsVideo = root.appendingPathComponent("Episode.ts")
+    let rmvbVideo = root.appendingPathComponent("Episode.rmvb")
+    let threeGPVideo = root.appendingPathComponent("Episode.3gp")
+    try "".write(to: subtitle, atomically: true, encoding: .utf8)
+    for video in [tsVideo, rmvbVideo, threeGPVideo] {
+        try Data().write(to: video)
+    }
+
+    defer {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    let matcher = VideoMatcher()
+    #expect(try matcher.matchingVideo(for: subtitle) == tsVideo)
+
+    try FileManager.default.removeItem(at: tsVideo)
+    #expect(try matcher.matchingVideo(for: subtitle) == rmvbVideo)
+
+    try FileManager.default.removeItem(at: rmvbVideo)
+    #expect(try matcher.matchingVideo(for: subtitle) == threeGPVideo)
 }
 
 @Test

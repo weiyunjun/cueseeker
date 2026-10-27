@@ -6,7 +6,12 @@ public enum VideoMatchingError: Error, Equatable, Sendable {
 }
 
 public struct VideoMatcher {
-    public static let defaultVideoExtensions = ["mkv", "mp4", "webm", "flv", "avi", "mov"]
+    public static let defaultVideoExtensions = [
+        "mkv", "mp4", "webm", "flv", "avi", "mov",
+        "ts", "m2ts", "mts", "m4v", "rmvb", "rm",
+        "wmv", "mpg", "mpeg", "vob", "asf", "f4v",
+        "ogv", "3gp"
+    ]
 
     private struct VideoCandidate {
         let url: URL
