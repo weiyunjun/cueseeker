@@ -377,7 +377,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             SELECT path
             FROM video_files
             WHERE library_id = ?
-              AND (duration_retry_pending = 1 OR audio_tracks IS NULL)
+              AND (duration_retry_pending = 1 OR audio_tracks IS NULL OR container_format IS NULL)
             ORDER BY path ASC;
             """
         )

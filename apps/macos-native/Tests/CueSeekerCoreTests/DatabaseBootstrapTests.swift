@@ -1498,12 +1498,42 @@ func schema62UpgradesTo63AndCompactsDatabase() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 63)
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     let statsAfter = try DatabaseMaintenanceDatabase(
         path: databaseURL,
         access: .readOnly
     ).storageStats()
     #expect(statsAfter.freelistCount == 0)
+}
+
+@Test
+func schema63UpgradesTo64WithVideoContainerFormatColumn() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        ALTER TABLE video_files DROP COLUMN container_format;
+        INSERT INTO video_files (path, video_name, duration_retry_pending)
+        VALUES ('/Media/sample.mp4', 'sample.mp4', 0);
+        PRAGMA user_version = 63;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 64)
+    let columns = try sqliteColumnNames(in: "video_files", databaseURL: databaseURL)
+    #expect(columns.contains("container_format"))
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT CAST(duration_retry_pending AS TEXT) FROM video_files WHERE path = '/Media/sample.mp4';"
+        ) == "1"
+    )
 }
 

@@ -544,6 +544,24 @@ extension DatabaseBootstrap {
         try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
     }
 
+    /// Schema 64 stores the probed container format extension on `video_files`
+    /// for the File Detail dialog, marking existing videos to refresh their
+    /// probed metadata on the next Index.
+    static func migrateSchema63To64(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let videoColumns = try columnNames(of: "video_files", in: database)
+            if !videoColumns.isEmpty {
+                if !videoColumns.contains("container_format") {
+                    try database.execute("ALTER TABLE video_files ADD COLUMN container_format TEXT;")
+                }
+                if videoColumns.contains("duration_retry_pending") {
+                    try database.execute("UPDATE video_files SET duration_retry_pending = 1;")
+                }
+            }
+            try database.execute("PRAGMA user_version = 64;")
+        }
+    }
+
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(

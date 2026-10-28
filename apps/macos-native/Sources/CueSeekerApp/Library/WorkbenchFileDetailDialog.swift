@@ -172,6 +172,7 @@ struct WorkbenchFileDetailDialog: View {
         fileDetailsSection(
             path: info.path,
             fileSize: info.fileSize,
+            containerFormat: info.containerFormat,
             createdAt: info.createdAt,
             modifiedAt: info.modifiedAt
         )
@@ -225,13 +226,17 @@ struct WorkbenchFileDetailDialog: View {
     private func fileDetailsSection(
         path: String,
         fileSize: Int64,
+        containerFormat: String? = nil,
         createdAt: Date?,
         modifiedAt: Date?
     ) -> some View {
         SettingsGroup(title: L("file_detail.file_details")) {
             FileDetailRow(label: L("file_detail.file_size"), value: Self.fileSizeText(fileSize))
             SettingsRowDivider()
-            FileDetailRow(label: L("file_detail.format"), value: Self.fileFormatText(path: path))
+            FileDetailRow(
+                label: L("file_detail.format"),
+                value: Self.fileFormatText(path: path, containerFormat: containerFormat)
+            )
             SettingsRowDivider()
             FileDetailRow(label: L("file_detail.path"), value: path)
             SettingsRowDivider()
@@ -295,7 +300,7 @@ struct WorkbenchFileDetailDialog: View {
         MediaDetailFormatter.languageText(languageCode, locale: AppLocalization.locale)
     }
 
-    static func fileFormatText(path: String) -> String {
-        MediaDetailFormatter.fileFormatText(path: path)
+    static func fileFormatText(path: String, containerFormat: String? = nil) -> String {
+        MediaDetailFormatter.fileFormatText(path: path, containerFormat: containerFormat)
     }
 }

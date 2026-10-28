@@ -119,7 +119,11 @@ func subtitleScreenshotVideoFrameArgumentsSkipInternalSubtitlesOnlyForSupportedM
     let mkvArgs = SubtitleScreenshotExporter._videoFrameArgumentsForTesting(
         videoPath: "/tmp/episode.mkv",
         timestampMilliseconds: 1_500,
-        supportsSkipInternalSubtitles: true
+        supportsSkipInternalSubtitles: true,
+        containerProbe: SubtitleScreenshotExporter.VideoContainerProbeResult(
+            isMatroska: true,
+            canSkipFindStreamInfo: true
+        )
     )
     let inputFlagIndex = try #require(mkvArgs.firstIndex(of: "-i"))
     let noFindStreamInfoIndex = try #require(mkvArgs.firstIndex(of: "-nofind_stream_info"))
@@ -140,7 +144,11 @@ func subtitleScreenshotVideoFrameArgumentsSkipInternalSubtitlesOnlyForSupportedM
     let mp4Args = SubtitleScreenshotExporter._videoFrameArgumentsForTesting(
         videoPath: "/tmp/episode.mp4",
         timestampMilliseconds: 1_500,
-        supportsSkipInternalSubtitles: true
+        supportsSkipInternalSubtitles: true,
+        containerProbe: SubtitleScreenshotExporter.VideoContainerProbeResult(
+            isMatroska: false,
+            canSkipFindStreamInfo: true
+        )
     )
     #expect(mp4Args.contains("-nofind_stream_info"))
     #expect(mp4Args.contains("-an"))
@@ -151,13 +159,83 @@ func subtitleScreenshotVideoFrameArgumentsSkipInternalSubtitlesOnlyForSupportedM
     let unsupportedMkvArgs = SubtitleScreenshotExporter._videoFrameArgumentsForTesting(
         videoPath: "/tmp/episode.mkv",
         timestampMilliseconds: 1_500,
-        supportsSkipInternalSubtitles: false
+        supportsSkipInternalSubtitles: false,
+        containerProbe: SubtitleScreenshotExporter.VideoContainerProbeResult(
+            isMatroska: true,
+            canSkipFindStreamInfo: true
+        )
     )
     #expect(unsupportedMkvArgs.contains("-nofind_stream_info"))
     #expect(unsupportedMkvArgs.contains("-an"))
     #expect(unsupportedMkvArgs.contains("-sn"))
     #expect(unsupportedMkvArgs.contains("-dn"))
     #expect(!unsupportedMkvArgs.contains("-cueseeker_skip_internal_subtitles"))
+
+    // Disguised Matroska file with .mp4 extension still enables skip_internal_subtitles and -nofind_stream_info
+    let disguisedMkvArgs = SubtitleScreenshotExporter._videoFrameArgumentsForTesting(
+        videoPath: "/tmp/episode.mp4",
+        timestampMilliseconds: 1_500,
+        supportsSkipInternalSubtitles: true,
+        containerProbe: SubtitleScreenshotExporter.VideoContainerProbeResult(
+            isMatroska: true,
+            canSkipFindStreamInfo: true
+        )
+    )
+    #expect(disguisedMkvArgs.contains("-nofind_stream_info"))
+    #expect(disguisedMkvArgs.contains("-cueseeker_skip_internal_subtitles"))
+
+    // Non-Matroska file disguised with .mkv extension omits both -cueseeker_skip_internal_subtitles and -nofind_stream_info when stream probing is needed
+    let disguisedNonMkvArgs = SubtitleScreenshotExporter._videoFrameArgumentsForTesting(
+        videoPath: "/tmp/episode.mkv",
+        timestampMilliseconds: 1_500,
+        supportsSkipInternalSubtitles: true,
+        containerProbe: SubtitleScreenshotExporter.VideoContainerProbeResult(
+            isMatroska: false,
+            canSkipFindStreamInfo: false
+        )
+    )
+    #expect(!disguisedNonMkvArgs.contains("-nofind_stream_info"))
+    #expect(!disguisedNonMkvArgs.contains("-cueseeker_skip_internal_subtitles"))
+}
+
+@Test
+func videoContainerProbeResultEvaluatesFFmpegFormatAndHeaderParameters() {
+    #expect(
+        SubtitleScreenshotExporter.VideoContainerProbeResult.evaluate(
+            formatName: "matroska,webm",
+            hasHeaderVideoParameters: true
+        ) == .init(isMatroska: true, canSkipFindStreamInfo: true)
+    )
+    #expect(
+        SubtitleScreenshotExporter.VideoContainerProbeResult.evaluate(
+            formatName: "webm",
+            hasHeaderVideoParameters: true
+        ) == .init(isMatroska: true, canSkipFindStreamInfo: true)
+    )
+    #expect(
+        SubtitleScreenshotExporter.VideoContainerProbeResult.evaluate(
+            formatName: "mov,mp4,m4a,3gp,3g2,mj2",
+            hasHeaderVideoParameters: true
+        ) == .init(isMatroska: false, canSkipFindStreamInfo: true)
+    )
+    #expect(
+        SubtitleScreenshotExporter.VideoContainerProbeResult.evaluate(
+            formatName: "mov,mp4,m4a,3gp,3g2,mj2",
+            hasHeaderVideoParameters: false
+        ) == .init(isMatroska: false, canSkipFindStreamInfo: false)
+    )
+    #expect(
+        SubtitleScreenshotExporter.VideoContainerProbeResult.evaluate(
+            formatName: "flv",
+            hasHeaderVideoParameters: false
+        ) == .init(isMatroska: false, canSkipFindStreamInfo: false)
+    )
+    #expect(
+        SubtitleScreenshotExporter.VideoContainerProbeResult.evaluate(
+            formatName: "mpegts",
+            hasHeaderVideoParameters: true
+        ) == .init(isMatroska: false, canSkipFindStreamInfo: false)
+    )
 }
 
 @Test

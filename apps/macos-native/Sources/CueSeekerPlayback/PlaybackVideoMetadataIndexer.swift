@@ -37,6 +37,19 @@ public struct PlaybackVideoMetadataIndexer {
             atMediaPath: playableInput.inputPath,
             httpHeaders: playableInput.httpHeaders
         )
+        let containerFormat: String?
+        if let formatName = metadata.formatName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !formatName.isEmpty {
+            let resolved = MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: formatName,
+                majorBrand: metadata.majorBrand,
+                videoCodec: metadata.videoCodec,
+                fallbackExtension: videoFile.pathExtension
+            )
+            containerFormat = resolved.isEmpty ? nil : resolved
+        } else {
+            containerFormat = nil
+        }
         return ProbedVideoMediaMetadata(
             durationSeconds: metadata.durationSeconds?.doubleValue,
             videoWidth: metadata.videoWidth?.intValue,
@@ -45,6 +58,7 @@ public struct PlaybackVideoMetadataIndexer {
             videoCodec: metadata.videoCodec,
             videoBitDepth: metadata.videoBitDepth?.intValue,
             videoPixelFormat: metadata.videoPixelFormat,
+            containerFormat: containerFormat,
             audioTracks: metadata.audioTracks.map {
                 VideoAudioTrack(
                     language: $0.language,

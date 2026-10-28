@@ -6,6 +6,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class SFXNativePlaybackPlayer;
 @class SFXMediaMetadata;
+@class SFXMediaContainerProbe;
 @class SFXMediaAudioTrack;
 @class SFXMediaCoverCandidateFrame;
 
@@ -157,6 +158,10 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
                                        httpHeaders:(nullable NSString *)httpHeaders
                                              error:(NSError **)error
     NS_SWIFT_NAME(metadata(atMediaPath:httpHeaders:));
++ (nullable SFXMediaContainerProbe *)containerProbeAtMediaPath:(NSString *)mediaPath
+                                                   httpHeaders:(nullable NSString *)httpHeaders
+                                                         error:(NSError **)error
+    NS_SWIFT_NAME(containerProbe(atMediaPath:httpHeaders:));
 + (nullable NSArray<SFXMediaCoverCandidateFrame *> *)sampleCoverFramesAtMediaPath:(NSString *)mediaPath
                                                                       httpHeaders:(nullable NSString *)httpHeaders
                                                            timestampsMilliseconds:(NSArray<NSNumber *> *)timestampsMilliseconds
@@ -164,6 +169,15 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
                                                                     scoringHeight:(NSInteger)scoringHeight
                                                                             error:(NSError **)error
     NS_SWIFT_NAME(sampleCoverFrames(atMediaPath:httpHeaders:timestampsMilliseconds:scoringWidth:scoringHeight:));
+
+@end
+
+@interface SFXMediaContainerProbe : NSObject
+
+@property (nonatomic, copy, readonly) NSString *formatName;
+@property (nonatomic, readonly) BOOL hasHeaderVideoParameters;
+
+- (instancetype)init NS_UNAVAILABLE;
 
 @end
 
@@ -186,6 +200,8 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
 @property (nonatomic, copy, readonly, nullable) NSString *videoCodec;
 @property (nonatomic, strong, readonly, nullable) NSNumber *videoBitDepth;
 @property (nonatomic, copy, readonly, nullable) NSString *videoPixelFormat;
+@property (nonatomic, copy, readonly, nullable) NSString *formatName;
+@property (nonatomic, copy, readonly, nullable) NSString *majorBrand;
 /// Every audio stream, in file order.
 @property (nonatomic, copy, readonly) NSArray<SFXMediaAudioTrack *> *audioTracks;
 

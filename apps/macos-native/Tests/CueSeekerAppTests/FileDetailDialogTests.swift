@@ -205,6 +205,120 @@ struct FileDetailDialogTests {
         #expect(MediaDetailFormatter.fileFormatText(path: "/Videos/ep01.3gp") == "3GPP Multimedia (.3gp)")
         #expect(MediaDetailFormatter.fileFormatText(path: "/Videos/ep01.ass") == "Advanced SubStation Alpha (.ass)")
 
+        // Probed container format overrides disguised extension in File Detail Format row
+        #expect(
+            MediaDetailFormatter.fileFormatText(
+                path: "/Videos/disguised.f4v",
+                containerFormat: "flv"
+            ) == "Flash Video (.flv)"
+        )
+        #expect(
+            MediaDetailFormatter.fileFormatText(
+                path: "/Videos/disguised.mp4",
+                containerFormat: "mkv"
+            ) == "Matroska Video (.mkv)"
+        )
+        #expect(
+            MediaDetailFormatter.fileFormatText(
+                path: "/Videos/disguised.mp4",
+                containerFormat: "webm"
+            ) == "WebM Video (.webm)"
+        )
+
+        // Container family resolution from FFmpeg demuxer format_name + major_brand + videoCodec
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "flv",
+                majorBrand: nil,
+                fallbackExtension: "f4v"
+            ) == "flv"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "matroska",
+                majorBrand: nil,
+                fallbackExtension: "mp4"
+            ) == "mkv"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "webm",
+                majorBrand: nil,
+                fallbackExtension: "mp4"
+            ) == "webm"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "matroska,webm",
+                majorBrand: nil,
+                videoCodec: "vp9",
+                fallbackExtension: "mp4"
+            ) == "webm"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "matroska,webm",
+                majorBrand: nil,
+                fallbackExtension: "webm"
+            ) == "webm"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "mov,mp4,m4a,3gp,3g2,mj2",
+                majorBrand: "isom",
+                fallbackExtension: "mkv"
+            ) == "mp4"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "mov,mp4,m4a,3gp,3g2,mj2",
+                majorBrand: "qt  ",
+                fallbackExtension: "mp4"
+            ) == "mov"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "mov,mp4,m4a,3gp,3g2,mj2",
+                majorBrand: "3gp4",
+                fallbackExtension: "mp4"
+            ) == "3gp"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "mov,mp4,m4a,3gp,3g2,mj2",
+                majorBrand: "M4V ",
+                fallbackExtension: "mp4"
+            ) == "m4v"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "mpeg",
+                majorBrand: nil,
+                fallbackExtension: "vob"
+            ) == "vob"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "mpegts",
+                majorBrand: nil,
+                fallbackExtension: "m2ts"
+            ) == "m2ts"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "asf",
+                majorBrand: nil,
+                fallbackExtension: "wmv"
+            ) == "wmv"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "rm",
+                majorBrand: nil,
+                fallbackExtension: "rmvb"
+            ) == "rmvb"
+        )
+
         // Empty audio tracks produce no displayable properties (so Audio #1 card is omitted)
         let emptyTrack = VideoAudioTrack(
             language: nil,

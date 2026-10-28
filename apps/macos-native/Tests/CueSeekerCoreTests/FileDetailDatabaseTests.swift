@@ -66,11 +66,27 @@ func testFileDetailDatabaseQueries() throws {
     #expect(videoInfo?.videoCodec == "hevc")
     #expect(videoInfo?.videoBitDepth == 10)
     #expect(videoInfo?.videoPixelFormat == "yuv420p10le")
+    #expect(videoInfo?.containerFormat == nil)
     #expect(videoInfo?.audioTracks.count == 1)
     #expect(videoInfo?.audioTracks.first?.language == "ja")
     #expect(videoInfo?.audioTracks.first?.channels == 2)
     #expect(videoInfo?.audioTracks.first?.sampleRate == 48000)
     #expect(videoInfo?.audioTracks.first?.bitDepth == 24)
+
+    try database.updateVideoMetadata(
+        videoFile: URL(fileURLWithPath: videoPath),
+        duration: 125.5,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        frameRate: 24.0,
+        videoCodec: "hevc",
+        videoBitDepth: 10,
+        videoPixelFormat: "yuv420p10le",
+        containerFormat: "mp4",
+        audioTracks: tracks
+    )
+    let updatedVideoInfo = try database.fileDetailVideoInfo(for: videoPath)
+    #expect(updatedVideoInfo?.containerFormat == "mp4")
 }
 
 @Test

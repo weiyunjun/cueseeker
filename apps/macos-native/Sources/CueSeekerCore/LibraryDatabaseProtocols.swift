@@ -8,6 +8,7 @@ public struct ProbedVideoMediaMetadata: Equatable, Sendable {
     public let videoCodec: String?
     public let videoBitDepth: Int?
     public let videoPixelFormat: String?
+    public let containerFormat: String?
     public let audioTracks: [VideoAudioTrack]
 
     public init(
@@ -18,6 +19,7 @@ public struct ProbedVideoMediaMetadata: Equatable, Sendable {
         videoCodec: String?,
         videoBitDepth: Int? = nil,
         videoPixelFormat: String? = nil,
+        containerFormat: String? = nil,
         audioTracks: [VideoAudioTrack]
     ) {
         self.durationSeconds = durationSeconds
@@ -27,6 +29,7 @@ public struct ProbedVideoMediaMetadata: Equatable, Sendable {
         self.videoCodec = videoCodec
         self.videoBitDepth = videoBitDepth
         self.videoPixelFormat = videoPixelFormat
+        self.containerFormat = containerFormat
         self.audioTracks = audioTracks
     }
 }
@@ -74,11 +77,37 @@ public protocol PlaybackVideoMetadataPersistence: Sendable {
         videoCodec: String?,
         videoBitDepth: Int?,
         videoPixelFormat: String?,
+        containerFormat: String?,
         audioTracks: [VideoAudioTrack]
     ) throws
 }
 
 public extension PlaybackVideoMetadataPersistence {
+    func updateVideoMetadata(
+        videoFile: URL,
+        duration: Double?,
+        videoWidth: Int?,
+        videoHeight: Int?,
+        frameRate: Double?,
+        videoCodec: String?,
+        videoBitDepth: Int?,
+        videoPixelFormat: String?,
+        audioTracks: [VideoAudioTrack]
+    ) throws {
+        try updateVideoMetadata(
+            videoFile: videoFile,
+            duration: duration,
+            videoWidth: videoWidth,
+            videoHeight: videoHeight,
+            frameRate: frameRate,
+            videoCodec: videoCodec,
+            videoBitDepth: videoBitDepth,
+            videoPixelFormat: videoPixelFormat,
+            containerFormat: nil,
+            audioTracks: audioTracks
+        )
+    }
+
     func updateVideoMetadata(
         videoFile: URL,
         duration: Double?,
@@ -97,6 +126,7 @@ public extension PlaybackVideoMetadataPersistence {
             videoCodec: videoCodec,
             videoBitDepth: nil,
             videoPixelFormat: nil,
+            containerFormat: nil,
             audioTracks: audioTracks
         )
     }
@@ -152,6 +182,7 @@ public extension PlaybackVideoMetadataPersistence {
                     videoCodec: metadata.videoCodec,
                     videoBitDepth: metadata.videoBitDepth,
                     videoPixelFormat: metadata.videoPixelFormat,
+                    containerFormat: metadata.containerFormat,
                     audioTracks: metadata.audioTracks
                 )
                 updatedVideoPaths.insert(videoPath)

@@ -1,5 +1,6 @@
 import AppKit
 import CASSRendering
+import CNativePlayback
 import CueSeekerCore
 import Foundation
 import ImageIO
@@ -45,10 +46,13 @@ public final class SubtitleCollageRenderSession: @unchecked Sendable {
     private let srtSubtitleStyle: SRTSubtitleStyle
     private let videoFrameProvider: (@Sendable (String, Int) async throws -> CGImage)?
     private let lock = NSLock()
+    private let inputResolutionLock = NSLock()
     private var cachedPreparedASSScript: SubtitleScreenshotExporter.PreparedASSRenderScript?
     private var cachedRequestedFontNames: [String]?
     private var hasPreparedASSScript = false
     private var cachedVideoFrames: [(timestampMilliseconds: Int, image: CGImage)] = []
+    private var cachedPlayableInput: WebDAVPlayableInput?
+    private var cachedContainerProbe: SubtitleScreenshotExporter.VideoContainerProbeResult?
 
     public init(
         videoURL: URL,
@@ -118,10 +122,13 @@ public final class SubtitleCollageRenderSession: @unchecked Sendable {
             guard let ffmpegExecutable = SubtitleScreenshotExporter.ffmpegExecutable() else {
                 throw SubtitleScreenshotExportError.ffmpegNotFound
             }
+            let (playableInput, containerProbe) = resolveInputAndContainerProbe()
             frameImage = try await SubtitleScreenshotExporter.videoFrame(
                 videoPath: videoURL.mediaPath,
                 timestampMilliseconds: timestampMilliseconds,
-                ffmpegExecutable: ffmpegExecutable
+                ffmpegExecutable: ffmpegExecutable,
+                playableInput: playableInput,
+                containerProbe: containerProbe
             )
         }
         let frameGrabMilliseconds = SubtitleScreenshotExporter.elapsedMilliseconds(
@@ -129,6 +136,27 @@ public final class SubtitleCollageRenderSession: @unchecked Sendable {
         )
         storeCachedVideoFrame(frameImage, for: timestampMilliseconds)
         return (frameImage, frameGrabMilliseconds)
+    }
+
+    private func resolveInputAndContainerProbe() -> (
+        playableInput: WebDAVPlayableInput,
+        containerProbe: SubtitleScreenshotExporter.VideoContainerProbeResult
+    ) {
+        inputResolutionLock.lock()
+        defer {
+            inputResolutionLock.unlock()
+        }
+        if let cachedPlayableInput, let cachedContainerProbe {
+            return (cachedPlayableInput, cachedContainerProbe)
+        }
+        let playableInput = WebDAVClient.shared.resolvePlayableInput(for: videoURL)
+        let probe = SubtitleScreenshotExporter.probeVideoContainer(
+            resolvedInputPath: playableInput.inputPath,
+            httpHeaders: playableInput.httpHeaders
+        )
+        cachedPlayableInput = playableInput
+        cachedContainerProbe = probe
+        return (playableInput, probe)
     }
 
     private func cachedVideoFrame(for timestampMilliseconds: Int) -> CGImage? {
@@ -253,6 +281,41 @@ public enum SubtitleScreenshotExporter {
     struct FFmpegExecutable: Sendable {
         let url: URL
         let supportsSkipInternalSubtitles: Bool
+    }
+
+    struct VideoContainerProbeResult: Equatable, Sendable {
+        let isMatroska: Bool
+        let canSkipFindStreamInfo: Bool
+
+        init(
+            isMatroska: Bool,
+            canSkipFindStreamInfo: Bool
+        ) {
+            self.isMatroska = isMatroska
+            self.canSkipFindStreamInfo = canSkipFindStreamInfo
+        }
+
+        static func evaluate(
+            formatName: String,
+            hasHeaderVideoParameters: Bool
+        ) -> VideoContainerProbeResult {
+            let formatTokens = Set(
+                formatName
+                    .lowercased()
+                    .split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            )
+            let isMatroska = formatTokens.contains("matroska") || formatTokens.contains("webm")
+            let isISOContainer = !formatTokens.isDisjoint(
+                with: ["mov", "mp4", "m4a", "3gp", "3g2", "mj2"]
+            )
+            let canSkipFindStreamInfo = hasHeaderVideoParameters
+                && (isMatroska || isISOContainer)
+            return VideoContainerProbeResult(
+                isMatroska: isMatroska,
+                canSkipFindStreamInfo: canSkipFindStreamInfo
+            )
+        }
     }
 
     struct PreparedASSRenderScript: Sendable {
@@ -491,10 +554,6 @@ public enum SubtitleScreenshotExporter {
         let subtitleBands: [SubtitleBand]
     }
 
-    private static let matroskaExtensions: Set<String> = [
-        "mkv", "mk3d", "mka", "mks", "webm"
-    ]
-
     public static func defaultCollageFileName(
         displayTitle: String,
         plan: SubtitleCollageSelectionPlan
@@ -584,35 +643,87 @@ public enum SubtitleScreenshotExporter {
     static func videoFrame(
         videoPath: String,
         timestampMilliseconds: Int,
-        ffmpegExecutable: FFmpegExecutable
+        ffmpegExecutable: FFmpegExecutable,
+        playableInput: WebDAVPlayableInput? = nil,
+        containerProbe: VideoContainerProbeResult? = nil
     ) async throws -> CGImage {
         // BMP keeps the frame uncompressed and self-describing, so the pixels
         // reach the compositor without a PNG round trip through the file system.
         // The 10-bit sources this reads would otherwise produce a 16-bit
         // intermediate that the 8-bit compositing context discards anyway.
+        let resolvedInput = playableInput ?? WebDAVClient.shared.resolvePlayableInput(
+            for: URL.fromMediaPath(videoPath)
+        )
+        let resolvedProbe = containerProbe ?? probeVideoContainer(
+            resolvedInputPath: resolvedInput.inputPath,
+            httpHeaders: resolvedInput.httpHeaders
+        )
         let arguments = videoFrameArguments(
-            videoPath: videoPath,
+            playableInput: resolvedInput,
             timestampMilliseconds: timestampMilliseconds,
-            supportsSkipInternalSubtitles: ffmpegExecutable.supportsSkipInternalSubtitles
+            supportsSkipInternalSubtitles: ffmpegExecutable.supportsSkipInternalSubtitles,
+            containerProbe: resolvedProbe
         )
-        let frameData = try await runProcessCapturingStandardOutput(
-            executableURL: ffmpegExecutable.url,
-            arguments: arguments
-        )
-        guard !frameData.isEmpty else {
-            throw SubtitleScreenshotExportError.missingFrameImage(videoPath)
+        do {
+            let frameData = try await runProcessCapturingStandardOutput(
+                executableURL: ffmpegExecutable.url,
+                arguments: arguments
+            )
+            guard !frameData.isEmpty else {
+                throw SubtitleScreenshotExportError.missingFrameImage(videoPath)
+            }
+            return try loadImage(from: frameData, sourceDescription: videoPath)
+        } catch {
+            guard resolvedProbe.canSkipFindStreamInfo || resolvedProbe.isMatroska else {
+                throw error
+            }
+            let fallbackArguments = videoFrameArguments(
+                playableInput: resolvedInput,
+                timestampMilliseconds: timestampMilliseconds,
+                supportsSkipInternalSubtitles: ffmpegExecutable.supportsSkipInternalSubtitles,
+                containerProbe: VideoContainerProbeResult(
+                    isMatroska: false,
+                    canSkipFindStreamInfo: false
+                )
+            )
+            let fallbackFrameData = try await runProcessCapturingStandardOutput(
+                executableURL: ffmpegExecutable.url,
+                arguments: fallbackArguments
+            )
+            guard !fallbackFrameData.isEmpty else {
+                throw SubtitleScreenshotExportError.missingFrameImage(videoPath)
+            }
+            return try loadImage(from: fallbackFrameData, sourceDescription: videoPath)
         }
-        return try loadImage(from: frameData, sourceDescription: videoPath)
     }
 
     private static func videoFrameArguments(
         videoPath: String,
         timestampMilliseconds: Int,
-        supportsSkipInternalSubtitles: Bool
+        supportsSkipInternalSubtitles: Bool,
+        containerProbe: VideoContainerProbeResult? = nil
     ) -> [String] {
         let playableInput = WebDAVClient.shared.resolvePlayableInput(
             for: URL.fromMediaPath(videoPath)
         )
+        let resolvedProbe = containerProbe ?? probeVideoContainer(
+            resolvedInputPath: playableInput.inputPath,
+            httpHeaders: playableInput.httpHeaders
+        )
+        return videoFrameArguments(
+            playableInput: playableInput,
+            timestampMilliseconds: timestampMilliseconds,
+            supportsSkipInternalSubtitles: supportsSkipInternalSubtitles,
+            containerProbe: resolvedProbe
+        )
+    }
+
+    private static func videoFrameArguments(
+        playableInput: WebDAVPlayableInput,
+        timestampMilliseconds: Int,
+        supportsSkipInternalSubtitles: Bool,
+        containerProbe: VideoContainerProbeResult
+    ) -> [String] {
         var arguments = [
             "-nostdin",
             "-hide_banner",
@@ -621,9 +732,10 @@ public enum SubtitleScreenshotExporter {
         if let httpHeaders = playableInput.httpHeaders, !httpHeaders.isEmpty {
             arguments += ["-headers", httpHeaders]
         }
-        arguments.append("-nofind_stream_info")
-        if supportsSkipInternalSubtitles,
-           isMatroskaInput(videoPath: videoPath, resolvedInputPath: playableInput.inputPath) {
+        if containerProbe.canSkipFindStreamInfo {
+            arguments.append("-nofind_stream_info")
+        }
+        if supportsSkipInternalSubtitles, containerProbe.isMatroska {
             arguments += ["-cueseeker_skip_internal_subtitles", "1"]
         }
         arguments += [
@@ -641,19 +753,23 @@ public enum SubtitleScreenshotExporter {
         return arguments
     }
 
-    private static func isMatroskaInput(
-        videoPath: String,
-        resolvedInputPath: String
-    ) -> Bool {
-        let videoExtension = URL(fileURLWithPath: videoPath).pathExtension.lowercased()
-        if matroskaExtensions.contains(videoExtension) {
-            return true
+    static func probeVideoContainer(
+        resolvedInputPath: String,
+        httpHeaders: String? = nil
+    ) -> VideoContainerProbeResult {
+        if let probe = try? SFXMediaMetadataInspector.containerProbe(
+            atMediaPath: resolvedInputPath,
+            httpHeaders: httpHeaders
+        ) {
+            return VideoContainerProbeResult.evaluate(
+                formatName: probe.formatName,
+                hasHeaderVideoParameters: probe.hasHeaderVideoParameters
+            )
         }
-        let resolvedExtension = (
-            URL(string: resolvedInputPath)?.pathExtension
-                ?? URL(fileURLWithPath: resolvedInputPath).pathExtension
-        ).lowercased()
-        return matroskaExtensions.contains(resolvedExtension)
+        return VideoContainerProbeResult(
+            isMatroska: false,
+            canSkipFindStreamInfo: false
+        )
     }
 
     private static func renderSRTFrame(
@@ -786,12 +902,14 @@ public enum SubtitleScreenshotExporter {
     static func _videoFrameArgumentsForTesting(
         videoPath: String,
         timestampMilliseconds: Int,
-        supportsSkipInternalSubtitles: Bool
+        supportsSkipInternalSubtitles: Bool,
+        containerProbe: VideoContainerProbeResult? = nil
     ) -> [String] {
         videoFrameArguments(
             videoPath: videoPath,
             timestampMilliseconds: timestampMilliseconds,
-            supportsSkipInternalSubtitles: supportsSkipInternalSubtitles
+            supportsSkipInternalSubtitles: supportsSkipInternalSubtitles,
+            containerProbe: containerProbe
         )
     }
 

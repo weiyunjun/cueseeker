@@ -109,6 +109,7 @@ public final class LibraryDatabase: @unchecked Sendable {
         videoCodec: String?,
         videoBitDepth: Int? = nil,
         videoPixelFormat: String? = nil,
+        containerFormat: String? = nil,
         audioTracks: [VideoAudioTrack]
     ) throws {
         let normalizedDuration = Self.normalizedDuration(duration)
@@ -127,6 +128,7 @@ public final class LibraryDatabase: @unchecked Sendable {
                     video_codec = ?,
                     video_bit_depth = ?,
                     video_pixel_format = ?,
+                    container_format = ?,
                     audio_tracks = ?,
                     duration_retry_pending = 0
                 WHERE path = ?;
@@ -173,8 +175,18 @@ public final class LibraryDatabase: @unchecked Sendable {
                 to: statement,
                 at: 7
             )
-            try statement.bind(encodedAudioTracks, at: 8)
-            try statement.bind(videoFile.mediaPath, at: 9)
+            let normalizedContainerFormat = containerFormat?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            try bind(
+                normalizedContainerFormat?.isEmpty == false
+                    ? normalizedContainerFormat
+                    : nil,
+                to: statement,
+                at: 8
+            )
+            try statement.bind(encodedAudioTracks, at: 9)
+            try statement.bind(videoFile.mediaPath, at: 10)
             try statement.run()
 
             try updatePresentationDuration(

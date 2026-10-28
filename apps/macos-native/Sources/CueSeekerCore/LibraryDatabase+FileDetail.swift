@@ -11,6 +11,7 @@ public struct FileDetailVideoInfo: Equatable, Sendable {
     public let videoCodec: String?
     public let videoBitDepth: Int?
     public let videoPixelFormat: String?
+    public let containerFormat: String?
     public let audioTracks: [VideoAudioTrack]
     public let subtitles: [VideoSubtitle]
     public let createdAt: Date?
@@ -27,6 +28,7 @@ public struct FileDetailVideoInfo: Equatable, Sendable {
         videoCodec: String?,
         videoBitDepth: Int? = nil,
         videoPixelFormat: String? = nil,
+        containerFormat: String? = nil,
         audioTracks: [VideoAudioTrack],
         subtitles: [VideoSubtitle],
         createdAt: Date?,
@@ -42,6 +44,7 @@ public struct FileDetailVideoInfo: Equatable, Sendable {
         self.videoCodec = videoCodec
         self.videoBitDepth = videoBitDepth
         self.videoPixelFormat = videoPixelFormat
+        self.containerFormat = containerFormat
         self.audioTracks = audioTracks
         self.subtitles = subtitles
         self.createdAt = createdAt
@@ -124,7 +127,7 @@ extension LibraryDatabase {
             SELECT vf.path, vf.video_name, vf.file_size, vf.duration,
                    vf.video_width, vf.video_height, vf.frame_rate,
                    vf.video_codec, vf.video_bit_depth, vf.video_pixel_format,
-                   vf.audio_tracks, vf.modified_at
+                   vf.container_format, vf.audio_tracks, vf.modified_at
             FROM video_files vf
             WHERE vf.path = ?;
             """
@@ -143,10 +146,11 @@ extension LibraryDatabase {
         let videoCodec = statement.nullableStringColumn(7)
         let videoBitDepth = statement.nullableIntColumn(8)
         let videoPixelFormat = statement.nullableStringColumn(9)
-        let tracks = statement.nullableStringColumn(10)
+        let containerFormat = statement.nullableStringColumn(10)
+        let tracks = statement.nullableStringColumn(11)
             .flatMap { try? JSONDecoder().decode([VideoAudioTrack].self, from: Data($0.utf8)) }
             ?? []
-        let modifiedAtSec = statement.nullableDoubleColumn(11)
+        let modifiedAtSec = statement.nullableDoubleColumn(12)
         let dbModifiedDate = modifiedAtSec.map { Date(timeIntervalSince1970: $0) }
 
         let fileURL = URL.fromMediaPath(path)
@@ -170,6 +174,7 @@ extension LibraryDatabase {
             videoCodec: videoCodec,
             videoBitDepth: videoBitDepth,
             videoPixelFormat: videoPixelFormat,
+            containerFormat: containerFormat,
             audioTracks: tracks,
             subtitles: subtitles,
             createdAt: createdDate,
@@ -498,12 +503,126 @@ public enum MediaDetailFormatter {
         return trimmed
     }
 
-    public static func fileFormatText(path: String) -> String {
-        let ext = URL.fromMediaPath(path).pathExtension.lowercased()
+    public static func fileFormatText(
+        path: String,
+        containerFormat: String? = nil
+    ) -> String {
+        let trimmedContainer = containerFormat?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let ext: String
+        if let trimmedContainer, !trimmedContainer.isEmpty {
+            ext = trimmedContainer
+        } else {
+            ext = URL.fromMediaPath(path).pathExtension.lowercased()
+        }
         if let displayName = fileFormatDisplayNames[ext] {
             return displayName
         }
         return ext.isEmpty ? "-" : "\(ext.uppercased()) (.\(ext))"
+    }
+
+    public static func resolvedVideoContainerExtension(
+        formatName: String,
+        majorBrand: String? = nil,
+        videoCodec: String? = nil,
+        fallbackExtension: String
+    ) -> String {
+        let fallback = fallbackExtension
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let formatTokens = Set(
+            formatName
+                .lowercased()
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        )
+        let brand = majorBrand?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let codec = videoCodec?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if formatTokens == ["webm"] {
+            return "webm"
+        }
+        if formatTokens == ["matroska"] {
+            return "mkv"
+        }
+        if formatTokens.contains("matroska") || formatTokens.contains("webm") {
+            if fallback == "mkv" || fallback == "webm" {
+                return fallback
+            }
+            if let codec, codec == "vp8" || codec == "vp9" {
+                return "webm"
+            }
+            return "mkv"
+        }
+        if formatTokens.contains("flv") {
+            return "flv"
+        }
+        if formatTokens.contains("avi") {
+            return "avi"
+        }
+        if formatTokens.contains("mpegts") {
+            if ["ts", "m2ts", "mts"].contains(fallback) {
+                return fallback
+            }
+            return "ts"
+        }
+        if formatTokens.contains("mpeg") || formatTokens.contains("vob") {
+            if ["mpg", "mpeg", "vob"].contains(fallback) {
+                return fallback
+            }
+            return formatTokens.contains("vob") ? "vob" : "mpg"
+        }
+        if formatTokens.contains("asf") {
+            if ["wmv", "asf"].contains(fallback) {
+                return fallback
+            }
+            return "wmv"
+        }
+        if formatTokens.contains("rm") {
+            if ["rmvb", "rm"].contains(fallback) {
+                return fallback
+            }
+            return "rmvb"
+        }
+        if formatTokens.contains("ogg") {
+            if fallback == "ogv" {
+                return fallback
+            }
+            return "ogv"
+        }
+        if !formatTokens.isDisjoint(with: ["mov", "mp4", "m4a", "3gp", "3g2", "mj2"]) {
+            if let brand, !brand.isEmpty {
+                if brand == "qt" {
+                    return "mov"
+                }
+                if ["f4v", "f4p", "f4a", "f4b"].contains(brand) {
+                    return "f4v"
+                }
+                if ["m4v", "m4vh", "m4vp"].contains(brand) {
+                    return "m4v"
+                }
+                if brand.hasPrefix("3gp") || brand.hasPrefix("3g2") {
+                    return "3gp"
+                }
+                if ["isom", "iso2", "mp41", "mp42", "avc1", "dash"].contains(brand) {
+                    if ["mp4", "m4v", "f4v"].contains(fallback) {
+                        return fallback
+                    }
+                    return "mp4"
+                }
+            }
+            if ["mp4", "mov", "m4v", "f4v", "3gp"].contains(fallback) {
+                return fallback
+            }
+            return "mp4"
+        }
+
+        return fallback
     }
 
     public static func audioTrackProperties(
