@@ -353,9 +353,7 @@ public struct LibraryCoverIndexer: Sendable {
                 httpHeaders: resolvedInput.httpHeaders
             )
         )?.swapsVideoDimensions ?? false
-        let scaleFilter = swapsVideoDimensions
-            ? "scale=iw:'max(1,round(ih/sar))':reset_sar=1"
-            : "scale='max(1,round(iw*sar))':ih:reset_sar=1"
+        let scaleFilter = SFXFFmpegPixelAspectRatioScaleFilter(swapsVideoDimensions)
         var arguments = [
             "-nostdin",
             "-hide_banner",

@@ -417,18 +417,25 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     NSString *formatName = [NSString stringWithUTF8String:formatContext->iformat->name];
     BOOL hasHeaderVideoParameters = NO;
     BOOL swapsVideoDimensions = NO;
+    BOOL hasFallbackSwapsCandidate = NO;
     for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
         AVStream *stream = formatContext->streams[index];
         if (stream != NULL
             && stream->codecpar != NULL
             && stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO
             && stream->codecpar->codec_id != AV_CODEC_ID_NONE) {
-            SFXVideoOrientation orientation = SFXResolveVideoOrientation(stream, NULL);
-            swapsVideoDimensions = SFXVideoOrientationSwapsDimensions(orientation);
+            BOOL streamSwaps = SFXVideoOrientationSwapsDimensions(
+                SFXResolveVideoOrientation(stream, NULL)
+            );
             if (stream->codecpar->width > 0 && stream->codecpar->height > 0) {
                 hasHeaderVideoParameters = YES;
+                swapsVideoDimensions = streamSwaps;
+                break;
             }
-            break;
+            if (!hasFallbackSwapsCandidate) {
+                swapsVideoDimensions = streamSwaps;
+                hasFallbackSwapsCandidate = YES;
+            }
         }
     }
 

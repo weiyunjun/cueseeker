@@ -744,9 +744,7 @@ public enum SubtitleScreenshotExporter {
         if supportsSkipInternalSubtitles, containerProbe.isMatroska {
             arguments += ["-cueseeker_skip_internal_subtitles", "1"]
         }
-        let scaleFilter = containerProbe.swapsVideoDimensions
-            ? "scale=iw:'max(1,round(ih/sar))':reset_sar=1"
-            : "scale='max(1,round(iw*sar))':ih:reset_sar=1"
+        let scaleFilter = SFXFFmpegPixelAspectRatioScaleFilter(containerProbe.swapsVideoDimensions)
         arguments += [
             "-ss", String(format: "%.3f", Double(max(0, timestampMilliseconds)) / 1_000),
             "-i", playableInput.inputPath,

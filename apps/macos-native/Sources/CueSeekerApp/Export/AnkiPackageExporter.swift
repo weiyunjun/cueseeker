@@ -171,10 +171,15 @@ enum AnkiPackageExporter {
                 mediaMap[imageMediaKey] = imageName
                 mediaIndex += 1
 
-                let swapsDimensions = videoSwapsDimensions[item.videoPath] ?? swapsVideoDimensions(for: item)
+                let resolvedInput = WebDAVClient.shared.resolvePlayableInput(
+                    for: URL.fromMediaPath(item.videoPath)
+                )
+                let swapsDimensions = videoSwapsDimensions[item.videoPath]
+                    ?? swapsVideoDimensions(for: resolvedInput)
                 videoSwapsDimensions[item.videoPath] = swapsDimensions
                 try await exportImage(
                     item: item,
+                    resolvedInput: resolvedInput,
                     swapsVideoDimensions: swapsDimensions,
                     ffmpegURL: ffmpegURL,
                     outputURL: imageExportURL
@@ -286,11 +291,8 @@ enum AnkiPackageExporter {
         )
     }
 
-    private static func swapsVideoDimensions(for item: AnkiExportItem) -> Bool {
-        let resolvedInput = WebDAVClient.shared.resolvePlayableInput(
-            for: URL.fromMediaPath(item.videoPath)
-        )
-        return (
+    private static func swapsVideoDimensions(for resolvedInput: WebDAVPlayableInput) -> Bool {
+        (
             try? SFXMediaMetadataInspector.containerProbe(
                 atMediaPath: resolvedInput.inputPath,
                 httpHeaders: resolvedInput.httpHeaders
@@ -300,18 +302,14 @@ enum AnkiPackageExporter {
 
     private static func exportImage(
         item: AnkiExportItem,
+        resolvedInput: WebDAVPlayableInput,
         swapsVideoDimensions: Bool,
         ffmpegURL: URL,
         outputURL: URL
     ) async throws {
         let midpointMilliseconds = max(0, (item.startMilliseconds + item.endMilliseconds) / 2)
         let midpointSeconds = Double(midpointMilliseconds) / 1_000
-        let resolvedInput = WebDAVClient.shared.resolvePlayableInput(
-            for: URL.fromMediaPath(item.videoPath)
-        )
-        let scaleFilter = swapsVideoDimensions
-            ? "scale=iw:'max(1,round(ih/sar))':reset_sar=1"
-            : "scale='max(1,round(iw*sar))':ih:reset_sar=1"
+        let scaleFilter = SFXFFmpegPixelAspectRatioScaleFilter(swapsVideoDimensions)
         var arguments = [
             "-nostdin",
             "-y",

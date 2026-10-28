@@ -830,6 +830,12 @@ BOOL SFXVideoOrientationSwapsDimensions(SFXVideoOrientation orientation) {
     return orientation >= SFXVideoOrientationLeftMirrored && orientation <= SFXVideoOrientationLeft;
 }
 
+NSString *SFXFFmpegPixelAspectRatioScaleFilter(BOOL swapsVideoDimensions) {
+    return swapsVideoDimensions
+        ? @"scale=iw:'max(1,round(ih/sar))':reset_sar=1"
+        : @"scale='max(1,round(iw*sar))':ih:reset_sar=1";
+}
+
 CGAffineTransform SFXLayerAffineTransformForVideoOrientation(SFXVideoOrientation orientation) {
     switch (orientation) {
     case SFXVideoOrientationUpMirrored:

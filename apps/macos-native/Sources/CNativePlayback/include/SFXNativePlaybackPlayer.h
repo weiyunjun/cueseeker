@@ -33,6 +33,7 @@ typedef NS_ENUM(uint32_t, SFXVideoOrientation) {
 
 FOUNDATION_EXPORT SFXVideoOrientation SFXResolveVideoOrientationFromDisplayMatrix(const int32_t * _Nullable displayMatrix);
 FOUNDATION_EXPORT BOOL SFXVideoOrientationSwapsDimensions(SFXVideoOrientation orientation);
+FOUNDATION_EXPORT NSString *SFXFFmpegPixelAspectRatioScaleFilter(BOOL swapsVideoDimensions);
 FOUNDATION_EXPORT CGAffineTransform SFXLayerAffineTransformForVideoOrientation(SFXVideoOrientation orientation);
 FOUNDATION_EXPORT NSInteger SFXUnrotatedDisplayVideoWidthForPixelBuffer(CVPixelBufferRef _Nullable pixelBuffer);
 FOUNDATION_EXPORT NSInteger SFXDisplayVideoWidthForPixelBuffer(CVPixelBufferRef _Nullable pixelBuffer);

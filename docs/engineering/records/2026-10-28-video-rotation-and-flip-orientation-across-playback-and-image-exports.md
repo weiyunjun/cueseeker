@@ -4,11 +4,10 @@
 
 - Requirement: `docs/human/requirements/20261028-Bug-Video Rotation And Flip Orientation Across Playback And Image Exports.md`
 - Referenced Design Documents:
-  - `docs/human/design/playback/Media Format & Codec Support.md`
-  - `docs/human/design/playback/Subtitle Rendering & Scrubbing.md`
-  - `docs/human/design/data/Indexing & Cover Generation.md`
-  - `docs/human/design/workbench/Collage & Anki Export.md`
-  - `docs/human/design/ui/layouts/L-03 Library & Episode Detail.md`
+  - `docs/human/design/playback/Playback Core.md`
+  - `docs/human/design/workbench/Library and File.md`
+  - `docs/human/design/workbench/Excerpt and Export.md`
+  - `docs/human/design/ui/UI Layouts - Workbench.md`
 
 ## Scope
 
