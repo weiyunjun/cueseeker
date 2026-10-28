@@ -256,10 +256,18 @@ func playbackPlaylistWindowInvalidationDoesNotInvalidateSharedSource() throws {
 @Test
 func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
     _ = NSApplication.shared
+    let suiteName = "PlaybackPlaylistSearch-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("playback-playlist-search-\(UUID().uuidString).sqlite")
-    defer { removeTemporaryDatabase(at: databaseURL) }
-    let app = AppCoordinator(databaseURL: databaseURL)
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
+    }
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: databaseURL
+    )
     let initialGeneration = app.search.advanceResultListGeneration()
     let initialResults = (0..<2).map { ordinal in
         makePlaybackPlaylistSearchResult(
@@ -336,10 +344,18 @@ func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
 @Test
 func searchPlaybackPlaylistUsesTheFilteredResults() throws {
     _ = NSApplication.shared
+    let suiteName = "PlaybackPlaylistSearchFacet-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("playback-playlist-search-facet-\(UUID().uuidString).sqlite")
-    defer { removeTemporaryDatabase(at: databaseURL) }
-    let app = AppCoordinator(databaseURL: databaseURL)
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
+    }
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: databaseURL
+    )
     app.search.updateQuery("query")
     app.search.updateSearchFacetFilter(CueFacetFilter(
         durations: [.underOneSecond]
@@ -392,10 +408,18 @@ func searchPlaybackPlaylistUsesTheFilteredResults() throws {
 @Test
 func excerptPlaybackPlaylistReadsWorkbenchScopeOrderDirectly() throws {
     _ = NSApplication.shared
+    let suiteName = "PlaybackPlaylistExcerpt-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("playback-playlist-excerpt-\(UUID().uuidString).sqlite")
-    defer { removeTemporaryDatabase(at: databaseURL) }
-    let app = AppCoordinator(databaseURL: databaseURL)
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
+    }
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: databaseURL
+    )
     app.excerptPlaybackNavigationScopeIDs = [9, 3, 7]
     let relations = [9, 3, 7].map {
         ExcerptRelation(

@@ -174,7 +174,18 @@ func workbenchTableScrollbarStaysAtBottomWithoutOuterPageHorizontalScrollbar() a
 @MainActor
 @Test
 func playbackOverlayTopBarMountsDraggableTitlebarBackgroundInModuleAndCollageModes() async throws {
-    let app = AppCoordinator()
+    let suiteName = "PlaybackOverlayTopBarScrollbarTests-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    let tempDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("PlaybackOverlayTopBarScrollbarTests-\(UUID().uuidString)", isDirectory: true)
+    defer {
+        defaults.removePersistentDomainAndPlist(forName: suiteName)
+        try? FileManager.default.removeItem(at: tempDir)
+    }
+    let app = AppCoordinator(
+        userDefaults: defaults,
+        databaseURL: tempDir.appendingPathComponent("cueseeker.sqlite")
+    )
     let localization = makeTestAppLocalizationStore()
 
     for isEditingCollage in [false, true] {

@@ -49,12 +49,20 @@ func playbackCommandPanelSearchPersistsWorkbenchFacetResultsAfterDismissal()
     throws
 {
     _ = NSApplication.shared
+    let suiteName = "PlaybackFormalSearchFilter-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "playback-formal-search-filter-\(UUID().uuidString).sqlite"
         )
-    defer { removeTemporaryDatabase(at: databaseURL) }
-    let app = AppCoordinator(databaseURL: databaseURL)
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
+    }
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: databaseURL
+    )
     let facetFilter = CueFacetFilter(
         durations: [.underOneSecond]
     )
@@ -377,12 +385,20 @@ func commandPanelSearchFromNonSearchPageKeepsWorkbenchSearchQueryAndTableStateSy
     throws
 {
     _ = NSApplication.shared
+    let suiteName = "PlaybackCommandPanelNonSearchSync-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "playback-command-panel-non-search-sync-\(UUID().uuidString).sqlite"
         )
-    defer { removeTemporaryDatabase(at: databaseURL) }
-    let app = AppCoordinator(databaseURL: databaseURL)
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
+    }
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: databaseURL
+    )
     let oldResult = playbackSharedSearchResult(id: 6_001, rank: 0)
     let newResult = playbackSharedSearchResult(id: 6_002, rank: 0)
 

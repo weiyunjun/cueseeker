@@ -2560,10 +2560,18 @@ func subtitleFocusPreciseWheelUsesContentDependentDistanceAndNearestSettlement()
 @Test
 func subtitleFocusOverlayRendersAppearanceBackgroundAtStageSize() throws {
     _ = NSApplication.shared
+    let suiteName = "FocusOverlayAppearance-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("focus-overlay-appearance-\(UUID().uuidString).sqlite")
-    defer { removeTemporaryDatabase(at: databaseURL) }
-    let app = AppCoordinator(databaseURL: databaseURL)
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
+    }
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: databaseURL
+    )
     let filledLine = String(repeating: "█", count: 80)
     let snapshot = SubtitleFocusSnapshot(
         totalCount: 20,
@@ -2664,10 +2672,18 @@ func subtitleFocusNativeReelAppearanceChangePreservesStateAndCaches() throws {
 @Test
 func subtitleFocusOverlayConsumesPointerAcrossItsCompleteSurface() throws {
     _ = NSApplication.shared
+    let suiteName = "FocusOverlayPointer-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("focus-overlay-pointer-\(UUID().uuidString).sqlite")
-    defer { removeTemporaryDatabase(at: databaseURL) }
-    let app = AppCoordinator(databaseURL: databaseURL)
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
+    }
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: databaseURL
+    )
     let snapshot = SubtitleFocusSnapshot(
         totalCount: 20,
         selectedOrdinal: 12,
