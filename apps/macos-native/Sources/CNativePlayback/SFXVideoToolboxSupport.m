@@ -691,3 +691,97 @@ int SFXOutputChannelCount(int inputChannels) {
     }
     return inputChannels > 2 ? 2 : inputChannels;
 }
+
+AVRational SFXVideoSampleAspectRatio(
+    AVFormatContext *formatContext,
+    AVStream *videoStream,
+    const AVCodecContext *codecContext,
+    const AVFrame *frame
+) {
+    AVRational sar = (AVRational){0, 1};
+    if (videoStream != NULL) {
+        sar = av_guess_sample_aspect_ratio(formatContext, videoStream, (AVFrame *)frame);
+    }
+    if ((sar.num <= 0 || sar.den <= 0)
+        && frame != NULL
+        && frame->sample_aspect_ratio.num > 0
+        && frame->sample_aspect_ratio.den > 0) {
+        sar = frame->sample_aspect_ratio;
+    }
+    if ((sar.num <= 0 || sar.den <= 0)
+        && videoStream != NULL
+        && videoStream->sample_aspect_ratio.num > 0
+        && videoStream->sample_aspect_ratio.den > 0) {
+        sar = videoStream->sample_aspect_ratio;
+    }
+    if ((sar.num <= 0 || sar.den <= 0)
+        && videoStream != NULL
+        && videoStream->codecpar != NULL
+        && videoStream->codecpar->sample_aspect_ratio.num > 0
+        && videoStream->codecpar->sample_aspect_ratio.den > 0) {
+        sar = videoStream->codecpar->sample_aspect_ratio;
+    }
+    if ((sar.num <= 0 || sar.den <= 0)
+        && codecContext != NULL
+        && codecContext->sample_aspect_ratio.num > 0
+        && codecContext->sample_aspect_ratio.den > 0) {
+        sar = codecContext->sample_aspect_ratio;
+    }
+    if (sar.num <= 0 || sar.den <= 0) {
+        return (AVRational){1, 1};
+    }
+    int reducedNum = sar.num;
+    int reducedDen = sar.den;
+    if (av_reduce(&reducedNum, &reducedDen, sar.num, sar.den, 1024 * 1024)
+        && reducedNum > 0
+        && reducedDen > 0) {
+        return (AVRational){reducedNum, reducedDen};
+    }
+    return sar;
+}
+
+NSInteger SFXDisplayVideoWidthForDimensionsAndSAR(
+    NSInteger storageWidth,
+    NSInteger storageHeight,
+    AVRational sampleAspectRatio
+) {
+    if (storageWidth <= 0 || storageHeight <= 0) {
+        return 0;
+    }
+    if (sampleAspectRatio.num <= 0
+        || sampleAspectRatio.den <= 0
+        || sampleAspectRatio.num == sampleAspectRatio.den) {
+        return storageWidth;
+    }
+    double scaledWidth = (double)storageWidth * (double)sampleAspectRatio.num / (double)sampleAspectRatio.den;
+    if (!isfinite(scaledWidth) || scaledWidth <= 0.0) {
+        return storageWidth;
+    }
+    return MAX(1, (NSInteger)llround(scaledWidth));
+}
+
+void SFXApplyPixelAspectRatioAttachment(
+    CVPixelBufferRef pixelBuffer,
+    AVRational sampleAspectRatio,
+    BOOL removeWhenSquare
+) {
+    if (pixelBuffer == NULL) {
+        return;
+    }
+    if (sampleAspectRatio.num > 0
+        && sampleAspectRatio.den > 0
+        && sampleAspectRatio.num != sampleAspectRatio.den) {
+        NSDictionary *aspectDict = @{
+            (__bridge NSString *)kCVImageBufferPixelAspectRatioHorizontalSpacingKey: @(sampleAspectRatio.num),
+            (__bridge NSString *)kCVImageBufferPixelAspectRatioVerticalSpacingKey: @(sampleAspectRatio.den)
+        };
+        CVBufferSetAttachment(
+            pixelBuffer,
+            kCVImageBufferPixelAspectRatioKey,
+            (__bridge CFDictionaryRef)aspectDict,
+            kCVAttachmentMode_ShouldPropagate
+        );
+    } else if (removeWhenSquare) {
+        CVBufferRemoveAttachment(pixelBuffer, kCVImageBufferPixelAspectRatioKey);
+    }
+}

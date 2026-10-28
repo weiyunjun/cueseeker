@@ -65,8 +65,10 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
     }
 
     static func render(pixelBuffer: CVPixelBuffer) throws -> CGImage {
-        guard CVPixelBufferGetWidth(pixelBuffer) > 0,
-              CVPixelBufferGetHeight(pixelBuffer) > 0
+        let storageWidth = CVPixelBufferGetWidth(pixelBuffer)
+        let storageHeight = CVPixelBufferGetHeight(pixelBuffer)
+        guard storageWidth > 0,
+              storageHeight > 0
         else {
             throw PlaybackCurrentFrameScreenshotError.invalidFrameSize
         }
@@ -86,7 +88,59 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
             throw PlaybackCurrentFrameScreenshotError.imageConversionFailed
         }
 
-        return renderedImage
+        let targetWidth = displayWidth(
+            for: pixelBuffer,
+            storageWidth: renderedImage.width
+        )
+        guard targetWidth != renderedImage.width else {
+            return renderedImage
+        }
+        guard let scaledContext = makeBitmapContext(
+            width: targetWidth,
+            height: renderedImage.height
+        ) else {
+            throw PlaybackCurrentFrameScreenshotError.imageConversionFailed
+        }
+        scaledContext.interpolationQuality = .high
+        scaledContext.draw(
+            renderedImage,
+            in: CGRect(
+                x: 0,
+                y: 0,
+                width: targetWidth,
+                height: renderedImage.height
+            )
+        )
+        guard let scaledImage = scaledContext.makeImage() else {
+            throw PlaybackCurrentFrameScreenshotError.imageConversionFailed
+        }
+        return scaledImage
+    }
+
+    private static func displayWidth(
+        for pixelBuffer: CVPixelBuffer,
+        storageWidth: Int
+    ) -> Int {
+        guard storageWidth > 0,
+              let attachment = CVBufferCopyAttachment(
+                pixelBuffer,
+                kCVImageBufferPixelAspectRatioKey,
+                nil
+              ),
+              let dict = attachment as? [CFString: Any],
+              let hSpacing = (dict[kCVImageBufferPixelAspectRatioHorizontalSpacingKey] as? NSNumber)?.doubleValue,
+              let vSpacing = (dict[kCVImageBufferPixelAspectRatioVerticalSpacingKey] as? NSNumber)?.doubleValue,
+              hSpacing > 0,
+              vSpacing > 0,
+              hSpacing != vSpacing
+        else {
+            return storageWidth
+        }
+        let scaled = (Double(storageWidth) * hSpacing / vSpacing).rounded()
+        guard scaled.isFinite, scaled > 0 else {
+            return storageWidth
+        }
+        return max(1, Int(scaled))
     }
 
     static func compose(

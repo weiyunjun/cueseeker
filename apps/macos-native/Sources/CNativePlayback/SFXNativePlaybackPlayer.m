@@ -388,6 +388,9 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     CFTimeInterval s2Start = CACurrentMediaTime();
     [self stopAndFlushDisplay:flushDisplayBeforeStart];
     double s2StopPrevMs = (CACurrentMediaTime() - s2Start) * 1000.0;
+    @synchronized (self) {
+        _currentPath = [path copy];
+    }
 
     SFXNativePlaybackSession *session = [[SFXNativePlaybackSession alloc]
         initWithPath:path
@@ -407,12 +410,14 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         error:error
     ];
     if (session == nil) {
+        @synchronized (self) {
+            _currentPath = nil;
+        }
         return NO;
     }
 
     @synchronized (self) {
         _session = session;
-        _currentPath = [path copy];
         _nativeSessionOpenCount += 1;
     }
     [session configurePerfOpenStart:openStart stopPrevMs:s2StopPrevMs];

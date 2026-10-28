@@ -1091,4 +1091,133 @@ func nativePlaybackExtractsKeyframeTimestampsAndScaledTimelineThumbnails() async
     #expect(abs(secondKeyframeMilliseconds - 2_000) <= 50)
 }
 
+@Test
+@MainActor
+func nativePlaybackAndImageSamplersApplyAnamorphicDisplayAspectRatioWhileMetadataPreservesStorageResolution() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping anamorphic aspect ratio test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let stretchURL = directory.appendingPathComponent("anamorphic-stretch-144x108-sar4x3.ts")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=2:size=144x108:rate=24,setsar=4/3",
+            "-c:v", "mpeg2video",
+            "-g", "12",
+            "-pix_fmt", "yuv420p",
+            "-y", stretchURL.path
+        ]
+    )
+
+    let squeezeURL = directory.appendingPathComponent("anamorphic-squeeze-180x120-sar8x9.mkv")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=2:size=180x120:rate=24,setsar=8/9",
+            "-c:v", "libx265",
+            "-x265-params", "log-level=none:keyint=12",
+            "-pix_fmt", "yuv420p",
+            "-y", squeezeURL.path
+        ]
+    )
+
+    // 1. Metadata inspection preserves storage resolution for File Detail
+    let stretchMetadata = try SFXMediaMetadataInspector.metadata(atMediaPath: stretchURL.path)
+    #expect(stretchMetadata.videoWidth?.intValue == 144)
+    #expect(stretchMetadata.videoHeight?.intValue == 108)
+
+    let squeezeMetadata = try SFXMediaMetadataInspector.metadata(atMediaPath: squeezeURL.path)
+    #expect(squeezeMetadata.videoWidth?.intValue == 180)
+    #expect(squeezeMetadata.videoHeight?.intValue == 120)
+
+    // 2. Cover sampling scales to display aspect ratio
+    let stretchCovers = try SFXMediaMetadataInspector.sampleCoverFrames(
+        atMediaPath: stretchURL.path,
+        httpHeaders: nil,
+        timestampsMilliseconds: [500],
+        scoringWidth: 64,
+        scoringHeight: 36
+    )
+    #expect(stretchCovers.first?.cgImage.width == 192)
+    #expect(stretchCovers.first?.cgImage.height == 108)
+
+    let squeezeCovers = try SFXMediaMetadataInspector.sampleCoverFrames(
+        atMediaPath: squeezeURL.path,
+        httpHeaders: nil,
+        timestampsMilliseconds: [500],
+        scoringWidth: 64,
+        scoringHeight: 48
+    )
+    #expect(squeezeCovers.first?.cgImage.width == 160)
+    #expect(squeezeCovers.first?.cgImage.height == 120)
+
+    // 3. Playback session (Software & Hardware), Current Frame Screenshot, and Scrub Thumbnail
+    let player = PlaybackPlayer()
+    defer {
+        try? player.stop()
+    }
+
+    _ = try player.open(PlaybackRequest(videoURL: stretchURL, startMilliseconds: 0))
+    let stretchPresented = await waitUntil(timeoutSeconds: 4) {
+        player.videoAspectRatio() != nil && player.captureScreenshotPresentation() != nil
+    }
+    #expect(stretchPresented)
+    #expect(abs((player.videoAspectRatio() ?? 0) - (16.0 / 9.0)) < 0.01)
+
+    let stretchPresentation = try #require(player.captureScreenshotPresentation())
+    let stretchScreenshot = try PlaybackCurrentFrameScreenshotRenderer.render(stretchPresentation)
+    #expect(stretchScreenshot.width == 192)
+    #expect(stretchScreenshot.height == 108)
+
+    var stretchThumb: CGImage?
+    var stretchThumbVideoSize: CGSize?
+    player.requestTimelineThumbnail(atMilliseconds: 500, targetPixelWidth: 160) { image, _, videoSize in
+        stretchThumb = image
+        stretchThumbVideoSize = videoSize
+    }
+    let gotStretchThumb = await waitUntil(timeoutSeconds: 4) { stretchThumb != nil }
+    #expect(gotStretchThumb)
+    #expect(stretchThumb?.width == 160)
+    #expect(stretchThumb?.height == 90)
+    #expect(stretchThumbVideoSize == CGSize(width: 192, height: 108))
+
+    let squeezePlayer = PlaybackPlayer()
+    defer {
+        try? squeezePlayer.stop()
+    }
+    _ = try squeezePlayer.open(PlaybackRequest(videoURL: squeezeURL, startMilliseconds: 0))
+    let squeezePresented = await waitUntil(timeoutSeconds: 4) {
+        squeezePlayer.videoAspectRatio() != nil && squeezePlayer.captureScreenshotPresentation() != nil
+    }
+    #expect(squeezePresented)
+    #expect(abs((squeezePlayer.videoAspectRatio() ?? 0) - (4.0 / 3.0)) < 0.01)
+
+    let squeezePresentation = try #require(squeezePlayer.captureScreenshotPresentation())
+    let squeezeScreenshot = try PlaybackCurrentFrameScreenshotRenderer.render(squeezePresentation)
+    #expect(squeezeScreenshot.width == 160)
+    #expect(squeezeScreenshot.height == 120)
+
+    var squeezeThumb: CGImage?
+    var squeezeThumbVideoSize: CGSize?
+    squeezePlayer.requestTimelineThumbnail(atMilliseconds: 500, targetPixelWidth: 160) { image, _, videoSize in
+        squeezeThumb = image
+        squeezeThumbVideoSize = videoSize
+    }
+    let gotSqueezeThumb = await waitUntil(timeoutSeconds: 4) { squeezeThumb != nil }
+    #expect(gotSqueezeThumb)
+    #expect(squeezeThumb?.width == 160)
+    #expect(squeezeThumb?.height == 120)
+    #expect(squeezeThumbVideoSize == CGSize(width: 160, height: 120))
+}
+
 

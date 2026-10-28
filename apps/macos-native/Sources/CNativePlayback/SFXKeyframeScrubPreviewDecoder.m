@@ -188,15 +188,22 @@
         return NULL;
     }
 
+    AVStream *videoStream = (_formatContext != NULL && _videoStreamIndex >= 0 && _videoStreamIndex < (int)_formatContext->nb_streams)
+        ? _formatContext->streams[_videoStreamIndex]
+        : NULL;
+    AVRational sar = SFXVideoSampleAspectRatio(_formatContext, videoStream, _codecContext, _frame);
+    NSInteger displayWidth = SFXDisplayVideoWidthForDimensionsAndSAR(srcWidth, srcHeight, sar);
+    NSInteger displayHeight = srcHeight;
+
     if (videoWidthOut != NULL) {
-        *videoWidthOut = srcWidth;
+        *videoWidthOut = displayWidth;
     }
     if (videoHeightOut != NULL) {
-        *videoHeightOut = srcHeight;
+        *videoHeightOut = displayHeight;
     }
 
     int dstWidth = (int)MAX(1, targetPixelWidth);
-    int dstHeight = (int)MAX(1, llround((double)dstWidth * (double)srcHeight / (double)srcWidth));
+    int dstHeight = (int)MAX(1, llround((double)dstWidth * (double)displayHeight / (double)displayWidth));
 
     _scaler = sws_getCachedContext(
         _scaler,

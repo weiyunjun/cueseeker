@@ -28,6 +28,43 @@ func currentFrameScreenshotRendererAcceptsBiPlanarHardwareFrame() throws {
 }
 
 @Test
+func currentFrameScreenshotRendererAppliesPixelAspectRatioStretchAndSqueeze() throws {
+    let stretchedBuffer = try makeScreenshotPixelBuffer(width: 144, height: 108)
+    let stretchDict: [CFString: Any] = [
+        kCVImageBufferPixelAspectRatioHorizontalSpacingKey: 4,
+        kCVImageBufferPixelAspectRatioVerticalSpacingKey: 3
+    ]
+    CVBufferSetAttachment(
+        stretchedBuffer,
+        kCVImageBufferPixelAspectRatioKey,
+        stretchDict as CFDictionary,
+        .shouldPropagate
+    )
+    let stretchedImage = try PlaybackCurrentFrameScreenshotRenderer.render(
+        pixelBuffer: stretchedBuffer
+    )
+    #expect(stretchedImage.width == 192)
+    #expect(stretchedImage.height == 108)
+
+    let squeezedBuffer = try makeBiPlanarScreenshotPixelBuffer(width: 180, height: 120)
+    let squeezeDict: [CFString: Any] = [
+        kCVImageBufferPixelAspectRatioHorizontalSpacingKey: 8,
+        kCVImageBufferPixelAspectRatioVerticalSpacingKey: 9
+    ]
+    CVBufferSetAttachment(
+        squeezedBuffer,
+        kCVImageBufferPixelAspectRatioKey,
+        squeezeDict as CFDictionary,
+        .shouldPropagate
+    )
+    let squeezedImage = try PlaybackCurrentFrameScreenshotRenderer.render(
+        pixelBuffer: squeezedBuffer
+    )
+    #expect(squeezedImage.width == 160)
+    #expect(squeezedImage.height == 120)
+}
+
+@Test
 func currentFrameScreenshotRendererComposesCurrentASSSurface() throws {
     let pixelBuffer = try makeScreenshotPixelBuffer(width: 6, height: 4)
     let baseImage = try PlaybackCurrentFrameScreenshotRenderer.render(

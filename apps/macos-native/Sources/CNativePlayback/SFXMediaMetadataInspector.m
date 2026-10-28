@@ -1,4 +1,5 @@
 #import "SFXNativePlaybackPlayer.h"
+#import "SFXNativePlaybackInternal.h"
 
 #import <CoreGraphics/CoreGraphics.h>
 #include <math.h>
@@ -223,14 +224,18 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     const AVFrame *frame,
     int srcWidth,
     int srcHeight,
+    int displayWidth,
+    int displayHeight,
     enum AVPixelFormat inputFormat,
     NSInteger timestampMilliseconds,
     int scoringWidth,
     int scoringHeight
 ) {
-    double scale = fmin((double)scoringWidth / (double)srcWidth, (double)scoringHeight / (double)srcHeight);
-    int scaledWidth = MAX(1, MIN(scoringWidth, (int)llround((double)srcWidth * scale)));
-    int scaledHeight = MAX(1, MIN(scoringHeight, (int)llround((double)srcHeight * scale)));
+    int targetDisplayWidth = displayWidth > 0 ? displayWidth : srcWidth;
+    int targetDisplayHeight = displayHeight > 0 ? displayHeight : srcHeight;
+    double scale = fmin((double)scoringWidth / (double)targetDisplayWidth, (double)scoringHeight / (double)targetDisplayHeight);
+    int scaledWidth = MAX(1, MIN(scoringWidth, (int)llround((double)targetDisplayWidth * scale)));
+    int scaledHeight = MAX(1, MIN(scoringHeight, (int)llround((double)targetDisplayHeight * scale)));
     int padX = (scoringWidth - scaledWidth) / 2;
     int padY = (scoringHeight - scaledHeight) / 2;
 
@@ -275,8 +280,8 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     );
     sws_freeContext(scoringScaler);
 
-    int fullStride = srcWidth * 3;
-    NSMutableData *fullRGBData = [NSMutableData dataWithLength:(NSUInteger)(fullStride * srcHeight)];
+    int fullStride = targetDisplayWidth * 3;
+    NSMutableData *fullRGBData = [NSMutableData dataWithLength:(NSUInteger)(fullStride * targetDisplayHeight)];
     if (fullRGBData == nil) {
         return nil;
     }
@@ -285,8 +290,8 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
         srcWidth,
         srcHeight,
         inputFormat,
-        srcWidth,
-        srcHeight,
+        targetDisplayWidth,
+        targetDisplayHeight,
         AV_PIX_FMT_RGB24,
         SWS_BILINEAR,
         NULL,
@@ -325,8 +330,8 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     }
 
     CGImageRef cgImage = CGImageCreate(
-        (size_t)srcWidth,
-        (size_t)srcHeight,
+        (size_t)targetDisplayWidth,
+        (size_t)targetDisplayHeight,
         8,
         24,
         (size_t)fullStride,
@@ -721,9 +726,13 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                     && height > 0
                     && inputFormat != AV_PIX_FMT_NONE
                     && av_pix_fmt_desc_get(inputFormat) != NULL) {
+                    AVRational sar = SFXVideoSampleAspectRatio(formatContext, videoStream, codecContext, frame);
+                    int displayWidth = (int)SFXDisplayVideoWidthForDimensionsAndSAR(width, height, sar);
                     decodedCandidate = SFXCreateCoverCandidateFrame(
                         frame,
                         width,
+                        height,
+                        displayWidth,
                         height,
                         inputFormat,
                         timestampMs,
@@ -745,9 +754,13 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                     && height > 0
                     && inputFormat != AV_PIX_FMT_NONE
                     && av_pix_fmt_desc_get(inputFormat) != NULL) {
+                    AVRational sar = SFXVideoSampleAspectRatio(formatContext, videoStream, codecContext, frame);
+                    int displayWidth = (int)SFXDisplayVideoWidthForDimensionsAndSAR(width, height, sar);
                     decodedCandidate = SFXCreateCoverCandidateFrame(
                         frame,
                         width,
+                        height,
+                        displayWidth,
                         height,
                         inputFormat,
                         timestampMs,

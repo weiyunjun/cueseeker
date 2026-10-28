@@ -875,6 +875,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         switch pendingPresentation.subtitleAction {
         case .preserve:
             retargetASSSubtitleRenderTimeGate(forExplicitMilliseconds: safeMilliseconds)
+            (renderView as? PlaybackRenderContainerView)?.setVideoSize(videoSize)
             (renderView as? PlaybackRenderContainerView)?.setSubtitleTime(
                 milliseconds: safeMilliseconds
             )

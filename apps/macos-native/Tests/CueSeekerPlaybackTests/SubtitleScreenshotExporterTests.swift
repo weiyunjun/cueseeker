@@ -140,6 +140,7 @@ func subtitleScreenshotVideoFrameArgumentsSkipInternalSubtitlesOnlyForSupportedM
     #expect(audioDisableIndex > inputFlagIndex)
     #expect(subtitleDisableIndex > inputFlagIndex)
     #expect(dataDisableIndex > inputFlagIndex)
+    #expect(mkvArgs.contains("scale='max(1,round(iw*sar))':ih,setsar=1"))
 
     let mp4Args = SubtitleScreenshotExporter._videoFrameArgumentsForTesting(
         videoPath: "/tmp/episode.mp4",

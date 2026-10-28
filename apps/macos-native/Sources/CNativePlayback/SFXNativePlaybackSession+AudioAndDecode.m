@@ -472,6 +472,12 @@
         return NULL;
     }
 
+    AVStream *videoStream = (_formatContext != NULL && _videoStreamIndex >= 0 && _videoStreamIndex < (int)_formatContext->nb_streams)
+        ? _formatContext->streams[_videoStreamIndex]
+        : NULL;
+    AVRational frameSAR = SFXVideoSampleAspectRatio(_formatContext, videoStream, _videoCodecContext, frame);
+    SFXApplyPixelAspectRatioAttachment(pixelBuffer, frameSAR, YES);
+
     return pixelBuffer;
 }
 
@@ -540,6 +546,16 @@
         NSInteger frameMilliseconds = mediaSeconds >= 0
             ? (NSInteger)llround(mediaSeconds * 1000.0)
             : -1;
+        AVRational frameSAR = SFXVideoSampleAspectRatio(_formatContext, videoStream, _videoCodecContext, _videoFrame);
+        int frameWidth = _videoFrame->width > 0 ? _videoFrame->width : _videoCodecContext->width;
+        int frameHeight = _videoFrame->height > 0 ? _videoFrame->height : _videoCodecContext->height;
+        @synchronized (self) {
+            _videoSampleAspectRatio = frameSAR;
+            if (frameWidth > 0 && frameHeight > 0) {
+                _videoFrameWidth = frameWidth;
+                _videoFrameHeight = frameHeight;
+            }
+        }
         NSInteger automaticRecycleMilliseconds = -1;
         BOOL submittedVideoFrame = NO;
         if (_videoFrame->format == AV_PIX_FMT_VIDEOTOOLBOX || _videoFrame->format == SFXHardwarePixelFormat) {
@@ -548,6 +564,7 @@
                 break;
             }
             CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)_videoFrame->data[3];
+            SFXApplyPixelAspectRatioAttachment(pixelBuffer, frameSAR, NO);
             submittedVideoFrame = [self enqueuePixelBuffer:pixelBuffer
                                           presentationTime:presentationTime
                                          frameMilliseconds:frameMilliseconds
@@ -871,10 +888,32 @@
     OSType pixelFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
     size_t width = CVPixelBufferGetWidth(pixelBuffer);
     size_t height = CVPixelBufferGetHeight(pixelBuffer);
+    int sarNum = 1;
+    int sarDen = 1;
+    CFTypeRef parAttachment = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferPixelAspectRatioKey, NULL);
+    if (parAttachment != NULL) {
+        if (CFGetTypeID(parAttachment) == CFDictionaryGetTypeID()) {
+            CFDictionaryRef parDict = (CFDictionaryRef)parAttachment;
+            CFNumberRef numRef = (CFNumberRef)CFDictionaryGetValue(parDict, kCVImageBufferPixelAspectRatioHorizontalSpacingKey);
+            CFNumberRef denRef = (CFNumberRef)CFDictionaryGetValue(parDict, kCVImageBufferPixelAspectRatioVerticalSpacingKey);
+            int parsedNum = 0;
+            int parsedDen = 0;
+            if (numRef != NULL && denRef != NULL
+                && CFNumberGetValue(numRef, kCFNumberIntType, &parsedNum)
+                && CFNumberGetValue(denRef, kCFNumberIntType, &parsedDen)
+                && parsedNum > 0 && parsedDen > 0) {
+                sarNum = parsedNum;
+                sarDen = parsedDen;
+            }
+        }
+        CFRelease(parAttachment);
+    }
     if (_cachedVideoFormatDescription == NULL
         || _cachedVideoFormatPixelFormat != pixelFormat
         || _cachedVideoFormatWidth != width
-        || _cachedVideoFormatHeight != height) {
+        || _cachedVideoFormatHeight != height
+        || _cachedVideoFormatSARNum != sarNum
+        || _cachedVideoFormatSARDen != sarDen) {
         if (_cachedVideoFormatDescription != NULL) {
             CFRelease(_cachedVideoFormatDescription);
             _cachedVideoFormatDescription = NULL;
@@ -891,6 +930,8 @@
         _cachedVideoFormatPixelFormat = pixelFormat;
         _cachedVideoFormatWidth = width;
         _cachedVideoFormatHeight = height;
+        _cachedVideoFormatSARNum = sarNum;
+        _cachedVideoFormatSARDen = sarDen;
     }
 
     CMSampleTimingInfo timing = {

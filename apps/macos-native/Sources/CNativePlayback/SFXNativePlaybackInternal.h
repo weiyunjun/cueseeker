@@ -132,6 +132,22 @@ CMSampleBufferRef _Nullable SFXSampleBufferForPixelBuffer(
     CMTime presentationTime
 );
 int SFXOutputChannelCount(int inputChannels);
+AVRational SFXVideoSampleAspectRatio(
+    AVFormatContext * _Nullable formatContext,
+    AVStream * _Nullable videoStream,
+    const AVCodecContext * _Nullable codecContext,
+    const AVFrame * _Nullable frame
+);
+NSInteger SFXDisplayVideoWidthForDimensionsAndSAR(
+    NSInteger storageWidth,
+    NSInteger storageHeight,
+    AVRational sampleAspectRatio
+);
+void SFXApplyPixelAspectRatioAttachment(
+    CVPixelBufferRef _Nullable pixelBuffer,
+    AVRational sampleAspectRatio,
+    BOOL removeWhenSquare
+);
 
 @interface SFXKeyframeThumbnailDecoder : NSObject
 - (nullable CGImageRef)copyThumbnailImageForPath:(NSString *)path
@@ -233,6 +249,11 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     OSType _cachedVideoFormatPixelFormat;
     size_t _cachedVideoFormatWidth;
     size_t _cachedVideoFormatHeight;
+    int _cachedVideoFormatSARNum;
+    int _cachedVideoFormatSARDen;
+    AVRational _videoSampleAspectRatio;
+    int _videoFrameWidth;
+    int _videoFrameHeight;
 
     AVAudioEngine *_audioEngine;
     AVAudioPlayerNode *_audioPlayer;
