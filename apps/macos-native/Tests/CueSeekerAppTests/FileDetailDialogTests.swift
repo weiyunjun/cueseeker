@@ -259,6 +259,22 @@ struct FileDetailDialogTests {
             MediaDetailFormatter.resolvedVideoContainerExtension(
                 formatName: "matroska,webm",
                 majorBrand: nil,
+                videoCodec: "av1",
+                fallbackExtension: "flv"
+            ) == "webm"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "matroska,webm",
+                majorBrand: nil,
+                videoCodec: "hevc",
+                fallbackExtension: "mp4"
+            ) == "mkv"
+        )
+        #expect(
+            MediaDetailFormatter.resolvedVideoContainerExtension(
+                formatName: "matroska,webm",
+                majorBrand: nil,
                 fallbackExtension: "webm"
             ) == "webm"
         )

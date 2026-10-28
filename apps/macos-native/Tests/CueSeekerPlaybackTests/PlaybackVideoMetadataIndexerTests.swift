@@ -63,38 +63,7 @@ func containerProbingDetectsRealContainerAndDistinguishesWebMFromMatroska() thro
     )
     #expect(flvCollageProbe == .init(isMatroska: false, canSkipFindStreamInfo: false))
 
-    // Construct a minimal EBML header with DocType = "webm" and Segment header
-    let webmDisguisedAsMP4 = tempDir.appendingPathComponent("disguised_webm.mp4")
-    let webmBytes = Data([
-        0x1A, 0x45, 0xDF, 0xA3, // EBML Header ID
-        0x9F,                   // Size = 31 bytes (0x80 | 31)
-        0x42, 0x86, 0x81, 0x01, // EBMLVersion = 1 (4)
-        0x42, 0xF7, 0x81, 0x01, // EBMLReadVersion = 1 (4)
-        0x42, 0xF2, 0x81, 0x04, // EBMLMaxIDLength = 4 (4)
-        0x42, 0xF3, 0x81, 0x08, // EBMLMaxSizeLength = 8 (4)
-        0x42, 0x82, 0x84, 0x77, 0x65, 0x62, 0x6D, // DocType = "webm" (7)
-        0x42, 0x87, 0x81, 0x02, // DocTypeVersion = 2 (4)
-        0x42, 0x85, 0x81, 0x02, // DocTypeReadVersion = 2 (4)
-        0x18, 0x53, 0x80, 0x67, // Segment ID
-        0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // Unknown segment size
-        0x1F, 0x43, 0xB6, 0x75, // Cluster ID (terminates header parsing)
-        0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
-    ])
-    try webmBytes.write(to: webmDisguisedAsMP4)
-
-    let webmProbe = try SFXMediaMetadataInspector.containerProbe(
-        atMediaPath: webmDisguisedAsMP4.path,
-        httpHeaders: nil
-    )
-    #expect(webmProbe.formatName == "webm")
-    #expect(
-        MediaDetailFormatter.resolvedVideoContainerExtension(
-            formatName: webmProbe.formatName,
-            fallbackExtension: "mp4"
-        ) == "webm"
-    )
-
-    // Construct a minimal EBML header with DocType = "matroska" and Segment header
+    // Minimal Matroska/WebM EBML header with Segment + Cluster
     let mkvDisguisedAsMP4 = tempDir.appendingPathComponent("disguised_mkv.mp4")
     let mkvBytes = Data([
         0x1A, 0x45, 0xDF, 0xA3, // EBML Header ID
@@ -117,12 +86,27 @@ func containerProbingDetectsRealContainerAndDistinguishesWebMFromMatroska() thro
         atMediaPath: mkvDisguisedAsMP4.path,
         httpHeaders: nil
     )
-    #expect(mkvProbe.formatName == "matroska")
+    #expect(mkvProbe.formatName == "matroska,webm")
     #expect(
         MediaDetailFormatter.resolvedVideoContainerExtension(
             formatName: mkvProbe.formatName,
+            videoCodec: "hevc",
             fallbackExtension: "mp4"
         ) == "mkv"
+    )
+    #expect(
+        MediaDetailFormatter.resolvedVideoContainerExtension(
+            formatName: mkvProbe.formatName,
+            videoCodec: "vp9",
+            fallbackExtension: "mp4"
+        ) == "webm"
+    )
+    #expect(
+        MediaDetailFormatter.resolvedVideoContainerExtension(
+            formatName: mkvProbe.formatName,
+            videoCodec: "av1",
+            fallbackExtension: "mp4"
+        ) == "webm"
     )
 
     if let ffmpegURL = SubtitleScreenshotExporter.ffmpegExecutable()?.url {

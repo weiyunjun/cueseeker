@@ -83,133 +83,6 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
     return value.length > 0 ? value : nil;
 }
 
-static int SFXReadEBMLVint(const uint8_t *bytes, int maxLen, uint64_t *outValue) {
-    if (bytes == NULL || maxLen <= 0 || outValue == NULL) {
-        return 0;
-    }
-    uint8_t first = bytes[0];
-    if (first == 0) {
-        return 0;
-    }
-    int numBytes = 1;
-    uint8_t mask = 0x80;
-    while ((first & mask) == 0 && numBytes < 8) {
-        numBytes++;
-        mask >>= 1;
-    }
-    if (numBytes > maxLen) {
-        return 0;
-    }
-    uint64_t value = first & (mask - 1);
-    for (int index = 1; index < numBytes; index++) {
-        value = (value << 8) | bytes[index];
-    }
-    *outValue = value;
-    return numBytes;
-}
-
-static NSString * _Nullable SFXMatroskaDocTypeFromHeaderBytes(const uint8_t *bytes, int length) {
-    if (bytes == NULL || length < 8) {
-        return nil;
-    }
-    // EBML Header Element ID: 0x1A 0x45 0xDF 0xA3
-    if (bytes[0] != 0x1A || bytes[1] != 0x45 || bytes[2] != 0xDF || bytes[3] != 0xA3) {
-        return nil;
-    }
-    uint64_t headerSize = 0;
-    int headerSizeLen = SFXReadEBMLVint(bytes + 4, length - 4, &headerSize);
-    if (headerSizeLen <= 0) {
-        return nil;
-    }
-    int pos = 4 + headerSizeLen;
-    uint64_t endOffset = (uint64_t)pos + headerSize;
-    int end = endOffset < (uint64_t)length ? (int)endOffset : length;
-    while (pos + 2 < end) {
-        uint8_t idFirst = bytes[pos];
-        if (idFirst == 0) {
-            break;
-        }
-        int idLen = 1;
-        uint8_t idMask = 0x80;
-        while ((idFirst & idMask) == 0 && idLen < 4) {
-            idLen++;
-            idMask >>= 1;
-        }
-        if (pos + idLen >= end) {
-            break;
-        }
-        uint64_t elemSize = 0;
-        int elemSizeLen = SFXReadEBMLVint(bytes + pos + idLen, end - (pos + idLen), &elemSize);
-        if (elemSizeLen <= 0) {
-            break;
-        }
-        int payloadPos = pos + idLen + elemSizeLen;
-        if (elemSize > (uint64_t)(end - payloadPos)) {
-            break;
-        }
-        if (idLen == 2 && bytes[pos] == 0x42 && bytes[pos + 1] == 0x82) {
-            int actualLen = 0;
-            while (actualLen < (int)elemSize
-                   && bytes[payloadPos + actualLen] != 0
-                   && bytes[payloadPos + actualLen] != ' ') {
-                actualLen++;
-            }
-            if (actualLen == 4 && strncasecmp((const char *)(bytes + payloadPos), "webm", 4) == 0) {
-                return @"webm";
-            }
-            if (actualLen == 8 && strncasecmp((const char *)(bytes + payloadPos), "matroska", 8) == 0) {
-                return @"matroska";
-            }
-        }
-        pos = payloadPos + (int)elemSize;
-    }
-    return nil;
-}
-
-static NSString *SFXResolvedFormatName(AVFormatContext *formatContext) {
-    if (formatContext == NULL || formatContext->iformat == NULL || formatContext->iformat->name == NULL) {
-        return @"";
-    }
-    NSString *rawFormatName = [NSString stringWithUTF8String:formatContext->iformat->name];
-    if ([rawFormatName rangeOfString:@"matroska" options:NSCaseInsensitiveSearch].location == NSNotFound
-        && [rawFormatName rangeOfString:@"webm" options:NSCaseInsensitiveSearch].location == NSNotFound) {
-        return rawFormatName;
-    }
-
-    AVIOContext *pb = formatContext->pb;
-    if (pb != NULL) {
-        if (pb->buffer != NULL && pb->buf_end > pb->buffer) {
-            int64_t bufferedBytes = pb->buf_end - pb->buffer;
-            int64_t bufferStartOffset = pb->pos - bufferedBytes;
-            if (bufferStartOffset == 0 && bufferedBytes >= 8) {
-                int inspectLen = (int)MIN(bufferedBytes, (int64_t)128);
-                NSString *docType = SFXMatroskaDocTypeFromHeaderBytes(pb->buffer, inspectLen);
-                if (docType != nil) {
-                    return docType;
-                }
-            }
-        }
-        if ((pb->seekable & AVIO_SEEKABLE_NORMAL) != 0) {
-            int64_t savedPos = avio_tell(pb);
-            if (avio_seek(pb, 0, SEEK_SET) >= 0) {
-                uint8_t header[128] = {0};
-                int readBytes = avio_read(pb, header, sizeof(header));
-                if (savedPos >= 0) {
-                    avio_seek(pb, savedPos, SEEK_SET);
-                }
-                if (readBytes >= 8) {
-                    NSString *docType = SFXMatroskaDocTypeFromHeaderBytes(header, readBytes);
-                    if (docType != nil) {
-                        return docType;
-                    }
-                }
-            }
-        }
-    }
-
-    return rawFormatName;
-}
-
 @interface SFXMediaCoverCandidateFrame ()
 
 - (instancetype)initWithTimestampMilliseconds:(NSInteger)timestampMilliseconds
@@ -515,7 +388,7 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
         return nil;
     }
 
-    NSString *formatName = SFXResolvedFormatName(formatContext);
+    NSString *formatName = [NSString stringWithUTF8String:formatContext->iformat->name];
     BOOL hasHeaderVideoParameters = NO;
     for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
         AVStream *stream = formatContext->streams[index];
@@ -558,7 +431,9 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
         return nil;
     }
 
-    NSString *formatName = SFXResolvedFormatName(formatContext);
+    NSString *formatName = (formatContext->iformat != NULL && formatContext->iformat->name != NULL)
+        ? [NSString stringWithUTF8String:formatContext->iformat->name]
+        : nil;
     NSString *majorBrand = SFXMetadataTagValue(formatContext->metadata, "major_brand");
 
     result = avformat_find_stream_info(formatContext, NULL);

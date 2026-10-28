@@ -554,7 +554,7 @@ public enum MediaDetailFormatter {
             if fallback == "mkv" || fallback == "webm" {
                 return fallback
             }
-            if let codec, codec == "vp8" || codec == "vp9" {
+            if let codec, ["vp8", "vp9", "av1"].contains(codec) {
                 return "webm"
             }
             return "mkv"
