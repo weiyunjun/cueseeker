@@ -423,7 +423,7 @@ public final class WebDAVConfigurationStore: @unchecked Sendable {
         ApplicationInfo.name
     ]
     private let lock = NSLock()
-    private var userDefaults: UserDefaults
+    private let userDefaults: UserDefaults
     private var configsByRootPath: [String: WebDAVRootConfig]
 
     public init(
@@ -443,23 +443,6 @@ public final class WebDAVConfigurationStore: @unchecked Sendable {
             from: resolvedDefaults,
             legacyDomains: resolvedLegacyDomains
         )
-    }
-
-    public func setUserDefaultsForTesting(_ userDefaults: UserDefaults?) {
-        let resolvedDefaults = userDefaults ?? ApplicationInfo.defaultSharedUserDefaults()
-        let resolvedLegacyDomains = (userDefaults == nil && !ApplicationInfo.isRunningInUnitTestProcess)
-            ? Self.legacyDomainNames.map {
-                UserDefaults.standard.persistentDomain(forName: $0) ?? [:]
-            }
-            : []
-        let reloaded = Self.loadConfigs(
-            from: resolvedDefaults,
-            legacyDomains: resolvedLegacyDomains
-        )
-        lock.lock()
-        self.userDefaults = resolvedDefaults
-        self.configsByRootPath = reloaded
-        lock.unlock()
     }
 
     public func save(_ config: WebDAVRootConfig) {
@@ -580,10 +563,7 @@ public final class WebDAVConfigurationStore: @unchecked Sendable {
 
     private func persist(_ configs: [WebDAVRootConfig]) {
         guard let data = try? JSONEncoder().encode(configs) else { return }
-        lock.lock()
-        let defaults = userDefaults
-        lock.unlock()
-        defaults.set(data, forKey: Self.defaultsKey)
+        userDefaults.set(data, forKey: Self.defaultsKey)
     }
 
     private static func loadConfigs(
@@ -634,9 +614,8 @@ public final class WebDAVConfigurationStore: @unchecked Sendable {
 public final class WebDAVSubtitleCache: @unchecked Sendable {
     public static let shared = WebDAVSubtitleCache()
 
-    private let lock = NSLock()
     private let fileManager: FileManager
-    private var cacheDirectoryURL: URL
+    private let cacheDirectoryURL: URL
 
     public init(
         cacheDirectoryURL: URL? = nil,
@@ -644,13 +623,6 @@ public final class WebDAVSubtitleCache: @unchecked Sendable {
     ) {
         self.fileManager = fileManager
         self.cacheDirectoryURL = cacheDirectoryURL ?? Self.defaultCacheDirectoryURL(fileManager: fileManager)
-    }
-
-    public func setCacheDirectoryURLForTesting(_ directoryURL: URL?) {
-        let resolved = directoryURL ?? Self.defaultCacheDirectoryURL(fileManager: fileManager)
-        lock.lock()
-        cacheDirectoryURL = resolved
-        lock.unlock()
     }
 
     private static func defaultCacheDirectoryURL(fileManager: FileManager) -> URL {
@@ -670,10 +642,7 @@ public final class WebDAVSubtitleCache: @unchecked Sendable {
         let hex = digest.map { String(format: "%02x", $0) }.joined()
         let ext = remoteURL.pathExtension.lowercased()
         let filename = ext.isEmpty ? hex : "\(hex).\(ext)"
-        lock.lock()
-        let dir = cacheDirectoryURL
-        lock.unlock()
-        return dir.appendingPathComponent(filename, isDirectory: false)
+        return cacheDirectoryURL.appendingPathComponent(filename, isDirectory: false)
     }
 
     public func storeSubtitleData(_ data: Data, for remoteURL: URL) throws -> URL {

@@ -185,7 +185,10 @@ func playbackOverlayEditingCollageIsExclusiveToCurrent() throws {
 @MainActor
 @Test
 func playbackOverlaySessionClearsModuleAndCurrentDataOnCloseThenReopensFresh() throws {
-    let playback = PlaybackStore(userDefaults: .standard)
+    let suiteName = "PlaybackSubtitleFocusSessionStoreTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+    let playback = PlaybackStore(userDefaults: userDefaults)
     let first = try #require(playback.beginSubtitleFocusSession(
         openSnapshot: focusOpenSnapshot(wasPlaying: true),
         availableModules: PlaybackOverlayModule.allCases
@@ -218,7 +221,10 @@ func playbackOverlaySessionClearsModuleAndCurrentDataOnCloseThenReopensFresh() t
 @MainActor
 @Test
 func subtitleFocusInitialSnapshotPublishesOnlyThroughChildStore() throws {
-    let playback = PlaybackStore(userDefaults: .standard)
+    let suiteName = "PlaybackSubtitleFocusSessionStoreTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+    let playback = PlaybackStore(userDefaults: userDefaults)
     var playbackInvalidations = 0
     let playbackCancellable = playback.objectWillChange.sink {
         playbackInvalidations += 1
@@ -410,7 +416,10 @@ func subtitleFocusShortInitialWindowIsAlreadyComplete() throws {
 @MainActor
 @Test
 func subtitleFocusSessionRejectsStaleGenerationAndSource() throws {
-    let playback = PlaybackStore(userDefaults: .standard)
+    let suiteName = "PlaybackSubtitleFocusSessionStoreTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+    let playback = PlaybackStore(userDefaults: userDefaults)
     let firstSession = try #require(playback.beginSubtitleFocusSession(
         openSnapshot: focusOpenSnapshot(wasPlaying: true)
     ))
@@ -454,7 +463,10 @@ func subtitleFocusSessionRejectsStaleGenerationAndSource() throws {
 @MainActor
 @Test
 func subtitleFocusDismissalReturnsCapturedPlaybackDecisionAndReleasesCues() throws {
-    let playback = PlaybackStore(userDefaults: .standard)
+    let suiteName = "PlaybackSubtitleFocusSessionStoreTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+    let playback = PlaybackStore(userDefaults: userDefaults)
     let session = try #require(playback.beginSubtitleFocusSession(
         openSnapshot: focusOpenSnapshot(wasPlaying: true)
     ))

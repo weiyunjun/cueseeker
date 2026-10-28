@@ -157,10 +157,6 @@ public final class FTPConfigurationStore: @unchecked Sendable {
         )
     }
 
-    public func setUserDefaultsForTesting(_ userDefaults: UserDefaults?) {
-        store.setUserDefaultsForTesting(userDefaults)
-    }
-
     public func save(_ config: FTPRootConfig) { store.save(config) }
     public func upsert(_ config: FTPRootConfig) { store.upsert(config) }
     public func remove(url: URL) { store.remove(url: url) }

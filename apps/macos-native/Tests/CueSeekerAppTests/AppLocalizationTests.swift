@@ -193,12 +193,9 @@ private func localizableEntries(for language: AppLanguage) -> [String: String] {
 /// shell still needs a language store in the environment.
 @MainActor
 func makeTestAppLocalizationStore() -> AppLocalizationStore {
-    let suiteName = "CueSeekerLocalizationHost-\(UUID().uuidString)"
-    let userDefaults = UserDefaults.temporary(suiteName: suiteName) ?? .standard
-    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
-    return AppLocalizationStore(
+    AppLocalizationStore(
         language: .followSystem,
-        userDefaults: userDefaults,
+        userDefaults: ApplicationPersistence.sharedUserDefaults(),
         userDefaultsKey: "appLanguage"
     )
 }
