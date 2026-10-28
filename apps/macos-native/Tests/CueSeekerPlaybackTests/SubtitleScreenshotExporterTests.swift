@@ -197,6 +197,18 @@ func subtitleScreenshotVideoFrameArgumentsSkipInternalSubtitlesOnlyForSupportedM
     )
     #expect(!disguisedNonMkvArgs.contains("-nofind_stream_info"))
     #expect(!disguisedNonMkvArgs.contains("-cueseeker_skip_internal_subtitles"))
+
+    let rotatedArgs = SubtitleScreenshotExporter._videoFrameArgumentsForTesting(
+        videoPath: "/tmp/rotated.mp4",
+        timestampMilliseconds: 1_500,
+        supportsSkipInternalSubtitles: true,
+        containerProbe: SubtitleScreenshotExporter.VideoContainerProbeResult(
+            isMatroska: false,
+            canSkipFindStreamInfo: true,
+            swapsVideoDimensions: true
+        )
+    )
+    #expect(rotatedArgs.contains("scale=iw:'max(1,round(ih/sar))':reset_sar=1"))
 }
 
 @Test
@@ -478,4 +490,26 @@ func subtitleScreenshotExporterExtractsSquareAndAnamorphicFramesWithBundledFFmpe
     )
     #expect(stretchedImage.width == 192)
     #expect(stretchedImage.height == 108)
+
+    let rotatedStretchVideoURL = directory.appendingPathComponent("anamorphic-rotated90-144x108-sar4x3.mp4")
+    let rotateProcess = Process()
+    rotateProcess.executableURL = URL(fileURLWithPath: generatorFFmpegPath)
+    rotateProcess.arguments = [
+        "-hide_banner", "-loglevel", "error",
+        "-display_rotation:v:0", "270",
+        "-i", stretchVideoURL.path,
+        "-c", "copy",
+        "-y", rotatedStretchVideoURL.path
+    ]
+    try rotateProcess.run()
+    rotateProcess.waitUntilExit()
+    #expect(rotateProcess.terminationStatus == 0)
+
+    let rotatedStretchedImage = try await SubtitleScreenshotExporter.videoFrame(
+        videoPath: rotatedStretchVideoURL.path,
+        timestampMilliseconds: 200,
+        ffmpegExecutable: exporterFFmpeg
+    )
+    #expect(rotatedStretchedImage.width == 108)
+    #expect(rotatedStretchedImage.height == 192)
 }

@@ -3,6 +3,7 @@
 @implementation SFXNativePlaybackView {
     AVSampleBufferDisplayLayer *_displayLayer;
     NSUInteger _displayImageRemovalCount;
+    SFXVideoOrientation _videoOrientation;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame {
@@ -11,6 +12,7 @@
         return nil;
     }
 
+    _videoOrientation = SFXVideoOrientationUp;
     self.wantsLayer = YES;
     self.layer.backgroundColor = NSColor.blackColor.CGColor;
 
@@ -26,6 +28,35 @@
     return _displayLayer;
 }
 
+- (SFXVideoOrientation)videoOrientation {
+    @synchronized (self) {
+        return _videoOrientation;
+    }
+}
+
+- (void)setVideoOrientation:(SFXVideoOrientation)videoOrientation {
+    SFXVideoOrientation sanitized = (videoOrientation >= SFXVideoOrientationUp && videoOrientation <= SFXVideoOrientationLeft)
+        ? videoOrientation
+        : SFXVideoOrientationUp;
+    BOOL changed = NO;
+    @synchronized (self) {
+        if (_videoOrientation != sanitized) {
+            _videoOrientation = sanitized;
+            changed = YES;
+        }
+    }
+    if (!changed) {
+        return;
+    }
+    if (NSThread.isMainThread) {
+        [self updateDisplayLayerFrameWithLogName:@"SFXNativePlaybackView.setVideoOrientation"];
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self updateDisplayLayerFrameWithLogName:@"SFXNativePlaybackView.setVideoOrientation"];
+        });
+    }
+}
+
 - (void)layout {
     [super layout];
 
@@ -34,9 +65,23 @@
 
 - (void)updateDisplayLayerFrameWithLogName:(NSString *)logName {
     CFTimeInterval start = SFXPerformanceNow();
+    NSRect viewBounds = self.bounds;
+    CGFloat width = NSWidth(viewBounds);
+    CGFloat height = NSHeight(viewBounds);
+    SFXVideoOrientation orientation = self.videoOrientation;
+    BOOL swapsDimensions = SFXVideoOrientationSwapsDimensions(orientation);
+    CGRect layerBounds = swapsDimensions
+        ? CGRectMake(0.0, 0.0, height, width)
+        : CGRectMake(0.0, 0.0, width, height);
+    CGPoint center = CGPointMake(NSMidX(viewBounds), NSMidY(viewBounds));
+    CGAffineTransform transform = SFXLayerAffineTransformForVideoOrientation(orientation);
+
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    _displayLayer.frame = self.bounds;
+    _displayLayer.affineTransform = CGAffineTransformIdentity;
+    _displayLayer.bounds = layerBounds;
+    _displayLayer.position = center;
+    _displayLayer.affineTransform = transform;
     [_displayLayer setNeedsLayout];
     [_displayLayer layoutIfNeeded];
     [CATransaction commit];
@@ -90,7 +135,7 @@
 }
 
 - (NSInteger)height {
-    return _pixelBuffer == NULL ? 0 : (NSInteger)CVPixelBufferGetHeight(_pixelBuffer);
+    return SFXDisplayVideoHeightForPixelBuffer(_pixelBuffer);
 }
 
 @end

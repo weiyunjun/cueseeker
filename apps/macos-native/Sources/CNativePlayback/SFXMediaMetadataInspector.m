@@ -157,18 +157,21 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
 @interface SFXMediaContainerProbe ()
 
 - (instancetype)initWithFormatName:(NSString *)formatName
-          hasHeaderVideoParameters:(BOOL)hasHeaderVideoParameters NS_DESIGNATED_INITIALIZER;
+          hasHeaderVideoParameters:(BOOL)hasHeaderVideoParameters
+              swapsVideoDimensions:(BOOL)swapsVideoDimensions NS_DESIGNATED_INITIALIZER;
 
 @end
 
 @implementation SFXMediaContainerProbe
 
 - (instancetype)initWithFormatName:(NSString *)formatName
-          hasHeaderVideoParameters:(BOOL)hasHeaderVideoParameters {
+          hasHeaderVideoParameters:(BOOL)hasHeaderVideoParameters
+              swapsVideoDimensions:(BOOL)swapsVideoDimensions {
     self = [super init];
     if (self != nil) {
         _formatName = [formatName copy];
         _hasHeaderVideoParameters = hasHeaderVideoParameters;
+        _swapsVideoDimensions = swapsVideoDimensions;
     }
     return self;
 }
@@ -226,6 +229,7 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     int srcHeight,
     int displayWidth,
     int displayHeight,
+    SFXVideoOrientation orientation,
     enum AVPixelFormat inputFormat,
     NSInteger timestampMilliseconds,
     int scoringWidth,
@@ -233,53 +237,6 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
 ) {
     int targetDisplayWidth = displayWidth > 0 ? displayWidth : srcWidth;
     int targetDisplayHeight = displayHeight > 0 ? displayHeight : srcHeight;
-    double scale = fmin((double)scoringWidth / (double)targetDisplayWidth, (double)scoringHeight / (double)targetDisplayHeight);
-    int scaledWidth = MAX(1, MIN(scoringWidth, (int)llround((double)targetDisplayWidth * scale)));
-    int scaledHeight = MAX(1, MIN(scoringHeight, (int)llround((double)targetDisplayHeight * scale)));
-    int padX = (scoringWidth - scaledWidth) / 2;
-    int padY = (scoringHeight - scaledHeight) / 2;
-
-    NSMutableData *scoringData = [NSMutableData dataWithLength:(NSUInteger)(scoringWidth * scoringHeight * 3)];
-    if (scoringData == nil) {
-        return nil;
-    }
-
-    struct SwsContext *scoringScaler = sws_getContext(
-        srcWidth,
-        srcHeight,
-        inputFormat,
-        scaledWidth,
-        scaledHeight,
-        AV_PIX_FMT_RGB24,
-        SWS_BILINEAR,
-        NULL,
-        NULL,
-        NULL
-    );
-    if (scoringScaler == NULL) {
-        return nil;
-    }
-
-    int scoringStride = scoringWidth * 3;
-    uint8_t *scoringBase = (uint8_t *)scoringData.mutableBytes;
-    uint8_t *scoringDstSlice[4] = {
-        scoringBase + (padY * scoringStride) + (padX * 3),
-        NULL,
-        NULL,
-        NULL
-    };
-    int scoringDstStride[4] = { scoringStride, 0, 0, 0 };
-    sws_scale(
-        scoringScaler,
-        (const uint8_t * const *)frame->data,
-        frame->linesize,
-        0,
-        srcHeight,
-        scoringDstSlice,
-        scoringDstStride
-    );
-    sws_freeContext(scoringScaler);
-
     int fullStride = targetDisplayWidth * 3;
     NSMutableData *fullRGBData = [NSMutableData dataWithLength:(NSUInteger)(fullStride * targetDisplayHeight)];
     if (fullRGBData == nil) {
@@ -315,6 +272,69 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     );
     sws_freeContext(fullScaler);
 
+    int orientedDisplayWidth = targetDisplayWidth;
+    int orientedDisplayHeight = targetDisplayHeight;
+    NSData *orientedRGBData = SFXTransformRGB24DataForVideoOrientation(
+        fullRGBData,
+        targetDisplayWidth,
+        targetDisplayHeight,
+        orientation,
+        &orientedDisplayWidth,
+        &orientedDisplayHeight
+    );
+    if (orientedRGBData == nil || orientedDisplayWidth <= 0 || orientedDisplayHeight <= 0) {
+        return nil;
+    }
+
+    double scale = fmin((double)scoringWidth / (double)orientedDisplayWidth, (double)scoringHeight / (double)orientedDisplayHeight);
+    int scaledWidth = MAX(1, MIN(scoringWidth, (int)llround((double)orientedDisplayWidth * scale)));
+    int scaledHeight = MAX(1, MIN(scoringHeight, (int)llround((double)orientedDisplayHeight * scale)));
+    int padX = (scoringWidth - scaledWidth) / 2;
+    int padY = (scoringHeight - scaledHeight) / 2;
+
+    NSMutableData *scoringData = [NSMutableData dataWithLength:(NSUInteger)(scoringWidth * scoringHeight * 3)];
+    if (scoringData == nil) {
+        return nil;
+    }
+
+    struct SwsContext *scoringScaler = sws_getContext(
+        orientedDisplayWidth,
+        orientedDisplayHeight,
+        AV_PIX_FMT_RGB24,
+        scaledWidth,
+        scaledHeight,
+        AV_PIX_FMT_RGB24,
+        SWS_BILINEAR,
+        NULL,
+        NULL,
+        NULL
+    );
+    if (scoringScaler == NULL) {
+        return nil;
+    }
+
+    int scoringStride = scoringWidth * 3;
+    uint8_t *scoringBase = (uint8_t *)scoringData.mutableBytes;
+    uint8_t *scoringDstSlice[4] = {
+        scoringBase + (padY * scoringStride) + (padX * 3),
+        NULL,
+        NULL,
+        NULL
+    };
+    int scoringDstStride[4] = { scoringStride, 0, 0, 0 };
+    const uint8_t *orientedSrcSlice[4] = { (const uint8_t *)orientedRGBData.bytes, NULL, NULL, NULL };
+    int orientedSrcStride[4] = { orientedDisplayWidth * 3, 0, 0, 0 };
+    sws_scale(
+        scoringScaler,
+        orientedSrcSlice,
+        orientedSrcStride,
+        0,
+        orientedDisplayHeight,
+        scoringDstSlice,
+        scoringDstStride
+    );
+    sws_freeContext(scoringScaler);
+
     CGColorSpaceRef colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     if (colorSpace == NULL) {
         colorSpace = CGColorSpaceCreateDeviceRGB();
@@ -323,18 +343,19 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
         return nil;
     }
 
-    CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)fullRGBData);
+    CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)orientedRGBData);
     if (provider == NULL) {
         CGColorSpaceRelease(colorSpace);
         return nil;
     }
 
+    int orientedFullStride = orientedDisplayWidth * 3;
     CGImageRef cgImage = CGImageCreate(
-        (size_t)targetDisplayWidth,
-        (size_t)targetDisplayHeight,
+        (size_t)orientedDisplayWidth,
+        (size_t)orientedDisplayHeight,
         8,
         24,
-        (size_t)fullStride,
+        (size_t)orientedFullStride,
         colorSpace,
         (CGBitmapInfo)kCGImageAlphaNone,
         provider,
@@ -395,15 +416,18 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
 
     NSString *formatName = [NSString stringWithUTF8String:formatContext->iformat->name];
     BOOL hasHeaderVideoParameters = NO;
+    BOOL swapsVideoDimensions = NO;
     for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
         AVStream *stream = formatContext->streams[index];
         if (stream != NULL
             && stream->codecpar != NULL
             && stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO
-            && stream->codecpar->codec_id != AV_CODEC_ID_NONE
-            && stream->codecpar->width > 0
-            && stream->codecpar->height > 0) {
-            hasHeaderVideoParameters = YES;
+            && stream->codecpar->codec_id != AV_CODEC_ID_NONE) {
+            SFXVideoOrientation orientation = SFXResolveVideoOrientation(stream, NULL);
+            swapsVideoDimensions = SFXVideoOrientationSwapsDimensions(orientation);
+            if (stream->codecpar->width > 0 && stream->codecpar->height > 0) {
+                hasHeaderVideoParameters = YES;
+            }
             break;
         }
     }
@@ -411,7 +435,8 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     avformat_close_input(&formatContext);
 
     return [[SFXMediaContainerProbe alloc] initWithFormatName:formatName
-                                     hasHeaderVideoParameters:hasHeaderVideoParameters];
+                                     hasHeaderVideoParameters:hasHeaderVideoParameters
+                                         swapsVideoDimensions:swapsVideoDimensions];
 }
 
 + (nullable SFXMediaMetadata *)metadataAtMediaPath:(NSString *)mediaPath
@@ -486,11 +511,15 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
         AVStream *videoStream = formatContext->streams[videoStreamIndex];
         AVCodecParameters *codecParameters = videoStream != NULL ? videoStream->codecpar : NULL;
         if (codecParameters != NULL) {
-            if (codecParameters->width > 0) {
-                videoWidth = @(codecParameters->width);
+            SFXVideoOrientation orientation = SFXResolveVideoOrientation(videoStream, NULL);
+            BOOL swapsDimensions = SFXVideoOrientationSwapsDimensions(orientation);
+            int orientedWidth = swapsDimensions ? codecParameters->height : codecParameters->width;
+            int orientedHeight = swapsDimensions ? codecParameters->width : codecParameters->height;
+            if (orientedWidth > 0) {
+                videoWidth = @(orientedWidth);
             }
-            if (codecParameters->height > 0) {
-                videoHeight = @(codecParameters->height);
+            if (orientedHeight > 0) {
+                videoHeight = @(orientedHeight);
             }
 
             const char *codecName = avcodec_get_name(codecParameters->codec_id);
@@ -727,6 +756,7 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                     && inputFormat != AV_PIX_FMT_NONE
                     && av_pix_fmt_desc_get(inputFormat) != NULL) {
                     AVRational sar = SFXVideoSampleAspectRatio(formatContext, videoStream, codecContext, frame);
+                    SFXVideoOrientation orientation = SFXResolveVideoOrientation(videoStream, frame);
                     int displayWidth = (int)SFXDisplayVideoWidthForDimensionsAndSAR(width, height, sar);
                     decodedCandidate = SFXCreateCoverCandidateFrame(
                         frame,
@@ -734,6 +764,7 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                         height,
                         displayWidth,
                         height,
+                        orientation,
                         inputFormat,
                         timestampMs,
                         targetScoringWidth,
@@ -755,6 +786,7 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                     && inputFormat != AV_PIX_FMT_NONE
                     && av_pix_fmt_desc_get(inputFormat) != NULL) {
                     AVRational sar = SFXVideoSampleAspectRatio(formatContext, videoStream, codecContext, frame);
+                    SFXVideoOrientation orientation = SFXResolveVideoOrientation(videoStream, frame);
                     int displayWidth = (int)SFXDisplayVideoWidthForDimensionsAndSAR(width, height, sar);
                     decodedCandidate = SFXCreateCoverCandidateFrame(
                         frame,
@@ -762,6 +794,7 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                         height,
                         displayWidth,
                         height,
+                        orientation,
                         inputFormat,
                         timestampMs,
                         targetScoringWidth,

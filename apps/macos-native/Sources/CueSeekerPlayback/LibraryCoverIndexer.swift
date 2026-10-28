@@ -347,6 +347,15 @@ public struct LibraryCoverIndexer: Sendable {
         }
 
         let resolvedInput = WebDAVClient.shared.resolvePlayableInput(for: URL.fromMediaPath(videoPath))
+        let swapsVideoDimensions = (
+            try? SFXMediaMetadataInspector.containerProbe(
+                atMediaPath: resolvedInput.inputPath,
+                httpHeaders: resolvedInput.httpHeaders
+            )
+        )?.swapsVideoDimensions ?? false
+        let scaleFilter = swapsVideoDimensions
+            ? "scale=iw:'max(1,round(ih/sar))':reset_sar=1"
+            : "scale='max(1,round(iw*sar))':ih:reset_sar=1"
         var arguments = [
             "-nostdin",
             "-hide_banner",
@@ -363,7 +372,7 @@ public struct LibraryCoverIndexer: Sendable {
             "-an",
             "-sn",
             "-dn",
-            "-vf", "scale='max(1,round(iw*sar))':ih:reset_sar=1",
+            "-vf", scaleFilter,
             "-q:v", "2",
             temporaryURL.path
         ]

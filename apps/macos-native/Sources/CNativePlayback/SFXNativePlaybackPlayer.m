@@ -284,6 +284,7 @@
         if (displayLayer == nil) {
             return NO;
         }
+        [_nativeView setVideoOrientation:session.videoOrientation];
         if (flushBeforeEnqueue
             || displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
             [displayLayer flush];
@@ -420,6 +421,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         _session = session;
         _nativeSessionOpenCount += 1;
     }
+    [_nativeView setVideoOrientation:session.videoOrientation];
     [session configurePerfOpenStart:openStart stopPrevMs:s2StopPrevMs];
     [_session start];
     return YES;
@@ -816,6 +818,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         }
     }
     if (flushDisplay) {
+        [_nativeView setVideoOrientation:SFXVideoOrientationUp];
         [_nativeView flush];
     }
 }

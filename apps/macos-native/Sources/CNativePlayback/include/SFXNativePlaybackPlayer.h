@@ -20,7 +20,24 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+typedef NS_ENUM(uint32_t, SFXVideoOrientation) {
+    SFXVideoOrientationUp = 1,
+    SFXVideoOrientationUpMirrored = 2,
+    SFXVideoOrientationDown = 3,
+    SFXVideoOrientationDownMirrored = 4,
+    SFXVideoOrientationLeftMirrored = 5,
+    SFXVideoOrientationRight = 6,
+    SFXVideoOrientationRightMirrored = 7,
+    SFXVideoOrientationLeft = 8
+};
+
+FOUNDATION_EXPORT SFXVideoOrientation SFXResolveVideoOrientationFromDisplayMatrix(const int32_t * _Nullable displayMatrix);
+FOUNDATION_EXPORT BOOL SFXVideoOrientationSwapsDimensions(SFXVideoOrientation orientation);
+FOUNDATION_EXPORT CGAffineTransform SFXLayerAffineTransformForVideoOrientation(SFXVideoOrientation orientation);
+FOUNDATION_EXPORT NSInteger SFXUnrotatedDisplayVideoWidthForPixelBuffer(CVPixelBufferRef _Nullable pixelBuffer);
 FOUNDATION_EXPORT NSInteger SFXDisplayVideoWidthForPixelBuffer(CVPixelBufferRef _Nullable pixelBuffer);
+FOUNDATION_EXPORT NSInteger SFXDisplayVideoHeightForPixelBuffer(CVPixelBufferRef _Nullable pixelBuffer);
+FOUNDATION_EXPORT SFXVideoOrientation SFXVideoOrientationForPixelBuffer(CVPixelBufferRef _Nullable pixelBuffer);
 
 typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
     SFXNativePlaybackDecodeModeHardware = 0,
@@ -178,6 +195,7 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
 
 @property (nonatomic, copy, readonly) NSString *formatName;
 @property (nonatomic, readonly) BOOL hasHeaderVideoParameters;
+@property (nonatomic, readonly) BOOL swapsVideoDimensions;
 
 - (instancetype)init NS_UNAVAILABLE;
 

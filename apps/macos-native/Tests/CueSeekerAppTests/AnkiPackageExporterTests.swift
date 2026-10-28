@@ -369,6 +369,7 @@ func ankiPackageExporterExportsCardScreenshotsForSquareAndAnamorphicVideosWithBu
 
     let squareVideoURL = directory.appendingPathComponent("square-160x90.mp4")
     let stretchVideoURL = directory.appendingPathComponent("anamorphic-144x108-sar4x3.mp4")
+    let rotatedStretchVideoURL = directory.appendingPathComponent("anamorphic-rotated90-144x108-sar4x3.mp4")
 
     for (outputURL, filter) in [
         (squareVideoURL, "testsrc2=duration=1:size=160x90:rate=12"),
@@ -388,6 +389,19 @@ func ankiPackageExporterExportsCardScreenshotsForSquareAndAnamorphicVideosWithBu
         #expect(process.terminationStatus == 0)
     }
 
+    let rotateProcess = Process()
+    rotateProcess.executableURL = URL(fileURLWithPath: generatorFFmpegPath)
+    rotateProcess.arguments = [
+        "-hide_banner", "-loglevel", "error",
+        "-display_rotation:v:0", "270",
+        "-i", stretchVideoURL.path,
+        "-c", "copy",
+        "-y", rotatedStretchVideoURL.path
+    ]
+    try rotateProcess.run()
+    rotateProcess.waitUntilExit()
+    #expect(rotateProcess.terminationStatus == 0)
+
     let apkgURL = directory.appendingPathComponent("Exported.apkg")
     let makeItem = { (videoPath: String) in
         AnkiExportItem(
@@ -406,11 +420,34 @@ func ankiPackageExporterExportsCardScreenshotsForSquareAndAnamorphicVideosWithBu
     try await AnkiPackageExporter.export(
         items: [
             makeItem(squareVideoURL.path),
-            makeItem(stretchVideoURL.path)
+            makeItem(stretchVideoURL.path),
+            makeItem(rotatedStretchVideoURL.path)
         ],
         options: AnkiExportOptions(frontItems: [.cueText], backItems: [.screenshot]),
         to: apkgURL
     )
     #expect(FileManager.default.fileExists(atPath: apkgURL.path))
     #expect(try Data(contentsOf: apkgURL).isEmpty == false)
+
+    let unpackedDir = directory.appendingPathComponent("unpacked", isDirectory: true)
+    try FileManager.default.createDirectory(at: unpackedDir, withIntermediateDirectories: true)
+    let unzipProcess = Process()
+    unzipProcess.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+    unzipProcess.arguments = ["-q", apkgURL.path, "-d", unpackedDir.path]
+    try unzipProcess.run()
+    unzipProcess.waitUntilExit()
+    #expect(unzipProcess.terminationStatus == 0)
+
+    let imageSize = { (index: Int) throws -> (width: Int, height: Int) in
+        let fileURL = unpackedDir.appendingPathComponent("\(index)")
+        let source = try #require(CGImageSourceCreateWithURL(fileURL as CFURL, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        return (image.width, image.height)
+    }
+    let squareSize = try imageSize(0)
+    let stretchSize = try imageSize(1)
+    let rotatedStretchSize = try imageSize(2)
+    #expect(squareSize.width == 160 && squareSize.height == 90)
+    #expect(stretchSize.width == 192 && stretchSize.height == 108)
+    #expect(rotatedStretchSize.width == 108 && rotatedStretchSize.height == 192)
 }

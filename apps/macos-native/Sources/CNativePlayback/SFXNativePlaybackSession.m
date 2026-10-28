@@ -44,6 +44,7 @@
     _audioStreamIndex = -1;
     _requestedAudioTrackIndex = audioTrackIndex;
     _audioTrackIndex = -1;
+    _videoOrientation = SFXVideoOrientationUp;
     _decodeQueue = dispatch_queue_create("CueSeeker.NativePlayback.Decode", DISPATCH_QUEUE_SERIAL);
     _demuxQueue = dispatch_queue_create("CueSeeker.NativePlayback.Demux", DISPATCH_QUEUE_SERIAL);
     _audioDecodeQueue = dispatch_queue_create("CueSeeker.NativePlayback.AudioDecode", DISPATCH_QUEUE_SERIAL);
@@ -97,24 +98,44 @@
     return _duration;
 }
 
-- (NSInteger)videoWidth {
+- (void)getDisplayVideoWidth:(NSInteger *)widthOut height:(NSInteger *)heightOut {
     int storageWidth = 0;
     int storageHeight = 0;
     AVRational sar = (AVRational){1, 1};
+    SFXVideoOrientation orientation = SFXVideoOrientationUp;
     @synchronized (self) {
         storageWidth = _videoFrameWidth;
         storageHeight = _videoFrameHeight;
         sar = _videoSampleAspectRatio;
+        orientation = _videoOrientation;
     }
-    return SFXDisplayVideoWidthForDimensionsAndSAR(storageWidth, storageHeight, sar);
+    NSInteger unrotatedWidth = SFXDisplayVideoWidthForDimensionsAndSAR(storageWidth, storageHeight, sar);
+    NSInteger unrotatedHeight = storageHeight > 0 ? storageHeight : 0;
+    BOOL swaps = SFXVideoOrientationSwapsDimensions(orientation);
+    if (widthOut != NULL) {
+        *widthOut = swaps ? unrotatedHeight : unrotatedWidth;
+    }
+    if (heightOut != NULL) {
+        *heightOut = swaps ? unrotatedWidth : unrotatedHeight;
+    }
+}
+
+- (NSInteger)videoWidth {
+    NSInteger width = 0;
+    [self getDisplayVideoWidth:&width height:NULL];
+    return width;
 }
 
 - (NSInteger)videoHeight {
-    int storageHeight = 0;
+    NSInteger height = 0;
+    [self getDisplayVideoWidth:NULL height:&height];
+    return height;
+}
+
+- (SFXVideoOrientation)videoOrientation {
     @synchronized (self) {
-        storageHeight = _videoFrameHeight;
+        return _videoOrientation;
     }
-    return storageHeight > 0 ? storageHeight : 0;
 }
 
 - (BOOL)isPlaying {
@@ -1011,9 +1032,11 @@
     }
 
     AVRational initialSAR = SFXVideoSampleAspectRatio(_formatContext, videoStream, _videoCodecContext, NULL);
+    SFXVideoOrientation initialOrientation = SFXResolveVideoOrientation(videoStream, NULL);
     @synchronized (self) {
         _usingHardwareDecode = YES;
         _videoSampleAspectRatio = initialSAR;
+        _videoOrientation = initialOrientation;
         _videoFrameWidth = _videoCodecContext->width;
         _videoFrameHeight = _videoCodecContext->height;
     }
@@ -1065,9 +1088,11 @@
     }
 
     AVRational initialSAR = SFXVideoSampleAspectRatio(_formatContext, videoStream, _videoCodecContext, NULL);
+    SFXVideoOrientation initialOrientation = SFXResolveVideoOrientation(videoStream, NULL);
     @synchronized (self) {
         _usingHardwareDecode = NO;
         _videoSampleAspectRatio = initialSAR;
+        _videoOrientation = initialOrientation;
         _videoFrameWidth = _videoCodecContext->width;
         _videoFrameHeight = _videoCodecContext->height;
     }

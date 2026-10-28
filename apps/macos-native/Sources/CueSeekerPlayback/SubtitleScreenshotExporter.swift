@@ -286,18 +286,22 @@ public enum SubtitleScreenshotExporter {
     struct VideoContainerProbeResult: Equatable, Sendable {
         let isMatroska: Bool
         let canSkipFindStreamInfo: Bool
+        let swapsVideoDimensions: Bool
 
         init(
             isMatroska: Bool,
-            canSkipFindStreamInfo: Bool
+            canSkipFindStreamInfo: Bool,
+            swapsVideoDimensions: Bool = false
         ) {
             self.isMatroska = isMatroska
             self.canSkipFindStreamInfo = canSkipFindStreamInfo
+            self.swapsVideoDimensions = swapsVideoDimensions
         }
 
         static func evaluate(
             formatName: String,
-            hasHeaderVideoParameters: Bool
+            hasHeaderVideoParameters: Bool,
+            swapsVideoDimensions: Bool = false
         ) -> VideoContainerProbeResult {
             let formatTokens = Set(
                 formatName
@@ -313,7 +317,8 @@ public enum SubtitleScreenshotExporter {
                 && (isMatroska || isISOContainer)
             return VideoContainerProbeResult(
                 isMatroska: isMatroska,
-                canSkipFindStreamInfo: canSkipFindStreamInfo
+                canSkipFindStreamInfo: canSkipFindStreamInfo,
+                swapsVideoDimensions: swapsVideoDimensions
             )
         }
     }
@@ -683,7 +688,8 @@ public enum SubtitleScreenshotExporter {
                 supportsSkipInternalSubtitles: ffmpegExecutable.supportsSkipInternalSubtitles,
                 containerProbe: VideoContainerProbeResult(
                     isMatroska: false,
-                    canSkipFindStreamInfo: false
+                    canSkipFindStreamInfo: false,
+                    swapsVideoDimensions: resolvedProbe.swapsVideoDimensions
                 )
             )
             let fallbackFrameData = try await runProcessCapturingStandardOutput(
@@ -738,6 +744,9 @@ public enum SubtitleScreenshotExporter {
         if supportsSkipInternalSubtitles, containerProbe.isMatroska {
             arguments += ["-cueseeker_skip_internal_subtitles", "1"]
         }
+        let scaleFilter = containerProbe.swapsVideoDimensions
+            ? "scale=iw:'max(1,round(ih/sar))':reset_sar=1"
+            : "scale='max(1,round(iw*sar))':ih:reset_sar=1"
         arguments += [
             "-ss", String(format: "%.3f", Double(max(0, timestampMilliseconds)) / 1_000),
             "-i", playableInput.inputPath,
@@ -745,7 +754,7 @@ public enum SubtitleScreenshotExporter {
             "-an",
             "-sn",
             "-dn",
-            "-vf", "scale='max(1,round(iw*sar))':ih:reset_sar=1",
+            "-vf", scaleFilter,
             "-pix_fmt", "bgr24",
             "-f", "image2pipe",
             "-vcodec", "bmp",
@@ -764,7 +773,8 @@ public enum SubtitleScreenshotExporter {
         ) {
             return VideoContainerProbeResult.evaluate(
                 formatName: probe.formatName,
-                hasHeaderVideoParameters: probe.hasHeaderVideoParameters
+                hasHeaderVideoParameters: probe.hasHeaderVideoParameters,
+                swapsVideoDimensions: probe.swapsVideoDimensions
             )
         }
         return VideoContainerProbeResult(

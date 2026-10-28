@@ -192,8 +192,12 @@
         ? _formatContext->streams[_videoStreamIndex]
         : NULL;
     AVRational sar = SFXVideoSampleAspectRatio(_formatContext, videoStream, _codecContext, _frame);
-    NSInteger displayWidth = SFXDisplayVideoWidthForDimensionsAndSAR(srcWidth, srcHeight, sar);
-    NSInteger displayHeight = srcHeight;
+    SFXVideoOrientation orientation = SFXResolveVideoOrientation(videoStream, _frame);
+    BOOL swapsDimensions = SFXVideoOrientationSwapsDimensions(orientation);
+    NSInteger unrotatedDisplayWidth = SFXDisplayVideoWidthForDimensionsAndSAR(srcWidth, srcHeight, sar);
+    NSInteger unrotatedDisplayHeight = srcHeight;
+    NSInteger displayWidth = swapsDimensions ? unrotatedDisplayHeight : unrotatedDisplayWidth;
+    NSInteger displayHeight = swapsDimensions ? unrotatedDisplayWidth : unrotatedDisplayHeight;
 
     if (videoWidthOut != NULL) {
         *videoWidthOut = displayWidth;
@@ -202,8 +206,10 @@
         *videoHeightOut = displayHeight;
     }
 
-    int dstWidth = (int)MAX(1, targetPixelWidth);
-    int dstHeight = (int)MAX(1, llround((double)dstWidth * (double)displayHeight / (double)displayWidth));
+    int targetWidth = (int)MAX(1, targetPixelWidth);
+    int targetHeight = (int)MAX(1, llround((double)targetWidth * (double)displayHeight / (double)displayWidth));
+    int dstWidth = swapsDimensions ? targetHeight : targetWidth;
+    int dstHeight = swapsDimensions ? targetWidth : targetHeight;
 
     _scaler = sws_getCachedContext(
         _scaler,
@@ -243,6 +249,20 @@
         return NULL;
     }
 
+    int orientedWidth = dstWidth;
+    int orientedHeight = dstHeight;
+    NSData *orientedRGBData = SFXTransformRGB24DataForVideoOrientation(
+        rgbData,
+        dstWidth,
+        dstHeight,
+        orientation,
+        &orientedWidth,
+        &orientedHeight
+    );
+    if (orientedRGBData == nil || orientedWidth <= 0 || orientedHeight <= 0) {
+        return NULL;
+    }
+
     CGColorSpaceRef colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     if (colorSpace == NULL) {
         colorSpace = CGColorSpaceCreateDeviceRGB();
@@ -251,18 +271,19 @@
         return NULL;
     }
 
-    CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)rgbData);
+    CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)orientedRGBData);
     if (provider == NULL) {
         CGColorSpaceRelease(colorSpace);
         return NULL;
     }
 
+    int orientedStride = orientedWidth * 3;
     CGImageRef cgImage = CGImageCreate(
-        (size_t)dstWidth,
-        (size_t)dstHeight,
+        (size_t)orientedWidth,
+        (size_t)orientedHeight,
         8,
         24,
-        (size_t)dstStride,
+        (size_t)orientedStride,
         colorSpace,
         (CGBitmapInfo)kCGImageAlphaNone,
         provider,

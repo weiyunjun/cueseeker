@@ -3,6 +3,7 @@
 #import <AVFoundation/AVFoundation.h>
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
+#import <ImageIO/ImageIO.h>
 #import <VideoToolbox/VideoToolbox.h>
 #import <QuartzCore/QuartzCore.h>
 #import <dispatch/dispatch.h>
@@ -13,6 +14,7 @@
 #include <libavformat/avformat.h>
 #include <libavutil/channel_layout.h>
 #include <libavutil/dict.h>
+#include <libavutil/display.h>
 #include <libavutil/error.h>
 #include <libavutil/hwcontext.h>
 #include <libavutil/log.h>
@@ -147,6 +149,22 @@ void SFXApplyPixelAspectRatioAttachment(
     CVPixelBufferRef _Nullable pixelBuffer,
     AVRational sampleAspectRatio
 );
+SFXVideoOrientation SFXResolveVideoOrientation(
+    const AVStream * _Nullable videoStream,
+    const AVFrame * _Nullable frame
+);
+void SFXApplyVideoOrientationAttachment(
+    CVPixelBufferRef _Nullable pixelBuffer,
+    SFXVideoOrientation orientation
+);
+NSData * _Nullable SFXTransformRGB24DataForVideoOrientation(
+    NSData * _Nullable rgb24Data,
+    int width,
+    int height,
+    SFXVideoOrientation orientation,
+    int * _Nullable outWidth,
+    int * _Nullable outHeight
+);
 
 @interface SFXKeyframeThumbnailDecoder : NSObject
 - (nullable CGImageRef)copyThumbnailImageForPath:(NSString *)path
@@ -162,6 +180,7 @@ void SFXApplyPixelAspectRatioAttachment(
 @interface SFXNativePlaybackView : NSView
 @property (nonatomic, strong, readonly) AVSampleBufferDisplayLayer *displayLayer;
 @property (nonatomic, readonly) NSUInteger displayImageRemovalCount;
+@property (nonatomic) SFXVideoOrientation videoOrientation;
 - (void)updateDisplayLayerFrameWithLogName:(NSString *)logName;
 - (void)flush;
 @end
@@ -251,6 +270,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     int _cachedVideoFormatSARNum;
     int _cachedVideoFormatSARDen;
     AVRational _videoSampleAspectRatio;
+    SFXVideoOrientation _videoOrientation;
     int _videoFrameWidth;
     int _videoFrameHeight;
 
@@ -501,6 +521,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 @property (nonatomic, readonly) BOOL pausesAtSegmentEnd;
 @property (nonatomic, readonly) NSInteger videoWidth;
 @property (nonatomic, readonly) NSInteger videoHeight;
+@property (nonatomic, readonly) SFXVideoOrientation videoOrientation;
 @property (nonatomic, readonly, getter=isPlaying) BOOL playing;
 @property (nonatomic, readonly) NSUInteger presentationGeneration;
 @property (nonatomic, readonly) NSUInteger presentedVideoFrameCount;

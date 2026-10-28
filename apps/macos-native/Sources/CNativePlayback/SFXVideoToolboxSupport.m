@@ -733,7 +733,7 @@ NSInteger SFXDisplayVideoWidthForDimensionsAndSAR(
     return MAX(1, (NSInteger)llround(scaledWidth));
 }
 
-NSInteger SFXDisplayVideoWidthForPixelBuffer(CVPixelBufferRef pixelBuffer) {
+NSInteger SFXUnrotatedDisplayVideoWidthForPixelBuffer(CVPixelBufferRef pixelBuffer) {
     if (pixelBuffer == NULL) {
         return 0;
     }
@@ -763,6 +763,156 @@ NSInteger SFXDisplayVideoWidthForPixelBuffer(CVPixelBufferRef pixelBuffer) {
     return SFXDisplayVideoWidthForDimensionsAndSAR(storageWidth, storageHeight, sar);
 }
 
+SFXVideoOrientation SFXResolveVideoOrientationFromDisplayMatrix(const int32_t *displayMatrix) {
+    if (displayMatrix == NULL) {
+        return SFXVideoOrientationUp;
+    }
+    double rawRotation = av_display_rotation_get(displayMatrix);
+    if (!isfinite(rawRotation)) {
+        return SFXVideoOrientationUp;
+    }
+    double theta = -round(rawRotation);
+    theta -= 360.0 * floor(theta / 360.0 + 0.9 / 360.0);
+    int quadrant = ((int)llround(theta / 90.0) % 4 + 4) % 4;
+    switch (quadrant) {
+    case 1:
+        return displayMatrix[3] > 0 ? SFXVideoOrientationLeftMirrored : SFXVideoOrientationRight;
+    case 2:
+        if (displayMatrix[0] < 0 && displayMatrix[4] < 0) {
+            return SFXVideoOrientationDown;
+        }
+        if (displayMatrix[0] < 0) {
+            return SFXVideoOrientationUpMirrored;
+        }
+        if (displayMatrix[4] < 0) {
+            return SFXVideoOrientationDownMirrored;
+        }
+        return SFXVideoOrientationDown;
+    case 3:
+        return displayMatrix[3] < 0 ? SFXVideoOrientationRightMirrored : SFXVideoOrientationLeft;
+    case 0:
+    default:
+        if (displayMatrix[4] < 0) {
+            return SFXVideoOrientationDownMirrored;
+        }
+        if (displayMatrix[0] < 0) {
+            return SFXVideoOrientationUpMirrored;
+        }
+        return SFXVideoOrientationUp;
+    }
+}
+
+SFXVideoOrientation SFXResolveVideoOrientation(
+    const AVStream *videoStream,
+    const AVFrame *frame
+) {
+    const int32_t *displayMatrix = NULL;
+    if (frame != NULL) {
+        AVFrameSideData *frameSideData = av_frame_get_side_data(frame, AV_FRAME_DATA_DISPLAYMATRIX);
+        if (frameSideData != NULL && frameSideData->size >= 9 * sizeof(int32_t)) {
+            displayMatrix = (const int32_t *)frameSideData->data;
+        }
+    }
+    if (displayMatrix == NULL && videoStream != NULL && videoStream->codecpar != NULL) {
+        const AVPacketSideData *packetSideData = av_packet_side_data_get(
+            videoStream->codecpar->coded_side_data,
+            videoStream->codecpar->nb_coded_side_data,
+            AV_PKT_DATA_DISPLAYMATRIX
+        );
+        if (packetSideData != NULL && packetSideData->size >= 9 * sizeof(int32_t)) {
+            displayMatrix = (const int32_t *)packetSideData->data;
+        }
+    }
+    return SFXResolveVideoOrientationFromDisplayMatrix(displayMatrix);
+}
+
+BOOL SFXVideoOrientationSwapsDimensions(SFXVideoOrientation orientation) {
+    return orientation >= SFXVideoOrientationLeftMirrored && orientation <= SFXVideoOrientationLeft;
+}
+
+CGAffineTransform SFXLayerAffineTransformForVideoOrientation(SFXVideoOrientation orientation) {
+    switch (orientation) {
+    case SFXVideoOrientationUpMirrored:
+        return CGAffineTransformMakeScale(-1.0, 1.0);
+    case SFXVideoOrientationDown:
+        return CGAffineTransformMakeRotation(M_PI);
+    case SFXVideoOrientationDownMirrored:
+        return CGAffineTransformMakeScale(1.0, -1.0);
+    case SFXVideoOrientationLeftMirrored:
+        return CGAffineTransformConcat(
+            CGAffineTransformMakeRotation(M_PI_2),
+            CGAffineTransformMakeScale(1.0, -1.0)
+        );
+    case SFXVideoOrientationRight:
+        return CGAffineTransformMakeRotation(-M_PI_2);
+    case SFXVideoOrientationRightMirrored:
+        return CGAffineTransformConcat(
+            CGAffineTransformMakeRotation(-M_PI_2),
+            CGAffineTransformMakeScale(1.0, -1.0)
+        );
+    case SFXVideoOrientationLeft:
+        return CGAffineTransformMakeRotation(M_PI_2);
+    case SFXVideoOrientationUp:
+    default:
+        return CGAffineTransformIdentity;
+    }
+}
+
+SFXVideoOrientation SFXVideoOrientationForPixelBuffer(CVPixelBufferRef pixelBuffer) {
+    if (pixelBuffer == NULL) {
+        return SFXVideoOrientationUp;
+    }
+    SFXVideoOrientation orientation = SFXVideoOrientationUp;
+    CFTypeRef attachment = CVBufferCopyAttachment(pixelBuffer, kCGImagePropertyOrientation, NULL);
+    if (attachment != NULL) {
+        if (CFGetTypeID(attachment) == CFNumberGetTypeID()) {
+            int parsedValue = 1;
+            if (CFNumberGetValue((CFNumberRef)attachment, kCFNumberIntType, &parsedValue)
+                && parsedValue >= (int)SFXVideoOrientationUp
+                && parsedValue <= (int)SFXVideoOrientationLeft) {
+                orientation = (SFXVideoOrientation)parsedValue;
+            }
+        }
+        CFRelease(attachment);
+    }
+    return orientation;
+}
+
+static void SFXGetDisplayVideoDimensionsForPixelBuffer(
+    CVPixelBufferRef pixelBuffer,
+    NSInteger *widthOut,
+    NSInteger *heightOut
+) {
+    NSInteger width = 0;
+    NSInteger height = 0;
+    if (pixelBuffer != NULL) {
+        NSInteger unrotatedWidth = SFXUnrotatedDisplayVideoWidthForPixelBuffer(pixelBuffer);
+        NSInteger unrotatedHeight = (NSInteger)CVPixelBufferGetHeight(pixelBuffer);
+        SFXVideoOrientation orientation = SFXVideoOrientationForPixelBuffer(pixelBuffer);
+        BOOL swaps = SFXVideoOrientationSwapsDimensions(orientation);
+        width = swaps ? unrotatedHeight : unrotatedWidth;
+        height = swaps ? unrotatedWidth : unrotatedHeight;
+    }
+    if (widthOut != NULL) {
+        *widthOut = width;
+    }
+    if (heightOut != NULL) {
+        *heightOut = height;
+    }
+}
+
+NSInteger SFXDisplayVideoWidthForPixelBuffer(CVPixelBufferRef pixelBuffer) {
+    NSInteger width = 0;
+    SFXGetDisplayVideoDimensionsForPixelBuffer(pixelBuffer, &width, NULL);
+    return width;
+}
+
+NSInteger SFXDisplayVideoHeightForPixelBuffer(CVPixelBufferRef pixelBuffer) {
+    NSInteger height = 0;
+    SFXGetDisplayVideoDimensionsForPixelBuffer(pixelBuffer, NULL, &height);
+    return height;
+}
+
 void SFXApplyPixelAspectRatioAttachment(
     CVPixelBufferRef pixelBuffer,
     AVRational sampleAspectRatio
@@ -786,4 +936,111 @@ void SFXApplyPixelAspectRatioAttachment(
     } else {
         CVBufferRemoveAttachment(pixelBuffer, kCVImageBufferPixelAspectRatioKey);
     }
+}
+
+void SFXApplyVideoOrientationAttachment(
+    CVPixelBufferRef pixelBuffer,
+    SFXVideoOrientation orientation
+) {
+    if (pixelBuffer == NULL) {
+        return;
+    }
+    if (orientation > SFXVideoOrientationUp && orientation <= SFXVideoOrientationLeft) {
+        CVBufferSetAttachment(
+            pixelBuffer,
+            kCGImagePropertyOrientation,
+            (__bridge CFNumberRef)@(orientation),
+            kCVAttachmentMode_ShouldPropagate
+        );
+    } else {
+        CVBufferRemoveAttachment(pixelBuffer, kCGImagePropertyOrientation);
+    }
+}
+
+NSData *SFXTransformRGB24DataForVideoOrientation(
+    NSData *rgb24Data,
+    int width,
+    int height,
+    SFXVideoOrientation orientation,
+    int *outWidth,
+    int *outHeight
+) {
+    if (rgb24Data == nil || width <= 0 || height <= 0) {
+        return nil;
+    }
+    size_t requiredBytes = (size_t)width * (size_t)height * 3;
+    if (rgb24Data.length < requiredBytes) {
+        return nil;
+    }
+    SFXVideoOrientation resolvedOrientation = (orientation >= SFXVideoOrientationUp && orientation <= SFXVideoOrientationLeft)
+        ? orientation
+        : SFXVideoOrientationUp;
+    BOOL swaps = SFXVideoOrientationSwapsDimensions(resolvedOrientation);
+    int dstWidth = swaps ? height : width;
+    int dstHeight = swaps ? width : height;
+    if (outWidth != NULL) {
+        *outWidth = dstWidth;
+    }
+    if (outHeight != NULL) {
+        *outHeight = dstHeight;
+    }
+    if (resolvedOrientation == SFXVideoOrientationUp) {
+        return rgb24Data;
+    }
+
+    NSMutableData *transformed = [NSMutableData dataWithLength:requiredBytes];
+    if (transformed == nil) {
+        return nil;
+    }
+    const uint8_t *src = (const uint8_t *)rgb24Data.bytes;
+    uint8_t *dst = (uint8_t *)transformed.mutableBytes;
+    int srcStride = width * 3;
+    int dstStride = dstWidth * 3;
+
+    for (int outY = 0; outY < dstHeight; outY++) {
+        uint8_t *dstRow = dst + (size_t)outY * (size_t)dstStride;
+        for (int outX = 0; outX < dstWidth; outX++) {
+            int inX = outX;
+            int inY = outY;
+            switch (resolvedOrientation) {
+            case SFXVideoOrientationUpMirrored:
+                inX = width - 1 - outX;
+                inY = outY;
+                break;
+            case SFXVideoOrientationDown:
+                inX = width - 1 - outX;
+                inY = height - 1 - outY;
+                break;
+            case SFXVideoOrientationDownMirrored:
+                inX = outX;
+                inY = height - 1 - outY;
+                break;
+            case SFXVideoOrientationLeftMirrored:
+                inX = outY;
+                inY = outX;
+                break;
+            case SFXVideoOrientationRight:
+                inX = outY;
+                inY = height - 1 - outX;
+                break;
+            case SFXVideoOrientationRightMirrored:
+                inX = width - 1 - outY;
+                inY = height - 1 - outX;
+                break;
+            case SFXVideoOrientationLeft:
+                inX = width - 1 - outY;
+                inY = outX;
+                break;
+            case SFXVideoOrientationUp:
+            default:
+                break;
+            }
+            const uint8_t *srcPixel = src + (size_t)inY * (size_t)srcStride + (size_t)inX * 3;
+            uint8_t *dstPixel = dstRow + (size_t)outX * 3;
+            dstPixel[0] = srcPixel[0];
+            dstPixel[1] = srcPixel[1];
+            dstPixel[2] = srcPixel[2];
+        }
+    }
+    return transformed;
 }

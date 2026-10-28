@@ -541,10 +541,12 @@
             ? (NSInteger)llround(mediaSeconds * 1000.0)
             : -1;
         AVRational frameSAR = SFXVideoSampleAspectRatio(_formatContext, videoStream, _videoCodecContext, _videoFrame);
+        SFXVideoOrientation frameOrientation = SFXResolveVideoOrientation(videoStream, _videoFrame);
         int frameWidth = _videoFrame->width > 0 ? _videoFrame->width : _videoCodecContext->width;
         int frameHeight = _videoFrame->height > 0 ? _videoFrame->height : _videoCodecContext->height;
         @synchronized (self) {
             _videoSampleAspectRatio = frameSAR;
+            _videoOrientation = frameOrientation;
             if (frameWidth > 0 && frameHeight > 0) {
                 _videoFrameWidth = frameWidth;
                 _videoFrameHeight = frameHeight;
@@ -559,6 +561,7 @@
             }
             CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)_videoFrame->data[3];
             SFXApplyPixelAspectRatioAttachment(pixelBuffer, frameSAR);
+            SFXApplyVideoOrientationAttachment(pixelBuffer, frameOrientation);
             submittedVideoFrame = [self enqueuePixelBuffer:pixelBuffer
                                           presentationTime:presentationTime
                                          sampleAspectRatio:frameSAR
@@ -594,6 +597,7 @@
                 break;
             }
             SFXApplyPixelAspectRatioAttachment(pixelBuffer, frameSAR);
+            SFXApplyVideoOrientationAttachment(pixelBuffer, frameOrientation);
 
             automaticRecycleMilliseconds = [self markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:mediaSeconds];
             submittedVideoFrame = [self enqueuePixelBuffer:pixelBuffer

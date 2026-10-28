@@ -75,21 +75,20 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
 
         var image = CIImage(
             cvPixelBuffer: pixelBuffer,
-            options: [.applyOrientationProperty: true]
+            options: [.applyOrientationProperty: false]
         )
         let rawExtent = image.extent.integral
         guard !rawExtent.isEmpty else {
             throw PlaybackCurrentFrameScreenshotError.imageConversionFailed
         }
 
-        let targetWidth = max(1, SFXDisplayVideoWidthForPixelBuffer(pixelBuffer))
-        let targetExtent: CGRect
-        if targetWidth != Int(rawExtent.width) {
-            let scaleX = CGFloat(targetWidth) / rawExtent.width
-            targetExtent = CGRect(
+        let unrotatedTargetWidth = max(1, SFXUnrotatedDisplayVideoWidthForPixelBuffer(pixelBuffer))
+        if unrotatedTargetWidth != Int(rawExtent.width) {
+            let scaleX = CGFloat(unrotatedTargetWidth) / rawExtent.width
+            let scaledExtent = CGRect(
                 x: 0,
                 y: 0,
-                width: CGFloat(targetWidth),
+                width: CGFloat(unrotatedTargetWidth),
                 height: rawExtent.height
             )
             image = image
@@ -106,16 +105,21 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
                         y: 1
                     )
                 )
-                .cropped(to: targetExtent)
-        } else {
-            targetExtent = rawExtent
+                .cropped(to: scaledExtent)
         }
 
-        guard let renderedImage = context.createCGImage(
-            image,
-            from: targetExtent,
-            colorSpace: outputColorSpace
-        ) else {
+        let orientation = SFXVideoOrientationForPixelBuffer(pixelBuffer)
+        if orientation != .up {
+            image = image.oriented(forExifOrientation: Int32(orientation.rawValue))
+        }
+        let targetExtent = image.extent.integral
+        guard !targetExtent.isEmpty,
+              let renderedImage = context.createCGImage(
+                  image,
+                  from: targetExtent,
+                  colorSpace: outputColorSpace
+              )
+        else {
             throw PlaybackCurrentFrameScreenshotError.imageConversionFailed
         }
         return renderedImage

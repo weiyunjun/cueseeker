@@ -1,5 +1,5 @@
 import CNativePlayback
-import CueSeekerPlayback
+@testable import CueSeekerPlayback
 import Foundation
 import Testing
 
@@ -1218,6 +1218,181 @@ func nativePlaybackAndImageSamplersApplyAnamorphicDisplayAspectRatioWhileMetadat
     #expect(squeezeThumb?.width == 160)
     #expect(squeezeThumb?.height == 120)
     #expect(squeezeThumbVideoSize == CGSize(width: 160, height: 120))
+}
+
+@Test
+@MainActor
+func nativePlaybackCoversThumbnailsScreenshotsAndMetadataApplyRotationAndFlipMetadata() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping rotation/flip orientation test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    // Generate a 160x96 landscape source with distinct colored quadrants:
+    // Top-left: Red, Top-right: Green, Bottom-left: Blue, Bottom-right: Yellow.
+    // Encode with 90° clockwise display rotation (in FFmpeg CLI, -display_rotation:v:0 270
+    // rotates the frame 90° clockwise on display, turning 160x96 into a 96x160 portrait video
+    // with Blue at top-left and Red at top-right).
+    let rotated90URL = directory.appendingPathComponent("rotated-90cw-160x96.mp4")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi",
+            "-i", "color=c=red:s=80x48:d=1.5:r=12[tl];color=c=green:s=80x48:d=1.5:r=12[tr];color=c=blue:s=80x48:d=1.5:r=12[bl];color=c=yellow:s=80x48:d=1.5:r=12[br];[tl][tr]hstack[top];[bl][br]hstack[bottom];[top][bottom]vstack",
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "12", "-pix_fmt", "yuv420p",
+            "-y", rotated90URL.path
+        ]
+    )
+    let rotated90TaggedURL = directory.appendingPathComponent("rotated-90cw-tagged.mp4")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-display_rotation:v:0", "270",
+            "-i", rotated90URL.path,
+            "-c", "copy",
+            "-y", rotated90TaggedURL.path
+        ]
+    )
+
+    // Also create a 180° rotated video (dimensions do not swap: 160x96 stays 160x96)
+    let rotated180TaggedURL = directory.appendingPathComponent("rotated-180-tagged.mp4")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-display_rotation:v:0", "180",
+            "-i", rotated90URL.path,
+            "-c", "copy",
+            "-y", rotated180TaggedURL.path
+        ]
+    )
+
+    // 1. Metadata swaps dimensions for 90°/270°, preserves dimensions for 180°
+    let metadata90 = try SFXMediaMetadataInspector.metadata(atMediaPath: rotated90TaggedURL.path)
+    #expect(metadata90.videoWidth?.intValue == 96)
+    #expect(metadata90.videoHeight?.intValue == 160)
+
+    let metadata180 = try SFXMediaMetadataInspector.metadata(atMediaPath: rotated180TaggedURL.path)
+    #expect(metadata180.videoWidth?.intValue == 160)
+    #expect(metadata180.videoHeight?.intValue == 96)
+
+    // 2. In-process cover sampling outputs upright 96x160 image
+    let coverCandidates = try SFXMediaMetadataInspector.sampleCoverFrames(
+        atMediaPath: rotated90TaggedURL.path,
+        httpHeaders: nil,
+        timestampsMilliseconds: [300],
+        scoringWidth: 64,
+        scoringHeight: 36
+    )
+    let coverImage = try #require(coverCandidates.first?.cgImage)
+    #expect(coverImage.width == 96)
+    #expect(coverImage.height == 160)
+    #expect(dominantColorAt(image: coverImage, x: 16, y: 20) == .blue)
+    #expect(dominantColorAt(image: coverImage, x: 80, y: 20) == .red)
+
+    // 3. Hardware & Software playback, view transform, current frame screenshot, and scrub thumbnail
+    for mode in [PlaybackDecodeMode.hardware, PlaybackDecodeMode.software] {
+        let player = PlaybackPlayer()
+        player.decodeMode = mode
+        player.renderView.frame = NSRect(x: 0, y: 0, width: 192, height: 320)
+        player.renderView.layoutSubtreeIfNeeded()
+        defer {
+            try? player.stop()
+        }
+
+        _ = try player.open(PlaybackRequest(videoURL: rotated90TaggedURL, startMilliseconds: 0))
+        let presented = await waitUntil(timeoutSeconds: 4) {
+            player.videoAspectRatio() != nil && player.captureScreenshotPresentation() != nil
+        }
+        #expect(presented)
+        #expect(abs((player.videoAspectRatio() ?? 0) - (96.0 / 160.0)) < 0.02)
+
+        player.renderView.layoutSubtreeIfNeeded()
+        let nativeView = try #require(player.renderView.subviews.first)
+        let displayLayer = try #require(nativeView.layer?.sublayers?.first)
+        let displayLayerBounds = displayLayer.bounds
+        let displayLayerFrame = displayLayer.frame
+        // After a 90° transform inside a 192x320 portrait view, the layer's bounds are swapped (320x192) while its frame in superlayer matches 192x320
+        #expect(abs(displayLayerFrame.width - 192.0) < 1.5)
+        #expect(abs(displayLayerFrame.height - 320.0) < 1.5)
+        #expect(abs(displayLayerBounds.width - 320.0) < 1.5)
+        #expect(abs(displayLayerBounds.height - 192.0) < 1.5)
+
+        let presentation = try #require(player.captureScreenshotPresentation())
+        let screenshot = try PlaybackCurrentFrameScreenshotRenderer.render(presentation)
+        #expect(screenshot.width == 96)
+        #expect(screenshot.height == 160)
+        #expect(dominantColorAt(image: screenshot, x: 16, y: 20) == .blue)
+        #expect(dominantColorAt(image: screenshot, x: 80, y: 20) == .red)
+
+        var scrubThumb: CGImage?
+        var scrubVideoSize: CGSize?
+        player.requestTimelineThumbnail(atMilliseconds: 300, targetPixelWidth: 96) { image, _, videoSize in
+            scrubThumb = image
+            scrubVideoSize = videoSize
+        }
+        let gotScrubThumb = await waitUntil(timeoutSeconds: 4) { scrubThumb != nil }
+        #expect(gotScrubThumb)
+        let unwrappedThumb = try #require(scrubThumb)
+        #expect(unwrappedThumb.width == 96)
+        #expect(unwrappedThumb.height == 160)
+        #expect(scrubVideoSize == CGSize(width: 96, height: 160))
+        #expect(dominantColorAt(image: unwrappedThumb, x: 16, y: 20) == .blue)
+        #expect(dominantColorAt(image: unwrappedThumb, x: 80, y: 20) == .red)
+    }
+}
+
+private enum QuadrantColor {
+    case red
+    case green
+    case blue
+    case yellow
+    case other
+}
+
+private func dominantColorAt(image: CGImage, x: Int, y: Int) -> QuadrantColor {
+    let bytesPerRow = image.width * 4
+    var bytes = [UInt8](repeating: 0, count: bytesPerRow * image.height)
+    guard let context = CGContext(
+        data: &bytes,
+        width: image.width,
+        height: image.height,
+        bitsPerComponent: 8,
+        bytesPerRow: bytesPerRow,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGBitmapInfo(
+            rawValue: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
+        ).rawValue
+    ) else {
+        return .other
+    }
+    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+    let offset = y * bytesPerRow + x * 4
+    let r = Int(bytes[offset])
+    let g = Int(bytes[offset + 1])
+    let b = Int(bytes[offset + 2])
+    if r > 150 && g > 150 && b < 100 {
+        return .yellow
+    }
+    if r > 150 && g < 100 && b < 100 {
+        return .red
+    }
+    if g > 130 && r < 100 && b < 100 {
+        return .green
+    }
+    if b > 150 && r < 100 && g < 100 {
+        return .blue
+    }
+    return .other
 }
 
 

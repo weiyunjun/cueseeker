@@ -135,6 +135,7 @@ enum AnkiPackageExporter {
         var mediaMap: [String: String] = [:]
         var mediaIndex = 0
         var audioTrackIndexes: [String: Int] = [:]
+        var videoSwapsDimensions: [String: Bool] = [:]
 
         for (index, item) in items.enumerated() {
             try Task.checkCancellation()
@@ -170,7 +171,14 @@ enum AnkiPackageExporter {
                 mediaMap[imageMediaKey] = imageName
                 mediaIndex += 1
 
-                try await exportImage(item: item, ffmpegURL: ffmpegURL, outputURL: imageExportURL)
+                let swapsDimensions = videoSwapsDimensions[item.videoPath] ?? swapsVideoDimensions(for: item)
+                videoSwapsDimensions[item.videoPath] = swapsDimensions
+                try await exportImage(
+                    item: item,
+                    swapsVideoDimensions: swapsDimensions,
+                    ffmpegURL: ffmpegURL,
+                    outputURL: imageExportURL
+                )
                 try FileManager.default.moveItem(at: imageExportURL, to: imageURL)
                 imageField = "<img src=\"\(imageName)\">"
             }
@@ -278,8 +286,21 @@ enum AnkiPackageExporter {
         )
     }
 
+    private static func swapsVideoDimensions(for item: AnkiExportItem) -> Bool {
+        let resolvedInput = WebDAVClient.shared.resolvePlayableInput(
+            for: URL.fromMediaPath(item.videoPath)
+        )
+        return (
+            try? SFXMediaMetadataInspector.containerProbe(
+                atMediaPath: resolvedInput.inputPath,
+                httpHeaders: resolvedInput.httpHeaders
+            )
+        )?.swapsVideoDimensions ?? false
+    }
+
     private static func exportImage(
         item: AnkiExportItem,
+        swapsVideoDimensions: Bool,
         ffmpegURL: URL,
         outputURL: URL
     ) async throws {
@@ -288,6 +309,9 @@ enum AnkiPackageExporter {
         let resolvedInput = WebDAVClient.shared.resolvePlayableInput(
             for: URL.fromMediaPath(item.videoPath)
         )
+        let scaleFilter = swapsVideoDimensions
+            ? "scale=iw:'max(1,round(ih/sar))':reset_sar=1"
+            : "scale='max(1,round(iw*sar))':ih:reset_sar=1"
         var arguments = [
             "-nostdin",
             "-y",
@@ -301,7 +325,7 @@ enum AnkiPackageExporter {
         arguments += [
             "-i", resolvedInput.inputPath,
             "-frames:v", "1",
-            "-vf", "scale='max(1,round(iw*sar))':ih:reset_sar=1",
+            "-vf", scaleFilter,
             "-q:v", "2",
             outputURL.path
         ]
