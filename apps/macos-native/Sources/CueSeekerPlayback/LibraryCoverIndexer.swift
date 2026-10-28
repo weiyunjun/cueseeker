@@ -294,7 +294,7 @@ public struct LibraryCoverIndexer: Sendable {
     ) throws -> Data {
         let timeString = Self.ffmpegTimeString(milliseconds: timestampMilliseconds)
         let size = "\(configuration.scoringWidth):\(configuration.scoringHeight)"
-        let filter = "scale='max(1,round(iw*sar))':ih,scale=\(size):force_original_aspect_ratio=decrease,pad=\(size):(ow-iw)/2:(oh-ih)/2:color=black"
+        let filter = "scale=\(size):force_original_aspect_ratio=decrease:reset_sar=1,pad=\(size):(ow-iw)/2:(oh-ih)/2:color=black"
         let resolvedInput = WebDAVClient.shared.resolvePlayableInput(for: URL.fromMediaPath(videoPath))
         var arguments = [
             "-nostdin",
@@ -363,7 +363,7 @@ public struct LibraryCoverIndexer: Sendable {
             "-an",
             "-sn",
             "-dn",
-            "-vf", "scale='max(1,round(iw*sar))':ih",
+            "-vf", "scale='max(1,round(iw*sar))':ih:reset_sar=1",
             "-q:v", "2",
             temporaryURL.path
         ]

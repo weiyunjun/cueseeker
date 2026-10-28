@@ -745,7 +745,7 @@ public enum SubtitleScreenshotExporter {
             "-an",
             "-sn",
             "-dn",
-            "-vf", "scale='max(1,round(iw*sar))':ih",
+            "-vf", "scale='max(1,round(iw*sar))':ih:reset_sar=1",
             "-pix_fmt", "bgr24",
             "-f", "image2pipe",
             "-vcodec", "bmp",
