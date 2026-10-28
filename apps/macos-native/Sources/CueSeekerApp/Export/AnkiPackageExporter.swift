@@ -301,7 +301,7 @@ enum AnkiPackageExporter {
         arguments += [
             "-i", resolvedInput.inputPath,
             "-frames:v", "1",
-            "-vf", "scale='max(1,round(iw*sar))':ih,setsar=1",
+            "-vf", "scale='max(1,round(iw*sar))':ih",
             "-q:v", "2",
             outputURL.path
         ]

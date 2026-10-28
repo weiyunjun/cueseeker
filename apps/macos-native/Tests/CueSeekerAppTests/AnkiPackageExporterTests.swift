@@ -351,3 +351,66 @@ func ankiExportResolvesDefaultAudioTracksInBackground() throws {
     #expect(resolved.count == 1)
     #expect(resolved[0].audioTrackIndex == 1)
 }
+
+@Test
+func ankiPackageExporterExportsCardScreenshotsForSquareAndAnamorphicVideosWithBundledFFmpeg() async throws {
+    guard let generatorFFmpegPath = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]
+        .first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+    else {
+        return
+    }
+
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerAnkiScreenshotExportTests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let squareVideoURL = directory.appendingPathComponent("square-160x90.mp4")
+    let stretchVideoURL = directory.appendingPathComponent("anamorphic-144x108-sar4x3.mp4")
+
+    for (outputURL, filter) in [
+        (squareVideoURL, "testsrc2=duration=1:size=160x90:rate=12"),
+        (stretchVideoURL, "testsrc2=duration=1:size=144x108:rate=12,setsar=4/3")
+    ] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: generatorFFmpegPath)
+        process.arguments = [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", filter,
+            "-c:v", "mpeg4",
+            "-pix_fmt", "yuv420p",
+            "-y", outputURL.path
+        ]
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+    }
+
+    let apkgURL = directory.appendingPathComponent("Exported.apkg")
+    let makeItem = { (videoPath: String) in
+        AnkiExportItem(
+            deckDisplayTitle: "Frieren",
+            videoPath: videoPath,
+            startMilliseconds: 100,
+            endMilliseconds: 300,
+            text: "Cue",
+            displayTitle: "Frieren S01E01",
+            timeRange: "00:00 - 00:01",
+            cueGroupOtherTexts: [],
+            cueID: 1,
+            subtitlePath: "/Videos/Frieren S01E01.ja.srt"
+        )
+    }
+    try await AnkiPackageExporter.export(
+        items: [
+            makeItem(squareVideoURL.path),
+            makeItem(stretchVideoURL.path)
+        ],
+        options: AnkiExportOptions(frontItems: [.cueText], backItems: [.screenshot]),
+        to: apkgURL
+    )
+    #expect(FileManager.default.fileExists(atPath: apkgURL.path))
+    #expect(try Data(contentsOf: apkgURL).isEmpty == false)
+}

@@ -15,9 +15,9 @@
 2. **Covers, Scrubbing Thumbnails, Screenshots, Collage, and Anki Image Exports (`SFXKeyframeScrubPreviewDecoder.m`, `SFXMediaMetadataInspector.m`, `LibraryCoverIndexer.swift`, `PlaybackCurrentFrameScreenshot.swift`, `SubtitleScreenshotExporter.swift`, `AnkiPackageExporter.swift`)**:
    - Updated in-process keyframe scrub preview decoding (`SFXKeyframeScrubPreviewDecoder`) and cover frame sampling (`SFXMediaMetadataInspector`) to scale output frames to display dimensions (`displayWidth × height`), while preserving raw storage dimensions in `SFXMediaMetadataInspector.metadataAtMediaPath:`.
    - Updated `PlaybackCurrentFrameScreenshotRenderer` to reuse `SFXDisplayVideoWidthForPixelBuffer` and scale to display width in a single pass during `CIImage` to `CGImage` conversion.
-   - Added `scale='max(1,round(iw*sar))':ih,setsar=1` to FFmpeg video filters in `LibraryCoverIndexer`, `SubtitleScreenshotExporter`, and `AnkiPackageExporter`.
+   - Added `scale='max(1,round(iw*sar))':ih` to FFmpeg video filters in `LibraryCoverIndexer`, `SubtitleScreenshotExporter`, and `AnkiPackageExporter` (relying on `scale`'s built-in SAR normalization so it remains compatible with the bundled minimal FFmpeg filter set).
 
 ## Verification
-- Added and updated unit tests in `NativePlaybackMediaTimelineTests.swift`, `PlaybackCurrentFrameScreenshotTests.swift`, and `SubtitleScreenshotExporterTests.swift`.
+- Added and updated unit tests in `NativePlaybackMediaTimelineTests.swift`, `PlaybackCurrentFrameScreenshotTests.swift`, `SubtitleScreenshotExporterTests.swift`, and `AnkiPackageExporterTests.swift`.
 - Ran `swift test --package-path apps/macos-native --no-parallel --filter "SubtitleScreenshotExporterTests|PlaybackCurrentFrameScreenshotTests|NativePlaybackMediaTimelineTests|NativePlaybackPresentationTransitionTests|LibraryCoverIndexerTests|AnkiPackageExporterTests"`.
 - Outcome matched expectations.

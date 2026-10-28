@@ -140,7 +140,7 @@ func subtitleScreenshotVideoFrameArgumentsSkipInternalSubtitlesOnlyForSupportedM
     #expect(audioDisableIndex > inputFlagIndex)
     #expect(subtitleDisableIndex > inputFlagIndex)
     #expect(dataDisableIndex > inputFlagIndex)
-    #expect(mkvArgs.contains("scale='max(1,round(iw*sar))':ih,setsar=1"))
+    #expect(mkvArgs.contains("scale='max(1,round(iw*sar))':ih"))
 
     let mp4Args = SubtitleScreenshotExporter._videoFrameArgumentsForTesting(
         videoPath: "/tmp/episode.mp4",
@@ -424,4 +424,58 @@ func subtitleCollageRenderSessionReusesRawVideoFrameForSameMidpointAndExtractsNe
     #expect(plan.groups[0].renderTimestampMilliseconds == 2_500)
     _ = try await session.renderGroup(plan.groups[0])
     #expect(extractedTimestamps == [2_000, 2_500])
+}
+
+@Test
+func subtitleScreenshotExporterExtractsSquareAndAnamorphicFramesWithBundledFFmpeg() async throws {
+    guard let exporterFFmpeg = SubtitleScreenshotExporter.ffmpegExecutable(),
+          let generatorFFmpegPath = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]
+            .first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+    else {
+        return
+    }
+
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeeker-SubtitleScreenshotFFmpeg-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let squareVideoURL = directory.appendingPathComponent("square-160x90.mp4")
+    let stretchVideoURL = directory.appendingPathComponent("anamorphic-144x108-sar4x3.mp4")
+
+    for (outputURL, filter) in [
+        (squareVideoURL, "testsrc2=duration=1:size=160x90:rate=12"),
+        (stretchVideoURL, "testsrc2=duration=1:size=144x108:rate=12,setsar=4/3")
+    ] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: generatorFFmpegPath)
+        process.arguments = [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", filter,
+            "-c:v", "mpeg4",
+            "-pix_fmt", "yuv420p",
+            "-y", outputURL.path
+        ]
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+    }
+
+    let squareImage = try await SubtitleScreenshotExporter.videoFrame(
+        videoPath: squareVideoURL.path,
+        timestampMilliseconds: 200,
+        ffmpegExecutable: exporterFFmpeg
+    )
+    #expect(squareImage.width == 160)
+    #expect(squareImage.height == 90)
+
+    let stretchedImage = try await SubtitleScreenshotExporter.videoFrame(
+        videoPath: stretchVideoURL.path,
+        timestampMilliseconds: 200,
+        ffmpegExecutable: exporterFFmpeg
+    )
+    #expect(stretchedImage.width == 192)
+    #expect(stretchedImage.height == 108)
 }
