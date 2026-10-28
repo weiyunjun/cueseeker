@@ -56,24 +56,15 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
     public static func render(
         _ presentation: PlaybackScreenshotPresentation
     ) throws -> CGImage {
-        let hasSubtitles = presentation.assSubtitleFrame?.surface != nil
-            || presentation.srtSubtitleImage != nil
-        let base = try render(
-            pixelBuffer: presentation.nativeSnapshot.pixelBuffer,
-            applyAspectRatio: !hasSubtitles
-        )
+        let base = try render(pixelBuffer: presentation.nativeSnapshot.pixelBuffer)
         return try compose(
             baseImage: base,
-            targetWidth: presentation.nativeSnapshot.width,
             assSubtitleFrame: presentation.assSubtitleFrame,
             srtSubtitleImage: presentation.srtSubtitleImage
         )
     }
 
-    static func render(
-        pixelBuffer: CVPixelBuffer,
-        applyAspectRatio: Bool = true
-    ) throws -> CGImage {
+    static func render(pixelBuffer: CVPixelBuffer) throws -> CGImage {
         let storageWidth = CVPixelBufferGetWidth(pixelBuffer)
         let storageHeight = CVPixelBufferGetHeight(pixelBuffer)
         guard storageWidth > 0,
@@ -91,9 +82,7 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
             throw PlaybackCurrentFrameScreenshotError.imageConversionFailed
         }
 
-        let targetWidth = applyAspectRatio
-            ? max(1, SFXDisplayVideoWidthForPixelBuffer(pixelBuffer))
-            : Int(rawExtent.width)
+        let targetWidth = max(1, SFXDisplayVideoWidthForPixelBuffer(pixelBuffer))
         let targetExtent: CGRect
         if targetWidth != Int(rawExtent.width) {
             let scaleX = CGFloat(targetWidth) / rawExtent.width
@@ -109,7 +98,13 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
                     by: CGAffineTransform(
                         translationX: -rawExtent.minX,
                         y: -rawExtent.minY
-                    ).scaledBy(x: scaleX, y: 1)
+                    )
+                )
+                .transformed(
+                    by: CGAffineTransform(
+                        scaleX: scaleX,
+                        y: 1
+                    )
                 )
                 .cropped(to: targetExtent)
         } else {
@@ -128,19 +123,16 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
 
     static func compose(
         baseImage: CGImage,
-        targetWidth: Int? = nil,
         assSubtitleFrame: ASSSparseFrame?,
         srtSubtitleImage: CGImage?
     ) throws -> CGImage {
-        let outputWidth = max(1, targetWidth ?? baseImage.width)
         guard assSubtitleFrame?.surface != nil
                 || srtSubtitleImage != nil
-                || outputWidth != baseImage.width
         else {
             return baseImage
         }
         guard let context = makeBitmapContext(
-            width: outputWidth,
+            width: baseImage.width,
             height: baseImage.height
         ) else {
             throw PlaybackCurrentFrameScreenshotError.imageConversionFailed
@@ -149,12 +141,9 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
         let fullRect = CGRect(
             x: 0,
             y: 0,
-            width: outputWidth,
+            width: baseImage.width,
             height: baseImage.height
         )
-        if outputWidth != baseImage.width {
-            context.interpolationQuality = .high
-        }
         context.draw(baseImage, in: fullRect)
 
         if let assSubtitleFrame,
@@ -162,7 +151,7 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
            let surfaceImage = makeASSImage(surface) {
             let frameWidth = max(1, assSubtitleFrame.frameWidth)
             let frameHeight = max(1, assSubtitleFrame.frameHeight)
-            let scaleX = CGFloat(outputWidth) / CGFloat(frameWidth)
+            let scaleX = CGFloat(baseImage.width) / CGFloat(frameWidth)
             let scaleY = CGFloat(baseImage.height) / CGFloat(frameHeight)
             let destinationHeight = CGFloat(surface.height) * scaleY
             let destinationRect = CGRect(

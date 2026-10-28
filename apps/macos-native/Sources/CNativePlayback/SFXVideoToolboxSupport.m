@@ -701,6 +701,9 @@ AVRational SFXVideoSampleAspectRatio(
     AVRational sar = (videoStream != NULL)
         ? av_guess_sample_aspect_ratio(formatContext, videoStream, (AVFrame *)frame)
         : (AVRational){0, 1};
+    if ((sar.num <= 0 || sar.den <= 0) && videoStream != NULL && frame != NULL) {
+        sar = av_guess_sample_aspect_ratio(formatContext, videoStream, NULL);
+    }
     if ((sar.num <= 0 || sar.den <= 0)
         && codecContext != NULL
         && codecContext->sample_aspect_ratio.num > 0

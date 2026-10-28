@@ -14,7 +14,7 @@
    - Updated `SFXNativePlaybackSession.videoWidth` / `videoHeight` and `SFXNativePlaybackFrameSnapshot.width` to report the display dimensions in a thread-safe manner from synchronized session state, and updated `PlaybackPlayer.commitPendingPresentation` to refresh the subtitle render container's `videoSize`.
 2. **Covers, Scrubbing Thumbnails, Screenshots, Collage, and Anki Image Exports (`SFXKeyframeScrubPreviewDecoder.m`, `SFXMediaMetadataInspector.m`, `LibraryCoverIndexer.swift`, `PlaybackCurrentFrameScreenshot.swift`, `SubtitleScreenshotExporter.swift`, `AnkiPackageExporter.swift`)**:
    - Updated in-process keyframe scrub preview decoding (`SFXKeyframeScrubPreviewDecoder`) and cover frame sampling (`SFXMediaMetadataInspector`) to scale output frames to display dimensions (`displayWidth × height`), while preserving raw storage dimensions in `SFXMediaMetadataInspector.metadataAtMediaPath:`.
-   - Updated `PlaybackCurrentFrameScreenshotRenderer` to reuse `SFXDisplayVideoWidthForPixelBuffer` and scale to display width in a single pass during image conversion or subtitle composition.
+   - Updated `PlaybackCurrentFrameScreenshotRenderer` to reuse `SFXDisplayVideoWidthForPixelBuffer` and scale to display width in a single pass during `CIImage` to `CGImage` conversion.
    - Added `scale='max(1,round(iw*sar))':ih,setsar=1` to FFmpeg video filters in `LibraryCoverIndexer`, `SubtitleScreenshotExporter`, and `AnkiPackageExporter`.
 
 ## Verification
