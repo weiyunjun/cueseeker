@@ -1169,7 +1169,7 @@
    1. File Header Row：文件夹/文件图标与名称
    2. Property Groups：Settings 风格卡片组
       - Folder（Root Folder / Subfolder）：`Folder Info`（Path、Folder Count、Video Count、Subtitle Count）、`Index Info`（Added、Updated）
-      - Video File：`Video`（Resolution `W × H`、Frame Rate、Codec、Bit Depth、Pixel Format、Bitrate、Duration）、`Audio #N`（无有效音轨时不显示此分组；Codec、Channels `<N>ch`、Sample Rate、Bit Depth、Language、Title，仅展示有效项）、`Subtitles`、`File Details`（File Size、Format、Path、Created、Modified）
+      - Video File：`Video`（Resolution `W × H`、Frame Rate、Codec、Bit Depth、Pixel Format、Bitrate、Duration）、`Audio #N`（无有效音轨时不显示此分组；Codec、Channels `<N>ch`、Sample Rate、Bit Depth、Language、Title，仅展示有效项）、`Subtitles`、`File Details`（File Size、Format 按内部实际容器格式展示且同容器家族保持原后缀对应名称、Path、Created、Modified）
       - Subtitle File：`Subtitle Specifications`（Encoding、Raw Lines、Valid Lines）、`Video`、`File Details`（File Size、Format、Path、Created、Modified）
 
 #### Sizes
