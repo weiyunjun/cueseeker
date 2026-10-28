@@ -20,6 +20,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+FOUNDATION_EXPORT NSInteger SFXDisplayVideoWidthForPixelBuffer(CVPixelBufferRef _Nullable pixelBuffer);
+
 typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
     SFXNativePlaybackDecodeModeHardware = 0,
     SFXNativePlaybackDecodeModeSoftware = 1,

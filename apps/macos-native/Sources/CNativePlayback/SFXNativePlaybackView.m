@@ -86,7 +86,7 @@
 }
 
 - (NSInteger)width {
-    return _pixelBuffer == NULL ? 0 : (NSInteger)CVPixelBufferGetWidth(_pixelBuffer);
+    return SFXDisplayVideoWidthForPixelBuffer(_pixelBuffer);
 }
 
 - (NSInteger)height {

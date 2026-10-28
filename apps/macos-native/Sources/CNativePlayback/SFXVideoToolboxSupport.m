@@ -698,46 +698,16 @@ AVRational SFXVideoSampleAspectRatio(
     const AVCodecContext *codecContext,
     const AVFrame *frame
 ) {
-    AVRational sar = (AVRational){0, 1};
-    if (videoStream != NULL) {
-        sar = av_guess_sample_aspect_ratio(formatContext, videoStream, (AVFrame *)frame);
-    }
-    if ((sar.num <= 0 || sar.den <= 0)
-        && frame != NULL
-        && frame->sample_aspect_ratio.num > 0
-        && frame->sample_aspect_ratio.den > 0) {
-        sar = frame->sample_aspect_ratio;
-    }
-    if ((sar.num <= 0 || sar.den <= 0)
-        && videoStream != NULL
-        && videoStream->sample_aspect_ratio.num > 0
-        && videoStream->sample_aspect_ratio.den > 0) {
-        sar = videoStream->sample_aspect_ratio;
-    }
-    if ((sar.num <= 0 || sar.den <= 0)
-        && videoStream != NULL
-        && videoStream->codecpar != NULL
-        && videoStream->codecpar->sample_aspect_ratio.num > 0
-        && videoStream->codecpar->sample_aspect_ratio.den > 0) {
-        sar = videoStream->codecpar->sample_aspect_ratio;
-    }
+    AVRational sar = (videoStream != NULL)
+        ? av_guess_sample_aspect_ratio(formatContext, videoStream, (AVFrame *)frame)
+        : (AVRational){0, 1};
     if ((sar.num <= 0 || sar.den <= 0)
         && codecContext != NULL
         && codecContext->sample_aspect_ratio.num > 0
         && codecContext->sample_aspect_ratio.den > 0) {
         sar = codecContext->sample_aspect_ratio;
     }
-    if (sar.num <= 0 || sar.den <= 0) {
-        return (AVRational){1, 1};
-    }
-    int reducedNum = sar.num;
-    int reducedDen = sar.den;
-    if (av_reduce(&reducedNum, &reducedDen, sar.num, sar.den, 1024 * 1024)
-        && reducedNum > 0
-        && reducedDen > 0) {
-        return (AVRational){reducedNum, reducedDen};
-    }
-    return sar;
+    return (sar.num > 0 && sar.den > 0) ? sar : (AVRational){1, 1};
 }
 
 NSInteger SFXDisplayVideoWidthForDimensionsAndSAR(
@@ -760,10 +730,39 @@ NSInteger SFXDisplayVideoWidthForDimensionsAndSAR(
     return MAX(1, (NSInteger)llround(scaledWidth));
 }
 
+NSInteger SFXDisplayVideoWidthForPixelBuffer(CVPixelBufferRef pixelBuffer) {
+    if (pixelBuffer == NULL) {
+        return 0;
+    }
+    NSInteger storageWidth = (NSInteger)CVPixelBufferGetWidth(pixelBuffer);
+    NSInteger storageHeight = (NSInteger)CVPixelBufferGetHeight(pixelBuffer);
+    if (storageWidth <= 0 || storageHeight <= 0) {
+        return 0;
+    }
+    AVRational sar = (AVRational){1, 1};
+    CFTypeRef parAttachment = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferPixelAspectRatioKey, NULL);
+    if (parAttachment != NULL) {
+        if (CFGetTypeID(parAttachment) == CFDictionaryGetTypeID()) {
+            CFDictionaryRef parDict = (CFDictionaryRef)parAttachment;
+            CFNumberRef numRef = (CFNumberRef)CFDictionaryGetValue(parDict, kCVImageBufferPixelAspectRatioHorizontalSpacingKey);
+            CFNumberRef denRef = (CFNumberRef)CFDictionaryGetValue(parDict, kCVImageBufferPixelAspectRatioVerticalSpacingKey);
+            int parsedNum = 0;
+            int parsedDen = 0;
+            if (numRef != NULL && denRef != NULL
+                && CFNumberGetValue(numRef, kCFNumberIntType, &parsedNum)
+                && CFNumberGetValue(denRef, kCFNumberIntType, &parsedDen)
+                && parsedNum > 0 && parsedDen > 0) {
+                sar = (AVRational){parsedNum, parsedDen};
+            }
+        }
+        CFRelease(parAttachment);
+    }
+    return SFXDisplayVideoWidthForDimensionsAndSAR(storageWidth, storageHeight, sar);
+}
+
 void SFXApplyPixelAspectRatioAttachment(
     CVPixelBufferRef pixelBuffer,
-    AVRational sampleAspectRatio,
-    BOOL removeWhenSquare
+    AVRational sampleAspectRatio
 ) {
     if (pixelBuffer == NULL) {
         return;
@@ -781,7 +780,7 @@ void SFXApplyPixelAspectRatioAttachment(
             (__bridge CFDictionaryRef)aspectDict,
             kCVAttachmentMode_ShouldPropagate
         );
-    } else if (removeWhenSquare) {
+    } else {
         CVBufferRemoveAttachment(pixelBuffer, kCVImageBufferPixelAspectRatioKey);
     }
 }

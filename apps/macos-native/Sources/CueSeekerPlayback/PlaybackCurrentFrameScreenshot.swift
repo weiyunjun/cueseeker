@@ -56,15 +56,24 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
     public static func render(
         _ presentation: PlaybackScreenshotPresentation
     ) throws -> CGImage {
-        let base = try render(pixelBuffer: presentation.nativeSnapshot.pixelBuffer)
+        let hasSubtitles = presentation.assSubtitleFrame?.surface != nil
+            || presentation.srtSubtitleImage != nil
+        let base = try render(
+            pixelBuffer: presentation.nativeSnapshot.pixelBuffer,
+            applyAspectRatio: !hasSubtitles
+        )
         return try compose(
             baseImage: base,
+            targetWidth: presentation.nativeSnapshot.width,
             assSubtitleFrame: presentation.assSubtitleFrame,
             srtSubtitleImage: presentation.srtSubtitleImage
         )
     }
 
-    static func render(pixelBuffer: CVPixelBuffer) throws -> CGImage {
+    static func render(
+        pixelBuffer: CVPixelBuffer,
+        applyAspectRatio: Bool = true
+    ) throws -> CGImage {
         let storageWidth = CVPixelBufferGetWidth(pixelBuffer)
         let storageHeight = CVPixelBufferGetHeight(pixelBuffer)
         guard storageWidth > 0,
@@ -73,88 +82,65 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
             throw PlaybackCurrentFrameScreenshotError.invalidFrameSize
         }
 
-        let image = CIImage(
+        var image = CIImage(
             cvPixelBuffer: pixelBuffer,
             options: [.applyOrientationProperty: true]
         )
-        let extent = image.extent.integral
-        guard !extent.isEmpty,
-              let renderedImage = context.createCGImage(
-                image,
-                from: extent,
-                colorSpace: outputColorSpace
-              )
-        else {
+        let rawExtent = image.extent.integral
+        guard !rawExtent.isEmpty else {
             throw PlaybackCurrentFrameScreenshotError.imageConversionFailed
         }
 
-        let targetWidth = displayWidth(
-            for: pixelBuffer,
-            storageWidth: renderedImage.width
-        )
-        guard targetWidth != renderedImage.width else {
-            return renderedImage
+        let targetWidth = applyAspectRatio
+            ? max(1, SFXDisplayVideoWidthForPixelBuffer(pixelBuffer))
+            : Int(rawExtent.width)
+        let targetExtent: CGRect
+        if targetWidth != Int(rawExtent.width) {
+            let scaleX = CGFloat(targetWidth) / rawExtent.width
+            targetExtent = CGRect(
+                x: 0,
+                y: 0,
+                width: CGFloat(targetWidth),
+                height: rawExtent.height
+            )
+            image = image
+                .clampedToExtent()
+                .transformed(
+                    by: CGAffineTransform(
+                        translationX: -rawExtent.minX,
+                        y: -rawExtent.minY
+                    ).scaledBy(x: scaleX, y: 1)
+                )
+                .cropped(to: targetExtent)
+        } else {
+            targetExtent = rawExtent
         }
-        guard let scaledContext = makeBitmapContext(
-            width: targetWidth,
-            height: renderedImage.height
+
+        guard let renderedImage = context.createCGImage(
+            image,
+            from: targetExtent,
+            colorSpace: outputColorSpace
         ) else {
             throw PlaybackCurrentFrameScreenshotError.imageConversionFailed
         }
-        scaledContext.interpolationQuality = .high
-        scaledContext.draw(
-            renderedImage,
-            in: CGRect(
-                x: 0,
-                y: 0,
-                width: targetWidth,
-                height: renderedImage.height
-            )
-        )
-        guard let scaledImage = scaledContext.makeImage() else {
-            throw PlaybackCurrentFrameScreenshotError.imageConversionFailed
-        }
-        return scaledImage
-    }
-
-    private static func displayWidth(
-        for pixelBuffer: CVPixelBuffer,
-        storageWidth: Int
-    ) -> Int {
-        guard storageWidth > 0,
-              let attachment = CVBufferCopyAttachment(
-                pixelBuffer,
-                kCVImageBufferPixelAspectRatioKey,
-                nil
-              ),
-              let dict = attachment as? [CFString: Any],
-              let hSpacing = (dict[kCVImageBufferPixelAspectRatioHorizontalSpacingKey] as? NSNumber)?.doubleValue,
-              let vSpacing = (dict[kCVImageBufferPixelAspectRatioVerticalSpacingKey] as? NSNumber)?.doubleValue,
-              hSpacing > 0,
-              vSpacing > 0,
-              hSpacing != vSpacing
-        else {
-            return storageWidth
-        }
-        let scaled = (Double(storageWidth) * hSpacing / vSpacing).rounded()
-        guard scaled.isFinite, scaled > 0 else {
-            return storageWidth
-        }
-        return max(1, Int(scaled))
+        return renderedImage
     }
 
     static func compose(
         baseImage: CGImage,
+        targetWidth: Int? = nil,
         assSubtitleFrame: ASSSparseFrame?,
         srtSubtitleImage: CGImage?
     ) throws -> CGImage {
+        let outputWidth = max(1, targetWidth ?? baseImage.width)
         guard assSubtitleFrame?.surface != nil
                 || srtSubtitleImage != nil
+                || outputWidth != baseImage.width
         else {
             return baseImage
         }
         guard let context = makeBitmapContext(
-            width: baseImage.width,
+            width: outputWidth,
             height: baseImage.height
         ) else {
             throw PlaybackCurrentFrameScreenshotError.imageConversionFailed
@@ -163,9 +149,12 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
         let fullRect = CGRect(
             x: 0,
             y: 0,
-            width: baseImage.width,
+            width: outputWidth,
             height: baseImage.height
         )
+        if outputWidth != baseImage.width {
+            context.interpolationQuality = .high
+        }
         context.draw(baseImage, in: fullRect)
 
         if let assSubtitleFrame,
@@ -173,7 +162,7 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
            let surfaceImage = makeASSImage(surface) {
             let frameWidth = max(1, assSubtitleFrame.frameWidth)
             let frameHeight = max(1, assSubtitleFrame.frameHeight)
-            let scaleX = CGFloat(baseImage.width) / CGFloat(frameWidth)
+            let scaleX = CGFloat(outputWidth) / CGFloat(frameWidth)
             let scaleY = CGFloat(baseImage.height) / CGFloat(frameHeight)
             let destinationHeight = CGFloat(surface.height) * scaleY
             let destinationRect = CGRect(

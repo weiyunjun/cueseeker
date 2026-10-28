@@ -472,12 +472,6 @@
         return NULL;
     }
 
-    AVStream *videoStream = (_formatContext != NULL && _videoStreamIndex >= 0 && _videoStreamIndex < (int)_formatContext->nb_streams)
-        ? _formatContext->streams[_videoStreamIndex]
-        : NULL;
-    AVRational frameSAR = SFXVideoSampleAspectRatio(_formatContext, videoStream, _videoCodecContext, frame);
-    SFXApplyPixelAspectRatioAttachment(pixelBuffer, frameSAR, YES);
-
     return pixelBuffer;
 }
 
@@ -564,9 +558,10 @@
                 break;
             }
             CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)_videoFrame->data[3];
-            SFXApplyPixelAspectRatioAttachment(pixelBuffer, frameSAR, NO);
+            SFXApplyPixelAspectRatioAttachment(pixelBuffer, frameSAR);
             submittedVideoFrame = [self enqueuePixelBuffer:pixelBuffer
                                           presentationTime:presentationTime
+                                         sampleAspectRatio:frameSAR
                                          frameMilliseconds:frameMilliseconds
                               automaticRecycleMilliseconds:automaticRecycleMilliseconds];
         } else {
@@ -598,10 +593,12 @@
                 av_frame_unref(_videoFrame);
                 break;
             }
+            SFXApplyPixelAspectRatioAttachment(pixelBuffer, frameSAR);
 
             automaticRecycleMilliseconds = [self markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:mediaSeconds];
             submittedVideoFrame = [self enqueuePixelBuffer:pixelBuffer
                                           presentationTime:presentationTime
+                                         sampleAspectRatio:frameSAR
                                          frameMilliseconds:frameMilliseconds
                               automaticRecycleMilliseconds:automaticRecycleMilliseconds];
             CVPixelBufferRelease(pixelBuffer);
@@ -883,31 +880,15 @@
 }
 
 - (CMSampleBufferRef)sampleBufferForPixelBuffer:(CVPixelBufferRef)pixelBuffer
-                               presentationTime:(CMTime)presentationTime {
+                               presentationTime:(CMTime)presentationTime
+                              sampleAspectRatio:(AVRational)sampleAspectRatio {
     CFTimeInterval start = SFXPerformanceNow();
     OSType pixelFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
     size_t width = CVPixelBufferGetWidth(pixelBuffer);
     size_t height = CVPixelBufferGetHeight(pixelBuffer);
-    int sarNum = 1;
-    int sarDen = 1;
-    CFTypeRef parAttachment = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferPixelAspectRatioKey, NULL);
-    if (parAttachment != NULL) {
-        if (CFGetTypeID(parAttachment) == CFDictionaryGetTypeID()) {
-            CFDictionaryRef parDict = (CFDictionaryRef)parAttachment;
-            CFNumberRef numRef = (CFNumberRef)CFDictionaryGetValue(parDict, kCVImageBufferPixelAspectRatioHorizontalSpacingKey);
-            CFNumberRef denRef = (CFNumberRef)CFDictionaryGetValue(parDict, kCVImageBufferPixelAspectRatioVerticalSpacingKey);
-            int parsedNum = 0;
-            int parsedDen = 0;
-            if (numRef != NULL && denRef != NULL
-                && CFNumberGetValue(numRef, kCFNumberIntType, &parsedNum)
-                && CFNumberGetValue(denRef, kCFNumberIntType, &parsedDen)
-                && parsedNum > 0 && parsedDen > 0) {
-                sarNum = parsedNum;
-                sarDen = parsedDen;
-            }
-        }
-        CFRelease(parAttachment);
-    }
+    BOOL validSAR = sampleAspectRatio.num > 0 && sampleAspectRatio.den > 0;
+    int sarNum = validSAR ? sampleAspectRatio.num : 1;
+    int sarDen = validSAR ? sampleAspectRatio.den : 1;
     if (_cachedVideoFormatDescription == NULL
         || _cachedVideoFormatPixelFormat != pixelFormat
         || _cachedVideoFormatWidth != width
@@ -964,6 +945,7 @@
 
 - (BOOL)enqueuePixelBuffer:(CVPixelBufferRef)pixelBuffer
           presentationTime:(CMTime)presentationTime
+         sampleAspectRatio:(AVRational)sampleAspectRatio
          frameMilliseconds:(NSInteger)frameMilliseconds
 automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     if (pixelBuffer == NULL) {
@@ -993,7 +975,8 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
     BOOL enqueued = NO;
     CMSampleBufferRef sampleBuffer = [self sampleBufferForPixelBuffer:pixelBuffer
-                                                     presentationTime:presentationTime];
+                                                     presentationTime:presentationTime
+                                                    sampleAspectRatio:sampleAspectRatio];
     if (sampleBuffer != NULL) {
         SFXNativePlaybackPlayer *owner = _owner;
         enqueued = [owner enqueueSampleBuffer:sampleBuffer

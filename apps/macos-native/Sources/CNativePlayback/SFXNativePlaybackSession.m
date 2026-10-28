@@ -100,20 +100,11 @@
 - (NSInteger)videoWidth {
     int storageWidth = 0;
     int storageHeight = 0;
-    AVRational sar = (AVRational){0, 1};
+    AVRational sar = (AVRational){1, 1};
     @synchronized (self) {
-        storageWidth = _videoFrameWidth > 0 ? _videoFrameWidth : (_videoCodecContext != NULL ? _videoCodecContext->width : 0);
-        storageHeight = _videoFrameHeight > 0 ? _videoFrameHeight : (_videoCodecContext != NULL ? _videoCodecContext->height : 0);
+        storageWidth = _videoFrameWidth;
+        storageHeight = _videoFrameHeight;
         sar = _videoSampleAspectRatio;
-    }
-    if (storageWidth <= 0 || storageHeight <= 0) {
-        return 0;
-    }
-    if (sar.num <= 0 || sar.den <= 0) {
-        AVStream *videoStream = (_formatContext != NULL && _videoStreamIndex >= 0 && _videoStreamIndex < (int)_formatContext->nb_streams)
-            ? _formatContext->streams[_videoStreamIndex]
-            : NULL;
-        sar = SFXVideoSampleAspectRatio(_formatContext, videoStream, _videoCodecContext, NULL);
     }
     return SFXDisplayVideoWidthForDimensionsAndSAR(storageWidth, storageHeight, sar);
 }
@@ -121,7 +112,7 @@
 - (NSInteger)videoHeight {
     int storageHeight = 0;
     @synchronized (self) {
-        storageHeight = _videoFrameHeight > 0 ? _videoFrameHeight : (_videoCodecContext != NULL ? _videoCodecContext->height : 0);
+        storageHeight = _videoFrameHeight;
     }
     return storageHeight > 0 ? storageHeight : 0;
 }

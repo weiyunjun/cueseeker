@@ -145,8 +145,7 @@ NSInteger SFXDisplayVideoWidthForDimensionsAndSAR(
 );
 void SFXApplyPixelAspectRatioAttachment(
     CVPixelBufferRef _Nullable pixelBuffer,
-    AVRational sampleAspectRatio,
-    BOOL removeWhenSquare
+    AVRational sampleAspectRatio
 );
 
 @interface SFXKeyframeThumbnailDecoder : NSObject
@@ -549,9 +548,11 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 - (void)requestAudioPlaybackStartIfReadyForGeneration:(NSUInteger)generation;
 - (BOOL)paceVideoFrame:(AVFrame *)frame stream:(AVStream *)stream;
 - (nullable CMSampleBufferRef)sampleBufferForPixelBuffer:(CVPixelBufferRef)pixelBuffer
-                                        presentationTime:(CMTime)presentationTime;
+                                        presentationTime:(CMTime)presentationTime
+                                       sampleAspectRatio:(AVRational)sampleAspectRatio;
 - (BOOL)enqueuePixelBuffer:(CVPixelBufferRef)pixelBuffer
           presentationTime:(CMTime)presentationTime
+         sampleAspectRatio:(AVRational)sampleAspectRatio
          frameMilliseconds:(NSInteger)frameMilliseconds
 automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds;
 - (void)clearPendingPixelBufferSubmission;
