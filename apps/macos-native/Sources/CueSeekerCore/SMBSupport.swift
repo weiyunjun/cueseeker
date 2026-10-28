@@ -579,6 +579,10 @@ public final class SMBConfigurationStore: @unchecked Sendable {
         )
     }
 
+    public func setUserDefaultsForTesting(_ userDefaults: UserDefaults?) {
+        store.setUserDefaultsForTesting(userDefaults)
+    }
+
     public func save(_ config: SMBRootConfig) { store.save(config) }
     public func upsert(_ config: SMBRootConfig) { store.upsert(config) }
     public func remove(url: URL) { store.remove(url: url) }

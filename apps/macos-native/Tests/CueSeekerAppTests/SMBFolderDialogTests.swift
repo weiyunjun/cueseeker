@@ -105,7 +105,7 @@ struct SMBFolderDialogTests {
             let databaseURL = root.appendingPathComponent("CueSeeker.sqlite")
             try DatabaseBootstrap.prepare(at: databaseURL)
             let suiteName = "CueSeeker.SMBDialogTests.\(UUID().uuidString)"
-            let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+            let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
             self.root = root
             self.databaseURL = databaseURL
             self.suiteName = suiteName
@@ -114,7 +114,7 @@ struct SMBFolderDialogTests {
 
         func cleanUp() {
             SMBClient.shared.setCustomBackendForTesting(nil)
-            userDefaults.removePersistentDomain(forName: suiteName)
+            userDefaults.removePersistentDomainAndPlist(forName: suiteName)
             try? FileManager.default.removeItem(at: root)
         }
     }

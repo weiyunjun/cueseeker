@@ -311,8 +311,8 @@ struct TooltipTests {
     @Test
     func tooltipOverlayViewRendersActiveItemInHostingViewWithoutReentrancyCrash() {
         let suiteName = "TooltipTests.\(UUID().uuidString)"
-        let userDefaults = UserDefaults(suiteName: suiteName)!
-        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
+        defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
         let settings = SettingsStore(userDefaults: userDefaults)
         let center = TooltipCenter()
         let rootView = TooltipOverlayView(surface: .main, center: center)

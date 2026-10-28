@@ -67,8 +67,10 @@ func moreSubmenusCheckAndTagTheOppositeItems() {
 @MainActor
 @Test
 func moreMenuKeysOpenSubmenusOnTheirFirstTrackAndPickWithEnter() {
-    // The store ignores its defaults.
-    let store = PlaybackStore(userDefaults: .standard)
+    let suiteName = "PlaybackMoreMenuTests-\(UUID().uuidString)"
+    let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
+    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+    let store = PlaybackStore(userDefaults: userDefaults)
     var picks: [(PlaybackMoreSubmenu, Int)] = []
     let pick: (PlaybackMoreSubmenu, Int) -> Void = { picks.append(($0, $1)) }
     store.openMoreMenu(
@@ -129,8 +131,10 @@ func moreMenuKeysOpenSubmenusOnTheirFirstTrackAndPickWithEnter() {
 @MainActor
 @Test
 func moreMenuWithoutRecordedTracksHighlightsNothing() {
-    // The store ignores its defaults.
-    let store = PlaybackStore(userDefaults: .standard)
+    let suiteName = "PlaybackMoreMenuTests-\(UUID().uuidString)"
+    let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
+    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+    let store = PlaybackStore(userDefaults: userDefaults)
     let empty = PlaybackMoreMenuList(names: [], currentIndex: 0, defaultIndex: 0)
     store.openMoreMenu(PlaybackMoreMenu(audioTracks: empty, subtitles: empty))
     #expect(store.moreMenuHighlight.highlightedPosition == nil)
@@ -143,8 +147,10 @@ func moreMenuWithoutRecordedTracksHighlightsNothing() {
 @MainActor
 @Test
 func moreMenuWithOnlySubtitlesSkipsTheAudioTrackTriggers() {
-    // The store ignores its defaults.
-    let store = PlaybackStore(userDefaults: .standard)
+    let suiteName = "PlaybackMoreMenuTests-\(UUID().uuidString)"
+    let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
+    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+    let store = PlaybackStore(userDefaults: userDefaults)
     let menu = PlaybackMoreMenu(
         audioTracks: PlaybackMoreMenuList(names: [], currentIndex: 0, defaultIndex: 0),
         subtitles: PlaybackMoreMenuList(names: [".srt"], currentIndex: 0, defaultIndex: 0)
@@ -259,8 +265,10 @@ func audioTrackSubmenuScrollsBetweenTheTopBarAndTheButtons() {
 @MainActor
 @Test
 func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
-    // The store ignores its defaults.
-    let store = PlaybackStore(userDefaults: .standard)
+    let suiteName = "PlaybackMoreMenuTests-\(UUID().uuidString)"
+    let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
+    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+    let store = PlaybackStore(userDefaults: userDefaults)
     let menu = PlaybackMoreMenu(
         audioTracks: PlaybackMoreMenuList(
             names: (1...40).map { "#\($0) Japanese, オーディオコメンタリー, flac, 2ch" },

@@ -18,6 +18,9 @@ enum ApplicationPersistence {
     ]
 
     static func sharedUserDefaults() -> UserDefaults {
+        if ApplicationInfo.isRunningInUnitTestProcess {
+            return ApplicationInfo.defaultSharedUserDefaults()
+        }
         guard let sharedDefaults = UserDefaults(
             suiteName: ApplicationInfo.preferencesSuiteIdentifier
         ) else {

@@ -620,9 +620,8 @@ struct FTPNFSSupportTests {
             "CueSeekerFTPNFSIndexTests-\(UUID().uuidString)",
             isDirectory: true
         )
-        let cacheDir = tempRoot.appendingPathComponent("SubtitleCache", isDirectory: true)
         let databaseURL = tempRoot.appendingPathComponent("CueSeeker.sqlite")
-        try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
 
         let ftpRootURL = URL.fromMediaPath("ftp://nas.local:2121/Media/动漫/NieR:Automata")
         let ftpRenamedRootURL = URL.fromMediaPath("ftp://nas.local:2121/Media/动漫/NieR Automata Ver1.1a")
@@ -638,8 +637,6 @@ struct FTPNFSSupportTests {
             NFSConfigurationStore.shared.remove(url: nfsRenamedRootURL)
             try? FileManager.default.removeItem(at: tempRoot)
         }
-
-        WebDAVSubtitleCache.shared.setCacheDirectoryURLForTesting(cacheDir)
 
         let fakeVideoBytes = Data((0..<600_000).map { UInt8($0 & 0xFF) })
 

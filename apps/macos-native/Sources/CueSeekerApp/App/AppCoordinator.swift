@@ -520,6 +520,7 @@ final class AppCoordinator: ObservableObject {
         self.playbackSubtitleDatabase = openedPlaybackSubtitleDatabase
         library = LibraryStore(
             uiProbeScope: uiProbeScope,
+            userDefaults: userDefaults,
             libraryCoverDirectory: resolvedLibraryCoverDirectory,
             libraryDatabase: openedLibraryDatabase,
             indexedContentDatabase: openedIndexedContentDatabase,

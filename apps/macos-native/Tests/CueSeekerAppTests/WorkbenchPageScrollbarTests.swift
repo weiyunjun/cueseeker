@@ -301,9 +301,12 @@ func unifiedTwoRowToolbarShrinksSearchFieldFirstAndDisablesRowOneInSelectMode() 
     let wideWidth: CGFloat = 800
     let narrowWidth: CGFloat = 480
 
+    let suiteName = "WorkbenchPageScrollbarTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
     let localization = AppLocalizationStore(
         language: .english,
-        userDefaults: .standard,
+        userDefaults: userDefaults,
         userDefaultsKey: "WorkbenchPageScrollbarTests.language"
     )
 

@@ -146,7 +146,7 @@ struct FTPNFSFolderDialogTests {
             let databaseURL = root.appendingPathComponent("CueSeeker.sqlite")
             try DatabaseBootstrap.prepare(at: databaseURL)
             let suiteName = "CueSeeker.FTPNFSDialogTests.\(UUID().uuidString)"
-            let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+            let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
             self.root = root
             self.databaseURL = databaseURL
             self.suiteName = suiteName
@@ -156,7 +156,7 @@ struct FTPNFSFolderDialogTests {
         func cleanUp() {
             FTPClient.shared.setCustomBackendForTesting(nil, forHost: "dialog-ftp.local")
             NFSClient.shared.setCustomBackendForTesting(nil, forHost: "192.168.1.200")
-            userDefaults.removePersistentDomain(forName: suiteName)
+            userDefaults.removePersistentDomainAndPlist(forName: suiteName)
             try? FileManager.default.removeItem(at: root)
         }
     }

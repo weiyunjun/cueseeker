@@ -365,9 +365,8 @@ struct SMBSupportTests {
             "CueSeekerSMBIndexTests-\(UUID().uuidString)",
             isDirectory: true
         )
-        let cacheDir = tempRoot.appendingPathComponent("SubtitleCache", isDirectory: true)
         let databaseURL = tempRoot.appendingPathComponent("CueSeeker.sqlite")
-        try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
 
         let rootURL = URL.fromMediaPath("smb://nas.local/Media/动漫/NieR:Automata")
         let renamedRootURL = URL.fromMediaPath("smb://nas.local/Media/动漫/NieR Automata Ver1.1a")
@@ -377,8 +376,6 @@ struct SMBSupportTests {
             SMBConfigurationStore.shared.remove(url: renamedRootURL)
             try? FileManager.default.removeItem(at: tempRoot)
         }
-
-        WebDAVSubtitleCache.shared.setCacheDirectoryURLForTesting(cacheDir)
 
         let backend = InMemorySMBBackend()
         backend.requiredCredentials = (username: "mediauser", password: "secret")

@@ -301,7 +301,7 @@ public final class RemoteRootConfigStore<Config: RemoteRootConfigurable>: @unche
     private let defaultPort: Int
     private let isSchemePath: @Sendable (String) -> Bool
     private let lock = NSLock()
-    private let userDefaults: UserDefaults
+    private var userDefaults: UserDefaults
     private var configsByRootPath: [String: Config]
 
     public init(
@@ -313,11 +313,18 @@ public final class RemoteRootConfigStore<Config: RemoteRootConfigurable>: @unche
         self.defaultsKey = defaultsKey
         self.defaultPort = defaultPort
         self.isSchemePath = isSchemePath
-        let resolvedDefaults = userDefaults
-            ?? UserDefaults(suiteName: ApplicationInfo.preferencesSuiteIdentifier)
-            ?? .standard
+        let resolvedDefaults = userDefaults ?? ApplicationInfo.defaultSharedUserDefaults()
         self.userDefaults = resolvedDefaults
         self.configsByRootPath = Self.decodeConfigs(from: resolvedDefaults.data(forKey: defaultsKey))
+    }
+
+    public func setUserDefaultsForTesting(_ userDefaults: UserDefaults?) {
+        let resolvedDefaults = userDefaults ?? ApplicationInfo.defaultSharedUserDefaults()
+        let reloaded = Self.decodeConfigs(from: resolvedDefaults.data(forKey: defaultsKey))
+        lock.lock()
+        self.userDefaults = resolvedDefaults
+        self.configsByRootPath = reloaded
+        lock.unlock()
     }
 
     public func save(_ config: Config) {
@@ -429,7 +436,10 @@ public final class RemoteRootConfigStore<Config: RemoteRootConfigurable>: @unche
 
     private func persist(_ configs: [Config]) {
         guard let data = try? JSONEncoder().encode(configs) else { return }
-        userDefaults.set(data, forKey: defaultsKey)
+        lock.lock()
+        let defaults = userDefaults
+        lock.unlock()
+        defaults.set(data, forKey: defaultsKey)
     }
 
     private static func decodeConfigs(from data: Data?) -> [String: Config] {

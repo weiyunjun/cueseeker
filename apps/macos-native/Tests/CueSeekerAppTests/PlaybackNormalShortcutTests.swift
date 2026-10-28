@@ -144,7 +144,10 @@ func normalPlaybackBareRAndTriangleConsumeUnavailableRepeatSilently() throws {
 @MainActor
 @Test
 func playbackPointerHideRequestDoesNotInvalidatePlaybackStore() {
-    let store = PlaybackStore(userDefaults: .standard)
+    let suiteName = "PlaybackNormalShortcutTests-\(UUID().uuidString)"
+    let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
+    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+    let store = PlaybackStore(userDefaults: userDefaults)
     var playbackStoreInvalidations = 0
     var pointerHideRequests = 0
     let invalidationCancellable = store.objectWillChange.sink {

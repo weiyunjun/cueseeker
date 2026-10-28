@@ -23,7 +23,7 @@ struct WebDAVFolderDialogTests {
             let databaseURL = root.appendingPathComponent("CueSeeker.sqlite")
             try DatabaseBootstrap.prepare(at: databaseURL)
             let suiteName = "CueSeeker.WebDAVDialogTests.\(UUID().uuidString)"
-            let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+            let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
             self.root = root
             self.databaseURL = databaseURL
             self.suiteName = suiteName
@@ -32,7 +32,7 @@ struct WebDAVFolderDialogTests {
 
         func cleanUp() {
             WebDAVClient.shared.setCustomHTTPHandlerForTesting(nil)
-            userDefaults.removePersistentDomain(forName: suiteName)
+            userDefaults.removePersistentDomainAndPlist(forName: suiteName)
             try? FileManager.default.removeItem(at: root)
         }
     }

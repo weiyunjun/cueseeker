@@ -5,6 +5,7 @@ import CueSeekerPlayback
 @MainActor
 final class LibraryStore: ObservableObject {
     var uiProbeScope: String
+    let userDefaults: UserDefaults
     var libraryCoverDirectory: URL
     var libraryDatabase: LibraryDatabase?
     var indexedContentDatabase: IndexedContentDatabase?
@@ -37,6 +38,7 @@ final class LibraryStore: ObservableObject {
 
     init(
         uiProbeScope: String = UUID().uuidString,
+        userDefaults: UserDefaults? = nil,
         libraryCoverDirectory: URL = FileManager.default.temporaryDirectory,
         libraryDatabase: LibraryDatabase? = nil,
         indexedContentDatabase: IndexedContentDatabase? = nil,
@@ -44,13 +46,17 @@ final class LibraryStore: ObservableObject {
         libraryUserCoverService: LibraryUserCoverService? = nil,
         libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(database: nil)
     ) {
+        let resolvedUserDefaults = userDefaults ?? ApplicationPersistence.sharedUserDefaults()
         self.uiProbeScope = uiProbeScope
+        self.userDefaults = resolvedUserDefaults
         self.libraryCoverDirectory = libraryCoverDirectory
         self.libraryDatabase = libraryDatabase
         self.indexedContentDatabase = indexedContentDatabase
         self.libraryCoverDatabase = libraryCoverDatabase
         self.libraryUserCoverService = libraryUserCoverService
         self.libraryPlaybackHistoryWriter = libraryPlaybackHistoryWriter
+        let savedSortOrder = resolvedUserDefaults.string(forKey: Self.sortOrderUserDefaultsKey)
+        self.sortOrder = savedSortOrder.flatMap(LibrarySortOrder.init(rawValue:)) ?? .default
     }
 
     @Published var libraryStatus: LibraryStatus = .idle
@@ -67,12 +73,9 @@ final class LibraryStore: ObservableObject {
     @Published var completeLibraryFolderSummaries: [CompleteLibraryFolderSummaryPresentation] = []
     private static let sortOrderUserDefaultsKey = "library_overview_sort_order"
 
-    @Published var sortOrder: LibrarySortOrder = {
-        let saved = UserDefaults.standard.string(forKey: "library_overview_sort_order")
-        return saved.flatMap(LibrarySortOrder.init(rawValue:)) ?? .default
-    }() {
+    @Published var sortOrder: LibrarySortOrder = .default {
         didSet {
-            UserDefaults.standard.set(sortOrder.rawValue, forKey: Self.sortOrderUserDefaultsKey)
+            userDefaults.set(sortOrder.rawValue, forKey: Self.sortOrderUserDefaultsKey)
         }
     }
 

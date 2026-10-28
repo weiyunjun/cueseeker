@@ -9,7 +9,10 @@ import Testing
 @MainActor
 @Test
 func playbackStoreCreatesSubtitleFocusSessionOnlyAfterOpen() throws {
-    let playback = PlaybackStore(userDefaults: .standard)
+    let suiteName = "PlaybackSubtitleFocusSessionStoreTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+    let playback = PlaybackStore(userDefaults: userDefaults)
 
     #expect(playback.subtitleFocusSession == nil)
 

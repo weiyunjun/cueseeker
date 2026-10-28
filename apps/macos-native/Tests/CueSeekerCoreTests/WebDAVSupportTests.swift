@@ -2,6 +2,28 @@ import Foundation
 import Testing
 @testable import CueSeekerCore
 
+extension UserDefaults {
+    static func temporary(suiteName: String) -> UserDefaults? {
+        let plistURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(suiteName).plist")
+        return UserDefaults(suiteName: plistURL.path)
+    }
+
+    func removePersistentDomainAndPlist(forName suiteName: String) {
+        let path = suiteName.hasPrefix("/")
+            ? suiteName
+            : FileManager.default.temporaryDirectory
+                .appendingPathComponent("\(suiteName).plist").path
+        removePersistentDomain(forName: path)
+        removePersistentDomain(forName: suiteName)
+        _ = synchronize()
+        try? FileManager.default.removeItem(atPath: path)
+        let homePlistURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Preferences/\(suiteName).plist")
+        try? FileManager.default.removeItem(at: homePlistURL)
+    }
+}
+
 private final class LockedBox<Value>: @unchecked Sendable {
     private let lock = NSLock()
     private var value: Value
@@ -66,8 +88,8 @@ struct WebDAVSupportTests {
     @Test
     func validateDirectoryFallsBackToAListDavPrefixAndVerifiesBasicAuth() async throws {
         let suiteName = "CueSeeker.WebDAVTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let defaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+        defer { defaults.removePersistentDomainAndPlist(forName: suiteName) }
 
         let store = WebDAVConfigurationStore(userDefaults: defaults)
         let seenRequests = LockedBox<[(method: String, url: String, auth: String?)]>([])
@@ -130,8 +152,8 @@ struct WebDAVSupportTests {
     @Test
     func resolvePlayableInputStripsBasicAuthOnCrossOrigin302Redirect() throws {
         let suiteName = "CueSeeker.WebDAVRedirectTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let defaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+        defer { defaults.removePersistentDomainAndPlist(forName: suiteName) }
 
         let store = WebDAVConfigurationStore(userDefaults: defaults)
         let config = WebDAVRootConfig(
@@ -182,16 +204,15 @@ struct WebDAVSupportTests {
             "CueSeekerWebDAVIndexTests-\(UUID().uuidString)",
             isDirectory: true
         )
-        let cacheDir = tempRoot.appendingPathComponent("SubtitleCache", isDirectory: true)
         let databaseURL = tempRoot.appendingPathComponent("CueSeeker.sqlite")
-        try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        let rootURL = URL.fromMediaPath("http://192.168.1.173:5244/115/云下载/NieR:Automata")
         defer {
             WebDAVClient.shared.setCustomHTTPHandlerForTesting(nil)
+            WebDAVConfigurationStore.shared.remove(url: rootURL)
             try? FileManager.default.removeItem(at: tempRoot)
         }
 
-        WebDAVSubtitleCache.shared.setCacheDirectoryURLForTesting(cacheDir)
-        let rootURL = URL.fromMediaPath("http://192.168.1.173:5244/115/云下载/NieR:Automata")
         let config = WebDAVRootConfig(
             rootPath: rootURL.mediaPath,
             davRootPath: "http://192.168.1.173:5244/dav/115/云下载/NieR:Automata",
@@ -201,7 +222,6 @@ struct WebDAVSupportTests {
             password: "pw"
         )
         WebDAVConfigurationStore.shared.save(config)
-        defer { WebDAVConfigurationStore.shared.remove(url: rootURL) }
 
         let srtContent = """
         1
@@ -321,8 +341,8 @@ struct WebDAVSupportTests {
     @Test
     func configurationStoreMigratesLegacyDomainsOnceIntoSharedDefaults() throws {
         let suiteName = "CueSeeker.WebDAVMigrationTests.\(UUID().uuidString)"
-        let sharedDefaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { sharedDefaults.removePersistentDomain(forName: suiteName) }
+        let sharedDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+        defer { sharedDefaults.removePersistentDomainAndPlist(forName: suiteName) }
 
         let legacyConfig = WebDAVRootConfig(
             rootPath: "http://192.168.1.173:5244/dav/baidu/NieR",
@@ -365,8 +385,8 @@ struct WebDAVSupportTests {
     @Test
     func validateDirectoryAllowsAnonymousCredentialsWithoutAuthorizationHeader() async throws {
         let suiteName = "CueSeeker.WebDAVAnonTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let defaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+        defer { defaults.removePersistentDomainAndPlist(forName: suiteName) }
 
         let store = WebDAVConfigurationStore(userDefaults: defaults)
         let seenAuthHeaders = LockedBox<[String?]>([])
@@ -412,18 +432,19 @@ struct WebDAVSupportTests {
 
     @Test
     func webdavFolderAndFileGroupRenameUpdatesDatabaseSubtitleCacheAndRootConfigAndRollsBackOnFailure() throws {
-        defer {
-            WebDAVClient.shared.setCustomHTTPHandlerForTesting(nil)
-        }
-
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("CueSeekerWebDAVRenameTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
 
         let databaseURL = tempDir.appendingPathComponent("index.sqlite")
         let rootURL = URL.fromMediaPath("http://192.168.1.173:5244/115/云下载/Show")
         let renamedRootURL = URL.fromMediaPath("http://192.168.1.173:5244/115/云下载/Show Renamed")
+        defer {
+            WebDAVClient.shared.setCustomHTTPHandlerForTesting(nil)
+            WebDAVConfigurationStore.shared.remove(url: rootURL)
+            WebDAVConfigurationStore.shared.remove(url: renamedRootURL)
+            try? FileManager.default.removeItem(at: tempDir)
+        }
         let config = WebDAVRootConfig(
             rootPath: rootURL.mediaPath,
             davRootPath: "http://192.168.1.173:5244/dav/115/云下载/Show",
@@ -433,10 +454,6 @@ struct WebDAVSupportTests {
             password: ""
         )
         WebDAVConfigurationStore.shared.save(config)
-        defer {
-            WebDAVConfigurationStore.shared.remove(url: rootURL)
-            WebDAVConfigurationStore.shared.remove(url: renamedRootURL)
-        }
 
         let srtContent = """
         1
@@ -659,8 +676,8 @@ struct WebDAVSupportTests {
     @Test
     func connectAndBrowseDirectoryFiltersUnsupportedFilesOrdersFoldersFirstAndScopesSubfolderConfig() async throws {
         let suiteName = "CueSeeker.WebDAVBrowserTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let defaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+        defer { defaults.removePersistentDomainAndPlist(forName: suiteName) }
 
         let store = WebDAVConfigurationStore(userDefaults: defaults)
         let client = WebDAVClient(configurationStore: store) { request in

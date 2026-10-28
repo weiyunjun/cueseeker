@@ -4,7 +4,7 @@ import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
-@Suite
+@Suite(.serialized)
 @MainActor
 struct FileCardMenuTests {
     @Test
