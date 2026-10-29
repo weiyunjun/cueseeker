@@ -412,4 +412,133 @@ struct FileDetailDialogTests {
             #expect(fittingSize.height > 100)
         }
     }
+
+    @Test
+    func pairedFilesSwitcherSessionAndMenuRendering() {
+        let videoInfo = FileDetailVideoInfo(
+            path: "/Videos/Show/[SubGroup] Long Episode Title - 01 [1080p].mkv",
+            name: "[SubGroup] Long Episode Title - 01 [1080p].mkv",
+            fileSize: 1024 * 1024 * 800,
+            duration: 1450.0,
+            videoWidth: 1920,
+            videoHeight: 1080,
+            frameRate: 23.976,
+            videoCodec: "hevc",
+            videoBitDepth: 10,
+            videoPixelFormat: "yuv420p10le",
+            containerFormat: "mkv",
+            audioTracks: [],
+            subtitles: [
+                VideoSubtitle(subtitleFileID: 1, subtitlePath: "/Videos/Show/Ep01.chs.ass", format: .ass),
+                VideoSubtitle(subtitleFileID: 2, subtitlePath: "/Videos/Show/Ep01.jpn.srt", format: .srt)
+            ],
+            createdAt: nil,
+            modifiedAt: nil
+        )
+        let sub1 = FileDetailSubtitleInfo(
+            path: "/Videos/Show/Ep01.chs.ass",
+            name: "Ep01.chs.ass",
+            fileSize: 64_000,
+            format: .ass,
+            encoding: "UTF-8",
+            cueCount: 320,
+            rawCueCount: 360,
+            associatedVideoPath: videoInfo.path,
+            createdAt: nil,
+            modifiedAt: nil
+        )
+        let sub2 = FileDetailSubtitleInfo(
+            path: "/Videos/Show/Ep01.jpn.srt",
+            name: "Ep01.jpn.srt",
+            fileSize: 28_000,
+            format: .srt,
+            encoding: "UTF-8",
+            cueCount: 310,
+            rawCueCount: 310,
+            associatedVideoPath: videoInfo.path,
+            createdAt: nil,
+            modifiedAt: nil
+        )
+
+        let pairedItems: [FileDetailPairedItem] = [
+            .video(videoInfo),
+            .subtitle(sub1),
+            .subtitle(sub2)
+        ]
+
+        let session = FileDetailDialogSession(pairedItems: pairedItems, initialSelectedIndex: 1)
+        #expect(session.isFileDetail)
+        #expect(session.selectedIndex == 1)
+        #expect(session.fileName == "Ep01.chs.ass")
+        #expect(session.icon == .subtitles)
+        #expect(session.kind == .subtitle(sub1))
+
+        session.selectItem(at: 0)
+        #expect(session.selectedIndex == 0)
+        #expect(session.fileName == videoInfo.name)
+        #expect(session.icon == .video)
+        #expect(session.kind == .video(videoInfo))
+
+        session.selectItem(at: 2)
+        #expect(session.selectedIndex == 2)
+        #expect(session.fileName == "Ep01.jpn.srt")
+        #expect(session.icon == .subtitles)
+        #expect(session.kind == .subtitle(sub2))
+
+        // Out-of-bounds index is ignored and keeps the frozen snapshot selection
+        session.selectItem(at: 99)
+        #expect(session.selectedIndex == 2)
+
+        // Trigger state colors follow Pressed whitelist rules
+        #expect(
+            FileDetailPairedSwitcherTrigger.resolvedBackgroundColor(
+                isPressed: false,
+                isOpen: false,
+                isHovered: false
+            ) == WorkbenchRedesignColors.tableBg
+        )
+        #expect(
+            FileDetailPairedSwitcherTrigger.resolvedBackgroundColor(
+                isPressed: false,
+                isOpen: true,
+                isHovered: false
+            ) == WorkbenchRedesignColors.bgHover
+        )
+        #expect(
+            FileDetailPairedSwitcherTrigger.resolvedBackgroundColor(
+                isPressed: true,
+                isOpen: true,
+                isHovered: true
+            ) == WorkbenchRedesignColors.bgPressed
+        )
+        #expect(
+            FileDetailPairedSwitcherTrigger.resolvedBorderColor(
+                isPressed: false,
+                isOpen: false,
+                isHovered: false
+            ) == WorkbenchRedesignColors.borderControl
+        )
+        #expect(
+            FileDetailPairedSwitcherTrigger.resolvedBorderColor(
+                isPressed: false,
+                isOpen: true,
+                isHovered: false
+            ) == WorkbenchRedesignColors.borderControlHover
+        )
+
+        // Render menu popover in NSHostingView and verify width matches trigger width (672px)
+        let highlight = MenuHighlightModel()
+        highlight.open(selectablePositions: Array(pairedItems.indices))
+        let popover = FileDetailPairedSwitcherMenuPopover(
+            items: pairedItems,
+            width: WorkbenchControlMetrics.redesignDialogWidthXLarge - 2 * WorkbenchControlMetrics.redesignDialogInset,
+            maximumHeight: MenuMetrics.maximumHeight,
+            highlight: highlight,
+            onSelect: { _ in }
+        )
+        let popoverHost = NSHostingView(rootView: popover)
+        popoverHost.layoutSubtreeIfNeeded()
+        #expect(popoverHost.fittingSize.width == 672)
+        #expect(popoverHost.fittingSize.height >= 3 * WorkbenchControlMetrics.redesignMenuItemHeight)
+    }
 }

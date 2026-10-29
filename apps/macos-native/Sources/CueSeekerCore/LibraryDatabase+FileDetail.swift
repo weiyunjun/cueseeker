@@ -120,6 +120,45 @@ public struct FileDetailFolderInfo: Equatable, Sendable {
     }
 }
 
+public enum FileDetailPairedItem: Equatable, Sendable, Identifiable {
+    case video(FileDetailVideoInfo)
+    case subtitle(FileDetailSubtitleInfo)
+
+    public var id: String {
+        switch self {
+        case .video(let info):
+            return "video:\(info.path)"
+        case .subtitle(let info):
+            return "subtitle:\(info.path)"
+        }
+    }
+
+    public var path: String {
+        switch self {
+        case .video(let info):
+            return info.path
+        case .subtitle(let info):
+            return info.path
+        }
+    }
+
+    public var name: String {
+        switch self {
+        case .video(let info):
+            return info.name
+        case .subtitle(let info):
+            return info.name
+        }
+    }
+
+    public var isVideo: Bool {
+        if case .video = self {
+            return true
+        }
+        return false
+    }
+}
+
 extension LibraryDatabase {
     public func fileDetailVideoInfo(for videoPath: String) throws -> FileDetailVideoInfo? {
         let statement = try database.prepare(
@@ -254,6 +293,44 @@ extension LibraryDatabase {
             createdAt: createdDate,
             modifiedAt: modifiedDate
         )
+    }
+
+    public func fileDetailPairedItems(forVideoPath videoPath: String) throws -> [FileDetailPairedItem] {
+        guard let videoInfo = try fileDetailVideoInfo(for: videoPath) else {
+            return []
+        }
+        var items: [FileDetailPairedItem] = [.video(videoInfo)]
+        for subtitle in videoInfo.subtitles {
+            if let subtitleInfo = try fileDetailSubtitleInfo(for: subtitle.subtitlePath) {
+                items.append(.subtitle(subtitleInfo))
+            }
+        }
+        return items
+    }
+
+    public func fileDetailPairedItems(forSubtitlePath subtitlePath: String) throws -> [FileDetailPairedItem] {
+        guard let targetSubtitleInfo = try fileDetailSubtitleInfo(for: subtitlePath) else {
+            return []
+        }
+        if let videoPath = targetSubtitleInfo.associatedVideoPath,
+           !videoPath.isEmpty,
+           let videoInfo = try fileDetailVideoInfo(for: videoPath) {
+            var items: [FileDetailPairedItem] = [.video(videoInfo)]
+            var includedTarget = false
+            for subtitle in videoInfo.subtitles {
+                if subtitle.subtitlePath == targetSubtitleInfo.path {
+                    items.append(.subtitle(targetSubtitleInfo))
+                    includedTarget = true
+                } else if let subtitleInfo = try fileDetailSubtitleInfo(for: subtitle.subtitlePath) {
+                    items.append(.subtitle(subtitleInfo))
+                }
+            }
+            if !includedTarget {
+                items.append(.subtitle(targetSubtitleInfo))
+            }
+            return items
+        }
+        return [.subtitle(targetSubtitleInfo)]
     }
 
     public func fileDetailFolderInfo(

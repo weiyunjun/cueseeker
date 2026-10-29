@@ -28,6 +28,10 @@ final class WorkbenchScrollViewController {
         bridge?.revealVerticalRange(minY: minY, maxY: maxY)
     }
 
+    func scrollToTop() {
+        bridge?.scrollToTop()
+    }
+
     func queryPointerInDocument() -> PointerDocumentQueryResult {
         bridge?.queryPointerInDocument() ?? .windowNotFocused
     }
@@ -376,6 +380,22 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
         origin.y = documentView.isFlipped
             ? documentView.frame.minY + clampedOffset
             : documentView.frame.maxY - viewportHeight - clampedOffset
+        scrollView.contentView.scroll(to: origin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        updatePresentation()
+    }
+
+    func scrollToTop() {
+        guard let scrollView,
+              let documentView = scrollView.documentView
+        else {
+            return
+        }
+        let viewportHeight = scrollView.documentVisibleRect.height
+        var origin = scrollView.contentView.bounds.origin
+        origin.y = documentView.isFlipped
+            ? documentView.frame.minY
+            : max(documentView.frame.minY, documentView.frame.maxY - viewportHeight)
         scrollView.contentView.scroll(to: origin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
         updatePresentation()

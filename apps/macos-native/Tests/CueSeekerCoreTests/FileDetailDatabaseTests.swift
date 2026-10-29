@@ -482,3 +482,72 @@ func testFileDetailFolderInfoNestedRootsRenameAndTombstoneNonPreservation() thro
     #expect(try #require(readdedShow1Info.addedAt) > t3)
 }
 
+@Test
+func testFileDetailPairedItemsOrderingAndFrozenSnapshot() throws {
+    let tempRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerPairedDetailItems-\(UUID().uuidString)")
+        .standardizedFileURL
+    let databaseURL = tempRoot.appendingPathComponent("index.sqlite")
+    let showDir = tempRoot.appendingPathComponent("Show", isDirectory: true)
+    try FileManager.default.createDirectory(at: showDir, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: tempRoot)
+    }
+
+    let videoURL = showDir.appendingPathComponent("Ep01.mkv")
+    let subAssURL = showDir.appendingPathComponent("Ep01.ass")
+    let subChsURL = showDir.appendingPathComponent("Ep01.chs.srt")
+    let subJpnURL = showDir.appendingPathComponent("Ep01.jpn.srt")
+
+    try Data("video".utf8).write(to: videoURL)
+    let sampleSrt = """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Hello world
+    """
+    let sampleAss = """
+    [Script Info]
+    ScriptType: v4.00+
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Ass line 1
+    Dialogue: 0,0:00:04.00,0:00:06.00,Default,,0,0,0,,Ass line 2
+    """
+    try sampleAss.write(to: subAssURL, atomically: true, encoding: .utf8)
+    try sampleSrt.write(to: subChsURL, atomically: true, encoding: .utf8)
+    try sampleSrt.write(to: subJpnURL, atomically: true, encoding: .utf8)
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    let libraryDatabase = try LibraryDatabase(path: databaseURL)
+    let indexer = SubtitleIndexer()
+
+    _ = try indexer.index(folder: tempRoot, into: indexingDatabase)
+
+    let fromVideo = try libraryDatabase.fileDetailPairedItems(forVideoPath: videoURL.path)
+    #expect(fromVideo.count == 4)
+    #expect(fromVideo[0].isVideo)
+    #expect(fromVideo[0].name == "Ep01.mkv")
+    #expect(!fromVideo[1].isVideo)
+    #expect(fromVideo[1].name == "Ep01.ass")
+    #expect(fromVideo[2].name == "Ep01.chs.srt")
+    #expect(fromVideo[3].name == "Ep01.jpn.srt")
+
+    let fromSubtitle = try libraryDatabase.fileDetailPairedItems(forSubtitlePath: subChsURL.path)
+    #expect(fromSubtitle == fromVideo)
+
+    // Mutate database after taking snapshot and verify the frozen snapshot array remains unchanged
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        "UPDATE video_files SET video_codec = 'av1', duration = 999.0 WHERE path = '\(videoURL.path)';"
+    )
+    if case .video(let frozenVideoInfo) = fromSubtitle[0] {
+        #expect(frozenVideoInfo.videoCodec == nil)
+        #expect(frozenVideoInfo.duration == nil)
+    } else {
+        Issue.record("Expected first paired item to be video")
+    }
+}
+
+

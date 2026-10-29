@@ -310,6 +310,7 @@ private struct ContentDialogLayerHost: View {
             if let session = libraryStore.fileDetailSession {
                 WorkbenchFileDetailDialog(
                     session: session,
+                    menuGate: appState.interfaceLayers.menuGate,
                     onClose: appState.closeFileDetailDialog
                 )
                 .workbenchDialog()

@@ -67,8 +67,13 @@ extension AppCoordinator {
 
     func requestVideoDetail(for videoPath: String) {
         if let libraryDatabase,
-           let info = try? libraryDatabase.fileDetailVideoInfo(for: videoPath) {
-            library.fileDetailSession = FileDetailDialogSession(kind: .video(info))
+           let items = try? libraryDatabase.fileDetailPairedItems(forVideoPath: videoPath),
+           !items.isEmpty {
+            let initialIndex = items.firstIndex(where: { $0.isVideo && $0.path == videoPath }) ?? 0
+            library.fileDetailSession = FileDetailDialogSession(
+                pairedItems: items,
+                initialSelectedIndex: initialIndex
+            )
         } else {
             let url = URL.fromMediaPath(videoPath)
             let attrs = videoPath.isRemoteMediaPath ? nil : (try? FileManager.default.attributesOfItem(atPath: videoPath))
@@ -94,8 +99,13 @@ extension AppCoordinator {
 
     func requestSubtitleDetail(for subtitlePath: String) {
         if let libraryDatabase,
-           let info = try? libraryDatabase.fileDetailSubtitleInfo(for: subtitlePath) {
-            library.fileDetailSession = FileDetailDialogSession(kind: .subtitle(info))
+           let items = try? libraryDatabase.fileDetailPairedItems(forSubtitlePath: subtitlePath),
+           !items.isEmpty {
+            let initialIndex = items.firstIndex(where: { !$0.isVideo && $0.path == subtitlePath }) ?? 0
+            library.fileDetailSession = FileDetailDialogSession(
+                pairedItems: items,
+                initialSelectedIndex: initialIndex
+            )
         } else {
             let url = URL.fromMediaPath(subtitlePath)
             let attrs = subtitlePath.isRemoteMediaPath ? nil : (try? FileManager.default.attributesOfItem(atPath: subtitlePath))
