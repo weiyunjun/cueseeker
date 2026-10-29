@@ -162,6 +162,7 @@ struct LibraryRenameDialog: View {
                     text: $session.newName,
                     validationMessage: session.validationMessage,
                     reservesValidationLine: true,
+                    autofocus: true,
                     focus: $isNameFocused
                 )
                 .accessibilityIdentifier("rename-new-name")
@@ -177,9 +178,6 @@ struct LibraryRenameDialog: View {
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthMedium)
         .background(WorkbenchRedesignColors.bgDialog)
         .workbenchDialogCloseButton(onClose: onClose)
-        .onAppear {
-            isNameFocused = true
-        }
         .onChange(of: session.newName) { _ in
             if session.hasAttemptedValidation {
                 session.validate()

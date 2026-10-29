@@ -43,7 +43,146 @@ class CueSeekerWindow: NSWindow {
                 break
             }
         }
+        switch event.type {
+        case .leftMouseDown:
+            cancelFocusedTextInputIfOutside(at: event.locationInWindow)
+        case .rightMouseDown:
+            if isPointInsideFocusedTextInput(at: event.locationInWindow) {
+                return
+            }
+            cancelFocusedTextInputIfOutside(at: event.locationInWindow)
+            if handleRightMouseDownOnUnfocusedTextInput(with: event) {
+                return
+            }
+        default:
+            break
+        }
         super.sendEvent(event)
+    }
+
+    func cancelFocusedTextInputIfOutside(at windowPoint: NSPoint) {
+        guard hasFocusedTextInput else {
+            return
+        }
+        if !isPointInsideFocusedTextInput(at: windowPoint) {
+            _ = makeFirstResponder(nil)
+        }
+    }
+
+    private func handleRightMouseDownOnUnfocusedTextInput(with event: NSEvent) -> Bool {
+        guard let root = contentView,
+              let hit = root.superview?.hitTest(event.locationInWindow) ?? root.hitTest(root.convert(event.locationInWindow, from: nil))
+        else {
+            return false
+        }
+        if let overlay = hit as? WorkbenchSingleLineContainerOverlayView {
+            overlay.rightMouseDown(with: event)
+            return true
+        }
+        if let field = hit as? WorkbenchNativeSingleLineTextField {
+            field.rightMouseDown(with: event)
+            return true
+        }
+        if let secureField = hit as? WorkbenchNativeSecureTextField {
+            secureField.rightMouseDown(with: event)
+            return true
+        }
+        if let textAreaView = hit as? WorkbenchTextAreaNativeTextView {
+            textAreaView.rightMouseDown(with: event)
+            return true
+        }
+        return false
+    }
+
+    private var hasFocusedTextInput: Bool {
+        guard let responder = firstResponder else {
+            return false
+        }
+        if responder is WorkbenchTextAreaNativeTextView
+            || responder is WorkbenchNativeSingleLineTextField
+            || responder is WorkbenchNativeSecureTextField {
+            return true
+        }
+        if let textView = responder as? NSTextView,
+           textView.isFieldEditor {
+            return true
+        }
+        return false
+    }
+
+    private func isPointInsideFocusedTextInput(at windowPoint: NSPoint) -> Bool {
+        guard let responder = firstResponder else {
+            return false
+        }
+        if let root = contentView,
+           Self.containsPointInCompanionView(windowPoint, in: root) {
+            return true
+        }
+        if let textAreaView = responder as? WorkbenchTextAreaNativeTextView {
+            if let container = sequence(first: textAreaView as NSView, next: \.superview)
+                .compactMap({ $0 as? WorkbenchTextAreaContainerView })
+                .first {
+                return container.containsWindowPoint(windowPoint)
+            }
+            let localPoint = textAreaView.convert(windowPoint, from: nil)
+            return textAreaView.bounds.contains(localPoint)
+        }
+        let activeField: NSTextField? = {
+            if let field = responder as? NSTextField {
+                return field
+            }
+            if let textView = responder as? NSTextView {
+                if let delegateField = textView.delegate as? NSTextField {
+                    return delegateField
+                }
+                return sequence(first: textView as NSView, next: \.superview)
+                    .compactMap({ $0 as? NSTextField })
+                    .first
+            }
+            return nil
+        }()
+        guard let activeField else {
+            return false
+        }
+        if let root = contentView,
+           let overlay = Self.findOverlay(enclosing: activeField, in: root) {
+            return overlay.containsWindowPoint(windowPoint)
+        }
+        let localPoint = activeField.convert(windowPoint, from: nil)
+        return activeField.bounds.contains(localPoint)
+    }
+
+    private static func findOverlay(
+        enclosing field: NSTextField,
+        in view: NSView
+    ) -> WorkbenchSingleLineContainerOverlayView? {
+        if let overlay = view as? WorkbenchSingleLineContainerOverlayView,
+           !overlay.isHiddenOrHasHiddenAncestor,
+           overlay.enclosesField(field) {
+            return overlay
+        }
+        for subview in view.subviews {
+            if let found = findOverlay(enclosing: field, in: subview) {
+                return found
+            }
+        }
+        return nil
+    }
+
+    private static func containsPointInCompanionView(
+        _ windowPoint: NSPoint,
+        in view: NSView
+    ) -> Bool {
+        if let companion = view as? FocusedTextInputCompanionView,
+           companion.containsWindowPoint(windowPoint) {
+            return true
+        }
+        for subview in view.subviews {
+            if containsPointInCompanionView(windowPoint, in: subview) {
+                return true
+            }
+        }
+        return false
     }
 }
 
@@ -176,7 +315,7 @@ final class CueSeekerMainWindow: CueSeekerWindow {
 
     /// Whether `responder` is a view of this window that lies outside the open
     /// dialog. Every dialog is centred in the window.
-    private func isBehindDialog(_ responder: NSResponder?) -> Bool {
+    func isBehindDialog(_ responder: NSResponder?) -> Bool {
         guard let size = dialogSize(),
               let view = focusTargetView(for: responder),
               view.window === self,
@@ -190,7 +329,11 @@ final class CueSeekerMainWindow: CueSeekerWindow {
             width: size.width,
             height: size.height
         )
-        return !dialog.insetBy(dx: -1, dy: -1).contains(content.convert(view.bounds, from: view))
+        let allowedBounds = dialog.insetBy(
+            dx: -2,
+            dy: -(WorkbenchDialogMotion.distance + 2)
+        )
+        return !allowedBounds.contains(content.convert(view.bounds, from: view))
     }
 
     /// Whether nothing is drawn over the middle of `view`, so a field that lies

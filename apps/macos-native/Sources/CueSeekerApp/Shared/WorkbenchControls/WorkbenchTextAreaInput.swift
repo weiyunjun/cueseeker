@@ -170,6 +170,11 @@ final class WorkbenchTextAreaContainerView: NSView {
         window?.firstResponder === textView
     }
 
+    func containsWindowPoint(_ windowPoint: NSPoint) -> Bool {
+        let localPoint = convert(windowPoint, from: nil)
+        return bounds.contains(localPoint)
+    }
+
     var contentInsetForTesting: NSSize {
         textView.textContainerInset
     }
@@ -328,6 +333,29 @@ final class WorkbenchTextAreaNativeTextView: NSTextView {
         needsDisplay = true
     }
 
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 1,
+           !event.modifierFlags.contains(.shift),
+           selectedRange().length > 0 {
+            setSelectedRange(NSRange(location: selectedRange().location, length: 0))
+        }
+        super.mouseDown(with: event)
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard isEditable else { return }
+        if window?.firstResponder !== self {
+            _ = window?.makeFirstResponder(self)
+            let pointInTextView = convert(event.locationInWindow, from: nil)
+            let index = characterIndexForInsertion(at: pointInTextView)
+            setSelectedRange(NSRange(location: index, length: 0))
+        }
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        nil
+    }
+
     override func becomeFirstResponder() -> Bool {
         let didBecomeFirstResponder = super.becomeFirstResponder()
         if didBecomeFirstResponder {
@@ -339,6 +367,9 @@ final class WorkbenchTextAreaNativeTextView: NSTextView {
     override func resignFirstResponder() -> Bool {
         let didResignFirstResponder = super.resignFirstResponder()
         if didResignFirstResponder {
+            if selectedRange().length > 0 {
+                setSelectedRange(NSRange(location: selectedRange().location, length: 0))
+            }
             onFirstResponderChange(false)
         }
         return didResignFirstResponder
@@ -402,6 +433,21 @@ private final class WorkbenchTextAreaScrollbarView: TableScrollbarOverlayView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    override func mouseDown(with event: NSEvent) {
+        if let container = superview as? WorkbenchTextAreaContainerView,
+           container.textView.isEditable {
+            container.focusTextViewIfPossible()
+        }
+        super.mouseDown(with: event)
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        if let container = superview as? WorkbenchTextAreaContainerView,
+           container.textView.isEditable {
+            container.focusTextViewIfPossible()
+        }
+    }
+
     private func presentation() -> TableScrollbarPresentation? {
         guard let scrollView,
               let documentView = scrollView.documentView
@@ -426,6 +472,10 @@ private final class WorkbenchTextAreaScrollbarView: TableScrollbarOverlayView {
     }
 
     private func handleDrag(_ event: TableScrollbarDragEvent) {
+        if let container = superview as? WorkbenchTextAreaContainerView,
+           container.textView.isEditable {
+            container.focusTextViewIfPossible()
+        }
         guard event.axis == .vertical,
               event.phase == .changed,
               let scrollView,

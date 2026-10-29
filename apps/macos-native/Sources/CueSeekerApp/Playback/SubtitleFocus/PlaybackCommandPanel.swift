@@ -223,8 +223,7 @@ private struct PlaybackCommandPanelRoot: View {
             WorkbenchSearchField(
                 placeholder: L("sidebar.search"),
                 text: $query,
-                autofocus: true,
-                placesInsertionPointAtEndOnAutofocus: true
+                autofocus: true
             ) {
                 _ = onSubmitSearch()
             }

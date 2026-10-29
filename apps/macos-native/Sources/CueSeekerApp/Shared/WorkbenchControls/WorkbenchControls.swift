@@ -41,11 +41,15 @@ struct WorkbenchInlineClearButton: View {
 }
 
 struct WorkbenchSearchField: View {
+    private final class WeakTextFieldBox {
+        weak var field: WorkbenchNativeSingleLineTextField?
+    }
+
     let placeholder: String
     @Binding var text: String
     var autofocus: Bool
-    var placesInsertionPointAtEndOnAutofocus: Bool
     var trailingStatusText: String?
+    var onAutofocusCompleted: (() -> Void)?
     var onSubmit: (() -> Void)?
     var onMoveUp: (() -> Bool)?
     var onMoveDown: (() -> Bool)?
@@ -53,14 +57,15 @@ struct WorkbenchSearchField: View {
 
     @FocusState private var isFocused: Bool
     @State private var isNativeFocused = false
+    @State private var textFieldBox = WeakTextFieldBox()
     @Environment(\.isEnabled) private var isEnabled
 
     init(
         placeholder: String,
         text: Binding<String>,
         autofocus: Bool = false,
-        placesInsertionPointAtEndOnAutofocus: Bool = false,
         trailingStatusText: String? = nil,
+        onAutofocusCompleted: (() -> Void)? = nil,
         onSubmit: (() -> Void)? = nil,
         onMoveUp: (() -> Bool)? = nil,
         onMoveDown: (() -> Bool)? = nil,
@@ -69,9 +74,8 @@ struct WorkbenchSearchField: View {
         self.placeholder = placeholder
         _text = text
         self.autofocus = autofocus
-        self.placesInsertionPointAtEndOnAutofocus =
-            placesInsertionPointAtEndOnAutofocus
         self.trailingStatusText = trailingStatusText
+        self.onAutofocusCompleted = onAutofocusCompleted
         self.onSubmit = onSubmit
         self.onMoveUp = onMoveUp
         self.onMoveDown = onMoveDown
@@ -103,9 +107,12 @@ struct WorkbenchSearchField: View {
                     ? WorkbenchRedesignColors.textPrimary
                     : WorkbenchRedesignColors.textPlaceholder,
                 fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                autofocus: autofocus,
                 focus: $isFocused,
                 accessibilityLabel: placeholder,
                 onFocusChange: { isNativeFocused = $0 },
+                onAutofocusCompleted: onAutofocusCompleted,
+                onBindTextField: { textFieldBox.field = $0 },
                 onSubmit: onSubmit,
                 onMoveUp: onMoveUp,
                 onMoveDown: onMoveDown,
@@ -126,6 +133,7 @@ struct WorkbenchSearchField: View {
 
             if !text.isEmpty {
                 WorkbenchInlineClearButton(isEnabled: isEnabled) {
+                    textFieldBox.field?.clearTextAndFocus()
                     text = ""
                 }
                 .workbenchTooltip(
@@ -144,7 +152,7 @@ struct WorkbenchSearchField: View {
         .overlay(
             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSearchRadius, style: .continuous)
                 .strokeBorder(
-                    (isNativeFocused || isFocused) ? WorkbenchRedesignColors.borderFocus : (isEnabled ? WorkbenchRedesignColors.borderControl : WorkbenchRedesignColors.borderDisabled),
+                    isNativeFocused ? WorkbenchRedesignColors.borderFocus : (isEnabled ? WorkbenchRedesignColors.borderControl : WorkbenchRedesignColors.borderDisabled),
                     lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
                 )
                 .allowsHitTesting(false)
@@ -162,29 +170,6 @@ struct WorkbenchSearchField: View {
             )
         )
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
-        .task {
-            guard autofocus else {
-                return
-            }
-            await Task.yield()
-            guard !Task.isCancelled else {
-                return
-            }
-            isFocused = true
-            guard placesInsertionPointAtEndOnAutofocus else {
-                return
-            }
-            await Task.yield()
-            guard !Task.isCancelled,
-                  let editor = NSApplication.shared.keyWindow?.firstResponder
-                    as? NSTextView,
-                  editor.isEditable,
-                  editor.string == text
-            else {
-                return
-            }
-            Self.placeInsertionPointAtEnd(in: editor)
-        }
     }
 }
 

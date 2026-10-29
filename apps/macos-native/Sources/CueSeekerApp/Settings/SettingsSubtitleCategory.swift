@@ -1417,7 +1417,7 @@ struct SettingsSubtitleColorField: View {
                 style: .continuous
             )
             .strokeBorder(
-                (isNativeFocused || isFocused || isPopoverOpen)
+                (isNativeFocused || isPopoverOpen)
                     ? WorkbenchRedesignColors.borderFocus
                     : WorkbenchRedesignColors.borderControl,
                 lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
@@ -1637,6 +1637,7 @@ struct SettingsSubtitleColorPresetsPopover: View {
                 lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
             )
         )
+        .background(FocusedTextInputCompanionSurface())
     }
 }
 
@@ -1695,23 +1696,14 @@ struct SettingsSubtitleNumberField: View {
     }
 
     static func filterDraft(_ draft: String) -> String {
-        let prefix = draft.prefix { $0 != "." && !$0.isNewline }
-        return String(prefix.filter { $0.isASCII && $0.isNumber })
+        WorkbenchNumberField.filterIntegerDraft(draft)
     }
 
     static func normalizeDraft(_ draft: String, maximum: Double) -> String {
-        let digits = filterDraft(draft)
-        guard !digits.isEmpty else {
-            return ""
-        }
-        let maxInt = Int(maximum.rounded())
-        guard let parsed = Int(digits) else {
-            return String(maxInt)
-        }
-        if parsed > maxInt {
-            return String(maxInt)
-        }
-        return digits
+        WorkbenchNumberField.normalizeIntegerDraft(
+            draft,
+            maximum: Int(maximum.rounded())
+        )
     }
 
     private static func parseDouble(_ draft: String) -> Double? {

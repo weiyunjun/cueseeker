@@ -118,6 +118,12 @@ final class InterfaceLayerRegistry: ObservableObject {
             guard Self.focusOwner(in: window) === pageFocus else {
                 return
             }
+            if let mainWindow = window as? CueSeekerMainWindow,
+               let view = pageFocus as? NSView,
+               !mainWindow.isBehindDialog(pageFocus),
+               mainWindow.isUncovered(view) {
+                return
+            }
             window.makeFirstResponder(nil)
         }
     }

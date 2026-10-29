@@ -76,18 +76,10 @@ struct SettingsPlayCategory: View {
     }
 
     static func normalizeGapDraft(_ draft: String) -> String {
-        let numericDraft = draft.filter { $0.isASCII && $0.isNumber }
-        guard !numericDraft.isEmpty else {
-            return ""
-        }
-        guard let milliseconds = Int(numericDraft) else {
-            return String(SettingsStore.autoSwitchCueSequenceGapMaximumMilliseconds)
-        }
-        let clampedMilliseconds = SettingsStore.clampedAutoSwitchCueSequenceGapMilliseconds(milliseconds)
-        if milliseconds != clampedMilliseconds {
-            return String(clampedMilliseconds)
-        }
-        return numericDraft
+        WorkbenchNumberField.normalizeIntegerDraft(
+            draft,
+            maximum: SettingsStore.autoSwitchCueSequenceGapMaximumMilliseconds
+        )
     }
 
     private func applyGapDraftChange(_ draft: String) {

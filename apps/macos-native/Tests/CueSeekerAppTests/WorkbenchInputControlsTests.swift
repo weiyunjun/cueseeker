@@ -215,10 +215,16 @@ struct WorkbenchInputControlsTests {
         let editor = try #require(field.currentEditor() as? NSTextView)
 
         editor.setSelectedRange(NSRange(location: 0, length: editor.string.utf16.count))
-        editor.insertText("12ab\n34ms", replacementRange: editor.selectedRange())
+        editor.insertText("12ab34ms", replacementRange: editor.selectedRange())
         #expect(editor.string == "1234")
         #expect(box.text == "1234")
         #expect(editor.selectedRange() == NSRange(location: 4, length: 0))
+
+        editor.setSelectedRange(NSRange(location: 0, length: editor.string.utf16.count))
+        editor.insertText("12ab\n34ms", replacementRange: editor.selectedRange())
+        #expect(editor.string == "12")
+        #expect(box.text == "12")
+        #expect(editor.selectedRange() == NSRange(location: 2, length: 0))
 
         // Out-of-range immediate clamp (> 10000 -> 10000), including ultra-long strings with dots
         editor.setSelectedRange(NSRange(location: 0, length: editor.string.utf16.count))
@@ -880,6 +886,412 @@ struct WorkbenchInputControlsTests {
         hostingView.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
         #expect(scrollController.currentOffsetY > 10_000)
+    }
+
+    @Test
+    func clickingOverflowingInputDoesNotSelectAllOrJumpScrollAndSupportsMultiClickDragAndRightClick() throws {
+        _ = NSApplication.shared
+        let window = CueSeekerWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 220),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        let longText = "alpha bravo charlie delta echo foxtrot golf hotel india juliet"
+        let box = StringBox(longText)
+        let hostingView = NSHostingView(
+            rootView: FormFieldHarness(box: box)
+                .frame(width: 180)
+                .frame(width: 420, height: 220)
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 420, height: 220)
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        let field = try #require(collectEditableTextFields(in: hostingView).first as? WorkbenchNativeSingleLineTextField)
+        let overlay = try #require(collectContainerOverlays(in: hostingView).first)
+        #expect(!field.isCurrentlyFocused)
+
+        // 1. Clicking near the left padding on an overflowing input focuses without Select-All or horizontal scroll jump
+        let clickNearLeft = overlay.convert(NSPoint(x: 6, y: overlay.bounds.midY), to: nil)
+        let down1 = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: clickNearLeft,
+            modifierFlags: [],
+            timestamp: 1,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ))
+        window.sendEvent(down1)
+        overlay.mouseDown(with: down1)
+        #expect(field.isCurrentlyFocused)
+        let editor = try #require(field.currentEditor() as? NSTextView)
+        let clipView = try #require(editor.superview as? NSClipView)
+        #expect(clipView.bounds.origin == .zero)
+        #expect(editor.selectedRange() == NSRange(location: 0, length: 0))
+
+        // 2. Dragging from left padding to the right and releasing outside the container retains focus and selection
+        let dragMidPoint = field.convert(NSPoint(x: 45, y: field.bounds.midY), to: nil)
+        let dragEvent = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDragged,
+            location: dragMidPoint,
+            modifierFlags: [],
+            timestamp: 2,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ))
+        overlay.mouseDragged(with: dragEvent)
+        let draggedSelection = editor.selectedRange()
+        #expect(draggedSelection.location == 0 && draggedSelection.length > 2)
+
+        let releaseOutsideEvent = try #require(NSEvent.mouseEvent(
+            with: .leftMouseUp,
+            location: NSPoint(x: 5, y: 5),
+            modifierFlags: [],
+            timestamp: 3,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 0
+        ))
+        window.sendEvent(releaseOutsideEvent)
+        #expect(field.isCurrentlyFocused)
+        #expect(editor.selectedRange() == draggedSelection)
+
+        // 3. Double-clicking selects word; triple-clicking selects entire line
+        let doubleClickEvent = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: clickNearLeft,
+            modifierFlags: [],
+            timestamp: 4,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 2,
+            clickCount: 2,
+            pressure: 1
+        ))
+        overlay.mouseDown(with: doubleClickEvent)
+        #expect(editor.selectedRange().length > 0 && editor.selectedRange().length < longText.utf16.count)
+
+        let tripleClickEvent = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: clickNearLeft,
+            modifierFlags: [],
+            timestamp: 5,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 3,
+            clickCount: 3,
+            pressure: 1
+        ))
+        overlay.mouseDown(with: tripleClickEvent)
+        #expect(editor.selectedRange() == NSRange(location: 0, length: longText.utf16.count))
+
+        // 4. Right-clicking inside an already-focused input keeps focus and preserves selection
+        let rightClickInsideField = field.convert(NSPoint(x: 20, y: field.bounds.midY), to: nil)
+        let rightDownInside = try #require(NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: rightClickInsideField,
+            modifierFlags: [],
+            timestamp: 6,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 4,
+            clickCount: 1,
+            pressure: 1
+        ))
+        window.sendEvent(rightDownInside)
+        #expect(field.isCurrentlyFocused)
+        #expect(editor.selectedRange() == NSRange(location: 0, length: longText.utf16.count))
+    }
+
+    @Test
+    func clickingOutsideCancelsFocusWhileClearButtonScrollbarAndColorPopoverRetainFocus() throws {
+        _ = NSApplication.shared
+        let window = CueSeekerWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 420),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+
+        // 1. Search Field: clear button keeps focus and clears text; outside left/right click cancels focus
+        let searchBox = StringBox("search query")
+        let searchHosting = NSHostingView(
+            rootView: SearchFieldHarness(box: searchBox)
+                .frame(width: 500, height: 200)
+        )
+        searchHosting.frame = NSRect(x: 0, y: 0, width: 500, height: 200)
+        window.contentView = searchHosting
+        searchHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        let searchField = try #require(collectEditableTextFields(in: searchHosting).first as? WorkbenchNativeSingleLineTextField)
+        let searchOverlay = try #require(collectContainerOverlays(in: searchHosting).first)
+        #expect(window.makeFirstResponder(searchField))
+        searchField.selectAllInCurrentEditor()
+        let searchEditor = try #require(searchField.currentEditor() as? NSTextView)
+        #expect(searchEditor.selectedRange() == NSRange(location: 0, length: 12))
+
+        // Click outside (leftMouseDown at (10, 10)) cancels focus and collapses selection
+        let outsideLeftDown = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: NSPoint(x: 10, y: 10),
+            modifierFlags: [],
+            timestamp: 1,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ))
+        window.sendEvent(outsideLeftDown)
+        #expect(!searchField.isCurrentlyFocused)
+
+        // Right-click inside unfocused search container focuses it; right-click outside cancels focus
+        let insideRightDown = try #require(NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: searchOverlay.convert(NSPoint(x: 16, y: searchOverlay.bounds.midY), to: nil),
+            modifierFlags: [],
+            timestamp: 2,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 2,
+            clickCount: 1,
+            pressure: 1
+        ))
+        window.sendEvent(insideRightDown)
+        #expect(searchField.isCurrentlyFocused)
+
+        let outsideRightDown = try #require(NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: NSPoint(x: 10, y: 10),
+            modifierFlags: [],
+            timestamp: 3,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 3,
+            clickCount: 1,
+            pressure: 1
+        ))
+        window.sendEvent(outsideRightDown)
+        #expect(!searchField.isCurrentlyFocused)
+
+        // clearTextAndFocus() clears text and keeps/gains focus on the search field
+        searchField.clearTextAndFocus()
+        searchBox.text = ""
+        #expect(searchField.isCurrentlyFocused)
+        #expect(searchField.stringValue.isEmpty)
+
+        // 2. Color Well + Preset Popover companion surface retains focus when clicked inside, and blurs when clicked outside
+        let subtitleBox = SubtitleValueBox()
+        subtitleBox.isColorPopoverOpen = true
+        let colorHosting = NSHostingView(
+            rootView: VStack(spacing: 8) {
+                SettingsSubtitleColorField(
+                    color: Binding(get: { subtitleBox.textColor }, set: { subtitleBox.textColor = $0 }),
+                    accessibilityLabel: "Color",
+                    isPopoverOpen: Binding(get: { subtitleBox.isColorPopoverOpen }, set: { subtitleBox.isColorPopoverOpen = $0 })
+                )
+                if subtitleBox.isColorPopoverOpen {
+                    SettingsSubtitleColorPresetsPopover(
+                        selectedColor: subtitleBox.textColor,
+                        onSelectPreset: { _ in }
+                    )
+                }
+            }
+            .frame(width: 500, height: 320)
+        )
+        colorHosting.frame = NSRect(x: 0, y: 0, width: 500, height: 320)
+        window.contentView = colorHosting
+        colorHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        let colorField = try #require(collectEditableTextFields(in: colorHosting).first as? WorkbenchNativeSingleLineTextField)
+        #expect(window.makeFirstResponder(colorField))
+        #expect(colorField.isCurrentlyFocused)
+
+        func findCompanionView(in view: NSView) -> FocusedTextInputCompanionView? {
+            if let companion = view as? FocusedTextInputCompanionView {
+                return companion
+            }
+            for sub in view.subviews {
+                if let found = findCompanionView(in: sub) {
+                    return found
+                }
+            }
+            return nil
+        }
+
+        let companion = try #require(findCompanionView(in: colorHosting))
+        let pointInPopover = companion.convert(
+            NSPoint(x: companion.bounds.midX, y: companion.bounds.midY),
+            to: nil as NSView?
+        )
+        let clickInPopover = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: pointInPopover,
+            modifierFlags: [],
+            timestamp: 4,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 4,
+            clickCount: 1,
+            pressure: 1
+        ))
+        window.sendEvent(clickInPopover)
+        #expect(colorField.isCurrentlyFocused)
+
+        window.sendEvent(outsideLeftDown)
+        #expect(!colorField.isCurrentlyFocused)
+    }
+
+    @Test
+    func autofocusSelectsAllOnSearchRenameAndCommandPanelWithoutRefocusingOnModalOrSelectionDismiss() throws {
+        _ = NSApplication.shared
+        let layers = InterfaceLayerRegistry()
+        let window = CueSeekerMainWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 700),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isFocusLocked = { layers.hasUncoveredOpenMenu }
+        window.dialogSize = { layers.topDialogSize }
+        window.isWorkbenchCovered = { layers.isCovered(.workbenchPage) }
+
+        // 1. Rename Dialog (opened right as a card menu token is released & dialog layer opens) autofocuses and selects all prefilled name
+        var openMenuToken: InterfaceLayerRegistry.OpenMenuToken? = layers.registerOpenMenu(ownedBy: .workbenchPage)
+        let folder = IndexedContentFolder(
+            id: 1,
+            relativePath: "Season 01",
+            folderPath: "/Media/Season 01"
+        )
+        let renameSession = LibraryRenameSession(folder: folder)
+        layers.topDialogSize = NSSize(width: WorkbenchControlMetrics.redesignDialogWidthMedium, height: 220)
+        layers.setOpen(.dialog, true)
+
+        let renameHosting = NSHostingView(
+            rootView: ZStack {
+                Color.clear
+                LibraryRenameDialog(
+                    session: renameSession,
+                    onConfirm: {},
+                    onClose: {}
+                )
+            }
+            .frame(width: 900, height: 700)
+        )
+        renameHosting.frame = NSRect(x: 0, y: 0, width: 900, height: 700)
+        window.contentView = renameHosting
+        renameHosting.layoutSubtreeIfNeeded()
+        // Release menu token on the next turn (simulating MenuGateClientView dismantle)
+        openMenuToken = nil
+        _ = openMenuToken
+        RunLoop.main.run(until: Date().addingTimeInterval(0.06))
+
+        let renameField = try #require(collectEditableTextFields(in: renameHosting).first as? WorkbenchNativeSingleLineTextField)
+        #expect(renameField.isCurrentlyFocused)
+        let renameEditor = try #require(renameField.currentEditor() as? NSTextView)
+        #expect(renameEditor.string == "Season 01")
+        #expect(renameEditor.selectedRange() == NSRange(location: 0, length: "Season 01".utf16.count))
+
+        layers.setOpen(.dialog, false)
+
+        // 2. Workbench Search Toolbar with autofocusSearchOnAppear = true autofocuses & selects all on initial entry,
+        //    and does NOT re-autofocus after exiting selection mode; autofocusSearchOnAppear = false (Excerpt detail) does not autofocus.
+        final class ToolbarStateBox: ObservableObject {
+            @Published var query = "existing query"
+            @Published var isSelectionMode = false
+        }
+        struct ToolbarHarness: View {
+            @ObservedObject var state: ToolbarStateBox
+            let autofocusOnAppear: Bool
+            var body: some View {
+                SchemaWorkbenchSearchToolbar(
+                    placeholder: "Search",
+                    searchDraft: $state.query,
+                    searchResultCountText: "3 results",
+                    autofocusSearchOnAppear: autofocusOnAppear,
+                    selectedCountText: "1 / 3",
+                    selectionActions: [],
+                    isSelectionMode: state.isSelectionMode,
+                    onFilter: {},
+                    onToggleSelectionMode: { state.isSelectionMode.toggle() }
+                )
+                .frame(width: 600, height: 100)
+            }
+        }
+
+        let searchState = ToolbarStateBox()
+        let searchToolbarHosting = NSHostingView(
+            rootView: ToolbarHarness(state: searchState, autofocusOnAppear: true)
+                .frame(width: 900, height: 700)
+        )
+        searchToolbarHosting.frame = NSRect(x: 0, y: 0, width: 900, height: 700)
+        window.contentView = searchToolbarHosting
+        searchToolbarHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        let toolbarSearchField = try #require(collectEditableTextFields(in: searchToolbarHosting).first as? WorkbenchNativeSingleLineTextField)
+        #expect(toolbarSearchField.isCurrentlyFocused)
+        let toolbarSearchEditor = try #require(toolbarSearchField.currentEditor() as? NSTextView)
+        #expect(toolbarSearchEditor.selectedRange() == NSRange(location: 0, length: "existing query".utf16.count))
+
+        // Blur search field, enter selection mode, then exit selection mode -> must remain unfocused
+        _ = window.makeFirstResponder(nil)
+        #expect(!toolbarSearchField.isCurrentlyFocused)
+        searchState.isSelectionMode = true
+        searchToolbarHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        searchState.isSelectionMode = false
+        searchToolbarHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        let remountedSearchField = try #require(collectEditableTextFields(in: searchToolbarHosting).first as? WorkbenchNativeSingleLineTextField)
+        #expect(!remountedSearchField.isCurrentlyFocused)
+
+        // Excerpt detail toolbar (autofocusSearchOnAppear: false) does not autofocus on appear
+        _ = window.makeFirstResponder(nil)
+        let excerptState = ToolbarStateBox()
+        let excerptToolbarHosting = NSHostingView(
+            rootView: ToolbarHarness(state: excerptState, autofocusOnAppear: false)
+                .frame(width: 900, height: 700)
+        )
+        excerptToolbarHosting.frame = NSRect(x: 0, y: 0, width: 900, height: 700)
+        window.contentView = excerptToolbarHosting
+        excerptToolbarHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        let excerptSearchField = try #require(collectEditableTextFields(in: excerptToolbarHosting).first as? WorkbenchNativeSingleLineTextField)
+        #expect(!excerptSearchField.isCurrentlyFocused)
+
+        // 3. Command Panel search field (autofocus: true, including prefilled cue text) autofocuses and selects all text
+        let commandQueryBox = StringBox("prefilled subtitle cue")
+        let commandHosting = NSHostingView(
+            rootView: WorkbenchSearchField(
+                placeholder: "Search",
+                text: Binding(get: { commandQueryBox.text }, set: { commandQueryBox.text = $0 }),
+                autofocus: true
+            )
+            .frame(width: 500)
+            .frame(width: 900, height: 700)
+        )
+        commandHosting.frame = NSRect(x: 0, y: 0, width: 900, height: 700)
+        window.contentView = commandHosting
+        commandHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        let commandField = try #require(collectEditableTextFields(in: commandHosting).first as? WorkbenchNativeSingleLineTextField)
+        #expect(commandField.isCurrentlyFocused)
+        let commandEditor = try #require(commandField.currentEditor() as? NSTextView)
+        #expect(commandEditor.selectedRange() == NSRange(location: 0, length: "prefilled subtitle cue".utf16.count))
     }
 }
 

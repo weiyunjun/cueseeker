@@ -69,6 +69,7 @@ struct WorkbenchSearchView: View {
         SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
             columns: SchemaWorkbenchSearchDefaults.columns,
+            autofocusSearchOnAppear: true,
             tableSummary: tableSummary,
             searchResultCountText: exactSearchResultCountText,
             selectionActions: selectedSummaryActions,

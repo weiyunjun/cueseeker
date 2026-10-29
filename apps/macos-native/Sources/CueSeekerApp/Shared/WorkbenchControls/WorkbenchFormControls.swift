@@ -9,10 +9,13 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
     let fontSize: CGFloat
     var alignment: NSTextAlignment = .left
     var usesMonospacedDigits: Bool = false
+    var autofocus: Bool = false
     let focus: FocusState<Bool>.Binding
     let accessibilityLabel: String
     var normalizeDraft: ((String) -> String)? = nil
     var onFocusChange: ((Bool) -> Void)? = nil
+    var onAutofocusCompleted: (() -> Void)? = nil
+    var onBindTextField: ((WorkbenchNativeSingleLineTextField) -> Void)? = nil
     var onEditingEnded: (() -> Void)? = nil
     var onSubmit: (() -> Void)? = nil
     var onMoveUp: (() -> Bool)? = nil
@@ -36,12 +39,14 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
         field.configure(with: self, isEnabled: isEnabled)
         field.stringValue = field.normalizeFullString(text)
         field.wantsFocusFromSwiftUI = focus.wrappedValue
+        onBindTextField?(field)
         return field
     }
 
     func updateNSView(_ nsView: WorkbenchNativeSingleLineTextField, context: Context) {
         context.coordinator.parent = self
         nsView.configure(with: self, isEnabled: isEnabled)
+        onBindTextField?(nsView)
         let normalizedText = nsView.normalizeFullString(text)
         if let editor = nsView.currentEditor() as? NSTextView {
             if editor.string != normalizedText, !editor.hasMarkedText() {
@@ -50,10 +55,14 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
                 editor.string = normalizedText
                 nsView.applyTextStyle(to: editor)
                 let length = (normalizedText as NSString).length
-                editor.setSelectedRange(NSRange(
-                    location: min(selection.location, length),
-                    length: 0
-                ))
+                if nsView.hasPerformedInitialAutofocus && !nsView.didUserInteractSinceAutofocus && nsView.isCurrentlyFocused {
+                    editor.setSelectedRange(NSRange(location: 0, length: length))
+                } else {
+                    editor.setSelectedRange(NSRange(
+                        location: min(selection.location, length),
+                        length: 0
+                    ))
+                }
                 nsView.isApplyingProgrammaticText = false
             }
         } else if nsView.stringValue != normalizedText {
@@ -67,7 +76,9 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
         } else if !swiftUIFocus {
             nsView.wantsFocusFromSwiftUI = false
         }
-        if nsView.wantsFocusFromSwiftUI, !nsView.isCurrentlyFocused {
+        if nsView.autofocus, !nsView.hasPerformedInitialAutofocus {
+            nsView.performInitialAutofocusIfPossible()
+        } else if nsView.wantsFocusFromSwiftUI, !nsView.isCurrentlyFocused {
             nsView.requestFocusIfPossible()
         }
     }
@@ -243,7 +254,7 @@ struct WorkbenchFormTextField: View {
                 .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
                 .workbenchFormFieldChrome(
                     hasError: validationMessage != nil,
-                    isFocused: isFocused || focus.wrappedValue
+                    isFocused: isFocused
                 )
                 .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
         }
@@ -292,6 +303,27 @@ struct WorkbenchNumberField: View {
 
     @State private var isFocused = false
     @Environment(\.isEnabled) private var isEnabled
+
+    static func filterIntegerDraft(_ raw: String) -> String {
+        let prefix = raw.prefix { scalar in
+            scalar != "." && !scalar.unicodeScalars.contains(where: { CharacterSet.newlines.contains($0) })
+        }
+        return String(prefix.filter { $0.isASCII && ("0"..."9").contains($0) })
+    }
+
+    static func normalizeIntegerDraft(_ raw: String, maximum: Int) -> String {
+        let digitsOnly = filterIntegerDraft(raw)
+        guard !digitsOnly.isEmpty else {
+            return ""
+        }
+        if let parsed = Int(digitsOnly), parsed > maximum {
+            return String(maximum)
+        }
+        if Int(digitsOnly) == nil {
+            return String(maximum)
+        }
+        return digitsOnly
+    }
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
@@ -347,7 +379,7 @@ struct WorkbenchNumberField: View {
             )
             .strokeBorder(
                 isEnabled
-                    ? ((isFocused || focus.wrappedValue)
+                    ? (isFocused
                         ? WorkbenchRedesignColors.borderFocus
                         : WorkbenchRedesignColors.borderControl)
                     : WorkbenchRedesignColors.borderDisabled,
@@ -480,6 +512,7 @@ struct WorkbenchDialogFormTextField: View {
     var validationMessage: String? = nil
     var reservesValidationLine: Bool = false
     var showsErrorBorder: Bool = true
+    var autofocus: Bool = false
     let focus: FocusState<Bool>.Binding
     var normalizeDraft: ((String) -> String)? = nil
     var onSubmit: (() -> Void)?
@@ -505,6 +538,7 @@ struct WorkbenchDialogFormTextField: View {
                         ? WorkbenchRedesignColors.textPrimary
                         : WorkbenchRedesignColors.textDisabled,
                     fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                    autofocus: autofocus,
                     focus: focus,
                     accessibilityLabel: label,
                     normalizeDraft: normalizeDraft,
@@ -515,7 +549,7 @@ struct WorkbenchDialogFormTextField: View {
                 .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
                 .workbenchDialogFormFieldChrome(
                     hasError: showsErrorBorder && validationMessage != nil,
-                    isFocused: isFocused || focus.wrappedValue,
+                    isFocused: isFocused,
                     isEnabled: isEnabled
                 )
                 .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
@@ -563,7 +597,7 @@ struct WorkbenchDialogFormPasswordField: View {
                 .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
                 .workbenchDialogFormFieldChrome(
                     hasError: showsErrorBorder && validationMessage != nil,
-                    isFocused: isFocused || focus.wrappedValue,
+                    isFocused: isFocused,
                     isEnabled: isEnabled
                 )
                 .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))

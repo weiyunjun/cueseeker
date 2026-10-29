@@ -154,6 +154,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     let columns: [WorkbenchTableColumn]
     let searchPlaceholder: String
+    let autofocusSearchOnAppear: Bool
     let summaryContent: AnyView?
     let hostsPageChromeInTable: Bool
     let tableSummary: SchemaWorkbenchTableSummary?
@@ -183,6 +184,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         searchDraft: Binding<String>,
         columns: [WorkbenchTableColumn],
         searchPlaceholder: String = L("table.search_placeholder"),
+        autofocusSearchOnAppear: Bool = false,
         summaryContent: AnyView? = nil,
         hostsPageChromeInTable: Bool = false,
         tableSummary: SchemaWorkbenchTableSummary? = nil,
@@ -206,6 +208,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         _searchDraft = searchDraft
         self.columns = columns
         self.searchPlaceholder = searchPlaceholder
+        self.autofocusSearchOnAppear = autofocusSearchOnAppear
         self.summaryContent = summaryContent
         self.hostsPageChromeInTable = hostsPageChromeInTable
         self.tableSummary = tableSummary
@@ -352,6 +355,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             placeholder: searchPlaceholder,
             searchDraft: $searchDraft,
             searchResultCountText: searchResultCountText,
+            autofocusSearchOnAppear: autofocusSearchOnAppear,
             selectedCountText: selectedCountText,
             selectionActions: selectionActions ?? [],
             isSelectionMode: isSelectionMode,
@@ -394,6 +398,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     let placeholder: String
     @Binding var searchDraft: String
     let searchResultCountText: String?
+    var autofocusSearchOnAppear: Bool = false
     var selectedCountText: String? = nil
     var selectionActions: [SchemaWorkbenchSelectionAction] = []
     var isSelectionMode: Bool = false
@@ -408,6 +413,8 @@ struct SchemaWorkbenchSearchToolbar: View {
     var onFilter: () -> Void
     var onSort: () -> Void = {}
     var onToggleSelectionMode: () -> Void
+
+    @State private var hasConsumedInitialAutofocus = false
 
     var body: some View {
         VStack(spacing: SchemaWorkbenchStyle.toolbarRowSpacing) {
@@ -424,13 +431,22 @@ struct SchemaWorkbenchSearchToolbar: View {
                 WindowKeyDownMonitor(handle: handleSelectionShortcut)
             }
         }
+        .onChange(of: isSelectionMode) { inSelectionMode in
+            if inSelectionMode {
+                hasConsumedInitialAutofocus = true
+            }
+        }
     }
 
     private var searchField: some View {
         WorkbenchSearchField(
             placeholder: placeholder,
             text: $searchDraft,
+            autofocus: autofocusSearchOnAppear && !hasConsumedInitialAutofocus && !isSelectionMode,
             trailingStatusText: nil,
+            onAutofocusCompleted: {
+                hasConsumedInitialAutofocus = true
+            },
             onSubmit: onSubmit
         )
     }

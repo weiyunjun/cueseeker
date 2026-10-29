@@ -3,9 +3,21 @@ import SwiftUI
 
 @MainActor
 final class WorkbenchNativeSingleLineTextField: NSTextField {
+    override class var cellClass: AnyClass? {
+        get { WorkbenchSingleLineTextFieldCell.self }
+        set {}
+    }
+
     var onFocusChange: ((Bool) -> Void)?
+    var onAutofocusCompleted: (() -> Void)?
     var normalizeDraft: ((String) -> String)?
+    var autofocus = false
+    private(set) var hasPerformedInitialAutofocus = false
+    var didUserInteractSinceAutofocus = false
+    private var isRetryingAutofocus = false
+    private var autofocusRetryCount = 0
     var wantsFocusFromSwiftUI = false
+    private var isRetryingSwiftUIFocus = false
     var isApplyingProgrammaticText = false
     private var configuredAlignment: NSTextAlignment = .left
     private var isUpdatingEffectiveAlignment = false
@@ -51,6 +63,16 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        let customCell = WorkbenchSingleLineTextFieldCell(textCell: "")
+        customCell.isEditable = true
+        customCell.isSelectable = true
+        customCell.isBordered = false
+        customCell.drawsBackground = false
+        customCell.usesSingleLineMode = true
+        customCell.wraps = false
+        customCell.isScrollable = true
+        self.cell = customCell
+
         isEditable = true
         isSelectable = true
         isBordered = false
@@ -107,6 +129,8 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         self.isSelectable = isEnabled
         self.configuredAlignment = input.alignment
         self.normalizeDraft = input.normalizeDraft
+        self.autofocus = input.autofocus
+        self.onAutofocusCompleted = input.onAutofocusCompleted
         self.setAccessibilityLabel(input.accessibilityLabel)
 
         let resolvedFont: NSFont = input.usesMonospacedDigits
@@ -176,14 +200,114 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         }
     }
 
+    func selectAllInCurrentEditor() {
+        guard let editor = currentEditor() as? NSTextView else {
+            return
+        }
+        applyTextStyle(to: editor)
+        let length = (editor.string as NSString).length
+        editor.setSelectedRange(NSRange(location: 0, length: length))
+    }
+
+    func clearTextAndFocus() {
+        guard isEnabled && isEditable else {
+            return
+        }
+        didUserInteractSinceAutofocus = true
+        if !isCurrentlyFocused {
+            _ = window?.makeFirstResponder(self)
+        }
+        if let editor = currentEditor() as? NSTextView {
+            if editor.hasMarkedText() {
+                editor.unmarkText()
+            }
+            editor.string = ""
+            applyTextStyle(to: editor)
+            editor.setSelectedRange(NSRange(location: 0, length: 0))
+            (editor.superview as? NSClipView)?.scroll(to: .zero)
+            editor.didChangeText()
+        } else {
+            isApplyingProgrammaticText = true
+            stringValue = ""
+            isApplyingProgrammaticText = false
+        }
+        needsDisplay = true
+    }
+
+    func performInitialAutofocusIfPossible() {
+        guard autofocus, !hasPerformedInitialAutofocus else {
+            return
+        }
+        guard let window, bounds.width > 0, isEnabled, isEditable, !isHiddenOrHasHiddenAncestor else {
+            scheduleAutofocusRetryIfNeeded()
+            return
+        }
+        let customCell = cell as? WorkbenchSingleLineTextFieldCell
+        customCell?.selectsAllOnEditSessionStart = true
+        let focused: Bool
+        if isCurrentlyFocused {
+            focused = true
+        } else {
+            focused = window.makeFirstResponder(self)
+        }
+        customCell?.selectsAllOnEditSessionStart = false
+
+        guard focused, isCurrentlyFocused else {
+            scheduleAutofocusRetryIfNeeded()
+            return
+        }
+        hasPerformedInitialAutofocus = true
+        didUserInteractSinceAutofocus = false
+        autofocusRetryCount = 0
+        selectAllInCurrentEditor()
+        onAutofocusCompleted?()
+    }
+
+    private func scheduleAutofocusRetryIfNeeded() {
+        guard autofocus, !hasPerformedInitialAutofocus, !isRetryingAutofocus, autofocusRetryCount < 8 else {
+            return
+        }
+        isRetryingAutofocus = true
+        autofocusRetryCount += 1
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.isRetryingAutofocus = false
+            self.performInitialAutofocusIfPossible()
+        }
+    }
+
     func requestFocusIfPossible() {
         guard let window, bounds.width > 0, !isCurrentlyFocused else {
             return
         }
-        if !window.makeFirstResponder(self) {
+        if window.makeFirstResponder(self) {
+            isRetryingSwiftUIFocus = false
+        } else if !isRetryingSwiftUIFocus {
+            isRetryingSwiftUIFocus = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isRetryingSwiftUIFocus = false
+                guard self.wantsFocusFromSwiftUI, !self.isCurrentlyFocused, let window = self.window else {
+                    return
+                }
+                if !window.makeFirstResponder(self) {
+                    self.wantsFocusFromSwiftUI = false
+                    self.onFocusChange?(false)
+                }
+            }
+        } else {
             wantsFocusFromSwiftUI = false
             onFocusChange?(false)
         }
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        isEnabled && isEditable
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        needsLayout = true
     }
 
     override func layout() {
@@ -192,8 +316,16 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         updateEffectiveAlignment(for: activeText)
         if let editor = currentEditor() as? NSTextView {
             applyTextStyle(to: editor)
+            if hasPerformedInitialAutofocus, !didUserInteractSinceAutofocus, isCurrentlyFocused {
+                let length = (editor.string as NSString).length
+                if editor.selectedRange() != NSRange(location: 0, length: length) {
+                    editor.setSelectedRange(NSRange(location: 0, length: length))
+                }
+            }
         }
-        if wantsFocusFromSwiftUI, !isCurrentlyFocused, bounds.width > 0 {
+        if autofocus, !hasPerformedInitialAutofocus, bounds.width > 0 {
+            performInitialAutofocusIfPossible()
+        } else if wantsFocusFromSwiftUI, !isCurrentlyFocused, bounds.width > 0 {
             requestFocusIfPossible()
         }
     }
@@ -201,7 +333,14 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         ensureFieldEditorUsesTextKit1()
-        if wantsFocusFromSwiftUI, !isCurrentlyFocused {
+        if autofocus, !hasPerformedInitialAutofocus {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.autofocus, !self.hasPerformedInitialAutofocus else {
+                    return
+                }
+                self.performInitialAutofocusIfPossible()
+            }
+        } else if wantsFocusFromSwiftUI, !isCurrentlyFocused {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wantsFocusFromSwiftUI, !self.isCurrentlyFocused else {
                     return
@@ -212,21 +351,56 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     }
 
     override func mouseDown(with event: NSEvent) {
+        didUserInteractSinceAutofocus = true
         ensureFieldEditorUsesTextKit1()
         updateEffectiveAlignment(for: super.stringValue)
+        if event.clickCount == 1,
+           !event.modifierFlags.contains(.shift),
+           let editor = currentEditor() as? NSTextView,
+           editor.selectedRange().length > 0 {
+            editor.setSelectedRange(NSRange(location: editor.selectedRange().location, length: 0))
+        }
         super.mouseDown(with: event)
         if let editor = currentEditor() as? NSTextView {
             applyTextStyle(to: editor)
         }
     }
 
+    override func rightMouseDown(with event: NSEvent) {
+        guard isEnabled && isEditable else { return }
+        didUserInteractSinceAutofocus = true
+        ensureFieldEditorUsesTextKit1()
+        updateEffectiveAlignment(for: super.stringValue)
+        if !isCurrentlyFocused {
+            _ = window?.makeFirstResponder(self)
+            if let editor = currentEditor() as? NSTextView {
+                applyTextStyle(to: editor)
+                let pointInEditor = editor.convert(event.locationInWindow, from: nil)
+                let clampedPoint = NSPoint(
+                    x: min(max(pointInEditor.x, 0), editor.bounds.width),
+                    y: editor.bounds.midY
+                )
+                let index = editor.characterIndexForInsertion(at: clampedPoint)
+                editor.setSelectedRange(NSRange(location: index, length: 0))
+            }
+        }
+    }
+
     override func becomeFirstResponder() -> Bool {
         ensureFieldEditorUsesTextKit1()
         updateEffectiveAlignment(for: super.stringValue)
+        let shouldSelectAll = (cell as? WorkbenchSingleLineTextFieldCell)?.selectsAllOnEditSessionStart == true
         let accepted = super.becomeFirstResponder()
         if accepted {
             if let editor = currentEditor() as? NSTextView {
                 applyTextStyle(to: editor)
+                if shouldSelectAll {
+                    let length = (editor.string as NSString).length
+                    editor.setSelectedRange(NSRange(location: 0, length: length))
+                } else {
+                    editor.setSelectedRange(NSRange(location: 0, length: 0))
+                    (editor.superview as? NSClipView)?.scroll(to: .zero)
+                }
             }
             onFocusChange?(true)
         }
@@ -239,6 +413,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         shouldChangeTextIn affectedCharRange: NSRange,
         replacementString: String?
     ) -> Bool {
+        didUserInteractSinceAutofocus = true
         guard let replacementString else {
             return true
         }
@@ -293,6 +468,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     }
 
     override func textDidChange(_ notification: Notification) {
+        didUserInteractSinceAutofocus = true
         super.textDidChange(notification)
         if let editor = currentEditor() as? NSTextView {
             applyTextStyle(to: editor)
@@ -300,9 +476,37 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     }
 
     override func textDidEndEditing(_ notification: Notification) {
+        if let editor = currentEditor() as? NSTextView {
+            editor.setSelectedRange(NSRange(location: 0, length: 0))
+            (editor.superview as? NSClipView)?.scroll(to: .zero)
+        }
         super.textDidEndEditing(notification)
         updateEffectiveAlignment(for: super.stringValue)
         onFocusChange?(false)
+    }
+}
+
+final class WorkbenchSingleLineTextFieldCell: NSTextFieldCell {
+    var selectsAllOnEditSessionStart = false
+
+    override func select(
+        withFrame rect: NSRect,
+        in controlView: NSView,
+        editor textObj: NSText,
+        delegate: Any?,
+        start selStart: Int,
+        length selLength: Int
+    ) {
+        let effectiveStart = selectsAllOnEditSessionStart ? selStart : 0
+        let effectiveLength = selectsAllOnEditSessionStart ? selLength : 0
+        super.select(
+            withFrame: rect,
+            in: controlView,
+            editor: textObj,
+            delegate: delegate,
+            start: effectiveStart,
+            length: effectiveLength
+        )
     }
 }
 
@@ -337,14 +541,28 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
     var trailingExclusionRightInset: CGFloat = 0
     var onPressRelease: (() -> Void)?
     private var isPressingInside = false
+    private var dragAnchorIndex: Int?
 
     func pointerShape(atWindowPoint point: CGPoint) -> PointerShape {
         isEnabled ? .iBeam : .arrow
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        isEnabled
+    }
+
     override func resetCursorRects() {
         guard isEnabled else { return }
         addCursorRect(bounds, cursor: .iBeam)
+    }
+
+    func containsWindowPoint(_ windowPoint: NSPoint) -> Bool {
+        let localPoint = convert(windowPoint, from: nil)
+        return bounds.contains(localPoint)
+    }
+
+    func enclosesField(_ target: NSView) -> Bool {
+        findEnclosedTextField() === target
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -379,10 +597,37 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
             return
         }
         isPressingInside = false
-        focusEnclosedTextField(atWindowPoint: event.locationInWindow)
+        focusEnclosedTextField(
+            atWindowPoint: event.locationInWindow,
+            clickCount: event.clickCount,
+            modifierFlags: event.modifierFlags
+        )
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard onPressRelease == nil,
+              isEnabled,
+              let anchor = dragAnchorIndex,
+              let field = findEnclosedTextField(),
+              let editor = field.currentEditor() as? NSTextView
+        else {
+            super.mouseDragged(with: event)
+            return
+        }
+        let pointInEditor = editor.convert(event.locationInWindow, from: nil)
+        let clampedPoint = NSPoint(
+            x: min(max(pointInEditor.x, 0), editor.bounds.width),
+            y: editor.bounds.midY
+        )
+        let current = editor.characterIndexForInsertion(at: clampedPoint)
+        let start = min(anchor, current)
+        let length = abs(current - anchor)
+        editor.setSelectedRange(NSRange(location: start, length: length))
+        editor.scrollRangeToVisible(NSRange(location: current, length: 0))
     }
 
     override func mouseUp(with event: NSEvent) {
+        dragAnchorIndex = nil
         guard onPressRelease != nil else {
             super.mouseUp(with: event)
             return
@@ -393,17 +638,52 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
         guard didStartInside, isEnabled, bounds.contains(localPoint) else {
             return
         }
-        focusEnclosedTextField(atWindowPoint: event.locationInWindow)
+        focusEnclosedTextField(
+            atWindowPoint: event.locationInWindow,
+            clickCount: event.clickCount,
+            modifierFlags: event.modifierFlags
+        )
         onPressRelease?()
     }
 
-    private func focusEnclosedTextField(atWindowPoint windowPoint: NSPoint) {
+    override func rightMouseDown(with event: NSEvent) {
         guard isEnabled,
               let field = findEnclosedTextField(),
               field.isEnabled && field.isEditable
         else {
             return
         }
+        (field as? WorkbenchNativeSingleLineTextField)?.didUserInteractSinceAutofocus = true
+        let wasFocused = window?.firstResponder === field
+            || window?.firstResponder === field.currentEditor()
+        if !wasFocused {
+            _ = window?.makeFirstResponder(field)
+            if let editor = field.currentEditor() as? NSTextView {
+                let pointInField = field.convert(event.locationInWindow, from: nil)
+                let clampedFieldPoint = NSPoint(
+                    x: min(max(pointInField.x, 0), field.bounds.width),
+                    y: field.bounds.midY
+                )
+                let pointInEditor = editor.convert(clampedFieldPoint, from: field)
+                let clampedPoint = NSPoint(x: pointInEditor.x, y: editor.bounds.midY)
+                let index = editor.characterIndexForInsertion(at: clampedPoint)
+                editor.setSelectedRange(NSRange(location: index, length: 0))
+            }
+        }
+    }
+
+    private func focusEnclosedTextField(
+        atWindowPoint windowPoint: NSPoint,
+        clickCount: Int = 1,
+        modifierFlags: NSEvent.ModifierFlags = []
+    ) {
+        guard isEnabled,
+              let field = findEnclosedTextField(),
+              field.isEnabled && field.isEditable
+        else {
+            return
+        }
+        (field as? WorkbenchNativeSingleLineTextField)?.didUserInteractSinceAutofocus = true
         let wasFocused = window?.firstResponder === field
             || window?.firstResponder === field.currentEditor()
         if !wasFocused {
@@ -418,11 +698,32 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
             let pointInEditor = editor.convert(clampedFieldPoint, from: field)
             let clampedPoint = NSPoint(x: pointInEditor.x, y: editor.bounds.midY)
             let index = editor.characterIndexForInsertion(at: clampedPoint)
-            editor.setSelectedRange(NSRange(location: index, length: 0))
+            let totalLength = (editor.string as NSString).length
+            if clickCount >= 3 {
+                dragAnchorIndex = nil
+                editor.setSelectedRange(NSRange(location: 0, length: totalLength))
+            } else if clickCount == 2 {
+                dragAnchorIndex = nil
+                let wordRange = editor.selectionRange(
+                    forProposedRange: NSRange(location: min(index, max(0, totalLength - 1)), length: 0),
+                    granularity: .selectByWord
+                )
+                editor.setSelectedRange(wordRange)
+            } else if modifierFlags.contains(.shift) {
+                let existing = editor.selectedRange()
+                let anchor = existing.location
+                dragAnchorIndex = anchor
+                let start = min(anchor, index)
+                let length = abs(index - anchor)
+                editor.setSelectedRange(NSRange(location: start, length: length))
+            } else {
+                dragAnchorIndex = index
+                editor.setSelectedRange(NSRange(location: index, length: 0))
+            }
         }
     }
 
-    private func findEnclosedTextField() -> NSTextField? {
+    func findEnclosedTextField() -> NSTextField? {
         guard let root = window?.contentView ?? superview else {
             return nil
         }
@@ -449,6 +750,29 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
             }
         }
         return nil
+    }
+}
+
+struct FocusedTextInputCompanionSurface: NSViewRepresentable {
+    func makeNSView(context: Context) -> FocusedTextInputCompanionView {
+        FocusedTextInputCompanionView()
+    }
+
+    func updateNSView(_ nsView: FocusedTextInputCompanionView, context: Context) {}
+}
+
+@MainActor
+final class FocusedTextInputCompanionView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    func containsWindowPoint(_ windowPoint: NSPoint) -> Bool {
+        guard !isHiddenOrHasHiddenAncestor, bounds.width > 0, bounds.height > 0 else {
+            return false
+        }
+        let localPoint = convert(windowPoint, from: nil)
+        return bounds.contains(localPoint)
     }
 }
 
@@ -622,14 +946,49 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
 
     override func mouseDown(with event: NSEvent) {
         ensureFieldEditorUsesTextKit1()
+        if event.clickCount == 1,
+           !event.modifierFlags.contains(.shift),
+           let editor = currentEditor() as? NSTextView,
+           editor.selectedRange().length > 0 {
+            editor.setSelectedRange(NSRange(location: editor.selectedRange().location, length: 0))
+        }
         super.mouseDown(with: event)
+        applyBulletKerningToCurrentEditor()
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard isEnabled && isEditable else { return }
+        ensureFieldEditorUsesTextKit1()
+        if !isCurrentlyFocused {
+            _ = window?.makeFirstResponder(self)
+            applyBulletKerningToCurrentEditor()
+            if let editor = currentEditor() as? NSTextView {
+                let pointInEditor = editor.convert(event.locationInWindow, from: nil)
+                let clampedPoint = NSPoint(
+                    x: min(max(pointInEditor.x, 0), editor.bounds.width),
+                    y: editor.bounds.midY
+                )
+                let index = editor.characterIndexForInsertion(at: clampedPoint)
+                editor.setSelectedRange(NSRange(location: index, length: 0))
+            }
+        }
     }
 
     override func becomeFirstResponder() -> Bool {
         ensureFieldEditorUsesTextKit1()
+        let shouldSelectAll = (cell as? WorkbenchSecureTextFieldCell)?.selectsAllOnEditSessionStart == true
         let accepted = super.becomeFirstResponder()
         if accepted {
             applyBulletKerningToCurrentEditor()
+            if let editor = currentEditor() as? NSTextView {
+                if shouldSelectAll {
+                    let length = (editor.string as NSString).length
+                    editor.setSelectedRange(NSRange(location: 0, length: length))
+                } else {
+                    editor.setSelectedRange(NSRange(location: 0, length: 0))
+                    (editor.superview as? NSClipView)?.scroll(to: .zero)
+                }
+            }
             onFocusChange?(true)
         }
         return accepted
@@ -668,6 +1027,10 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
     }
 
     override func textDidEndEditing(_ notification: Notification) {
+        if let editor = currentEditor() as? NSTextView {
+            editor.setSelectedRange(NSRange(location: 0, length: 0))
+            (editor.superview as? NSClipView)?.scroll(to: .zero)
+        }
         super.textDidEndEditing(notification)
         onFocusChange?(false)
     }
@@ -731,6 +1094,27 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
 
 final class WorkbenchSecureTextFieldCell: NSSecureTextFieldCell {
     static let bulletKern: CGFloat = 2.0
+    var selectsAllOnEditSessionStart = false
+
+    override func select(
+        withFrame rect: NSRect,
+        in controlView: NSView,
+        editor textObj: NSText,
+        delegate: Any?,
+        start selStart: Int,
+        length selLength: Int
+    ) {
+        let effectiveStart = selectsAllOnEditSessionStart ? selStart : 0
+        let effectiveLength = selectsAllOnEditSessionStart ? selLength : 0
+        super.select(
+            withFrame: rect,
+            in: controlView,
+            editor: textObj,
+            delegate: delegate,
+            start: effectiveStart,
+            length: effectiveLength
+        )
+    }
 
     override func drawingRect(forBounds theRect: NSRect) -> NSRect {
         let baseRect = super.drawingRect(forBounds: theRect)
