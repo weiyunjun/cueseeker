@@ -16,11 +16,6 @@ struct WorkbenchLibraryView: View {
         keepsCurrentWhenPointerLeaves: false
     )
 
-    private static let libraryOverviewCoordinateSpaceName = "libraryOverviewCoordinateSpace"
-
-    @State private var activeSortMenu: LibrarySortMenuState?
-    @State private var sortButtonAnchorFrame: CGRect = .zero
-    @StateObject private var sortMenuHighlight = MenuHighlightModel()
     @State private var folderSummaryMoreMenuAnchor = MenuAnchorHandle()
 
     var body: some View {
@@ -63,94 +58,13 @@ struct WorkbenchLibraryView: View {
                     }
                 }
             } else {
-                GeometryReader { geometry in
-                    WorkbenchScrollView {
-                        completeLibraryContent(viewportSize: geometry.size)
-                            .padding(
-                                .top,
-                                WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
-                            )
-                            .padding(
-                                .bottom,
-                                WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
-                            )
-                            .environment(
-                                \.mediaCardGridContainerWidth,
-                                WorkbenchControlMetrics.workbenchMediaCardGridWidth(
-                                    viewportWidth: geometry.size.width
-                                )
-                            )
-                            .frame(
-                                width: geometry.size.width,
-                                alignment: .topLeading
-                            )
-                            .frame(
-                                minHeight: geometry.size.height,
-                                alignment: .topLeading
-                            )
-                    }
-                    .coordinateSpace(name: Self.libraryOverviewCoordinateSpaceName)
-                    .overlay(alignment: .topLeading) {
-                        if let activeSortMenu {
-                            let menuFrame = activeSortMenu.menuFrame
-                            ZStack(alignment: .topLeading) {
-                                MenuGateClientView(
-                                    gate: appState.interfaceLayers.menuGate,
-                                    owner: .workbenchPage,
-                                    kind: .cardMenu,
-                                    menuFrame: menuFrame,
-                                    anchorFrame: activeSortMenu.anchorFrame,
-                                    handleKey: { keyCode, _ in
-                                        switch keyCode {
-                                        case 53:
-                                            dismissSortMenu()
-                                            return true
-                                        case 126:
-                                            _ = sortMenuHighlight.moveHighlight(by: -1)
-                                            return true
-                                        case 125:
-                                            _ = sortMenuHighlight.moveHighlight(by: 1)
-                                            return true
-                                        case 123, 124:
-                                            return true
-                                        case 36, 76:
-                                            activateHighlightedSortItem()
-                                            return true
-                                        default:
-                                            return false
-                                        }
-                                    },
-                                    dismiss: { _ in
-                                        dismissSortMenu()
-                                    }
-                                )
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .allowsHitTesting(false)
-
-                                LibrarySortMenuPopover(
-                                    selectedOrder: library.sortOrder,
-                                    highlight: sortMenuHighlight,
-                                    onSelect: { order in
-                                        library.sortOrder = order
-                                        dismissSortMenu()
-                                    },
-                                    onDismiss: {
-                                        dismissSortMenu()
-                                    }
-                                )
-                                .offset(x: menuFrame.minX, y: menuFrame.minY)
-                            }
-                            .zIndex(1001)
-                        }
-                    }
-                }
+                completeLibraryOverview
             }
         }
         .background(WorkbenchRedesignColors.bgSurface)
         .cardHighlightFreeze(highlight)
         .onChange(of: routeState.selectedLibraryFolderPath) { _ in
             highlight.reset()
-            dismissSortMenu()
         }
         .task {
             appState.hydrateCompleteLibraryAsync()
@@ -170,32 +84,49 @@ struct WorkbenchLibraryView: View {
     }
 
     @ViewBuilder
-    private func completeLibraryContent(viewportSize: CGSize) -> some View {
-        let emptyMinHeight = max(
-            0,
-            viewportSize.height
-                - WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
-                - WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
-        )
+    private var completeLibraryOverview: some View {
         if case .loading = library.completeLibraryStatus, library.completeLibraryFolderSummaries.isEmpty {
-            WorkbenchSpinner()
-                .frame(maxWidth: .infinity, minHeight: emptyMinHeight, alignment: .center)
-                .workbenchPageInlinePadding()
-        } else if case .failed(let message) = library.completeLibraryStatus {
-            WorkbenchEmptyHint(icon: .videoQuestion, message: message)
-                .frame(minHeight: emptyMinHeight)
-                .workbenchPageInlinePadding()
-        } else if library.completeLibraryFolderSummaries.isEmpty {
-            WorkbenchEmptyHint(icon: .video, message: L("library.empty"))
-                .frame(minHeight: emptyMinHeight)
-                .workbenchPageInlinePadding()
-        } else {
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                sortBar(viewportSize: viewportSize)
+            completeLibraryFullPageState { emptyMinHeight in
+                WorkbenchSpinner()
+                    .frame(maxWidth: .infinity, minHeight: emptyMinHeight, alignment: .center)
                     .workbenchPageInlinePadding()
+            }
+        } else if case .failed(let message) = library.completeLibraryStatus {
+            completeLibraryFullPageState { emptyMinHeight in
+                WorkbenchEmptyHint(icon: .videoQuestion, message: message)
+                    .frame(minHeight: emptyMinHeight)
+                    .workbenchPageInlinePadding()
+            }
+        } else if library.completeLibraryFolderSummaries.isEmpty {
+            completeLibraryFullPageState { emptyMinHeight in
+                WorkbenchEmptyHint(icon: .video, message: L("library.empty"))
+                    .frame(minHeight: emptyMinHeight)
+                    .workbenchPageInlinePadding()
+            }
+        } else {
+            let displayedFolders = library.displayedCompleteLibraryFolderSummaries
+            let folderCount = displayedFolders.count
+            let countText = folderCount == 1
+                ? L("library.folder_count.one")
+                : L("library.folder_count.other", folderCount)
 
+            LibraryOverviewLayout(
+                searchPlaceholder: L("library.overview.search_placeholder"),
+                searchText: $library.overviewSearchDraft,
+                sortOptions: LibrarySortOrder.workbenchSortOptions,
+                selectedSortOptionID: library.sortOrder.rawValue,
+                onSelectSortOption: { optionID in
+                    if let order = LibrarySortOrder(rawValue: optionID) {
+                        library.sortOrder = order
+                    }
+                },
+                summaryText: countText,
+                emptySearchMessage: displayedFolders.isEmpty
+                    ? L("library.overview.search_no_results")
+                    : nil
+            ) {
                 CompleteLibraryFolderGrid(
-                    folders: library.sortedCompleteLibraryFolderSummaries,
+                    folders: displayedFolders,
                     highlight: highlight,
                     onOpen: { folder in
                         appState.navigateWorkbench(
@@ -203,98 +134,40 @@ struct WorkbenchLibraryView: View {
                         )
                     }
                 )
-                .workbenchMediaCardGridInlinePadding()
             }
         }
     }
 
-    private func sortBar(viewportSize: CGSize) -> some View {
-        let folderCount = library.sortedCompleteLibraryFolderSummaries.count
-        let countText = folderCount == 1
-            ? L("library.folder_count.one")
-            : L("library.folder_count.other", folderCount)
-
-        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            WorkbenchButton(
-                title: library.sortOrder.title,
-                icon: .funnelSimple,
-                isOpen: activeSortMenu != nil,
-                action: {
-                    if activeSortMenu != nil {
-                        dismissSortMenu()
-                    } else {
-                        openSortMenu(anchorFrame: sortButtonAnchorFrame, viewportSize: viewportSize)
-                    }
-                }
+    private func completeLibraryFullPageState<StateContent: View>(
+        @ViewBuilder content: @escaping (CGFloat) -> StateContent
+    ) -> some View {
+        GeometryReader { geometry in
+            let emptyMinHeight = max(
+                0,
+                geometry.size.height
+                    - WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+                    - WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
             )
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .preference(
-                            key: LibrarySortAnchorPreferenceKey.self,
-                            value: geo.frame(in: .named(Self.libraryOverviewCoordinateSpaceName))
-                        )
-                }
-            )
-            .onPreferenceChange(LibrarySortAnchorPreferenceKey.self) { frame in
-                sortButtonAnchorFrame = frame
+            WorkbenchScrollView {
+                content(emptyMinHeight)
+                    .padding(
+                        .top,
+                        WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+                    )
+                    .padding(
+                        .bottom,
+                        WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                    )
+                    .frame(
+                        width: geometry.size.width,
+                        alignment: .topLeading
+                    )
+                    .frame(
+                        minHeight: geometry.size.height,
+                        alignment: .topLeading
+                    )
             }
-
-            WorkbenchStatusIndicator(countText)
-
-            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: WorkbenchControlMetrics.redesignHeight)
-    }
-
-    private func openSortMenu(anchorFrame: CGRect, viewportSize: CGSize) {
-        let naturalSize = measuredSortMenuSize()
-        let container = CGRect(origin: .zero, size: viewportSize)
-        let openingFrame = MenuPlacement.openingFrame(
-            anchor: anchorFrame,
-            menuSize: naturalSize,
-            in: container,
-            gap: WorkbenchControlMetrics.redesignSpacing1,
-            shrinksToFit: false
-        )
-        activeSortMenu = LibrarySortMenuState(
-            anchorFrame: anchorFrame,
-            menuFrame: openingFrame
-        )
-        sortMenuHighlight.open(
-            selectablePositions: Array(LibrarySortOrder.allCases.indices),
-            defaultPosition: 0
-        )
-    }
-
-    private func dismissSortMenu() {
-        activeSortMenu = nil
-        sortMenuHighlight.close()
-    }
-
-    private func activateHighlightedSortItem() {
-        guard let position = sortMenuHighlight.highlightedPosition,
-              LibrarySortOrder.allCases.indices.contains(position)
-        else {
-            return
-        }
-        let order = LibrarySortOrder.allCases[position]
-        library.sortOrder = order
-        dismissSortMenu()
-    }
-
-    private func measuredSortMenuSize() -> CGSize {
-        let host = NSHostingView(
-            rootView: LibrarySortMenuPopover(
-                selectedOrder: library.sortOrder,
-                highlight: sortMenuHighlight,
-                onSelect: { _ in },
-                onDismiss: {}
-            )
-        )
-        host.layoutSubtreeIfNeeded()
-        return host.fittingSize
     }
 
     /// The history can point at a folder that is no longer indexed; the page
@@ -556,53 +429,3 @@ enum WorkbenchLibraryMetrics {
     static let timeBadgeSize = WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge
 }
 
-struct LibrarySortMenuState: Identifiable {
-    let id = UUID()
-    let anchorFrame: CGRect
-    let menuFrame: CGRect
-}
-
-private struct LibrarySortAnchorPreferenceKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        let next = nextValue()
-        if next != .zero {
-            value = next
-        }
-    }
-}
-
-struct LibrarySortMenuPopover: View {
-    let selectedOrder: LibrarySortOrder
-    @ObservedObject var highlight: MenuHighlightModel
-    let onSelect: (LibrarySortOrder) -> Void
-    let onDismiss: () -> Void
-
-    var body: some View {
-        WorkbenchPopoverPanel(
-            maximumHeight: MenuMetrics.maximumHeight,
-            highlight: highlight
-        ) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(LibrarySortOrder.allCases.enumerated()), id: \.element.id) { position, order in
-                    WorkbenchPopoverRow(
-                        title: order.title,
-                        isSelected: selectedOrder == order,
-                        isHighlighted: highlight.isSelected(position),
-                        isRowHovered: highlight.isHovered(position),
-                        showsCheckmarkSlot: true,
-                        action: {
-                            onDismiss()
-                            onSelect(order)
-                        },
-                        onHoverChange: { isHovered in
-                            highlight.noteHover(isHovered, at: position)
-                        }
-                    )
-                    .id(position)
-                }
-            }
-            .fixedSize(horizontal: true, vertical: false)
-        }
-    }
-}

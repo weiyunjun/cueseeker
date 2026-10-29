@@ -387,7 +387,7 @@ extension ExcerptStore {
                     let count = try db.uniqueExcerptCueCount()
                     return (list, count)
                 }
-                guard let self else { return }
+                guard let self, !self.needsReloadAfterIndexedContentMutation else { return }
                 self.removeListSummary(id: id, uniqueCueCount: uniqueCueCount)
                 if let coverPath = deleted.coverPath {
                     do {
@@ -976,7 +976,10 @@ extension ExcerptStore {
                 return false
             }
             markTableRowsStale()
-            if !adjustListCueCounts([destinationListID: 1]) {
+            if !adjustListCueCounts(
+                [destinationListID: 1],
+                addedCueIDsByListID: [destinationListID: [cueID]]
+            ) {
                 reloadListOverview()
             }
             setRecentSaveListID(destinationListID)
@@ -993,7 +996,7 @@ extension ExcerptStore {
                         _ = try db.upsertExcerpt(cueID: cueID, listID: destinationListID)
                         return (try db.uniqueExcerptCueCount(), try db.recentExcerptListSummaries())
                     }
-                    guard let self else { return }
+                    guard let self, !self.needsReloadAfterIndexedContentMutation else { return }
                     _ = self.adjustListCueCounts([destinationListID: 0], uniqueCueCount: uniqueCueCount)
                     self.installRecentListSummaries(recentSummaries)
                 } catch {
@@ -1052,7 +1055,9 @@ extension ExcerptStore {
             return false
         }
 
-        if let relation = try? database.excerptRelation(id: item.id),
+        let relation = residentRelations.first(where: { $0.id == item.id })
+            ?? (try? database.excerptRelation(id: item.id))
+        if let relation,
            let exists = try? database.excerptRelationExists(cueID: relation.cueID, listID: destinationListID),
            exists {
             onToast(
@@ -1065,11 +1070,16 @@ extension ExcerptStore {
 
         let sourceListID = activeListID
         onItemRemovedFromCurrentList(item)
-        let didUpdateOverview = sourceListID.map {
-            adjustListCueCounts([
-                $0: -1,
-                destinationListID: 1,
-            ])
+        let didUpdateOverview = sourceListID.map { sourceID in
+            let cueIDSet: Set<Int64> = relation.map { [$0.cueID] } ?? []
+            return adjustListCueCounts(
+                [
+                    sourceID: -1,
+                    destinationListID: 1,
+                ],
+                addedCueIDsByListID: cueIDSet.isEmpty ? [:] : [destinationListID: cueIDSet],
+                removedCueIDsByListID: cueIDSet.isEmpty ? [:] : [sourceID: cueIDSet]
+            )
         } ?? false
         if !didUpdateOverview {
             reloadListOverview()
@@ -1142,7 +1152,9 @@ extension ExcerptStore {
             return false
         }
 
-        if let relation = try? database.excerptRelation(id: item.id),
+        let relation = residentRelations.first(where: { $0.id == item.id })
+            ?? (try? database.excerptRelation(id: item.id))
+        if let relation,
            let exists = try? database.excerptRelationExists(cueID: relation.cueID, listID: destinationListID),
            exists {
             onToast(
@@ -1153,7 +1165,11 @@ extension ExcerptStore {
             return false
         }
 
-        if !adjustListCueCounts([destinationListID: 1]) {
+        let addedCueIDs: [Int64: Set<Int64>] = relation.map { [destinationListID: [$0.cueID]] } ?? [:]
+        if !adjustListCueCounts(
+            [destinationListID: 1],
+            addedCueIDsByListID: addedCueIDs
+        ) {
             reloadListOverview()
         }
         onToast(ExcerptToastRequest.duplicateSucceeded(listName: destination.name))
@@ -1201,10 +1217,18 @@ extension ExcerptStore {
 
         _ = reloadPresentation
         let sourceListID = activeListID
+        let removedCueID = residentRelations.first(where: { $0.id == item.id })?.cueID
+            ?? (try? database?.excerptRelation(id: item.id))?.cueID
         let cueCountDelta = item.isValid ? -1 : 0
         onItemRemovedFromCurrentList(item)
         if let sourceListID {
-            _ = adjustListCueCounts([sourceListID: cueCountDelta])
+            let removedCueIDs: [Int64: Set<Int64>] = (item.isValid && removedCueID != nil)
+                ? [sourceListID: [removedCueID!]]
+                : [:]
+            _ = adjustListCueCounts(
+                [sourceListID: cueCountDelta],
+                removedCueIDsByListID: removedCueIDs
+            )
         } else if !needsReloadAfterIndexedContentMutation {
             reloadListOverview()
         }

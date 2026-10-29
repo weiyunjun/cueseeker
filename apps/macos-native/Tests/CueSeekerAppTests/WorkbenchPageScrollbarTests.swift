@@ -136,6 +136,200 @@ func workbenchPageWithoutATableUsesViewportWidthWithoutHorizontalPageScrollbar()
     #expect(overlay.presentationProvider()?.horizontal == nil)
 }
 
+@Test
+func overviewActionBarLayoutWrapsStatusBeforeShrinkingSearchField() {
+    let statusSize = CGSize(width: 120, height: 18)
+    let buttonWidths: [CGFloat] = [120, 100]
+    // First-row preferred width without status = 240 + 16 + 120 + 16 + 100 = 492
+    // Single-row required width with status = 492 + 16 + 120 = 628
+
+    let singleRow = WorkbenchOverviewActionBarLayout.resolve(
+        availableWidth: 640,
+        buttonWidths: buttonWidths,
+        statusSize: statusSize
+    )
+    #expect(singleRow.searchFieldWidth == 240)
+    #expect(!singleRow.wrapsStatusToSecondRow)
+    #expect(singleRow.totalSize == CGSize(width: 640, height: 36))
+
+    // When available width is 520 (< 628 but >= 492), status wraps to row 2 while search stays 240px.
+    let wrappedKeep240 = WorkbenchOverviewActionBarLayout.resolve(
+        availableWidth: 520,
+        buttonWidths: buttonWidths,
+        statusSize: statusSize
+    )
+    #expect(wrappedKeep240.searchFieldWidth == 240)
+    #expect(wrappedKeep240.wrapsStatusToSecondRow)
+    #expect(wrappedKeep240.totalSize == CGSize(width: 520, height: 36 + 8 + 18))
+
+    // When available width is 460 (< 492), status stays on row 2 and search shrinks to 460 - 252 = 208px.
+    let wrappedShrunk = WorkbenchOverviewActionBarLayout.resolve(
+        availableWidth: 460,
+        buttonWidths: buttonWidths,
+        statusSize: statusSize
+    )
+    #expect(wrappedShrunk.searchFieldWidth == 208)
+    #expect(wrappedShrunk.wrapsStatusToSecondRow)
+
+    // Search field never shrinks below the 180px floor.
+    let wrappedClamped = WorkbenchOverviewActionBarLayout.resolve(
+        availableWidth: 380,
+        buttonWidths: buttonWidths,
+        statusSize: statusSize
+    )
+    #expect(wrappedClamped.searchFieldWidth == 180)
+    #expect(wrappedClamped.wrapsStatusToSecondRow)
+}
+
+@MainActor
+@Test
+func libraryAndExcerptOverviewStoresFilterSortPersistAndFreezeUntilReappearance() throws {
+    let suiteName = "CueSeekerTests.OverviewSearchAndSort.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer {
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    let libraryStore = LibraryStore(
+        userDefaults: defaults,
+        libraryCoverDirectory: URL(fileURLWithPath: "/tmp/cueseeker-test-covers")
+    )
+    libraryStore.completeLibraryFolderSummaries = [
+        CompleteLibraryFolderSummaryPresentation(
+            folderPath: "/Media/ShowB",
+            folderTitle: "Show B",
+            coverPath: nil,
+            coverRevision: nil,
+            episodeCount: 4,
+            indexedAt: "2026-10-01T00:00:00Z"
+        ),
+        CompleteLibraryFolderSummaryPresentation(
+            folderPath: "/Media/ShowA",
+            folderTitle: "Show A",
+            coverPath: nil,
+            coverRevision: nil,
+            episodeCount: 6,
+            indexedAt: "2026-10-05T00:00:00Z"
+        ),
+        CompleteLibraryFolderSummaryPresentation(
+            folderPath: "/Media/MovieC",
+            folderTitle: "Movie C",
+            coverPath: nil,
+            coverRevision: nil,
+            episodeCount: 1,
+            indexedAt: "2026-10-10T00:00:00Z"
+        ),
+    ]
+    libraryStore.panelModeProvider = { .testLibrary }
+    // Simulate background indexed mutation while staying on Library Level 1: held snapshot stays intact.
+    libraryStore.refreshCompleteLibrary(force: false)
+    #expect(libraryStore.libraryNeedsReloadAfterIndexedMutation)
+
+    libraryStore.overviewSearchDraft = "show"
+    libraryStore.sortOrder = .oldestAdded
+    #expect(
+        libraryStore.displayedCompleteLibraryFolderSummaries.map(\.folderTitle)
+            == ["Show B", "Show A"]
+    )
+    libraryStore.sortOrder = .latestAdded
+    #expect(
+        libraryStore.displayedCompleteLibraryFolderSummaries.map(\.folderTitle)
+            == ["Show A", "Show B"]
+    )
+
+    let excerptStore = ExcerptStore(
+        cueContentStore: CueContentStore(),
+        userDefaults: defaults,
+        databaseURL: nil,
+        database: nil,
+        coverStorage: ExcerptListCoverStorage(
+            coverDirectory: URL(fileURLWithPath: "/tmp/cueseeker-test-covers")
+        ),
+        uiProbeScope: "test-scope"
+    )
+    #expect(excerptStore.overviewSortOrder == .oldestCreated)
+
+    excerptStore.installListOverview(
+        ExcerptListOverview(
+            lists: [
+                ExcerptListSummary(
+                    list: ExcerptList(
+                        id: 1,
+                        name: "Study List",
+                        description: "Daily",
+                        coverPath: nil,
+                        createdAt: "2026-10-01T00:00:00Z"
+                    ),
+                    cueCount: 2,
+                    validCueIDs: [10, 20]
+                ),
+                ExcerptListSummary(
+                    list: ExcerptList(
+                        id: 2,
+                        name: "Study Finals",
+                        description: "Exam",
+                        coverPath: nil,
+                        createdAt: "2026-10-02T00:00:00Z"
+                    ),
+                    cueCount: 2,
+                    validCueIDs: [20, 30]
+                ),
+                ExcerptListSummary(
+                    list: ExcerptList(
+                        id: 3,
+                        name: "Comedy",
+                        description: "Study in description only",
+                        coverPath: nil,
+                        createdAt: "2026-10-03T00:00:00Z"
+                    ),
+                    cueCount: 1,
+                    validCueIDs: [40]
+                ),
+            ],
+            uniqueCueCount: 4
+        )
+    )
+
+    // Simulate background indexed mutation while staying on Excerpt Level 1.
+    excerptStore.markReloadNeededAfterIndexedContentMutation()
+    #expect(excerptStore.needsReloadAfterIndexedContentMutation)
+
+    excerptStore.overviewSearchDraft = "study"
+    #expect(excerptStore.displayedListSummaries.map(\.id) == [1, 2])
+    #expect(excerptStore.displayedUniqueCueCount == 3)
+
+    excerptStore.overviewSortOrder = .latestCreated
+    #expect(excerptStore.displayedListSummaries.map(\.id) == [2, 1])
+    #expect(defaults.string(forKey: "excerpt_overview_sort_order") == "latest_created")
+
+    // Creating a new matching list while searching/sorting updates displayed lists immediately.
+    _ = excerptStore.upsertListSummary(
+        ExcerptList(
+            id: 4,
+            name: "Study Extra",
+            description: "",
+            coverPath: nil,
+            createdAt: "2026-10-04T00:00:00Z"
+        )
+    )
+    #expect(excerptStore.displayedListSummaries.map(\.id) == [4, 2, 1])
+    #expect(excerptStore.displayedUniqueCueCount == 3)
+
+    // Re-initializing ExcerptStore restores persisted overviewSortOrder, while overviewSearchDraft starts empty.
+    let reloadedExcerptStore = ExcerptStore(
+        cueContentStore: CueContentStore(),
+        userDefaults: defaults,
+        databaseURL: nil,
+        database: nil,
+        coverStorage: ExcerptListCoverStorage(
+            coverDirectory: URL(fileURLWithPath: "/tmp/cueseeker-test-covers")
+        ),
+        uiProbeScope: "test-scope-reloaded"
+    )
+    #expect(reloadedExcerptStore.overviewSortOrder == .latestCreated)
+    #expect(reloadedExcerptStore.overviewSearchDraft.isEmpty)
+}
+
 @MainActor
 @Test
 func workbenchTableScrollbarStaysAtBottomWithoutOuterPageHorizontalScrollbar() async throws {

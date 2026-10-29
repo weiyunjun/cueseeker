@@ -15,6 +15,10 @@ enum WorkbenchControlMetrics {
     static let redesignFieldHeight: CGFloat = 30
     /// --height-control (Search box, unified): 36px
     static let redesignSearchHeight: CGFloat = redesignHeight
+    /// --width-overview-search-field: 240px
+    static let redesignOverviewSearchFieldWidth: CGFloat = 240
+    /// --min-width-overview-search-field: 180px
+    static let redesignOverviewSearchFieldMinWidth: CGFloat = 180
     /// --radius-field: 6px
     static let redesignFieldRadius: CGFloat = 6
     /// --radius-search: 9999px

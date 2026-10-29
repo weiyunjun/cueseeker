@@ -1193,3 +1193,150 @@ func cuesAndExcerptsLeaveTheLibraryWithTheTombstoneOrTheirFolder() throws {
     #expect(try excerptDatabase.uniqueExcerptCueCount() == 0)
 }
 
+@Test
+func overviewSearchAndSortFilterByNameOnlyAndDeduplicateMatchedListCues() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let excerptDatabase = try ExcerptDatabase(path: databaseURL)
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/OverviewFilter.srt")
+    try indexingDatabase.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: URL(fileURLWithPath: "/Media/Show/OverviewFilter.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Cue One"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Cue Two"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 3,
+                startTimecode: "00:00:05,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 5_000,
+                endMilliseconds: 6_000,
+                text: "Cue Three"
+            ),
+        ]
+    )
+
+    let playbackDatabase = try PlaybackSubtitleDatabase(path: databaseURL)
+    let cue1 = try #require(try playbackDatabase.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ).flatMap(\.cueLineID))
+    let cue2 = try #require(try playbackDatabase.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 3_500
+    ).flatMap(\.cueLineID))
+    let cue3 = try #require(try playbackDatabase.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 5_500
+    ).flatMap(\.cueLineID))
+
+    let listAlpha = try excerptDatabase.createExcerptList(
+        name: "Anime Quotes",
+        description: "HiddenKeywordInDescription",
+        createdAt: Date(timeIntervalSince1970: 1_000)
+    )
+    let listBeta = try excerptDatabase.createExcerptList(
+        name: "Anime Openings",
+        description: "Another note",
+        createdAt: Date(timeIntervalSince1970: 2_000)
+    )
+    let listGamma = try excerptDatabase.createExcerptList(
+        name: "Drama Lines",
+        description: "Anime in description only",
+        createdAt: Date(timeIntervalSince1970: 3_000)
+    )
+
+    _ = try excerptDatabase.upsertExcerpt(cueID: cue1, listID: listAlpha.id)
+    _ = try excerptDatabase.upsertExcerpt(cueID: cue2, listID: listAlpha.id)
+    _ = try excerptDatabase.upsertExcerpt(cueID: cue2, listID: listBeta.id)
+    _ = try excerptDatabase.upsertExcerpt(cueID: cue3, listID: listGamma.id)
+
+    let overview = try excerptDatabase.excerptListOverview()
+    #expect(overview.uniqueCueCount == 3)
+
+    // Matching "anime" matches only list names ("Anime Quotes", "Anime Openings"), not descriptions ("Drama Lines"),
+    // and deduplicates shared cue2 across the two matched lists (cue1 + cue2 = 2 unique cues).
+    let animeOldest = overview.filteredAndSortedLists(
+        matching: "  anime ",
+        by: .oldestCreated
+    )
+    #expect(animeOldest.map(\.id) == [listAlpha.id, listBeta.id])
+    #expect(overview.uniqueCueCount(for: animeOldest) == 2)
+
+    let animeLatest = overview.filteredAndSortedLists(
+        matching: "ANIME",
+        by: .latestCreated
+    )
+    #expect(animeLatest.map(\.id) == [listBeta.id, listAlpha.id])
+    #expect(overview.uniqueCueCount(for: animeLatest) == 2)
+
+    // Description text must not match when searching list names.
+    let descriptionMatch = overview.filteredAndSortedLists(
+        matching: "HiddenKeywordInDescription",
+        by: .oldestCreated
+    )
+    #expect(descriptionMatch.isEmpty)
+    #expect(overview.uniqueCueCount(for: descriptionMatch) == 0)
+
+    // Library folder summary filtering & sorting
+    let folders = [
+        CompleteLibraryFolderSummaryPresentation(
+            folderPath: "/Media/B",
+            folderTitle: "Steins;Gate Season 1",
+            coverPath: nil,
+            coverRevision: nil,
+            episodeCount: 12,
+            indexedAt: "2026-10-01T00:00:00Z"
+        ),
+        CompleteLibraryFolderSummaryPresentation(
+            folderPath: "/Media/A",
+            folderTitle: "Steins;Gate 0",
+            coverPath: nil,
+            coverRevision: nil,
+            episodeCount: 23,
+            indexedAt: "2026-10-02T00:00:00Z"
+        ),
+        CompleteLibraryFolderSummaryPresentation(
+            folderPath: "/Media/C",
+            folderTitle: "Frieren",
+            coverPath: nil,
+            coverRevision: nil,
+            episodeCount: 28,
+            indexedAt: "2026-10-03T00:00:00Z"
+        ),
+    ]
+    #expect(
+        folders.filteredAndSorted(matching: "steins", by: .default).map(\.folderPath)
+            == ["/Media/A", "/Media/B"]
+    )
+    #expect(
+        folders.filteredAndSorted(matching: "steins", by: .latestAdded).map(\.folderPath)
+            == ["/Media/A", "/Media/B"]
+    )
+    #expect(
+        folders.filteredAndSorted(matching: "steins", by: .oldestAdded).map(\.folderPath)
+            == ["/Media/B", "/Media/A"]
+    )
+    #expect(folders.filteredAndSorted(matching: "nonexistent", by: .default).isEmpty)
+}
+
+

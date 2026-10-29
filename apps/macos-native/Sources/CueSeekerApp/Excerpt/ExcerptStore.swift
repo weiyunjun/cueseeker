@@ -5,10 +5,12 @@ import CueSeekerCore
 @MainActor
 final class ExcerptStore: ObservableObject {
     let cueContentStore: CueContentStore
+    let userDefaults: UserDefaults
     let databaseURL: URL?
     let database: ExcerptDatabase?
     let coverStorage: ExcerptListCoverStorage
     let uiProbeScope: String?
+    private static let overviewSortOrderUserDefaultsKey = "excerpt_overview_sort_order"
     private var cueContentChangesCancellable: AnyCancellable?
     private var isTableProjectionResponseActive = true
     private var pendingCueContentChange: CueContentStoreChange?
@@ -25,7 +27,27 @@ final class ExcerptStore: ObservableObject {
         lists: [],
         uniqueCueCount: 0
     )
+    @Published var overviewSearchDraft = ""
+    @Published var overviewSortOrder: ExcerptOverviewSortOrder = .oldestCreated {
+        didSet {
+            userDefaults.set(
+                overviewSortOrder.rawValue,
+                forKey: Self.overviewSortOrderUserDefaultsKey
+            )
+        }
+    }
     @Published private(set) var recentListSummaries: [ExcerptListSummary] = []
+
+    var displayedListSummaries: [ExcerptListSummary] {
+        listOverview.filteredAndSortedLists(
+            matching: overviewSearchDraft,
+            by: overviewSortOrder
+        )
+    }
+
+    var displayedUniqueCueCount: Int {
+        listOverview.uniqueCueCount(for: displayedListSummaries)
+    }
     @Published private(set) var hasLoadedListOverview = false
     @Published private(set) var activeListID: Int64?
     /// The list the last successful `Save to Excerpt` went to, loaded from
@@ -103,20 +125,28 @@ final class ExcerptStore: ObservableObject {
 
     init(
         cueContentStore: CueContentStore? = nil,
+        userDefaults: UserDefaults? = nil,
         databaseURL: URL? = nil,
         database: ExcerptDatabase? = nil,
         coverStorage: ExcerptListCoverStorage? = nil,
         uiProbeScope: String? = nil
     ) {
         let resolvedCueContentStore = cueContentStore ?? CueContentStore()
+        let resolvedUserDefaults = userDefaults ?? ApplicationPersistence.sharedUserDefaults()
         let defaultCoverDir = (databaseURL ?? AppCoordinator.defaultDatabaseURL())
             .deletingLastPathComponent()
             .appendingPathComponent("Covers", isDirectory: true)
         self.cueContentStore = resolvedCueContentStore
+        self.userDefaults = resolvedUserDefaults
         self.databaseURL = databaseURL
         self.database = database
         self.coverStorage = coverStorage ?? ExcerptListCoverStorage(coverDirectory: defaultCoverDir)
         self.uiProbeScope = uiProbeScope
+        let savedOverviewSortOrder = resolvedUserDefaults.string(
+            forKey: Self.overviewSortOrderUserDefaultsKey
+        )
+        self.overviewSortOrder = savedOverviewSortOrder
+            .flatMap(ExcerptOverviewSortOrder.init(rawValue:)) ?? .oldestCreated
         cueContentChangesCancellable = resolvedCueContentStore.changes.sink {
             [weak self] change in
             self?.receiveCueContentChange(change)
@@ -173,7 +203,8 @@ final class ExcerptStore: ObservableObject {
             let current = lists[index]
             let replacement = ExcerptListSummary(
                 list: list,
-                cueCount: current.cueCount
+                cueCount: current.cueCount,
+                validCueIDs: current.validCueIDs
             )
             guard current != replacement else {
                 return true
@@ -187,6 +218,7 @@ final class ExcerptStore: ObservableObject {
                 updatedRecent[recentIndex] = ExcerptListSummary(
                     list: list,
                     cueCount: recent.cueCount,
+                    validCueIDs: recent.validCueIDs,
                     resumeExcerpt: recent.resumeExcerpt,
                     resumePosition: recent.resumePosition
                 )
@@ -209,7 +241,7 @@ final class ExcerptStore: ObservableObject {
     }
 
     @discardableResult
-    func removeListSummary(id: Int64, uniqueCueCount: Int) -> Bool {
+    func removeListSummary(id: Int64, uniqueCueCount: Int? = nil) -> Bool {
         tableSearchDraftsByListID[id] = nil
         residentSnapshotsByListID[id] = nil
         residentDataRevisionsByListID[id] = nil
@@ -218,9 +250,17 @@ final class ExcerptStore: ObservableObject {
         else {
             return false
         }
+        let remainingLists = listOverview.lists.filter { $0.id != id }
+        let resolvedUniqueCueCount: Int
+        if remainingLists.contains(where: { !$0.validCueIDs.isEmpty })
+            || remainingLists.allSatisfy({ $0.cueCount == 0 }) {
+            resolvedUniqueCueCount = listOverview.uniqueCueCount(for: remainingLists)
+        } else {
+            resolvedUniqueCueCount = uniqueCueCount ?? listOverview.uniqueCueCount(for: remainingLists)
+        }
         installListOverview(ExcerptListOverview(
-            lists: listOverview.lists.filter { $0.id != id },
-            uniqueCueCount: uniqueCueCount
+            lists: remainingLists,
+            uniqueCueCount: resolvedUniqueCueCount
         ))
         installRecentListSummaries(
             recentListSummaries.filter { $0.id != id }
@@ -231,6 +271,8 @@ final class ExcerptStore: ObservableObject {
     @discardableResult
     func adjustListCueCounts(
         _ deltas: [Int64: Int],
+        addedCueIDsByListID: [Int64: Set<Int64>] = [:],
+        removedCueIDsByListID: [Int64: Set<Int64>] = [:],
         uniqueCueCount: Int? = nil
     ) -> Bool {
         guard hasLoadedListOverview,
@@ -241,17 +283,36 @@ final class ExcerptStore: ObservableObject {
             return false
         }
         let lists = listOverview.lists.map { summary in
-            guard let delta = deltas[summary.id], delta != 0 else {
+            let delta = deltas[summary.id] ?? 0
+            let added = addedCueIDsByListID[summary.id] ?? []
+            let removed = removedCueIDsByListID[summary.id] ?? []
+            guard delta != 0 || !added.isEmpty || !removed.isEmpty else {
                 return summary
             }
+            var updatedValidCueIDs = summary.validCueIDs
+            updatedValidCueIDs.subtract(removed)
+            updatedValidCueIDs.formUnion(added)
             return ExcerptListSummary(
                 list: summary.list,
-                cueCount: max(0, summary.cueCount + delta)
+                cueCount: max(0, summary.cueCount + delta),
+                validCueIDs: updatedValidCueIDs
             )
+        }
+        let resolvedUniqueCueCount: Int
+        if let uniqueCueCount {
+            resolvedUniqueCueCount = uniqueCueCount
+        } else if lists.contains(where: { !$0.validCueIDs.isEmpty })
+                    || lists.allSatisfy({ $0.cueCount == 0 }) {
+            resolvedUniqueCueCount = ExcerptListOverview(
+                lists: lists,
+                uniqueCueCount: listOverview.uniqueCueCount
+            ).uniqueCueCount(for: lists)
+        } else {
+            resolvedUniqueCueCount = listOverview.uniqueCueCount
         }
         installListOverview(ExcerptListOverview(
             lists: lists,
-            uniqueCueCount: uniqueCueCount ?? listOverview.uniqueCueCount
+            uniqueCueCount: resolvedUniqueCueCount
         ))
         return true
     }
@@ -510,3 +571,21 @@ final class ExcerptStore: ObservableObject {
         }
     }
 }
+
+extension ExcerptOverviewSortOrder {
+    var title: String {
+        switch self {
+        case .oldestCreated:
+            L("excerpt.overview.sort.oldest_created")
+        case .latestCreated:
+            L("excerpt.overview.sort.latest_created")
+        }
+    }
+
+    static var workbenchSortOptions: [SchemaWorkbenchSortOption] {
+        allCases.map {
+            SchemaWorkbenchSortOption(id: $0.rawValue, title: $0.title)
+        }
+    }
+}
+

@@ -11,23 +11,39 @@ struct ExcerptListOverviewView: View {
     )
 
     var body: some View {
+        let displayedLists = excerptStore.displayedListSummaries
+        let displayedListCount = displayedLists.count
+        let displayedCueCount = excerptStore.displayedUniqueCueCount
+
         LibraryCardContextMenuHost { _ in
             LibraryOverviewLayout(
+                searchPlaceholder: L("excerpt.overview.search_placeholder"),
+                searchText: $excerptStore.overviewSearchDraft,
+                sortOptions: ExcerptOverviewSortOrder.workbenchSortOptions,
+                selectedSortOptionID: excerptStore.overviewSortOrder.rawValue,
+                onSelectSortOption: { optionID in
+                    if let order = ExcerptOverviewSortOrder(rawValue: optionID) {
+                        excerptStore.overviewSortOrder = order
+                    }
+                },
                 summaryText: L(
                     "excerpt.overview.summary",
-                    excerptStore.listOverview.lists.count == 1
+                    displayedListCount == 1
                         ? L("excerpt.list_count.one")
-                        : L("excerpt.list_count.other", excerptStore.listOverview.lists.count),
-                    excerptStore.listOverview.uniqueCueCount == 1
+                        : L("excerpt.list_count.other", displayedListCount),
+                    displayedCueCount == 1
                         ? L("excerpt.cue_count.one")
-                        : L("excerpt.cue_count.other", excerptStore.listOverview.uniqueCueCount)
+                        : L("excerpt.cue_count.other", displayedCueCount)
                 ),
                 actionTitle: L("excerpt.new_list"),
-                action: { appState.beginCreatingExcerptList() }
+                action: { appState.beginCreatingExcerptList() },
+                emptySearchMessage: excerptStore.hasLoadedListOverview && displayedLists.isEmpty
+                    ? L("excerpt.overview.search_no_results")
+                    : nil
             ) {
                 if excerptStore.hasLoadedListOverview {
                     ExcerptListCardGrid(
-                        summaries: excerptStore.listOverview.lists,
+                        summaries: displayedLists,
                         highlight: highlight
                     ) { summary in
                         appState.openExcerptList(id: summary.id)
@@ -42,6 +58,9 @@ struct ExcerptListOverviewView: View {
         .cardHighlightFreeze(highlight)
         .task {
             appState.loadExcerptListOverviewIfNeeded()
+        }
+        .onAppear {
+            appState.refreshExcerptOnReappearanceIfNeeded()
         }
     }
 }

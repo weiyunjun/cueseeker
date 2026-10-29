@@ -539,6 +539,7 @@ final class AppCoordinator: ObservableObject {
         )
         excerpt = ExcerptStore(
             cueContentStore: cueContentStore,
+            userDefaults: userDefaults,
             databaseURL: resolvedDatabaseURL,
             database: openedExcerptDatabase,
             coverStorage: ExcerptListCoverStorage(

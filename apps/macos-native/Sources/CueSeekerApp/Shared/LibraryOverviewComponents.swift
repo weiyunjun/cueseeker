@@ -30,71 +30,271 @@ extension EnvironmentValues {
     }
 }
 
+struct WorkbenchOverviewActionBarLayout: Layout {
+    struct Resolution: Equatable {
+        let searchFieldWidth: CGFloat
+        let wrapsStatusToSecondRow: Bool
+        let totalSize: CGSize
+    }
+
+    static func resolve(
+        availableWidth: CGFloat,
+        buttonWidths: [CGFloat],
+        statusSize: CGSize,
+        preferredSearchWidth: CGFloat = WorkbenchControlMetrics.redesignOverviewSearchFieldWidth,
+        minSearchWidth: CGFloat = WorkbenchControlMetrics.redesignOverviewSearchFieldMinWidth,
+        controlHeight: CGFloat = WorkbenchControlMetrics.redesignHeight,
+        horizontalSpacing: CGFloat = WorkbenchControlMetrics.redesignSpacing4,
+        verticalRowSpacing: CGFloat = WorkbenchControlMetrics.redesignSpacing2
+    ) -> Resolution {
+        let buttonsWidth = buttonWidths.reduce(0, +)
+        let firstRowGaps = CGFloat(buttonWidths.count) * horizontalSpacing
+        let firstRowPreferredWidth = preferredSearchWidth + firstRowGaps + buttonsWidth
+        let singleRowRequiredWidth = firstRowPreferredWidth
+            + (statusSize.width > 0 ? horizontalSpacing + statusSize.width : 0)
+
+        let resolvedAvailableWidth = availableWidth.isFinite
+            ? max(0, availableWidth)
+            : singleRowRequiredWidth
+
+        if resolvedAvailableWidth >= singleRowRequiredWidth {
+            return Resolution(
+                searchFieldWidth: preferredSearchWidth,
+                wrapsStatusToSecondRow: false,
+                totalSize: CGSize(
+                    width: resolvedAvailableWidth,
+                    height: controlHeight
+                )
+            )
+        }
+
+        let availableForSearch = resolvedAvailableWidth - firstRowGaps - buttonsWidth
+        let clampedSearchWidth = min(
+            preferredSearchWidth,
+            max(minSearchWidth, availableForSearch)
+        )
+        let totalHeight = controlHeight
+            + (statusSize.height > 0 ? verticalRowSpacing + statusSize.height : 0)
+        return Resolution(
+            searchFieldWidth: clampedSearchWidth,
+            wrapsStatusToSecondRow: true,
+            totalSize: CGSize(
+                width: resolvedAvailableWidth,
+                height: totalHeight
+            )
+        )
+    }
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache _: inout ()
+    ) -> CGSize {
+        guard !subviews.isEmpty else {
+            return .zero
+        }
+        let buttonSubviews = subviews.count >= 2
+            ? Array(subviews.dropFirst().dropLast())
+            : []
+        let statusSubview = subviews.count >= 2 ? subviews.last : nil
+        let buttonWidths = buttonSubviews.map {
+            $0.sizeThatFits(.unspecified).width
+        }
+        let statusSize = statusSubview?.sizeThatFits(.unspecified) ?? .zero
+        return Self.resolve(
+            availableWidth: proposal.width ?? .infinity,
+            buttonWidths: buttonWidths,
+            statusSize: statusSize
+        ).totalSize
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal _: ProposedViewSize,
+        subviews: Subviews,
+        cache _: inout ()
+    ) {
+        guard !subviews.isEmpty else {
+            return
+        }
+        let buttonSubviews = subviews.count >= 2
+            ? Array(subviews.dropFirst().dropLast())
+            : []
+        let statusSubview = subviews.count >= 2 ? subviews.last : nil
+        let buttonSizes = buttonSubviews.map {
+            $0.sizeThatFits(.unspecified)
+        }
+        let statusSize = statusSubview?.sizeThatFits(.unspecified) ?? .zero
+        let resolution = Self.resolve(
+            availableWidth: bounds.width,
+            buttonWidths: buttonSizes.map(\.width),
+            statusSize: statusSize
+        )
+
+        subviews[0].place(
+            at: CGPoint(x: bounds.minX, y: bounds.minY),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(
+                width: resolution.searchFieldWidth,
+                height: WorkbenchControlMetrics.redesignHeight
+            )
+        )
+
+        var currentX = bounds.minX
+            + resolution.searchFieldWidth
+            + WorkbenchControlMetrics.redesignSpacing4
+        for (buttonSubview, buttonSize) in zip(buttonSubviews, buttonSizes) {
+            let buttonY = bounds.minY
+                + (WorkbenchControlMetrics.redesignHeight - buttonSize.height) / 2
+            buttonSubview.place(
+                at: CGPoint(x: currentX, y: buttonY),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(buttonSize)
+            )
+            currentX += buttonSize.width + WorkbenchControlMetrics.redesignSpacing4
+        }
+
+        if let statusSubview {
+            if resolution.wrapsStatusToSecondRow {
+                let statusY = bounds.minY
+                    + WorkbenchControlMetrics.redesignHeight
+                    + WorkbenchControlMetrics.redesignSpacing2
+                statusSubview.place(
+                    at: CGPoint(x: bounds.minX, y: statusY),
+                    anchor: .topLeading,
+                    proposal: ProposedViewSize(statusSize)
+                )
+            } else {
+                let statusY = bounds.minY
+                    + (WorkbenchControlMetrics.redesignHeight - statusSize.height) / 2
+                statusSubview.place(
+                    at: CGPoint(x: currentX, y: statusY),
+                    anchor: .topLeading,
+                    proposal: ProposedViewSize(statusSize)
+                )
+            }
+        }
+    }
+}
+
 struct LibraryOverviewLayout<Content: View>: View {
+    let searchPlaceholder: String
+    @Binding var searchText: String
+    let sortOptions: [SchemaWorkbenchSortOption]
+    let selectedSortOptionID: String
+    let onSelectSortOption: (String) -> Void
     let summaryText: String
-    let actionTitle: String
-    let action: () -> Void
+    let actionTitle: String?
+    let action: (() -> Void)?
+    let emptySearchMessage: String?
     private let content: Content
 
     init(
+        searchPlaceholder: String = "",
+        searchText: Binding<String> = .constant(""),
+        sortOptions: [SchemaWorkbenchSortOption] = [],
+        selectedSortOptionID: String = "",
+        onSelectSortOption: @escaping (String) -> Void = { _ in },
         summaryText: String,
-        actionTitle: String,
-        action: @escaping () -> Void,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil,
+        emptySearchMessage: String? = nil,
         @ViewBuilder content: () -> Content
     ) {
+        self.searchPlaceholder = searchPlaceholder
+        self._searchText = searchText
+        self.sortOptions = sortOptions
+        self.selectedSortOptionID = selectedSortOptionID
+        self.onSelectSortOption = onSelectSortOption
         self.summaryText = summaryText
         self.actionTitle = actionTitle
         self.action = action
+        self.emptySearchMessage = emptySearchMessage
         self.content = content()
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            WorkbenchScrollView {
-                VStack(
-                    alignment: .leading,
-                    spacing: WorkbenchControlMetrics.redesignSpacing4
-                ) {
-                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                        WorkbenchButton(
-                            title: actionTitle,
-                            icon: .plus,
-                            action: action
-                        )
-
-                        WorkbenchStatusIndicator(summaryText)
-
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: WorkbenchControlMetrics.redesignHeight)
-                    .workbenchPageInlinePadding()
-
-                    content
-                        .workbenchMediaCardGridInlinePadding()
-                        .environment(
-                            \.mediaCardGridContainerWidth,
-                            WorkbenchControlMetrics.workbenchMediaCardGridWidth(
-                                viewportWidth: geometry.size.width
+        SchemaWorkbenchSortMenuHost(
+            sortOptions: sortOptions,
+            selectedSortOptionID: selectedSortOptionID,
+            onSelectSortOption: onSelectSortOption
+        ) { sortMenu in
+            GeometryReader { geometry in
+                let emptyMinHeight = max(
+                    0,
+                    geometry.size.height
+                        - WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+                        - WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                        - WorkbenchControlMetrics.redesignHeight
+                        - WorkbenchControlMetrics.redesignSpacing4
+                )
+                WorkbenchScrollView {
+                    VStack(
+                        alignment: .leading,
+                        spacing: WorkbenchControlMetrics.redesignSpacing4
+                    ) {
+                        WorkbenchOverviewActionBarLayout {
+                            WorkbenchSearchField(
+                                placeholder: searchPlaceholder,
+                                text: $searchText,
+                                autofocus: false
                             )
-                        )
+
+                            WorkbenchButton(
+                                title: sortMenu.sortTitle,
+                                icon: .funnelSimple,
+                                isOpen: sortMenu.isSortMenuOpen,
+                                action: sortMenu.toggleSortMenu
+                            )
+                            .background(MenuAnchorProbe(handle: sortMenu.sortButtonAnchor))
+
+                            if let actionTitle, let action {
+                                WorkbenchButton(
+                                    title: actionTitle,
+                                    icon: .plus,
+                                    action: action
+                                )
+                            }
+
+                            WorkbenchStatusIndicator(summaryText)
+                        }
+                        .workbenchPageInlinePadding()
+
+                        if let emptySearchMessage {
+                            WorkbenchEmptyHint(
+                                icon: .searchNoResults,
+                                message: emptySearchMessage
+                            )
+                            .frame(minHeight: emptyMinHeight)
+                            .workbenchPageInlinePadding()
+                        } else {
+                            content
+                                .workbenchMediaCardGridInlinePadding()
+                                .environment(
+                                    \.mediaCardGridContainerWidth,
+                                    WorkbenchControlMetrics.workbenchMediaCardGridWidth(
+                                        viewportWidth: geometry.size.width
+                                    )
+                                )
+                        }
+                    }
+                    .padding(
+                        .top,
+                        WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+                    )
+                    .padding(
+                        .bottom,
+                        WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                    )
+                    .frame(
+                        width: geometry.size.width,
+                        alignment: .topLeading
+                    )
+                    .frame(
+                        minHeight: geometry.size.height,
+                        alignment: .topLeading
+                    )
                 }
-                .padding(
-                    .top,
-                    WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
-                )
-                .padding(
-                    .bottom,
-                    WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
-                )
-                .frame(
-                    width: geometry.size.width,
-                    alignment: .topLeading
-                )
-                .frame(
-                    minHeight: geometry.size.height,
-                    alignment: .topLeading
-                )
             }
         }
         .background(WorkbenchRedesignColors.bgSurface)

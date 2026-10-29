@@ -71,6 +71,7 @@ final class LibraryStore: ObservableObject {
     @Published var testRecentWatchingRevision = 0
     @Published var completeLibraryStatus: LibraryStatus = .idle
     @Published var completeLibraryFolderSummaries: [CompleteLibraryFolderSummaryPresentation] = []
+    @Published var overviewSearchDraft = ""
     private static let sortOrderUserDefaultsKey = "library_overview_sort_order"
 
     @Published var sortOrder: LibrarySortOrder = .default {
@@ -81,6 +82,13 @@ final class LibraryStore: ObservableObject {
 
     var sortedCompleteLibraryFolderSummaries: [CompleteLibraryFolderSummaryPresentation] {
         completeLibraryFolderSummaries.sorted(by: sortOrder)
+    }
+
+    var displayedCompleteLibraryFolderSummaries: [CompleteLibraryFolderSummaryPresentation] {
+        completeLibraryFolderSummaries.filteredAndSorted(
+            matching: overviewSearchDraft,
+            by: sortOrder
+        )
     }
     @Published var completeLibraryFolderDetailsByPath:
         [String: CompleteLibraryFolderDetailPresentation] = [:]
@@ -197,5 +205,9 @@ extension LibrarySortOrder {
         case .oldestAdded:
             return L("library.sort.oldest_added")
         }
+    }
+
+    static var workbenchSortOptions: [SchemaWorkbenchSortOption] {
+        allCases.map { SchemaWorkbenchSortOption(id: $0.rawValue, title: $0.title) }
     }
 }

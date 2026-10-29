@@ -547,6 +547,19 @@ public struct CompleteLibraryFolderSummaryPresentation: Equatable, Sendable, Ide
     }
 }
 
+public enum OverviewNameSearchMatcher {
+    public static func matches(_ candidate: String, query: String) -> Bool {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            return true
+        }
+        return candidate.precomposedStringWithCanonicalMapping.range(
+            of: trimmedQuery.precomposedStringWithCanonicalMapping,
+            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
+        ) != nil
+    }
+}
+
 public enum LibrarySortOrder: String, CaseIterable, Identifiable, Sendable {
     case `default` = "default"
     case latestAdded = "latest_added"
@@ -556,6 +569,14 @@ public enum LibrarySortOrder: String, CaseIterable, Identifiable, Sendable {
 }
 
 extension Array where Element == CompleteLibraryFolderSummaryPresentation {
+    public func filteredAndSorted(
+        matching searchQuery: String,
+        by order: LibrarySortOrder
+    ) -> [CompleteLibraryFolderSummaryPresentation] {
+        filter { OverviewNameSearchMatcher.matches($0.folderTitle, query: searchQuery) }
+            .sorted(by: order)
+    }
+
     public func sorted(by order: LibrarySortOrder) -> [CompleteLibraryFolderSummaryPresentation] {
         switch order {
         case .default:

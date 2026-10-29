@@ -233,6 +233,26 @@ public final class ExcerptDatabase: @unchecked Sendable {
     }
 
     public func excerptListOverview() throws -> ExcerptListOverview {
+        let validCuesStatement = try database.prepare(
+            """
+            SELECT s.list_id, s.cue_id
+            FROM excerpts s
+            JOIN subtitle_cue_lines l ON l.id = s.cue_id
+            JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+            JOIN subtitle_video_matches m
+              ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id;
+            """
+        )
+        var validCueIDsByListID: [Int64: Set<Int64>] = [:]
+        var allUniqueCueIDs = Set<Int64>()
+        while try validCuesStatement.step() {
+            let listID = validCuesStatement.int64Column(0)
+            let cueID = validCuesStatement.int64Column(1)
+            validCueIDsByListID[listID, default: []].insert(cueID)
+            allUniqueCueIDs.insert(cueID)
+        }
+
         let statement = try database.prepare(
             """
             SELECT l.id, l.name, l.description, l.cover_path, l.created_at,
@@ -251,15 +271,17 @@ public final class ExcerptDatabase: @unchecked Sendable {
         )
         var lists: [ExcerptListSummary] = []
         while try statement.step() {
+            let list = excerptList(from: statement)
             lists.append(ExcerptListSummary(
-                list: excerptList(from: statement),
-                cueCount: statement.intColumn(8)
+                list: list,
+                cueCount: statement.intColumn(8),
+                validCueIDs: validCueIDsByListID[list.id] ?? []
             ))
         }
 
         return ExcerptListOverview(
             lists: lists,
-            uniqueCueCount: try uniqueExcerptCueCount()
+            uniqueCueCount: allUniqueCueIDs.count
         )
     }
 

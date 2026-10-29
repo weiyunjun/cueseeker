@@ -64,9 +64,17 @@ public struct ExcerptList: Equatable, Sendable, Identifiable {
     }
 }
 
+public enum ExcerptOverviewSortOrder: String, CaseIterable, Identifiable, Sendable {
+    case oldestCreated = "oldest_created"
+    case latestCreated = "latest_created"
+
+    public var id: String { rawValue }
+}
+
 public struct ExcerptListSummary: Equatable, Sendable, Identifiable {
     public let list: ExcerptList
     public let cueCount: Int
+    public let validCueIDs: Set<Int64>
     public let resumeExcerpt: Excerpt?
     public let resumePosition: Int?
 
@@ -77,13 +85,44 @@ public struct ExcerptListSummary: Equatable, Sendable, Identifiable {
     public init(
         list: ExcerptList,
         cueCount: Int,
+        validCueIDs: Set<Int64> = [],
         resumeExcerpt: Excerpt? = nil,
         resumePosition: Int? = nil
     ) {
         self.list = list
         self.cueCount = cueCount
+        self.validCueIDs = validCueIDs
         self.resumeExcerpt = resumeExcerpt
         self.resumePosition = resumePosition
+    }
+}
+
+extension Array where Element == ExcerptListSummary {
+    public func sorted(by order: ExcerptOverviewSortOrder) -> [ExcerptListSummary] {
+        switch order {
+        case .oldestCreated:
+            return sorted {
+                if $0.list.createdAt != $1.list.createdAt {
+                    return $0.list.createdAt < $1.list.createdAt
+                }
+                return $0.id < $1.id
+            }
+        case .latestCreated:
+            return sorted {
+                if $0.list.createdAt != $1.list.createdAt {
+                    return $0.list.createdAt > $1.list.createdAt
+                }
+                return $0.id > $1.id
+            }
+        }
+    }
+
+    public func filteredAndSorted(
+        matching searchQuery: String,
+        by order: ExcerptOverviewSortOrder
+    ) -> [ExcerptListSummary] {
+        filter { OverviewNameSearchMatcher.matches($0.list.name, query: searchQuery) }
+            .sorted(by: order)
     }
 }
 
@@ -94,6 +133,30 @@ public struct ExcerptListOverview: Equatable, Sendable {
     public init(lists: [ExcerptListSummary], uniqueCueCount: Int) {
         self.lists = lists
         self.uniqueCueCount = uniqueCueCount
+    }
+
+    public func filteredAndSortedLists(
+        matching searchQuery: String,
+        by order: ExcerptOverviewSortOrder
+    ) -> [ExcerptListSummary] {
+        lists.filteredAndSorted(matching: searchQuery, by: order)
+    }
+
+    public func uniqueCueCount(for filteredLists: [ExcerptListSummary]) -> Int {
+        guard !filteredLists.isEmpty else {
+            return 0
+        }
+        if filteredLists.count == lists.count,
+           filteredLists.allSatisfy({ $0.validCueIDs.isEmpty }) {
+            return uniqueCueCount
+        }
+        var unionCueIDs = Set<Int64>()
+        var untrackedCount = 0
+        for summary in filteredLists {
+            unionCueIDs.formUnion(summary.validCueIDs)
+            untrackedCount += max(0, summary.cueCount - summary.validCueIDs.count)
+        }
+        return unionCueIDs.count + untrackedCount
     }
 }
 
