@@ -210,18 +210,6 @@
 - Scenario ID：player.control.copy_screenshot
 - 所在位置：Player Bottom Control Bar
 
-### 16. 字幕开关（Toggle Subtitles）
-- 英文（字幕关闭时）：Show Subtitles
-- 英文（字幕开启时）：Hide Subtitles
-- 简体中文（字幕关闭时）：开启字幕
-- 简体中文（字幕开启时）：关闭字幕
-- 繁体中文（字幕关闭时）：開啟字幕
-- 繁体中文（字幕开启时）：關閉字幕
-- 快捷键：默认 `Q`（动态跟随 `Settings / Shortcuts -> Toggle Subtitles`）
-- 触发延迟：1秒
-- Scenario ID：player.control.subtitles
-- 所在位置：Player Bottom Control Bar
-
 ### 17. 播放倍速（Playback Speed）
 - 英文：Playback Speed
 - 简体中文：播放速度

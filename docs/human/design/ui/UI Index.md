@@ -48,8 +48,8 @@
 | **2.3 Buttons** | `C-03.1` | Button | `Neutral`、`Cover Summary`、`Primary`、`Destructive` |
 | | `C-03.2` | Icon Button | Sizes: `Default`、`Inline Clear`、`Row Action`、`Dialog Close` |
 | | `C-03.3` | Shortcut Action Button | `Overlay Surface`、`Popover Surface` |
-| **2.4 Menus** | `C-04.1` | Menu | `Dropdown Menu`、`Context Menu`、`Player Speed Menu`、`Player More Menu` |
-| | `C-04.2` | Submenu | `Excerpt Destination Submenu`、`Audio Track Submenu`、`Subtitle Submenu` |
+| **2.4 Menus** | `C-04.1` | Menu | `Dropdown Menu`、`Context Menu`、`Player Subtitle Menu`、`Player Speed Menu`、`Player More Menu` |
+| | `C-04.2` | Submenu | `Excerpt Destination Submenu`、`Audio Track Submenu` |
 | | `C-04.3` | Menu Item | `Action Menu Item`、`Radio Menu Item`、`Destructive Menu Item`、`Submenu Trigger` |
 | | `C-04.4` | Menu Divider | — |
 | **2.5 Navigation** | `C-05.1` | Sidebar | — |

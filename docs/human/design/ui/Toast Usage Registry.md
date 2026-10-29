@@ -383,10 +383,10 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 34. 字幕开关
-- 英文：Subtitles On / Subtitles Off
-- 简体中文：字幕已开 / 字幕已关
-- 繁体中文：字幕已開 / 字幕已關
+#### 34. 字幕开关与切换
+- 英文：Subtitles On / Subtitles Off / Subtitle Switched
+- 简体中文：字幕已开 / 字幕已关 / 字幕已切换
+- 繁体中文：字幕已開 / 字幕已關 / 字幕已切換
 - 图标：subtitles
 - 持续时间：1秒
 - Scenario ID：playback.hud.subtitles

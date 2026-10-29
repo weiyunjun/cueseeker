@@ -729,7 +729,7 @@
 - Direction：默认朝下；下方空间不足时朝上；两侧都不足时取空间较大的一侧
 - 方向与高度在弹出瞬间确定一次，之后随挂靠对象平移，不再重新计算
 - Workbench 表格行菜单以表格正文区域为边界；跟随挂靠对象移动而越过边界的部分被裁剪
-- Player Speed Menu、Player More Menu 及其二级菜单以播放页顶栏与底栏按钮之间的区域为边界
+- Player Subtitle Menu、Player Speed Menu、Player More Menu 及其二级菜单以播放页顶栏与底栏按钮之间的区域为边界
 
 ##### States
 
@@ -749,6 +749,15 @@
 - Workbench Excerpt 表格行菜单：Play、Open Subtitle Folder；Menu Divider；Copy Cue Text、Copy Deep Link、Copy Cue Group Text、Copy Time Range；Menu Divider；Move to ...、Duplicate to ...；Menu Divider；Remove Excerpt
 - Copy Cue Group Text 只在显示 Cue Group 时出现
 
+##### Player Subtitle Menu
+
+- Surface：Player Chrome
+- Width：自然宽度、`--max-width-player-audio-track-menu`、可用空间，三者取小；出现 Vertical Scrollbar 时总宽仍不超出可用空间，空间不足时 Item Stack 变窄
+- Structure：视频匹配的字幕按 Data 中的字幕顺序排列，末尾是 Menu Divider 与 `Off` 项
+- Item：Menu Item / Radio Menu Item，字幕项 Trailing Slot 为 Tag / Player Chrome；名称完整显示，超出宽度时换行，Selection Indicator 与 Tag 对齐名称首行
+- 名称：字幕文件名最后最多 2 级后缀名，只有 1 级后缀名时显示 1 级，例如 `.sc.ass`、`.srt`
+- Checked：字幕开启时勾选当前字幕，字幕关闭时勾选 `Off`；默认字幕所在项带 Tag「Default」
+
 ##### Player Speed Menu
 
 - Surface：Player Chrome
@@ -758,8 +767,7 @@
 ##### Player More Menu
 
 - Surface：Player Chrome
-- Item：Menu Item / Submenu Trigger：Audio Track、Subtitle、Default Audio Track、Default Subtitle
-- 视频没有音轨时 Audio Track 与 Default Audio Track 为 Disabled
+- Item：Menu Item / Submenu Trigger：Audio Track
 
 ### C-04.2 Submenu
 
@@ -797,22 +805,11 @@
 - Surface：Player Chrome
 - Width：自然宽度、`--max-width-player-audio-track-menu`、展开一侧的可用空间，三者取小；出现 Vertical Scrollbar 时总宽仍不超出展开一侧的可用空间，空间不足时 Item Stack 变窄
 - Direction：默认朝右；右侧空间不足时朝左；两侧都不足时取空间较大的一侧
-- 由 Player More Menu 的 Audio Track 与 Default Audio Track 展开
-- Structure：视频的音轨按文件中的顺序排列
+- 由 Player More Menu 的 Audio Track 展开
+- Structure：视频的音轨按文件中的顺序排列；视频没有音轨时显示单个 Disabled 项 `No Audio Tracks`（不预留左侧勾选槽位）
 - Item：Menu Item / Radio Menu Item，Trailing Slot 为 Tag / Player Chrome；名称完整显示，超出宽度时换行，Selection Indicator 与 Tag 对齐名称首行
 - 名称：`#序号 语言, 标题, 编码, 声道`，缺少的部分省略
-- 由 Audio Track 展开：勾选当前音频源，默认音频源所在项带 Tag「Default」
-- 由 Default Audio Track 展开：勾选默认音频源，当前音频源所在项带 Tag「Current」
-
-##### Subtitle Submenu
-
-- Surface：Player Chrome
-- Width、Direction 与 Item 同 Audio Track Submenu
-- 由 Player More Menu 的 Subtitle 与 Default Subtitle 展开
-- Structure：视频匹配的字幕按 Data 中的字幕顺序排列
-- 名称：字幕文件名最后最多 2 级后缀名，只有 1 级后缀名时显示 1 级，例如 `.sc.ass`、`.srt`
-- 由 Subtitle 展开：勾选当前字幕，默认字幕所在项带 Tag「Default」
-- 由 Default Subtitle 展开：勾选默认字幕，当前字幕所在项带 Tag「Current」
+- Checked：当前音频源；默认音频源所在项带 Tag「Default」
 
 ### C-04.3 Menu Item
 
