@@ -446,6 +446,7 @@ struct LibraryOverviewCardContent<Cover: View>: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .allowsHitTesting(false)
 
             if let description {
                 Text(description.isEmpty ? "\u{00A0}" : description)
@@ -457,8 +458,83 @@ struct LibraryOverviewCardContent<Cover: View>: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .allowsHitTesting(false)
             }
         }
+    }
+}
+
+struct LibraryOverviewCardSurface<Content: View>: View {
+    var isSelected = false
+    var isHovered = false
+    var isEnabled = true
+    let action: () -> Void
+    private let content: Content
+
+    init(
+        isSelected: Bool = false,
+        isHovered: Bool = false,
+        isEnabled: Bool = true,
+        action: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.isSelected = isSelected
+        self.isHovered = isHovered
+        self.isEnabled = isEnabled
+        self.action = action
+        self.content = content()
+    }
+
+    private var backgroundFill: Color {
+        guard isEnabled else {
+            return .clear
+        }
+        if isSelected {
+            return WorkbenchRedesignColors.libraryMediaCardSelectedBg
+        }
+        if isHovered {
+            return WorkbenchRedesignColors.libraryMediaCardHoverBg
+        }
+        return .clear
+    }
+
+    var body: some View {
+        content
+            .padding(WorkbenchControlMetrics.redesignLibraryMediaCardHoverPadding)
+            .frame(
+                maxWidth: .infinity,
+                alignment: .topLeading
+            )
+            .background {
+                ZStack {
+                    RoundedRectangle(
+                        cornerRadius: WorkbenchControlMetrics.redesignLibraryMediaCardHoverRadius,
+                        style: .continuous
+                    )
+                    .fill(backgroundFill)
+
+                    if isEnabled {
+                        Button(action: action) {
+                            Color.clear
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(StaticButtonStyle())
+                        .focusable(false)
+                    }
+                }
+            }
+            // The card answers the pointer over its whole rectangle, corners
+            // included, so the press, the hand and Hover share one area. The
+            // rounded background is appearance only and does not narrow it.
+            .contentShape(Rectangle())
+            .opacity(isEnabled ? 1 : 0.55)
+            .animation(nil, value: isSelected)
+            .animation(
+                .easeOut(
+                    duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
+                ),
+                value: isHovered
+            )
     }
 }
 

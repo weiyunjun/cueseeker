@@ -50,6 +50,12 @@ enum SubtitleTableMetrics {
     static let scrollbarHitSlop = TableScrollbarPrimitiveMetrics.hitSlop
     static let interactiveTextUnderlineThickness = WorkbenchControlMetrics.redesignInteractiveTextUnderlineThickness
     static let interactiveTextUnderlineOffset = WorkbenchControlMetrics.redesignInteractiveTextUnderlineOffset
+    static let rowActionButtonSize = WorkbenchControlMetrics.redesignIconButtonSize
+    static let rowActionButtonIconSize = WorkbenchControlMetrics.redesignControlIconSize
+    static let rowActionButtonCornerRadius = WorkbenchControlMetrics.redesignCornerRadius
+    static let rowActionButtonSpacing = WorkbenchControlMetrics.redesignSpacing2
+    static let rowActionButtonTopInset = WorkbenchControlMetrics.redesignSpacing1
+    static let rowActionButtonReservation = rowActionButtonSize + rowActionButtonSpacing
 }
 
 struct SubtitleTableTextDragAutoScrollGeometry {

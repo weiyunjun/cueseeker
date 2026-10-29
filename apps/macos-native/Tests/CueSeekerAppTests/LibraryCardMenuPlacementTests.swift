@@ -199,3 +199,36 @@ func libraryCardMenuOpenedOnAScrolledPageKeepsItsSide() async throws {
     let afterScroll = try #require(openCardMenuFrame(in: host))
     #expect(abs(afterScroll.minY - opened.minY) < 0.5)
 }
+
+@MainActor
+@Test
+func cardHighlightModelSeparatesPointerHoverFromKeyboardSelectionAndSwitchesPointerOnActionButton() {
+    AppPointerShape.resetForTesting()
+    let highlight = CardHighlightModel(keepsCurrentWhenPointerLeaves: true)
+    highlight.setSelected("card-1")
+
+    // Keyboard/default selection alone does not count as pointer hover for the `...` button.
+    #expect(highlight.isSelected("card-1") == true)
+    #expect(highlight.isPointerHovered("card-1") == false)
+
+    // Pointer hovering a selected card shows pointer hover while keeping Select visual priority.
+    highlight.noteHover(true, id: "card-1", showsHand: true)
+    #expect(highlight.isSelected("card-1") == true)
+    #expect(highlight.isHovered("card-1") == false)
+    #expect(highlight.isPointerHovered("card-1") == true)
+    #expect(AppPointerShape.model.shape == .grab)
+
+    // Moving onto the card's `...` button switches pointer to `.arrow` while keeping the card hovered.
+    highlight.noteActionButtonHover(true, id: "card-1")
+    #expect(highlight.isPointerHovered("card-1") == true)
+    #expect(AppPointerShape.model.shape == .arrow)
+
+    // Moving off the `...` button back onto the card restores `.grab`.
+    highlight.noteActionButtonHover(false, id: "card-1")
+    #expect(highlight.isPointerHovered("card-1") == true)
+    #expect(AppPointerShape.model.shape == .grab)
+
+    highlight.noteHover(false, id: "card-1", showsHand: true)
+    #expect(highlight.isPointerHovered("card-1") == false)
+    #expect(AppPointerShape.model.shape == .arrow)
+}

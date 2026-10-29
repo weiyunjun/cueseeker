@@ -414,6 +414,7 @@ struct SubtitleTableView: NSViewRepresentable {
             /// A right-click anchor is kept in document coordinates, so the
             /// menu travels with the content the pointer landed on.
             case row(row: Int, columnID: String, anchorFrame: CGRect, clickPointInDocument: CGPoint?)
+            case rowActionButton(row: Int, fallbackFrame: CGRect)
         }
 
         struct DynamicScrollAnchor {
@@ -487,6 +488,7 @@ struct SubtitleTableView: NSViewRepresentable {
         var hoveredCueTextRow: Int?
         var hoveredCueStateRow: Int?
         var hoveredRowActionRow: Int?
+        var pressedRowActionRow: Int?
         var focusedCheckboxRow: Int?
         var cueStateTooltipTargetID = UUID()
         var lastNotifiedVisibleRows: Range<Int>?
@@ -504,6 +506,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         enum PendingRowSelectionTarget {
             case rowCheckbox(row: Int)
+            case rowActionButton(row: Int)
             case selectionModeRow(row: Int, isShiftPressed: Bool)
         }
 
@@ -1093,6 +1096,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 updateHoveredColumnID(nil)
                 updateHoveredCueTextRow(nil)
                 updateHoveredCueStateRow(nil)
+                updateHoveredRowActionRow(nil)
+                updatePressedRowActionRow(nil)
                 if isMenuOpen {
                     dismissMenu()
                 }

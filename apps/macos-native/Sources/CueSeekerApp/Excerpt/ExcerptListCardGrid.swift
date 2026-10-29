@@ -124,8 +124,10 @@ struct ExcerptListCardGrid: View {
 }
 
 private struct ExcerptListCard: View {
+    @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
+    @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
     let summary: ExcerptListSummary
-    let highlight: CardHighlightModel
+    @ObservedObject var highlight: CardHighlightModel
     let isSelected: Bool
     let isHovered: Bool
     let canDelete: Bool
@@ -134,19 +136,29 @@ private struct ExcerptListCard: View {
     let onDelete: () -> Void
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
 
+    @State private var moreMenuAnchor = MenuAnchorHandle()
+
     private var cardID: String {
         String(summary.id)
     }
 
-    private var isHighlighted: Bool {
-        isSelected || isHovered
+    private var isMoreMenuOpen: Bool {
+        contextMenuOwnerID == cardID
+    }
+
+    private var isMoreButtonVisible: Bool {
+        highlight.isPointerHovered(cardID) || isMoreMenuOpen
     }
 
     var body: some View {
-        Button {
-            highlight.notePress(id: cardID)
-            onOpen()
-        } label: {
+        LibraryOverviewCardSurface(
+            isSelected: isSelected,
+            isHovered: isHovered,
+            action: {
+                highlight.notePress(id: cardID)
+                onOpen()
+            }
+        ) {
             LibraryOverviewCardContent(
                 title: summary.list.name,
                 description: summary.list.description
@@ -154,13 +166,6 @@ private struct ExcerptListCard: View {
                 cover
             }
         }
-        .buttonStyle(
-            LibraryOverviewCardButtonStyle(
-                isSelected: isSelected,
-                isHovered: isHovered
-            )
-        )
-        .focusable(false)
         .onHover { highlight.noteHover($0, id: cardID) }
         .libraryCardContextMenuTrigger(
             isEnabled: true,
@@ -176,32 +181,28 @@ private struct ExcerptListCard: View {
 
     private var cover: some View {
         LibraryCoverFrame {
-            ZStack(alignment: .bottomTrailing) {
+            ZStack(alignment: .bottomLeading) {
                 ExcerptListCoverView(coverPath: summary.list.coverPath)
+                    .allowsHitTesting(false)
 
-                Text(summary.cueCount == 1 ? L("excerpt.cue_count.one") : L("excerpt.cue_count.other", summary.cueCount))
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge,
-                        weight: .semibold
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
-                    .monospacedDigit()
-                    .padding(
-                        .horizontal,
-                        WorkbenchControlMetrics.redesignLibraryTimeBadgeHorizontalPadding
-                    )
-                    .padding(
-                        .vertical,
-                        WorkbenchControlMetrics.redesignLibraryTimeBadgeVerticalPadding
-                    )
-                    .background(
-                        RoundedRectangle(
-                            cornerRadius: WorkbenchControlMetrics.redesignLibraryTimeBadgeRadius,
-                            style: .continuous
-                        )
-                        .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
-                    )
-                    .padding(8)
+                LibraryCoverBadge(
+                    text: summary.cueCount == 1
+                        ? L("excerpt.cue_count.one")
+                        : L("excerpt.cue_count.other", summary.cueCount)
+                )
+
+                LibraryCoverMoreButton(
+                    isVisible: isMoreButtonVisible,
+                    isOpen: isMoreMenuOpen,
+                    anchor: moreMenuAnchor,
+                    onHoverChange: { isButtonHovered in
+                        highlight.noteActionButtonHover(isButtonHovered, id: cardID)
+                    },
+                    action: {
+                        highlight.notePress(id: cardID)
+                        toggleAnchorMenu?(contextMenuItems, moreMenuAnchor, cardID)
+                    }
+                )
             }
         }
         .libraryCoverHoverEffect(

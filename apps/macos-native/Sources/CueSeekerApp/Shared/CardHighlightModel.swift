@@ -108,6 +108,7 @@ final class CardHighlightModel: ObservableObject {
     private(set) var isSuppressedByKeyboard = false
     private var rawHoveredID: String?
     private var rawHoveredShowsHand = true
+    private var hoveredActionButtonCardID: String?
 
     init(keepsCurrentWhenPointerLeaves: Bool = false) {
         self.keepsCurrentWhenPointerLeaves = keepsCurrentWhenPointerLeaves
@@ -127,10 +128,21 @@ final class CardHighlightModel: ObservableObject {
         hoveredID == id && selectedID != id
     }
 
+    /// Whether the pointer is currently hovering `id`, regardless of whether
+    /// `id` is also in the `Select` state. Used for hover-only controls such as
+    /// the cover card `...` button.
+    func isPointerHovered(_ id: String) -> Bool {
+        hoveredID == id
+    }
+
     /// Whether `id` is either `Select`ed or `Hover`ed (used by effects shared
     /// by both states, such as the `1.02`x cover scale).
     func isHighlighted(_ id: String) -> Bool {
         selectedID == id || hoveredID == id
+    }
+
+    private func effectiveShowsHand(for id: String, baseShowsHand: Bool) -> Bool {
+        baseShowsHand && hoveredActionButtonCardID != id
     }
 
     /// Updates the `Select` state (`selectedID`) from the interface's default
@@ -174,6 +186,7 @@ final class CardHighlightModel: ObservableObject {
         selectedID = nil
         hoveredID = nil
         rawHoveredID = nil
+        hoveredActionButtonCardID = nil
         isScrolling = false
         isSuppressedByKeyboard = false
     }
@@ -192,7 +205,7 @@ final class CardHighlightModel: ObservableObject {
                 AppPointerShape.noteCardHover(
                     false,
                     id: rawHoveredID,
-                    showsHand: rawHoveredShowsHand,
+                    showsHand: effectiveShowsHand(for: rawHoveredID, baseShowsHand: rawHoveredShowsHand),
                     followsPointer: false
                 )
             }
@@ -204,7 +217,7 @@ final class CardHighlightModel: ObservableObject {
                 AppPointerShape.noteCardHover(
                     true,
                     id: rawHoveredID,
-                    showsHand: rawHoveredShowsHand,
+                    showsHand: effectiveShowsHand(for: rawHoveredID, baseShowsHand: rawHoveredShowsHand),
                     followsPointer: canFollowPointer
                 )
             }
@@ -221,6 +234,9 @@ final class CardHighlightModel: ObservableObject {
             rawHoveredShowsHand = showsHand
         } else if rawHoveredID == id {
             rawHoveredID = nil
+            if hoveredActionButtonCardID == id {
+                hoveredActionButtonCardID = nil
+            }
         }
         let followsPointer = !isFrozen
             && !isScrolling
@@ -230,7 +246,7 @@ final class CardHighlightModel: ObservableObject {
             AppPointerShape.noteCardHover(
                 isHovered,
                 id: id,
-                showsHand: showsHand,
+                showsHand: effectiveShowsHand(for: id, baseShowsHand: showsHand),
                 followsPointer: followsPointer
             )
         }
@@ -238,6 +254,26 @@ final class CardHighlightModel: ObservableObject {
             return
         }
         syncHoveredID()
+    }
+
+    /// From a card's internal action button (`...`) hover callback. Keeps the
+    /// card hovered while switching the pointer from `Grab` to `Arrow`.
+    func noteActionButtonHover(_ isHovered: Bool, id: String) {
+        if isHovered {
+            hoveredActionButtonCardID = id
+        } else if hoveredActionButtonCardID == id {
+            hoveredActionButtonCardID = nil
+        }
+        guard rawHoveredID == id, !isFrozen, !isSuppressedByKeyboard else {
+            return
+        }
+        let followsPointer = !isScrolling && !AppCursorVisibility.isCursorHidden
+        AppPointerShape.noteCardHover(
+            true,
+            id: id,
+            showsHand: effectiveShowsHand(for: id, baseShowsHand: rawHoveredShowsHand),
+            followsPointer: followsPointer
+        )
     }
 
     /// From a right-click or left-click on a card. Updates `Hover` immediately
@@ -258,7 +294,7 @@ final class CardHighlightModel: ObservableObject {
             AppPointerShape.noteCardHover(
                 false,
                 id: rawHoveredID,
-                showsHand: rawHoveredShowsHand,
+                showsHand: effectiveShowsHand(for: rawHoveredID, baseShowsHand: rawHoveredShowsHand),
                 followsPointer: !AppCursorVisibility.isCursorHidden
             )
         }
@@ -282,7 +318,7 @@ final class CardHighlightModel: ObservableObject {
             AppPointerShape.noteCardHover(
                 true,
                 id: rawHoveredID,
-                showsHand: rawHoveredShowsHand,
+                showsHand: effectiveShowsHand(for: rawHoveredID, baseShowsHand: rawHoveredShowsHand),
                 followsPointer: !AppCursorVisibility.isCursorHidden
             )
         }
@@ -305,7 +341,7 @@ final class CardHighlightModel: ObservableObject {
             AppPointerShape.noteCardHover(
                 true,
                 id: rawHoveredID,
-                showsHand: rawHoveredShowsHand,
+                showsHand: effectiveShowsHand(for: rawHoveredID, baseShowsHand: rawHoveredShowsHand),
                 followsPointer: !AppCursorVisibility.isCursorHidden
             )
         }
@@ -317,11 +353,12 @@ final class CardHighlightModel: ObservableObject {
             AppPointerShape.noteCardHover(
                 false,
                 id: rawHoveredID,
-                showsHand: rawHoveredShowsHand,
+                showsHand: effectiveShowsHand(for: rawHoveredID, baseShowsHand: rawHoveredShowsHand),
                 followsPointer: false
             )
         }
         rawHoveredID = nil
+        hoveredActionButtonCardID = nil
         isScrolling = false
         guard !isFrozen else {
             return

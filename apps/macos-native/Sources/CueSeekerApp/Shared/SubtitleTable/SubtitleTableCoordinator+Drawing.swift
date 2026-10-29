@@ -237,6 +237,7 @@ extension SubtitleTableView.Coordinator {
                 measurement: measurement
             )
         }
+        drawRowActionButton(row: row, rowRect: rowRect)
         if let languageRect = layout.languageRect {
             let cellRect = rowColumnRect(languageRect, rowRect: rowRect)
             let tags = model?.tags ?? []
@@ -451,6 +452,64 @@ extension SubtitleTableView.Coordinator {
         image.draw(in: rect)
     }
 
+    func shouldShowRowActionButton(row: Int) -> Bool {
+        guard !isSelectionMode,
+              row >= 0,
+              row < rowCount,
+              rowProvider(row) != nil
+        else {
+            return false
+        }
+        return hoveredRow == row || activeRowMenuRow == row
+    }
+
+    func rowActionButtonBackgroundColor(row: Int) -> NSColor? {
+        guard shouldShowRowActionButton(row: row), isEnabled else {
+            return nil
+        }
+        if pressedRowActionRow == row {
+            return WorkbenchRedesignColors.NS.rowActionBgPressed
+        }
+        if activeRowMenuRow == row || hoveredRowActionRow == row {
+            return WorkbenchRedesignColors.NS.rowSelected
+        }
+        return nil
+    }
+
+    func drawRowActionButton(row: Int, rowRect: CGRect) {
+        guard shouldShowRowActionButton(row: row),
+              let buttonRect = rowActionButtonFrameInDocument(forRowRect: rowRect)
+        else {
+            return
+        }
+        if let backgroundColor = rowActionButtonBackgroundColor(row: row) {
+            backgroundColor.setFill()
+            NSBezierPath(
+                roundedRect: buttonRect,
+                xRadius: SubtitleTableMetrics.rowActionButtonCornerRadius,
+                yRadius: SubtitleTableMetrics.rowActionButtonCornerRadius
+            ).fill()
+        }
+        let iconSize = SubtitleTableMetrics.rowActionButtonIconSize
+        let iconColor = isEnabled
+            ? WorkbenchRedesignColors.NS.textSecondary
+            : WorkbenchRedesignColors.NS.textDisabled
+        guard let image = AppIconStore.tintedImage(
+            .dotsThree,
+            size: iconSize,
+            color: iconColor
+        ) else {
+            return
+        }
+        let iconRect = CGRect(
+            x: buttonRect.midX - iconSize / 2,
+            y: buttonRect.midY - iconSize / 2,
+            width: iconSize,
+            height: iconSize
+        )
+        image.draw(in: iconRect)
+    }
+
     func cueStateIndicatorRect(
         model: SubtitleTableRow,
         cuesRect: CGRect,
@@ -485,7 +544,11 @@ extension SubtitleTableView.Coordinator {
             return nil
         }
         let proposedX = lastLine.maxX + 8
-        let x = min(proposedX, cuesRect.maxX - size - 4)
+        let maxIndicatorX = cuesRect.maxX
+            - SubtitleTableCueGeometry.cellTrailingPadding
+            - SubtitleTableMetrics.rowActionButtonReservation
+            - size
+        let x = min(proposedX, maxIndicatorX)
         return CGRect(
             x: max(cuesRect.minX, x),
             y: lastLine.midY - size / 2,
@@ -538,6 +601,7 @@ extension SubtitleTableView.Coordinator {
             rect.width
                 - SubtitleTableCueGeometry.cellLeadingPadding
                 - SubtitleTableCueGeometry.cellTrailingPadding
+                - SubtitleTableMetrics.rowActionButtonReservation
                 - indicatorReservation
         )
     }
@@ -601,7 +665,7 @@ extension SubtitleTableView.Coordinator {
 
     func cuesTextTrailingInset(forRowRect _: CGRect) -> CGFloat {
         let M = SubtitleTableMetrics.self
-        return M.trailingInset
+        return M.trailingInset + M.rowActionButtonReservation
     }
 
     func bodyTextRole(for columnID: String) -> SubtitleTableTextRole {
@@ -886,6 +950,7 @@ extension SubtitleTableView.Coordinator {
             layout.cuesRect.width
                 - SubtitleTableCueGeometry.cellLeadingPadding
                 - SubtitleTableCueGeometry.cellTrailingPadding
+                - SubtitleTableMetrics.rowActionButtonReservation
         )
     }
 

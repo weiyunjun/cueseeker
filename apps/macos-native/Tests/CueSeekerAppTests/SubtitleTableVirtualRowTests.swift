@@ -736,7 +736,7 @@ func subtitleTableViewKeepsRowMenuOpenAcrossScrollNotifications() {
 
 @MainActor
 @Test
-func subtitleTableViewCueTextHitTestingUsesTextFragmentsOnly() {
+func subtitleTableViewCueTextHitTestingUsesTextFragmentsOnly() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     let row = 0
     let textPoint = CGPoint(
@@ -747,17 +747,17 @@ func subtitleTableViewCueTextHitTestingUsesTextFragmentsOnly() {
         x: 898,
         y: fixture.coordinator.currentRowHeight / 2
     )
-    let rowActionFrame = fixture.coordinator.rowActionButtonDocumentFrameForTesting(row: row)
+    let rowActionFrame = try #require(fixture.coordinator.rowActionButtonDocumentFrameForTesting(row: row))
     let rowActionPoint = CGPoint(
-        x: rowActionFrame?.midX ?? trailingPoint.x,
-        y: rowActionFrame?.midY ?? trailingPoint.y
+        x: rowActionFrame.midX,
+        y: rowActionFrame.midY
     )
 
     #expect(fixture.coordinator.cueTextHitTestForTesting(row: row, point: textPoint) == true)
     #expect(fixture.coordinator.cueTextHitTestForTesting(row: row, point: trailingPoint) == false)
-    #expect(rowActionFrame == nil)
+    #expect(rowActionFrame.size == CGSize(width: 32, height: 32))
     #expect(fixture.coordinator.cueTextHitTestForTesting(row: row, point: rowActionPoint) == false)
-    #expect(fixture.coordinator.rowActionButtonHitTestForTesting(row: row, point: rowActionPoint) == false)
+    #expect(fixture.coordinator.rowActionButtonHitTestForTesting(row: row, point: rowActionPoint) == true)
 }
 
 @MainActor
@@ -777,18 +777,95 @@ func subtitleTableViewExpandsRedesignDocumentWidthForHorizontalScrolling() {
 
 @MainActor
 @Test
-func subtitleTableViewRemovesRowActionButtonFromCuesColumn() {
-    let fixture = makeAttachedVirtualTableCoordinator(width: 900)
-    let beforeScrollFrame = fixture.coordinator.rowActionButtonFrameForTesting(row: 0)
+func subtitleTableViewPlacesRowActionButtonInCuesColumnAndOpensMenu() throws {
+    let rows = [
+        dynamicTableRow(id: 1, primary: "Single line cue"),
+        dynamicTableRow(id: 2, primary: "Line one\nLine two\nLine three"),
+        SubtitleTableRow(
+            id: 3,
+            primaryCueID: 3,
+            displayTitle: "Missing Episode",
+            primaryCueText: "Unavailable cue",
+            cueGroupTexts: ["Unavailable cue"],
+            primaryGroupIndex: 0,
+            cueState: .unavailable(.videoMissing)
+        ),
+    ]
+    var playCount = 0
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 900,
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        onPlay: { _ in playCount += 1 }
+    )
+    fixture.container.frame.size.height = 800
+    fixture.scrollView.frame.size.height = 756
 
-    fixture.scrollView.contentView.scroll(to: CGPoint(x: 120, y: 0))
-    fixture.scrollView.reflectScrolledClipView(fixture.scrollView.contentView)
-    fixture.coordinator.scrollContentDidChange()
+    for rowIndex in 0..<rows.count {
+        let cuesRect = try #require(
+            fixture.coordinator.dataCellRectForTesting(row: rowIndex, columnID: "cues")
+        )
+        let buttonDocFrame = try #require(
+            fixture.coordinator.rowActionButtonDocumentFrameForTesting(row: rowIndex)
+        )
+        #expect(buttonDocFrame.width == 32)
+        #expect(buttonDocFrame.height == 32)
+        #expect(abs(cuesRect.maxX - buttonDocFrame.maxX - SubtitleTableMetrics.trailingInset) < 0.01)
+        #expect(abs(buttonDocFrame.minY - cuesRect.minY - SubtitleTableMetrics.rowActionButtonTopInset) < 0.01)
+        #expect(fixture.coordinator.shouldShowRowActionButtonForTesting(row: rowIndex) == false)
+    }
 
-    let afterScrollFrame = fixture.coordinator.rowActionButtonFrameForTesting(row: 0)
+    let row0ButtonDocFrame = try #require(
+        fixture.coordinator.rowActionButtonDocumentFrameForTesting(row: 0)
+    )
+    let row0ButtonWindowPoint = fixture.documentView.convert(
+        CGPoint(x: row0ButtonDocFrame.midX, y: row0ButtonDocFrame.midY),
+        to: nil
+    )
 
-    #expect(beforeScrollFrame == nil)
-    #expect(afterScrollFrame == nil)
+    fixture.coordinator.handleMouseHover(windowPoint: row0ButtonWindowPoint)
+    #expect(fixture.coordinator.shouldShowRowActionButtonForTesting(row: 0) == true)
+    #expect(
+        fixture.coordinator.rowActionButtonBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.rowSelected
+    )
+    #expect(fixture.coordinator.isCellHoveredForTesting(row: 0, columnID: "cues") == false)
+    #expect(fixture.coordinator.pointerShape(atWindowPoint: row0ButtonWindowPoint) == .arrow)
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: row0ButtonWindowPoint) == true)
+    #expect(
+        fixture.coordinator.rowActionButtonBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.rowActionBgPressed
+    )
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: row0ButtonWindowPoint) == true)
+    #expect(playCount == 0)
+    #expect(fixture.coordinator.isMenuOpenForTesting() == true)
+    #expect(fixture.coordinator.shouldShowRowActionButtonForTesting(row: 0) == true)
+    #expect(
+        fixture.coordinator.rowActionButtonBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.rowSelected
+    )
+    fixture.coordinator.dismissMenu()
+
+    // Unavailable row in Excerpt table also shows and opens the row action button.
+    let unavailableButtonFrame = try #require(
+        fixture.coordinator.rowActionButtonDocumentFrameForTesting(row: 2)
+    )
+    let unavailableWindowPoint = fixture.documentView.convert(
+        CGPoint(x: unavailableButtonFrame.midX, y: unavailableButtonFrame.midY),
+        to: nil
+    )
+    fixture.coordinator.handleMouseHover(windowPoint: unavailableWindowPoint)
+    #expect(fixture.coordinator.shouldShowRowActionButtonForTesting(row: 2) == true)
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: unavailableWindowPoint) == true)
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: unavailableWindowPoint) == true)
+    #expect(fixture.coordinator.isMenuOpenForTesting() == true)
+    fixture.coordinator.dismissMenu()
+
+    // In Select Mode, the row action button is hidden and non-interactive.
+    fixture.coordinator.isSelectionMode = true
+    #expect(fixture.coordinator.rowActionButtonDocumentFrameForTesting(row: 0) == nil)
+    #expect(fixture.coordinator.shouldShowRowActionButtonForTesting(row: 0) == false)
 }
 
 @MainActor

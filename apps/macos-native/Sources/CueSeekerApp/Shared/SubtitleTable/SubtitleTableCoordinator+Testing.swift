@@ -508,6 +508,14 @@ extension SubtitleTableView.Coordinator {
         isPointInRowActionButton(row: row, point: point)
     }
 
+    func shouldShowRowActionButtonForTesting(row: Int) -> Bool {
+        shouldShowRowActionButton(row: row)
+    }
+
+    func rowActionButtonBackgroundColorForTesting(row: Int) -> NSColor? {
+        rowActionButtonBackgroundColor(row: row)
+    }
+
     func verticalScrollOffsetForTesting() -> CGFloat {
         scrollView?.contentView.bounds.origin.y ?? 0
     }

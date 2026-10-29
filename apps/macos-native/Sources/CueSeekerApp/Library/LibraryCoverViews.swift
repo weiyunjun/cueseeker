@@ -41,12 +41,104 @@ extension View {
     }
 }
 
+struct LibraryCoverBadge: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: WorkbenchLibraryMetrics.timeBadgeSize, weight: .semibold))
+            .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
+            .monospacedDigit()
+            .padding(.horizontal, WorkbenchLibraryMetrics.timeBadgeHorizontalPadding)
+            .padding(.vertical, WorkbenchLibraryMetrics.timeBadgeVerticalPadding)
+            .background(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchLibraryMetrics.timeBadgeRadius,
+                    style: .continuous
+                )
+                .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
+            )
+            .padding(.leading, WorkbenchLibraryMetrics.timeBadgeInset)
+            .padding(.bottom, WorkbenchLibraryMetrics.timeBadgeInset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .allowsHitTesting(false)
+    }
+}
+
+struct LibraryCoverMoreButton: View {
+    @Environment(\.interfaceLayerContext) private var layerContext
+    @Environment(\.libraryCardContextMenuAnchorUpdate) private var updateAnchor
+    let isVisible: Bool
+    let isOpen: Bool
+    let anchor: MenuAnchorHandle
+    var onHoverChange: (Bool) -> Void = { _ in }
+    let action: () -> Void
+
+    @State private var didOpenFromButton = false
+
+    var body: some View {
+        WorkbenchIconButton(
+            icon: .dotsThree,
+            isOpen: isOpen,
+            defaultBackground: WorkbenchRedesignColors.libraryCoverActionBg,
+            hoverBackground: WorkbenchRedesignColors.libraryCoverActionBgHover,
+            pressedBackground: WorkbenchRedesignColors.libraryCoverActionBgPressed,
+            openBackground: WorkbenchRedesignColors.libraryCoverActionBgHover,
+            iconColor: WorkbenchRedesignColors.libraryTimeBadgeText,
+            openIconColor: WorkbenchRedesignColors.libraryTimeBadgeText,
+            isFrozen: layerContext.isFrozen && !isOpen,
+            onHoverChange: { hovered in
+                onHoverChange(hovered && isVisible)
+            },
+            action: {
+                didOpenFromButton = !isOpen
+                action()
+            }
+        )
+        .background(MenuAnchorProbe(handle: anchor))
+        .background(
+            GeometryReader { proxy in
+                let origin = proxy.frame(
+                    in: .named(LibraryCardContextMenuCoordinateSpace.name)
+                ).origin
+                Color.clear
+                    .onChange(of: origin) { newOrigin in
+                        guard isOpen, didOpenFromButton else {
+                            return
+                        }
+                        updateAnchor?(newOrigin)
+                    }
+            }
+        )
+        .opacity(isVisible ? 1 : 0)
+        .allowsHitTesting(isVisible)
+        .onChange(of: isVisible) { visible in
+            if !visible {
+                onHoverChange(false)
+            }
+        }
+        .onChange(of: isOpen) { open in
+            if !open {
+                didOpenFromButton = false
+            }
+        }
+        .padding(.trailing, WorkbenchLibraryMetrics.timeBadgeInset)
+        .padding(.bottom, WorkbenchLibraryMetrics.timeBadgeInset)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+    }
+}
+
 struct LibraryCoverWithProgress: View {
     @Environment(\.mediaCardCoverSize) private var environmentCoverSize
     let coverPath: String?
     let coverRevision: String?
     let positionMilliseconds: Int
     let duration: Double?
+    var showsMoreButton: Bool = false
+    var isMoreMenuOpen: Bool = false
+    var moreMenuAnchor: MenuAnchorHandle? = nil
+    var onMoreHoverChange: (Bool) -> Void = { _ in }
+    var onToggleMoreMenu: (() -> Void)? = nil
 
     private var presentation: LibraryCoverProgressPresentation {
         LibraryCoverProgressPresentation(
@@ -63,27 +155,24 @@ struct LibraryCoverWithProgress: View {
         LibraryCoverFrame {
             ZStack(alignment: .bottomLeading) {
                 coverImage
+                    .allowsHitTesting(false)
 
                 if let progressFraction {
                     progressTrack(progressFraction: progressFraction)
+                        .allowsHitTesting(false)
                 }
 
-                Text(timeBadgeText)
-                    .font(.system(size: WorkbenchLibraryMetrics.timeBadgeSize, weight: .semibold))
-                    .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
-                    .monospacedDigit()
-                    .padding(.horizontal, WorkbenchLibraryMetrics.timeBadgeHorizontalPadding)
-                    .padding(.vertical, WorkbenchLibraryMetrics.timeBadgeVerticalPadding)
-                    .background(
-                        RoundedRectangle(
-                            cornerRadius: WorkbenchLibraryMetrics.timeBadgeRadius,
-                            style: .continuous
-                        )
-                        .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
+                LibraryCoverBadge(text: timeBadgeText)
+
+                if let moreMenuAnchor, let onToggleMoreMenu {
+                    LibraryCoverMoreButton(
+                        isVisible: showsMoreButton,
+                        isOpen: isMoreMenuOpen,
+                        anchor: moreMenuAnchor,
+                        onHoverChange: onMoreHoverChange,
+                        action: onToggleMoreMenu
                     )
-                    .padding(.trailing, WorkbenchLibraryMetrics.timeBadgeInset)
-                    .padding(.bottom, WorkbenchLibraryMetrics.timeBadgeInset)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                }
             }
         }
     }
@@ -201,30 +290,32 @@ struct LibraryCoverWithBadge: View {
     let coverPath: String?
     let coverRevision: String?
     let badgeText: String
+    var showsMoreButton: Bool = false
+    var isMoreMenuOpen: Bool = false
+    var moreMenuAnchor: MenuAnchorHandle? = nil
+    var onMoreHoverChange: (Bool) -> Void = { _ in }
+    var onToggleMoreMenu: (() -> Void)? = nil
 
     var body: some View {
         LibraryCoverFrame {
-            ZStack(alignment: .bottomTrailing) {
+            ZStack(alignment: .bottomLeading) {
                 LibraryCachedCoverImage(
                     coverPath: coverPath,
                     coverRevision: coverRevision
                 )
+                .allowsHitTesting(false)
 
-                Text(badgeText)
-                    .font(.system(size: WorkbenchLibraryMetrics.timeBadgeSize, weight: .semibold))
-                    .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
-                    .monospacedDigit()
-                    .padding(.horizontal, WorkbenchLibraryMetrics.timeBadgeHorizontalPadding)
-                    .padding(.vertical, WorkbenchLibraryMetrics.timeBadgeVerticalPadding)
-                    .background(
-                        RoundedRectangle(
-                            cornerRadius: WorkbenchLibraryMetrics.timeBadgeRadius,
-                            style: .continuous
-                        )
-                        .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
+                LibraryCoverBadge(text: badgeText)
+
+                if let moreMenuAnchor, let onToggleMoreMenu {
+                    LibraryCoverMoreButton(
+                        isVisible: showsMoreButton,
+                        isOpen: isMoreMenuOpen,
+                        anchor: moreMenuAnchor,
+                        onHoverChange: onMoreHoverChange,
+                        action: onToggleMoreMenu
                     )
-                    .padding(.trailing, WorkbenchLibraryMetrics.timeBadgeInset)
-                    .padding(.bottom, WorkbenchLibraryMetrics.timeBadgeInset)
+                }
             }
         }
     }

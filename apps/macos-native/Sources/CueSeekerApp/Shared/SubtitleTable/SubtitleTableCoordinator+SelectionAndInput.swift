@@ -7,6 +7,7 @@ extension SubtitleTableView.Coordinator {
         stopTextDragAutoScroll()
         pendingTextInteraction = nil
         pendingRowSelectionTarget = nil
+        updatePressedRowActionRow(nil)
     }
 
     var externalTextSelectionWindowRect: CGRect? {
@@ -597,6 +598,9 @@ extension SubtitleTableView.Coordinator {
             return .arrow
         }
         let rows = row..<(row + 1)
+        if isPointInRowActionButton(row: row, point: point) {
+            return .arrow
+        }
         if interactiveCellRects(in: visibleRect, rows: rows)
             .contains(where: { $0.contains(point) }) {
             return .grab
@@ -688,8 +692,10 @@ extension SubtitleTableView.Coordinator {
     }
 
     func rowActionButtonFrameInDocument(for row: Int) -> CGRect? {
-        guard row >= 0,
+        guard !isSelectionMode,
+              row >= 0,
               row < rowCount,
+              rowProvider(row) != nil,
               let documentView
         else {
             return nil
@@ -698,8 +704,19 @@ extension SubtitleTableView.Coordinator {
         return rowActionButtonFrameInDocument(forRowRect: rowRect)
     }
 
-    func rowActionButtonFrameInDocument(forRowRect _: CGRect) -> CGRect? {
-        nil
+    func rowActionButtonFrameInDocument(forRowRect rowRect: CGRect) -> CGRect? {
+        guard !isSelectionMode else {
+            return nil
+        }
+        let layout = tableColumnLayout(contentWidth: rowRect.width, height: rowRect.height)
+        let cuesRect = rowColumnRect(layout.cuesRect, rowRect: rowRect)
+        let size = SubtitleTableMetrics.rowActionButtonSize
+        return CGRect(
+            x: cuesRect.maxX - SubtitleTableMetrics.trailingInset - size,
+            y: rowRect.minY + SubtitleTableMetrics.rowActionButtonTopInset,
+            width: size,
+            height: size
+        )
     }
 
     func rowActionButtonFrameInContainer(for row: Int) -> CGRect? {
@@ -723,8 +740,15 @@ extension SubtitleTableView.Coordinator {
         return CGPoint(x: rect.minX + M.cellLeading, y: yOffset)
     }
 
-    func isPointInRowActionButton(row _: Int, point _: CGPoint) -> Bool {
-        false
+    func isPointInRowActionButton(row: Int, point: CGPoint) -> Bool {
+        guard isEnabled,
+              !isSelectionMode,
+              !isCoveredByHigherLayer,
+              let buttonRect = rowActionButtonFrameInDocument(for: row)
+        else {
+            return false
+        }
+        return buttonRect.contains(point)
     }
 
     func cellContentHoverRectInDocument(row: Int, columnID: String) -> CGRect? {
@@ -1137,20 +1161,27 @@ extension SubtitleTableView.Coordinator {
             updateHoveredCueTextRow(nil)
             return
         }
-        let cueStateRow = row.flatMap {
-            isPointInCueStateIndicator(row: $0, point: point) ? $0 : nil
+        let rowActionRow = row.flatMap {
+            isPointInRowActionButton(row: $0, point: point) ? $0 : nil
         }
+        let cueStateRow = rowActionRow == nil
+            ? row.flatMap { isPointInCueStateIndicator(row: $0, point: point) ? $0 : nil }
+            : nil
         updateHoveredCueStateRow(cueStateRow)
-        let hoveredColumn = row.flatMap { hoveredDataColumnID(row: $0, point: point) }
+        let hoveredColumn = rowActionRow == nil
+            ? row.flatMap { hoveredDataColumnID(row: $0, point: point) }
+            : nil
         updateHoveredColumnID(hoveredColumn)
-        let cueTextRow = row.flatMap {
-            hoveredColumn == "cues"
-                && rowProvider($0)?.cueState.isUnavailable != true
-                && isPointInCueText(row: $0, point: point)
-                ? $0
-                : nil
-        }
-        updateHoveredRowActionRow(nil)
+        let cueTextRow = rowActionRow == nil
+            ? row.flatMap {
+                hoveredColumn == "cues"
+                    && rowProvider($0)?.cueState.isUnavailable != true
+                    && isPointInCueText(row: $0, point: point)
+                    ? $0
+                    : nil
+            }
+            : nil
+        updateHoveredRowActionRow(rowActionRow)
         updateHoveredCueTextRow(cueTextRow)
     }
 
@@ -1178,6 +1209,13 @@ extension SubtitleTableView.Coordinator {
                 row: row,
                 isShiftPressed: isShiftPressed
             )
+            return true
+        }
+        if let row, isPointInRowActionButton(row: row, point: point) {
+            clearFocusedCheckbox()
+            cancelPendingTextInteraction()
+            pendingRowSelectionTarget = .rowActionButton(row: row)
+            updatePressedRowActionRow(row)
             return true
         }
         if let row, isPointInCheckbox(row: row, point: point) {
@@ -1256,6 +1294,15 @@ extension SubtitleTableView.Coordinator {
     }
 
     func handleMouseDragged(windowPoint: CGPoint) -> Bool {
+        if case .rowActionButton(let row) = pendingRowSelectionTarget {
+            guard let documentView else { return false }
+            let point = documentView.convert(windowPoint, from: nil)
+            let isInside = currentTableBodyVisibleRect.contains(point)
+                && isPointInRowActionButton(row: row, point: point)
+            updatePressedRowActionRow(isInside ? row : nil)
+            updateHoveredRowActionRow(isInside ? row : nil)
+            return true
+        }
         guard var interaction = pendingTextInteraction else {
             return false
         }
@@ -1281,6 +1328,7 @@ extension SubtitleTableView.Coordinator {
     func handleMouseUp(windowPoint: CGPoint) -> Bool {
         if let selectionTarget = pendingRowSelectionTarget {
             pendingRowSelectionTarget = nil
+            updatePressedRowActionRow(nil)
             guard isEnabled,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
@@ -1296,6 +1344,19 @@ extension SubtitleTableView.Coordinator {
             case .rowCheckbox(let row):
                 if !isSelectionMode, isPointInCheckbox(row: row, point: point) {
                     _ = toggleRowCheckboxFromMouse(row: row)
+                }
+            case .rowActionButton(let row):
+                if !isSelectionMode,
+                   isPointInRowActionButton(row: row, point: point),
+                   let buttonFrame = rowActionButtonFrameInContainer(for: row)
+                {
+                    showMenu(
+                        for: row,
+                        columnID: "cues",
+                        buttonFrame: buttonFrame,
+                        clickPointInDocument: nil,
+                        usesActionButtonAnchor: true
+                    )
                 }
             case .selectionModeRow(let row, let isShiftPressed):
                 if isSelectionMode, rowAtDocumentPoint(point) == row {
@@ -1703,6 +1764,13 @@ extension SubtitleTableView.Coordinator {
         guard newRow != hoveredRowActionRow else { return }
         let oldRow = hoveredRowActionRow
         hoveredRowActionRow = newRow
+        invalidateRows([oldRow, newRow])
+    }
+
+    func updatePressedRowActionRow(_ newRow: Int?) {
+        guard newRow != pressedRowActionRow else { return }
+        let oldRow = pressedRowActionRow
+        pressedRowActionRow = newRow
         invalidateRows([oldRow, newRow])
     }
 }

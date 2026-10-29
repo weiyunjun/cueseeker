@@ -2,7 +2,7 @@ import AppKit
 import CoreGraphics
 import SwiftUI
 
-private enum LibraryCardContextMenuCoordinateSpace {
+enum LibraryCardContextMenuCoordinateSpace {
     static let name = "LibraryCardContextMenuCoordinateSpace"
 }
 
@@ -365,10 +365,14 @@ struct LibraryCardContextMenuHost<Content: View>: View {
     /// Moves the open menu with its card. The side it opened on is already in
     /// `placementOffset`, so this is pure translation.
     private func updateAnchorPoint(_ anchorPoint: CGPoint) {
-        guard activeMenu != nil, activeMenu?.anchorPoint != anchorPoint else {
+        guard var menu = activeMenu, menu.anchorPoint != anchorPoint else {
             return
         }
-        activeMenu?.anchorPoint = anchorPoint
+        menu.anchorPoint = anchorPoint
+        if menu.anchorFrame != nil {
+            menu.anchorFrame = CGRect(origin: anchorPoint, size: menu.anchorSize)
+        }
+        activeMenu = menu
     }
 
     /// Enter runs whatever the highlight sits on, so the keyboard and the

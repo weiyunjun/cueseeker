@@ -213,27 +213,39 @@ private struct LibraryVideoCardContent {
 }
 
 private struct LibraryVideoCard: View {
+    @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
+    @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
     let content: LibraryVideoCardContent
-    let highlight: CardHighlightModel
+    @ObservedObject var highlight: CardHighlightModel
     let isSelected: Bool
     let isHovered: Bool
     let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     let onOpen: () -> Void
 
+    @State private var moreMenuAnchor = MenuAnchorHandle()
+
     private var cardID: String {
         content.videoPath
     }
 
-    private var isHighlighted: Bool {
-        isSelected || isHovered
+    private var isMoreMenuOpen: Bool {
+        contextMenuOwnerID == cardID
+    }
+
+    private var isMoreButtonVisible: Bool {
+        highlight.isPointerHovered(cardID) || isMoreMenuOpen
     }
 
     var body: some View {
-        Button {
-            highlight.notePress(id: cardID)
-            onOpen()
-        } label: {
+        LibraryOverviewCardSurface(
+            isSelected: isSelected,
+            isHovered: isHovered,
+            action: {
+                highlight.notePress(id: cardID)
+                onOpen()
+            }
+        ) {
             VStack(alignment: .leading, spacing: WorkbenchLibraryMetrics.recentCardGap) {
                 cover
 
@@ -242,6 +254,7 @@ private struct LibraryVideoCard: View {
                     .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .allowsHitTesting(false)
 
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                     Text(episodeLabel)
@@ -251,15 +264,9 @@ private struct LibraryVideoCard: View {
 
                     WatchStatusBadge(status: content.watchStatus)
                 }
+                .allowsHitTesting(false)
             }
         }
-        .buttonStyle(
-            LibraryOverviewCardButtonStyle(
-                isSelected: isSelected,
-                isHovered: isHovered
-            )
-        )
-        .focusable(false)
         .onHover { highlight.noteHover($0, id: cardID, showsHand: true) }
         .libraryCardContextMenuTrigger(
             isEnabled: true,
@@ -280,7 +287,17 @@ private struct LibraryVideoCard: View {
             coverPath: content.coverPath,
             coverRevision: content.coverRevision,
             positionMilliseconds: content.positionMilliseconds,
-            duration: content.duration
+            duration: content.duration,
+            showsMoreButton: isMoreButtonVisible,
+            isMoreMenuOpen: isMoreMenuOpen,
+            moreMenuAnchor: moreMenuAnchor,
+            onMoreHoverChange: { isButtonHovered in
+                highlight.noteActionButtonHover(isButtonHovered, id: cardID)
+            },
+            onToggleMoreMenu: {
+                highlight.notePress(id: cardID)
+                toggleAnchorMenu?(contextMenuItems, moreMenuAnchor, cardID)
+            }
         )
         .libraryCoverHoverEffect(
             isSelected: isSelected,
@@ -345,13 +362,17 @@ struct CompleteLibraryFolderGrid: View {
 }
 
 struct LibraryFolderCard: View {
+    @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
+    @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
     let folder: CompleteLibraryFolderSummaryPresentation
-    let highlight: CardHighlightModel
+    @ObservedObject var highlight: CardHighlightModel
     let isSelected: Bool
     let isHovered: Bool
     let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     let onOpen: () -> Void
+
+    @State private var moreMenuAnchor = MenuAnchorHandle()
 
     private var isAvailable: Bool {
         folder.episodeCount > 0
@@ -361,30 +382,31 @@ struct LibraryFolderCard: View {
         folder.id
     }
 
-    private var isHighlighted: Bool {
-        isSelected || isHovered
+    private var isMoreMenuOpen: Bool {
+        isAvailable && contextMenuOwnerID == cardID
+    }
+
+    private var isMoreButtonVisible: Bool {
+        isAvailable && (highlight.isPointerHovered(cardID) || isMoreMenuOpen)
     }
 
     var body: some View {
-        Button {
-            guard isAvailable else {
-                return
+        LibraryOverviewCardSurface(
+            isSelected: isSelected,
+            isHovered: isHovered,
+            isEnabled: isAvailable,
+            action: {
+                guard isAvailable else {
+                    return
+                }
+                highlight.notePress(id: cardID)
+                onOpen()
             }
-            highlight.notePress(id: cardID)
-            onOpen()
-        } label: {
+        ) {
             LibraryOverviewCardContent(title: folder.folderTitle) {
                 cover
             }
         }
-        .buttonStyle(
-            LibraryOverviewCardButtonStyle(
-                isSelected: isSelected,
-                isHovered: isHovered,
-                isEnabled: isAvailable
-            )
-        )
-        .disabled(!isAvailable)
         .onHover { highlight.noteHover($0, id: cardID, showsHand: isAvailable) }
         .libraryCardContextMenuTrigger(
             isEnabled: isAvailable,
@@ -402,7 +424,20 @@ struct LibraryFolderCard: View {
         LibraryCoverWithBadge(
             coverPath: folder.coverPath,
             coverRevision: folder.coverRevision,
-            badgeText: episodeCountText
+            badgeText: episodeCountText,
+            showsMoreButton: isMoreButtonVisible,
+            isMoreMenuOpen: isMoreMenuOpen,
+            moreMenuAnchor: moreMenuAnchor,
+            onMoreHoverChange: { isButtonHovered in
+                highlight.noteActionButtonHover(isButtonHovered, id: cardID)
+            },
+            onToggleMoreMenu: {
+                guard isAvailable else {
+                    return
+                }
+                highlight.notePress(id: cardID)
+                toggleAnchorMenu?(folderContextMenuItems, moreMenuAnchor, cardID)
+            }
         )
         .libraryCoverHoverEffect(
             isSelected: isSelected && isAvailable,

@@ -232,8 +232,26 @@ enum WorkbenchRedesignColors {
         // Library Media
         static let libraryProgressFill = NSColor.controlAccentColor
         static let libraryProgressTrack = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
-        static let libraryTimeBadgeBg = NSColor.dynamic(lightHex: "#0F172A", lightAlpha: 0.72, darkHex: "#000000", darkAlpha: 0.58)
+        static let libraryTimeBadgeBg = NSColor.dynamic(
+            lightHex: "#0F172A",
+            lightAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionHoverBackgroundLightOpacity,
+            darkHex: "#000000",
+            darkAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionHoverBackgroundDarkOpacity
+        )
         static let libraryTimeBadgeText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
+        static let libraryCoverActionBg = NSColor.dynamic(
+            lightHex: "#0F172A",
+            lightAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionBackgroundLightOpacity,
+            darkHex: "#000000",
+            darkAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionBackgroundDarkOpacity
+        )
+        static let libraryCoverActionBgHover = libraryTimeBadgeBg
+        static let libraryCoverActionBgPressed = NSColor.dynamic(
+            lightHex: "#0F172A",
+            lightAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionPressedBackgroundLightOpacity,
+            darkHex: "#000000",
+            darkAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionPressedBackgroundDarkOpacity
+        )
         static let libraryCoverPlaceholderBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#2E2E33")
         static let libraryCoverCropAccent = NSColor.controlAccentColor
         static let libraryCoverCropMask = NSColor.shadowColor.withAlphaComponent(0.55)
@@ -450,6 +468,9 @@ enum WorkbenchRedesignColors {
     static let libraryProgressTrack = Color(nsColor: NS.libraryProgressTrack)
     static let libraryTimeBadgeBg = Color(nsColor: NS.libraryTimeBadgeBg)
     static let libraryTimeBadgeText = Color(nsColor: NS.libraryTimeBadgeText)
+    static let libraryCoverActionBg = Color(nsColor: NS.libraryCoverActionBg)
+    static let libraryCoverActionBgHover = Color(nsColor: NS.libraryCoverActionBgHover)
+    static let libraryCoverActionBgPressed = Color(nsColor: NS.libraryCoverActionBgPressed)
     static let libraryCoverPlaceholderBg = Color(nsColor: NS.libraryCoverPlaceholderBg)
     static let libraryCoverCropAccent = Color(nsColor: NS.libraryCoverCropAccent)
     static let libraryCoverCropMask = Color(nsColor: NS.libraryCoverCropMask)

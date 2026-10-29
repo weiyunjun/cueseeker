@@ -479,6 +479,8 @@ struct WorkbenchIconButton: View {
     /// open, and for as long as the mode it switches on is on. Lit looks the
     /// same as hover, the way a shortcut button does.
     var isOpen: Bool = false
+    /// Default resting background when not hovered, pressed, or open.
+    var defaultBackground: Color = Color.clear
     /// Hover is read against the surface the button sits on, so a button drawn
     /// on another surface passes that surface's own step; the Workbench
     /// surface's is the default.
@@ -515,6 +517,7 @@ struct WorkbenchIconButton: View {
     /// contrast across surfaces. A disabled button greys the count with its glyph.
     var countBackground: Color = WorkbenchRedesignColors.badgeNeutralBg
     var countTextColor: Color = WorkbenchRedesignColors.textSecondary
+    var onHoverChange: ((Bool) -> Void)? = nil
     var action: (() -> Void)? = nil
 
     @Environment(\.isEnabled) private var isEnabled
@@ -531,7 +534,10 @@ struct WorkbenchIconButton: View {
                 .disabled(isFrozen)
                 .focusable(false)
                 .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
-                .onPointerHover { isHovered = $0 }
+                .onPointerHover { hovered in
+                    isHovered = hovered
+                    onHoverChange?(hovered)
+                }
             } else {
                 label
             }
@@ -601,7 +607,7 @@ struct WorkbenchIconButton: View {
         if isHovered {
             return hoverBackground
         }
-        return Color.clear
+        return defaultBackground
     }
 }
 

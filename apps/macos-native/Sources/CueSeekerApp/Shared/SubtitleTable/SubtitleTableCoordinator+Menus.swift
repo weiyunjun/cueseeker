@@ -146,6 +146,8 @@ extension SubtitleTableView.Coordinator {
                 columnID: columnID,
                 fallback: anchorFrame
             )
+        case .rowActionButton(let row, let fallbackFrame):
+            return rowActionButtonFrameInContainer(for: row) ?? fallbackFrame
         }
     }
 
@@ -178,7 +180,8 @@ extension SubtitleTableView.Coordinator {
         for row: Int,
         columnID: String = "cues",
         buttonFrame: CGRect,
-        clickPointInDocument: CGPoint? = nil
+        clickPointInDocument: CGPoint? = nil,
+        usesActionButtonAnchor: Bool = false
     ) {
         guard !isSelectionMode,
               row >= 0,
@@ -193,8 +196,15 @@ extension SubtitleTableView.Coordinator {
         // it is said here rather than left to whatever the pointer happened
         // to hover on the way in. Hover is frozen from now on.
         updateHoveredRow(row)
-        if let clickPointInDocument {
-            let hoveredColumn = hoveredDataColumnID(row: row, point: clickPointInDocument)
+        if usesActionButtonAnchor {
+            updateHoveredColumnID(nil)
+            updateHoveredCueTextRow(nil)
+            updateHoveredRowActionRow(row)
+        } else if let clickPointInDocument {
+            let isActionButtonHit = isPointInRowActionButton(row: row, point: clickPointInDocument)
+            let hoveredColumn = isActionButtonHit
+                ? nil
+                : hoveredDataColumnID(row: row, point: clickPointInDocument)
             updateHoveredColumnID(hoveredColumn)
             let cueTextRow = hoveredColumn == "cues"
                 && rowProvider(row)?.cueState.isUnavailable != true
@@ -202,6 +212,7 @@ extension SubtitleTableView.Coordinator {
                 ? row
                 : nil
             updateHoveredCueTextRow(cueTextRow)
+            updateHoveredRowActionRow(isActionButtonHit ? row : nil)
         } else {
             updateHoveredColumnID(columnID)
         }
@@ -209,12 +220,14 @@ extension SubtitleTableView.Coordinator {
         activeRowMenuRow = row
         activeRowMenuColumnID = columnID
         activeRowMenuTarget = target
-        activeMenuAnchor = .row(
-            row: row,
-            columnID: columnID,
-            anchorFrame: buttonFrame,
-            clickPointInDocument: clickPointInDocument
-        )
+        activeMenuAnchor = usesActionButtonAnchor
+            ? .rowActionButton(row: row, fallbackFrame: buttonFrame)
+            : .row(
+                row: row,
+                columnID: columnID,
+                anchorFrame: buttonFrame,
+                clickPointInDocument: clickPointInDocument
+            )
         menuPlacementOffset = nil
         invalidateRows([row])
 
@@ -468,6 +481,7 @@ extension SubtitleTableView.Coordinator {
         updateHoveredColumnID(nil)
         updateHoveredCueTextRow(nil)
         updateHoveredRowActionRow(nil)
+        updatePressedRowActionRow(nil)
         menuHost?.rootView = AnyView(EmptyView())
         menuHost?.invalidateIntrinsicContentSize()
         menuHost?.isHidden = true
