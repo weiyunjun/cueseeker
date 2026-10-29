@@ -16,8 +16,9 @@
 4. Player Title
 5. Flexible Spacer
 6. Trailing Function Region
-   1. Task Entry
-   2. Settings Entry
+   1. Command Panel Entry
+   2. Task Entry
+   3. Settings Entry
 
 #### Components
 
@@ -235,8 +236,9 @@
 3. Tabs
 4. Trailing Function Region
    1. Collage Action：仅 Current
-   2. Task Entry
-   3. Settings Entry
+   2. Command Panel Entry
+   3. Task Entry
+   4. Settings Entry
 
 #### Structure / Editing Collage
 
@@ -245,8 +247,9 @@
 3. Editing Title
 4. Trailing Function Region
    1. Collage Action：Open
-   2. Task Entry
-   3. Settings Entry
+   2. Command Panel Entry
+   3. Task Entry
+   4. Settings Entry
 
 #### Components
 

@@ -61,6 +61,15 @@
 - Scenario ID：topbar.navigation.forward
 - 所在位置：App Topbar
 
+### 3.1 命令面板入口（Command Panel Entry）
+- 英文：Open Command Panel
+- 简体中文：打开命令面板
+- 繁体中文：開啟指令面板
+- 快捷键：默认 `K`（动态跟随 `Settings / Shortcuts -> Open Command Panel`）
+- 触发延迟：1秒
+- Scenario ID：topbar.entry.command_panel
+- 所在位置：Player Topbar / Playback Overlay Topbar
+
 ### 4. 任务面板入口（Task Entry）
 - 英文：Tasks
 - 简体中文：任务
@@ -188,14 +197,20 @@
 - Scenario ID：player.control.mute
 - 所在位置：Player Bottom Control Bar
 
+### 13.1 打开播放覆盖层（Open Playback Overlay）
+- 英文：Open Playback Overlay
+- 简体中文：打开播放覆盖层
+- 繁体中文：開啟播放覆蓋層
+- 快捷键：默认 `↩`（动态跟随 `Settings / Shortcuts -> Open Playback Overlay`）
+- 触发延迟：1秒
+- Scenario ID：player.control.playback_overlay
+- 所在位置：Player Bottom Control Bar
+
 ### 14. 重播当前台词（Replay Current Cue）
-- 英文（可用）：Replay Current Cue
-- 简体中文（可用）：重播当前台词
-- 繁体中文（可用）：重播目前台詞
-- 快捷键（可用）：默认 `R`（动态跟随 `Settings / Shortcuts -> Replay Current Cue`）
-- 英文（Disabled - 当前无激活台词）：No active cue to replay
-- 简体中文（Disabled - 当前无激活台词）：当前没有可重播的台词
-- 繁体中文（Disabled - 当前无激活台词）：目前沒有可重播的台詞
+- 英文：Replay Current Cue
+- 简体中文：重播当前台词
+- 繁体中文：重播目前台詞
+- 快捷键：默认 `R`（动态跟随 `Settings / Shortcuts -> Replay Current Cue`）
 - 触发延迟：1秒
 - Scenario ID：player.control.repeat
 - 所在位置：Player Bottom Control Bar

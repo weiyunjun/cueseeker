@@ -758,6 +758,7 @@
 
 - Surface：Player Chrome
 - Item：Menu Item / Radio Menu Item
+- Options：`0.5×`、`0.75×`、`1×`、`1.25×`、`1.5×`、`1.75×`、`2×`、`3×`
 - Checked：当前生效倍速
 
 ##### Player More Menu

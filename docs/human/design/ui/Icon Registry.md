@@ -45,7 +45,7 @@
 | `arrow-right` | Regular | 送往列表 | 表格行菜单 / Save to Excerpt List、Move to ...、Duplicate to ... |
 | `x` | Regular | 关闭、清除、移除 | Icon Button / Inline Clear；Icon Button / Dialog Close；Task Card / Remove Action；Export to Anki Dialog / Card Item Remove，12px |
 | `check` | Regular | 已选 | Radio Menu Item |
-| `magnifying-glass` | Regular | 搜索 | Search Field；Sidebar Item / Search；Command Panel Root / Search Action；Playback Overlay 选中文字菜单 / Search Selected Text |
+| `magnifying-glass` | Regular | 搜索 | Search Field；Sidebar Item / Search；Player Topbar、Playback Topbar / Command Panel Entry；Command Panel Root / Search Action；Playback Overlay 选中文字菜单 / Search Selected Text |
 | `funnel` | Regular | 筛选 | Search / Excerpt Toolbar / Filter Trigger；Command Panel Secondary / Filter Trigger |
 | `funnel-simple` | Regular | 排序 | Library Overview / Sort Trigger；Search / Excerpt Toolbar / Sort Trigger；Command Panel Secondary / Sort Trigger |
 | `arrow-elbow-down-left` | Regular | 回车键 | Keycap / `Return`，16px |
@@ -119,6 +119,7 @@
 | `pause` | Fill | 暂停 | 播放控制条 / 播放暂停；Playback Feedback（暂停、自动暂停） |
 | `skip-back` | Fill | 上一个 | 播放控制条 / 上一个 |
 | `skip-forward` | Fill | 下一个 | 播放控制条 / 下一个 |
+| `list` | Regular | 播放覆盖层 | 播放控制条 / 打开播放覆盖层 |
 | `repeat` | Regular | 重播当前台词 | 播放控制条 / 重播当前台词 |
 | `camera` | Regular | 截图 | 播放控制条 / 截图；Playback Feedback（截图已复制） |
 | `speedometer` | Regular | 倍速 | Playback Feedback（倍速） |
