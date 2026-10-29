@@ -39,7 +39,7 @@
 | --- | --- | --- | --- |
 | `caret-left` | Regular | 后退、返回、快退 | App Topbar / Back；Player Topbar、Playback Topbar / Return Action；Playback Feedback（快退） |
 | `caret-right` | Regular | 前进、展开、快进 | App Topbar / Forward；Submenu Trigger / Submenu Indicator；Library File Tree 折叠态；Playback Feedback（快进）；File Page / Breadcrumb 分隔符，12px；File Page / Folder Card 右侧指示箭头，16px |
-| `caret-down` | Regular | 已展开 | Library File Tree 展开态 |
+| `caret-down` | Regular | 已展开、下拉 | Library File Tree 展开态；File Info / 文件切换触发器，16px |
 | `sidebar-simple` | Regular | 折叠、展开 Sidebar | Sidebar Toggle |
 | `arrow-left` | Regular | 返回上一级 | Command Panel Secondary / Back Action |
 | `arrow-right` | Regular | 送往列表 | 表格行菜单 / Save to Excerpt List、Move to ...、Duplicate to ... |
@@ -76,8 +76,8 @@
 | `minus-circle` | Regular | 移除 | Task Card 菜单 / Remove Task |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |
 | `stack` | Regular | 剧集 | Library File Tree / Display Title |
-| `video` | Regular | 视频 | Library File Tree / Video；Command Panel Root / Recent Videos；Library 封面占位，57px |
-| `subtitles` | Regular | 字幕 | Library File Tree / Subtitle；播放控制条 / 字幕；Playback Feedback（字幕开关）；Settings / Subtitle |
+| `video` | Regular | 视频 | Library File Tree / Video；Command Panel Root / Recent Videos；File Info / 配对文件菜单；Library 封面占位，57px |
+| `subtitles` | Regular | 字幕 | Library File Tree / Subtitle；播放控制条 / 字幕；Playback Feedback（字幕开关）；Settings / Subtitle；File Info / 配对文件菜单 |
 
 ## 3.4 状态与提示
 
