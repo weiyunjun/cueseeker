@@ -62,8 +62,7 @@ extension AppCoordinator {
                     },
                     currentIndex: currentIndex,
                     defaultIndex: recorded?.effectiveDefaultIndex ?? 0
-                ),
-                subtitles: playbackSubtitleMenuList(forVideoPath: videoPath)
+                )
             )
         )
     }
@@ -82,25 +81,6 @@ extension AppCoordinator {
             try player.selectAudioTrack(at: index)
         } catch {
             showPlaybackError(error)
-        }
-    }
-
-    func setPlaybackDefaultAudioTrack(_ index: Int) {
-        guard let database = libraryDatabase,
-              let videoPath = currentPlaybackVideoPath,
-              recordedAudioTracks(forVideoPath: videoPath)?.effectiveDefaultIndex != index
-        else {
-            return
-        }
-        Task.detached(priority: .utility) {
-            do {
-                try database.setDefaultAudioTrackIndex(
-                    index,
-                    forVideoFile: URL.fromMediaPath(videoPath)
-                )
-            } catch {
-                print("Failed to save the default audio track: \(error)")
-            }
         }
     }
 

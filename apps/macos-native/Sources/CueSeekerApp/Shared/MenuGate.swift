@@ -27,6 +27,7 @@ final class MenuGate {
         case cardMenu
         case selectedTextMenu
         case playerSpeedMenu
+        case playerSubtitleMenu
         case playerMoreMenu
         case excerptDestinationMenu
 
@@ -35,7 +36,7 @@ final class MenuGate {
         /// it.
         var takesWheel: Bool {
             switch self {
-            case .tableRowMenu, .selectedTextMenu, .excerptDestinationMenu, .playerMoreMenu:
+            case .tableRowMenu, .selectedTextMenu, .excerptDestinationMenu, .playerSubtitleMenu, .playerMoreMenu:
                 true
             case .cardMenu, .playerSpeedMenu:
                 false

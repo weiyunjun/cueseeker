@@ -166,6 +166,8 @@ final class PlaybackStore: ObservableObject {
     let speedMenuHighlight = MenuHighlightModel()
 
     func openSpeedMenu(defaultPosition: Int?) {
+        closeSubtitleMenu()
+        closeMoreMenu()
         speedMenuHighlight.open(
             selectablePositions: Array(PlaybackViewModel.speedPresets.indices),
             defaultPosition: defaultPosition
@@ -238,6 +240,61 @@ final class PlaybackStore: ObservableObject {
         excerptDestinationMenu = nil
     }
 
+    /// The open Player Subtitle Menu and what it lists; nil while closed. Its
+    /// keys arrive the same two ways as the speed menu's.
+    @Published private(set) var subtitleMenu: PlaybackSubtitleMenu?
+    let subtitleMenuHighlight = MenuHighlightModel()
+
+    func openSubtitleMenu(_ menu: PlaybackSubtitleMenu) {
+        closeSpeedMenu()
+        closeMoreMenu()
+        subtitleMenuHighlight.open(
+            selectablePositions: menu.selectablePositions
+        )
+        subtitleMenu = menu
+    }
+
+    func closeSubtitleMenu() {
+        guard subtitleMenu != nil else {
+            return
+        }
+        subtitleMenuHighlight.close()
+        subtitleMenu = nil
+    }
+
+    /// Arrow keys, Enter and Esc for the open Player Subtitle Menu, offered by
+    /// the menu gate and through the playback key owner.
+    func handleSubtitleMenuKey(
+        _ keyCode: UInt16,
+        isRepeat: Bool,
+        onSelect: (Int) -> Void
+    ) -> Bool {
+        guard let subtitleMenu else {
+            return false
+        }
+        switch keyCode {
+        case 53:
+            closeSubtitleMenu()
+            return true
+        case 126:
+            subtitleMenuHighlight.moveHighlight(by: -1)
+            return true
+        case 125:
+            subtitleMenuHighlight.moveHighlight(by: 1)
+            return true
+        case 36, 76:
+            if !isRepeat,
+               let position = subtitleMenuHighlight.highlightedPosition,
+               subtitleMenu.selectablePositions.contains(position) {
+                onSelect(position)
+                closeSubtitleMenu()
+            }
+            return true
+        default:
+            return false
+        }
+    }
+
     /// The open More menu and what it lists; nil while closed. Its keys arrive
     /// the same two ways as the speed menu's.
     @Published private(set) var moreMenu: PlaybackMoreMenu?
@@ -246,10 +303,10 @@ final class PlaybackStore: ObservableObject {
     let moreSubmenuState = MenuSubmenuState<PlaybackMoreSubmenu>()
 
     func openMoreMenu(_ menu: PlaybackMoreMenu) {
+        closeSpeedMenu()
+        closeSubtitleMenu()
         moreMenu = menu
         moreSubmenuState.reset()
-        // A trigger with an empty list is disabled and does not take the
-        // highlight.
         moreMenuHighlight.open(
             selectablePositions: menu.enabledSubmenus.map(\.rawValue)
         )

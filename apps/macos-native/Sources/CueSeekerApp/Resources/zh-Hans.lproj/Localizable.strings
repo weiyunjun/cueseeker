@@ -230,11 +230,13 @@
 "playback.fullscreen" = "全屏";
 "playback.more" = "更多";
 "playback.more.audio_track" = "音轨";
+"playback.more.no_audio_tracks" = "无音轨";
 "playback.more.subtitle" = "字幕";
 "playback.more.default_audio_track" = "默认音轨";
 "playback.more.default_subtitle" = "默认字幕";
 "playback.more.default_tag" = "默认";
 "playback.more.current_tag" = "当前";
+"playback.subtitle_menu.off" = "关闭";
 "playback.mute" = "静音";
 "playback.close_and_return" = "关闭视频并返回结果";
 "playback.minimize" = "最小化播放";
@@ -280,6 +282,7 @@
 "playback.hud.exit_fullscreen" = "退出全屏";
 "playback.hud.subtitles_on" = "字幕已开";
 "playback.hud.subtitles_off" = "字幕已关";
+"playback.hud.subtitle_switched" = "字幕已切换";
 "playback.hud.muted" = "已静音";
 "playback.hud.seek_forward" = "+ %d秒";
 "playback.hud.seek_backward" = "- %d秒";

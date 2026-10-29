@@ -154,6 +154,9 @@ struct PlaybackVideoStage: View {
             .clipped()
             // Laid over the whole stage, ahead of the clickable controls'
             // report below, so its items report among them.
+            .overlayPreferenceValue(PlaybackSubtitleButtonAnchorKey.self) { anchor in
+                subtitleMenuOverlay(anchor: anchor)
+            }
             .overlayPreferenceValue(PlaybackSpeedButtonAnchorKey.self) { anchor in
                 speedMenuOverlay(anchor: anchor)
             }
@@ -179,13 +182,15 @@ struct PlaybackVideoStage: View {
                 appState.playbackPageDidAppear()
             }
             .onChange(of: playback.playbackStatus) { status in
-                // The More menu lists the open video's tracks; another video
-                // opening takes the menu with it.
+                // The subtitle and More menus list the open video's tracks;
+                // another video opening takes the menus with it.
                 if status.isOpening {
+                    playback.closeSubtitleMenu()
                     playback.closeMoreMenu()
                 }
             }
             .onDisappear {
+                playback.closeSubtitleMenu()
                 playback.closeMoreMenu()
                 chrome.leaveVideoPage()
                 playback.pointerVisibility.setVisible(false)
@@ -207,6 +212,7 @@ struct PlaybackVideoStage: View {
                 // A hidden Player UI takes its menus and tooltips with it.
                 if !isVisible {
                     playback.closeSpeedMenu()
+                    playback.closeSubtitleMenu()
                     playback.closeMoreMenu()
                     TooltipCenter.shared.dismiss()
                 }
@@ -243,6 +249,23 @@ struct PlaybackVideoStage: View {
     }
 
     @ViewBuilder
+    private func subtitleMenuOverlay(anchor: Anchor<CGRect>?) -> some View {
+        if let menu = playback.subtitleMenu, let anchor {
+            GeometryReader { proxy in
+                PlaybackChromeSubtitleMenuOverlay(
+                    playback: playback,
+                    menu: menu,
+                    buttonFrame: proxy[anchor],
+                    suppressesInteraction: playback.interfaceLayers.isOpen(.commandPanel),
+                    onSelect: { position in
+                        appState.selectPlaybackSubtitleMenuItem(position)
+                    }
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
     private func moreMenuOverlay(anchor: Anchor<CGRect>?) -> some View {
         if let menu = playback.moreMenu, let anchor {
             GeometryReader { proxy in
@@ -256,12 +279,6 @@ struct PlaybackVideoStage: View {
                         switch submenu {
                         case .audioTrack:
                             appState.selectPlaybackAudioTrack(index)
-                        case .subtitle:
-                            appState.selectPlaybackSubtitle(index)
-                        case .defaultAudioTrack:
-                            appState.setPlaybackDefaultAudioTrack(index)
-                        case .defaultSubtitle:
-                            appState.setPlaybackDefaultSubtitle(index)
                         }
                     }
                 )

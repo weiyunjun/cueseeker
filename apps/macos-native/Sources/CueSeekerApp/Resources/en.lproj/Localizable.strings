@@ -230,11 +230,13 @@
 "playback.fullscreen" = "Fullscreen";
 "playback.more" = "More";
 "playback.more.audio_track" = "Audio Track";
+"playback.more.no_audio_tracks" = "No Audio Tracks";
 "playback.more.subtitle" = "Subtitle";
 "playback.more.default_audio_track" = "Default Audio Track";
 "playback.more.default_subtitle" = "Default Subtitle";
 "playback.more.default_tag" = "Default";
 "playback.more.current_tag" = "Current";
+"playback.subtitle_menu.off" = "Off";
 "playback.mute" = "Mute";
 "playback.close_and_return" = "Close video and return to results";
 "playback.minimize" = "Minimize playback";
@@ -280,6 +282,7 @@
 "playback.hud.exit_fullscreen" = "Exit Fullscreen";
 "playback.hud.subtitles_on" = "Subtitles On";
 "playback.hud.subtitles_off" = "Subtitles Off";
+"playback.hud.subtitle_switched" = "Subtitle Switched";
 "playback.hud.muted" = "Muted";
 "playback.hud.seek_forward" = "+ %ds";
 "playback.hud.seek_backward" = "- %ds";

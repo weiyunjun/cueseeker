@@ -48,25 +48,45 @@ func subtitleNamesKeepTheLastTwoExtensionsAtMost() {
 }
 
 @Test
-func moreSubmenusCheckAndTagTheOppositeItems() {
+func moreMenuExposesOnlyAudioTrackAndTagsDefault() {
+    #expect(PlaybackMoreSubmenu.allCases == [.audioTrack])
     let menu = PlaybackMoreMenu(
-        audioTracks: PlaybackMoreMenuList(names: ["#1", "#2", "#3"], currentIndex: 1, defaultIndex: 0),
-        subtitles: PlaybackMoreMenuList(names: [".ass", ".srt", ".en.ass"], currentIndex: 2, defaultIndex: 1)
+        audioTracks: PlaybackMoreMenuList(names: ["#1", "#2", "#3"], currentIndex: 1, defaultIndex: 0)
     )
 
+    #expect(menu.enabledSubmenus == [.audioTrack])
     #expect(menu.checkedIndex(in: .audioTrack) == 1)
     #expect(menu.tag(in: .audioTrack).index == 0)
-    #expect(menu.checkedIndex(in: .defaultAudioTrack) == 0)
-    #expect(menu.tag(in: .defaultAudioTrack).index == 1)
-    #expect(menu.checkedIndex(in: .subtitle) == 2)
-    #expect(menu.tag(in: .subtitle).index == 1)
-    #expect(menu.checkedIndex(in: .defaultSubtitle) == 1)
-    #expect(menu.tag(in: .defaultSubtitle).index == 2)
+    #expect(menu.tag(in: .audioTrack).title == L("playback.more.default_tag"))
+}
+
+@Test
+func subtitleMenuChecksActiveSubtitleWhenVisibleAndOffWhenHidden() {
+    let list = PlaybackMoreMenuList(names: [".ass", ".srt", ".en.ass"], currentIndex: 2, defaultIndex: 1)
+
+    let visibleMenu = PlaybackSubtitleMenu(subtitles: list, areSubtitlesVisible: true)
+    #expect(visibleMenu.offPosition == 3)
+    #expect(visibleMenu.selectablePositions == [0, 1, 2, 3])
+    #expect(visibleMenu.checkedPosition == 2)
+    #expect(!visibleMenu.isChecked(at: 0))
+    #expect(!visibleMenu.isChecked(at: 1))
+    #expect(visibleMenu.isChecked(at: 2))
+    #expect(!visibleMenu.isChecked(at: 3))
+    #expect(visibleMenu.tag(at: 0) == nil)
+    #expect(visibleMenu.tag(at: 1) == L("playback.more.default_tag"))
+    #expect(visibleMenu.tag(at: 2) == nil)
+    #expect(visibleMenu.tag(at: 3) == nil)
+
+    let hiddenMenu = PlaybackSubtitleMenu(subtitles: list, areSubtitlesVisible: false)
+    #expect(hiddenMenu.checkedPosition == 3)
+    #expect(!hiddenMenu.isChecked(at: 2))
+    #expect(hiddenMenu.isChecked(at: 3))
+    #expect(hiddenMenu.tag(at: 1) == L("playback.more.default_tag"))
 }
 
 @MainActor
 @Test
-func moreMenuKeysOpenSubmenusOnTheirFirstTrackAndPickWithEnter() {
+func moreMenuKeysOpenAudioTrackSubmenuAndPickWithEnter() {
     let suiteName = "PlaybackMoreMenuTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
     defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
@@ -75,45 +95,35 @@ func moreMenuKeysOpenSubmenusOnTheirFirstTrackAndPickWithEnter() {
     let pick: (PlaybackMoreSubmenu, Int) -> Void = { picks.append(($0, $1)) }
     store.openMoreMenu(
         PlaybackMoreMenu(
-            audioTracks: PlaybackMoreMenuList(names: ["#1", "#2", "#3"], currentIndex: 2, defaultIndex: 2),
-            subtitles: PlaybackMoreMenuList(names: [".ass", ".srt"], currentIndex: 0, defaultIndex: 0)
+            audioTracks: PlaybackMoreMenuList(names: ["#1", "#2", "#3"], currentIndex: 2, defaultIndex: 0)
         )
     )
     #expect(store.moreMenuHighlight.highlightedPosition == nil)
 
-    // First Down highlights Audio Track (0); second Down highlights Subtitle (2);
-    // Right opens Subtitle with no default item highlighted.
+    // Down highlights Audio Track (0); Right opens Audio Track with no default item highlighted.
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
     #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.audioTrack.rawValue)
-    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
-    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.subtitle.rawValue)
     #expect(store.handleMoreMenuKey(124, isRepeat: false, onSelect: pick))
-    #expect(store.moreSubmenuState.openParent == .subtitle)
+    #expect(store.moreSubmenuState.openParent == .audioTrack)
     #expect(store.moreSubmenuHighlight.highlightedPosition == nil)
 
     // Pressing Enter in a submenu with no highlighted item does nothing and
     // keeps the menu open.
     #expect(store.handleMoreMenuKey(36, isRepeat: false, onSelect: pick))
     #expect(picks.isEmpty)
-    #expect(store.moreSubmenuState.openParent == .subtitle)
+    #expect(store.moreSubmenuState.openParent == .audioTrack)
 
-    // Up and down now move in the submenu, as far as its own list; left
-    // closes it and keeps Subtitle highlighted in the parent menu.
+    // Up and down move in the submenu; Left closes it and keeps Audio Track
+    // highlighted in the parent menu.
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
     #expect(store.moreSubmenuHighlight.highlightedPosition == 0)
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
     #expect(store.moreSubmenuHighlight.highlightedPosition == 1)
-    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
-    #expect(store.moreSubmenuHighlight.highlightedPosition == 1)
     #expect(store.handleMoreMenuKey(123, isRepeat: false, onSelect: pick))
     #expect(store.moreSubmenuState.openParent == nil)
-    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.subtitle.rawValue)
+    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.audioTrack.rawValue)
 
-    // Down reaches Default Audio Track (2).
-    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
-    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.defaultAudioTrack.rawValue)
-
-    // Enter opens it with no item highlighted; Down + Down selects index 1 and Enter picks it.
+    // Enter reopens Audio Track with no item highlighted; Down + Down selects index 1 and Enter picks it.
     #expect(store.handleMoreMenuKey(36, isRepeat: false, onSelect: pick))
     #expect(store.moreSubmenuHighlight.highlightedPosition == nil)
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
@@ -122,7 +132,7 @@ func moreMenuKeysOpenSubmenusOnTheirFirstTrackAndPickWithEnter() {
     #expect(store.moreSubmenuHighlight.highlightedPosition == 1)
     #expect(store.handleMoreMenuKey(36, isRepeat: false, onSelect: pick))
     #expect(picks.count == 1)
-    #expect(picks.first?.0 == .defaultAudioTrack)
+    #expect(picks.first?.0 == .audioTrack)
     #expect(picks.first?.1 == 1)
     #expect(store.moreMenu == nil)
     #expect(!store.handleMoreMenuKey(36, isRepeat: false, onSelect: pick))
@@ -130,38 +140,74 @@ func moreMenuKeysOpenSubmenusOnTheirFirstTrackAndPickWithEnter() {
 
 @MainActor
 @Test
-func moreMenuWithoutRecordedTracksHighlightsNothing() {
+func moreMenuWithoutAudioTracksStillExpandsToNonSelectableSubmenu() {
     let suiteName = "PlaybackMoreMenuTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
     defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
     let store = PlaybackStore(userDefaults: userDefaults)
     let empty = PlaybackMoreMenuList(names: [], currentIndex: 0, defaultIndex: 0)
-    store.openMoreMenu(PlaybackMoreMenu(audioTracks: empty, subtitles: empty))
+    let menu = PlaybackMoreMenu(audioTracks: empty)
+    #expect(menu.enabledSubmenus == [.audioTrack])
+
+    var picks: [(PlaybackMoreSubmenu, Int)] = []
+    let pick: (PlaybackMoreSubmenu, Int) -> Void = { picks.append(($0, $1)) }
+    store.openMoreMenu(menu)
     #expect(store.moreMenuHighlight.highlightedPosition == nil)
-    #expect(store.handleMoreMenuKey(124, isRepeat: false, onSelect: { _, _ in }))
-    #expect(store.moreSubmenuState.openParent == nil)
-    #expect(store.handleMoreMenuKey(53, isRepeat: false, onSelect: { _, _ in }))
+
+    // Audio Track is still enabled and opens its submenu, whose disabled
+    // `No Audio Tracks` item has no selectable positions.
+    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
+    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.audioTrack.rawValue)
+    #expect(store.handleMoreMenuKey(124, isRepeat: false, onSelect: pick))
+    #expect(store.moreSubmenuState.openParent == .audioTrack)
+    #expect(store.moreSubmenuHighlight.selectablePositions.isEmpty)
+    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
+    #expect(store.moreSubmenuHighlight.highlightedPosition == nil)
+    #expect(store.handleMoreMenuKey(36, isRepeat: false, onSelect: pick))
+    #expect(picks.isEmpty)
+    #expect(store.moreMenu != nil)
+
+    #expect(store.handleMoreMenuKey(53, isRepeat: false, onSelect: pick))
     #expect(store.moreMenu == nil)
 }
 
 @MainActor
 @Test
-func moreMenuWithOnlySubtitlesSkipsTheAudioTrackTriggers() {
+func subtitleMenuKeysNavigateSubtitlesAndOffItemAndMutuallyExcludeOtherPlayerMenus() {
     let suiteName = "PlaybackMoreMenuTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
     defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
     let store = PlaybackStore(userDefaults: userDefaults)
-    let menu = PlaybackMoreMenu(
-        audioTracks: PlaybackMoreMenuList(names: [], currentIndex: 0, defaultIndex: 0),
-        subtitles: PlaybackMoreMenuList(names: [".srt"], currentIndex: 0, defaultIndex: 0)
+    let menu = PlaybackSubtitleMenu(
+        subtitles: PlaybackMoreMenuList(names: [".sc.ass", ".en.srt"], currentIndex: 0, defaultIndex: 0),
+        areSubtitlesVisible: true
     )
-    #expect(menu.enabledSubmenus == [.subtitle, .defaultSubtitle])
-    store.openMoreMenu(menu)
-    #expect(store.moreMenuHighlight.highlightedPosition == nil)
-    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: { _, _ in }))
-    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.subtitle.rawValue)
-    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: { _, _ in }))
-    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.defaultSubtitle.rawValue)
+
+    store.openSpeedMenu(defaultPosition: 2)
+    #expect(store.isSpeedMenuOpen)
+    store.openSubtitleMenu(menu)
+    #expect(!store.isSpeedMenuOpen)
+    #expect(store.subtitleMenu == menu)
+    #expect(store.subtitleMenuHighlight.highlightedPosition == nil)
+
+    var pickedPositions: [Int] = []
+    let pick: (Int) -> Void = { pickedPositions.append($0) }
+
+    // Enter without highlight does nothing.
+    #expect(store.handleSubtitleMenuKey(36, isRepeat: false, onSelect: pick))
+    #expect(pickedPositions.isEmpty)
+    #expect(store.subtitleMenu != nil)
+
+    // Down moves through subtitle 0, subtitle 1, and Off (position 2).
+    #expect(store.handleSubtitleMenuKey(125, isRepeat: false, onSelect: pick))
+    #expect(store.subtitleMenuHighlight.highlightedPosition == 0)
+    #expect(store.handleSubtitleMenuKey(125, isRepeat: false, onSelect: pick))
+    #expect(store.subtitleMenuHighlight.highlightedPosition == 1)
+    #expect(store.handleSubtitleMenuKey(125, isRepeat: false, onSelect: pick))
+    #expect(store.subtitleMenuHighlight.highlightedPosition == 2)
+    #expect(store.handleSubtitleMenuKey(36, isRepeat: false, onSelect: pick))
+    #expect(pickedPositions == [2])
+    #expect(store.subtitleMenu == nil)
 }
 
 @MainActor
@@ -274,11 +320,6 @@ func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
             names: (1...40).map { "#\($0) Japanese, オーディオコメンタリー, flac, 2ch" },
             currentIndex: 0,
             defaultIndex: 1
-        ),
-        subtitles: PlaybackMoreMenuList(
-            names: (1...40).map { ".s\($0).ass" },
-            currentIndex: 1,
-            defaultIndex: 0
         )
     )
     store.openMoreMenu(menu)
@@ -319,6 +360,47 @@ func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
         #expect(bounds.contains(frame))
         #expect(frame.maxX <= layout.menuFrame.minX || frame.minX >= layout.menuFrame.maxX)
     }
+
+    // Also verify the empty-audio-tracks submenu layout stays within bounds.
+    let emptyMenu = PlaybackMoreMenu(
+        audioTracks: PlaybackMoreMenuList(names: [], currentIndex: 0, defaultIndex: 0)
+    )
+    let emptyOverlay = PlaybackChromeMoreMenuOverlay(
+        playback: store,
+        submenuState: store.moreSubmenuState,
+        menu: emptyMenu,
+        buttonFrame: button,
+        suppressesInteraction: false,
+        onSelect: { _, _ in }
+    )
+    let emptyLayout = emptyOverlay.measuredLayout(stageSize: stage)
+    if let emptySubmenuFrame = emptyLayout.submenus[.audioTrack]?.frame {
+        #expect(bounds.contains(emptySubmenuFrame))
+    } else {
+        Issue.record("No layout for empty audioTrack submenu")
+    }
+
+    // And verify the Player Subtitle Menu layout stays within stage bounds.
+    let subtitleMenu = PlaybackSubtitleMenu(
+        subtitles: PlaybackMoreMenuList(
+            names: (1...40).map { ".s\($0).ass" },
+            currentIndex: 1,
+            defaultIndex: 0
+        ),
+        areSubtitlesVisible: true
+    )
+    store.openSubtitleMenu(subtitleMenu)
+    let subtitleButton = CGRect(x: 316, y: 510, width: 32, height: 32)
+    let subtitleOverlay = PlaybackChromeSubtitleMenuOverlay(
+        playback: store,
+        menu: subtitleMenu,
+        buttonFrame: subtitleButton,
+        suppressesInteraction: false,
+        onSelect: { _ in }
+    )
+    let subtitleLayout = subtitleOverlay.measuredLayout(stageSize: stage)
+    let subtitleBounds = PlaybackChromeMoreMenuOverlay.bounds(stageSize: stage, buttonFrame: subtitleButton)
+    #expect(subtitleBounds.contains(subtitleLayout.frame))
 }
 
 @Test

@@ -5,30 +5,16 @@ import SwiftUI
 /// The More menu's submenus, in the order the menu lists them.
 enum PlaybackMoreSubmenu: Int, CaseIterable, Hashable {
     case audioTrack
-    case subtitle
-    case defaultAudioTrack
-    case defaultSubtitle
 
     var title: String {
         switch self {
         case .audioTrack:
             L("playback.more.audio_track")
-        case .subtitle:
-            L("playback.more.subtitle")
-        case .defaultAudioTrack:
-            L("playback.more.default_audio_track")
-        case .defaultSubtitle:
-            L("playback.more.default_subtitle")
         }
-    }
-
-    /// Whether the submenu sets the default rather than what plays now.
-    var setsDefault: Bool {
-        self == .defaultAudioTrack || self == .defaultSubtitle
     }
 }
 
-/// One list the More menu offers for the open video: the names in order, the
+/// One list a player menu offers for the open video: the names in order, the
 /// one playing and the default. Both indexes are the items that take effect,
 /// so one the list does not reach shows as the first.
 struct PlaybackMoreMenuList: Equatable {
@@ -38,38 +24,74 @@ struct PlaybackMoreMenuList: Equatable {
 }
 
 /// What the More menu lists for the open video: the audio tracks Index
-/// recorded and the subtitles matched to it.
+/// recorded.
 struct PlaybackMoreMenu: Equatable {
     let audioTracks: PlaybackMoreMenuList
-    let subtitles: PlaybackMoreMenuList
 
     func list(in submenu: PlaybackMoreSubmenu) -> PlaybackMoreMenuList {
         switch submenu {
-        case .audioTrack, .defaultAudioTrack:
+        case .audioTrack:
             audioTracks
-        case .subtitle, .defaultSubtitle:
-            subtitles
         }
     }
 
-    /// The submenu checks one item and tags the other the submenu does not
-    /// set: Audio Track and Subtitle check the one playing and tag the
-    /// default, their Default submenus the reverse.
+    /// Audio Track checks the track playing now and tags the default track.
     func checkedIndex(in submenu: PlaybackMoreSubmenu) -> Int {
-        let list = list(in: submenu)
-        return submenu.setsDefault ? list.defaultIndex : list.currentIndex
+        list(in: submenu).currentIndex
     }
 
     func tag(in submenu: PlaybackMoreSubmenu) -> (index: Int, title: String) {
-        let list = list(in: submenu)
-        return submenu.setsDefault
-            ? (list.currentIndex, L("playback.more.current_tag"))
-            : (list.defaultIndex, L("playback.more.default_tag"))
+        (list(in: submenu).defaultIndex, L("playback.more.default_tag"))
     }
 
-    /// The triggers that open a submenu: those whose list is not empty.
+    /// The triggers that open a submenu. `Audio Track` is always enabled; when
+    /// the video has no audio tracks its submenu opens to a disabled
+    /// `No Audio Tracks` item.
     var enabledSubmenus: [PlaybackMoreSubmenu] {
-        PlaybackMoreSubmenu.allCases.filter { !list(in: $0).names.isEmpty }
+        PlaybackMoreSubmenu.allCases
+    }
+}
+
+/// What the Player Subtitle Menu lists for the open video: its matched
+/// subtitles in database order, which one is active, which one is the default,
+/// and whether subtitles are currently visible.
+struct PlaybackSubtitleMenu: Equatable {
+    let subtitles: PlaybackMoreMenuList
+    let areSubtitlesVisible: Bool
+
+    /// The position of the trailing `Off` item after all subtitle rows.
+    var offPosition: Int {
+        subtitles.names.count
+    }
+
+    /// All selectable item positions in top-to-bottom order: each subtitle row
+    /// followed by `Off`.
+    var selectablePositions: [Int] {
+        Array(0...offPosition)
+    }
+
+    /// The single checked position: the active subtitle when subtitles are
+    /// visible, or `Off` when subtitles are hidden.
+    var checkedPosition: Int {
+        guard areSubtitlesVisible,
+              subtitles.names.indices.contains(subtitles.currentIndex)
+        else {
+            return offPosition
+        }
+        return subtitles.currentIndex
+    }
+
+    func isChecked(at position: Int) -> Bool {
+        checkedPosition == position
+    }
+
+    func tag(at position: Int) -> String? {
+        guard subtitles.names.indices.contains(position),
+              position == subtitles.defaultIndex
+        else {
+            return nil
+        }
+        return L("playback.more.default_tag")
     }
 }
 
@@ -234,25 +256,35 @@ struct PlaybackChromeMoreMenuOverlay: View {
     }
 
     /// The submenu's items, laid out at the given width, or each name on one
-    /// line when there is none.
+    /// line when there is none. When the video has no audio tracks, the
+    /// submenu shows a single disabled row without a leading checkmark slot.
+    @ViewBuilder
     private func items(_ submenu: PlaybackMoreSubmenu, itemWidth: CGFloat?) -> some View {
-        let tag = menu.tag(in: submenu)
-        return VStack(spacing: Self.itemGap) {
-            ForEach(Array(menu.list(in: submenu).names.enumerated()), id: \.offset) { index, name in
-                PlaybackMoreSubmenuItem(
-                    name: name,
-                    isChecked: menu.checkedIndex(in: submenu) == index,
-                    tag: tag.index == index ? tag.title : nil,
-                    width: itemWidth,
-                    position: index,
-                    suppressesInteraction: suppressesInteraction,
-                    highlight: playback.moreSubmenuHighlight,
-                    action: {
-                        onSelect(submenu, index)
-                        playback.closeMoreMenu()
-                    }
-                )
-                .id(index)
+        let names = menu.list(in: submenu).names
+        if names.isEmpty {
+            PlaybackMoreDisabledSubmenuItem(
+                title: L("playback.more.no_audio_tracks"),
+                width: itemWidth
+            )
+        } else {
+            let tag = menu.tag(in: submenu)
+            VStack(spacing: Self.itemGap) {
+                ForEach(Array(names.enumerated()), id: \.offset) { index, name in
+                    PlaybackMoreSubmenuItem(
+                        name: name,
+                        isChecked: menu.checkedIndex(in: submenu) == index,
+                        tag: tag.index == index ? tag.title : nil,
+                        width: itemWidth,
+                        position: index,
+                        suppressesInteraction: suppressesInteraction,
+                        highlight: playback.moreSubmenuHighlight,
+                        action: {
+                            onSelect(submenu, index)
+                            playback.closeMoreMenu()
+                        }
+                    )
+                    .id(index)
+                }
             }
         }
     }
@@ -375,6 +407,183 @@ struct PlaybackMoreSubmenuLayout {
     /// The width the tracks are laid out at; names wrap inside it.
     let itemWidth: CGFloat
     /// How tall the submenu may grow before it scrolls.
+    let maximumHeight: CGFloat
+}
+
+/// The Player Subtitle Menu, laid over the playback stage above the subtitle
+/// button. It lists the video's matched subtitles (tagging the default), a
+/// divider, and the trailing `Off` item.
+struct PlaybackChromeSubtitleMenuOverlay: View {
+    @ObservedObject var playback: PlaybackStore
+    let menu: PlaybackSubtitleMenu
+    let buttonFrame: CGRect
+    let suppressesInteraction: Bool
+    let onSelect: (Int) -> Void
+    @State private var layout: PlaybackSubtitleMenuLayout?
+
+    private static let padding = MenuMetrics.padding
+    private static let itemGap: CGFloat = 0
+
+    private struct LayoutInput: Equatable {
+        let stageSize: CGSize
+        let buttonFrame: CGRect
+        let menu: PlaybackSubtitleMenu
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let menuFrame = layout?.frame ?? .zero
+
+            ZStack(alignment: .topLeading) {
+                MenuGateClientView(
+                    gate: playback.interfaceLayers.menuGate,
+                    owner: .playbackPage,
+                    kind: .playerSubtitleMenu,
+                    menuFrame: menuFrame,
+                    anchorFrame: buttonFrame,
+                    handleKey: { keyCode, isRepeat in
+                        playback.handleSubtitleMenuKey(keyCode, isRepeat: isRepeat, onSelect: onSelect)
+                    },
+                    dismiss: { _ in
+                        DispatchQueue.main.async {
+                            playback.closeSubtitleMenu()
+                        }
+                    }
+                )
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .allowsHitTesting(false)
+
+                if let layout {
+                    PlaybackMoreMenuHost(
+                        content: AnyView(
+                            menuPanel(
+                                itemWidth: layout.itemWidth,
+                                maximumHeight: layout.maximumHeight
+                            )
+                        )
+                    )
+                    .frame(width: menuFrame.width, height: menuFrame.height)
+                    .offset(x: menuFrame.minX, y: menuFrame.minY)
+                    interactiveRegion(menuFrame)
+                }
+            }
+            .onAppear {
+                layout = measuredLayout(stageSize: proxy.size)
+            }
+            .onChange(of: LayoutInput(stageSize: proxy.size, buttonFrame: buttonFrame, menu: menu)) { input in
+                layout = measuredLayout(stageSize: input.stageSize)
+            }
+        }
+    }
+
+    private func menuPanel(itemWidth: CGFloat, maximumHeight: CGFloat) -> some View {
+        WorkbenchPopoverPanel(
+            surface: .playerChrome,
+            maximumHeight: maximumHeight,
+            highlight: playback.subtitleMenuHighlight
+        ) {
+            items(itemWidth: itemWidth)
+        }
+    }
+
+    private func items(itemWidth: CGFloat?) -> some View {
+        VStack(spacing: Self.itemGap) {
+            ForEach(Array(menu.subtitles.names.enumerated()), id: \.offset) { index, name in
+                PlaybackMoreSubmenuItem(
+                    name: name,
+                    isChecked: menu.isChecked(at: index),
+                    tag: menu.tag(at: index),
+                    width: itemWidth,
+                    position: index,
+                    suppressesInteraction: suppressesInteraction,
+                    highlight: playback.subtitleMenuHighlight,
+                    action: {
+                        onSelect(index)
+                        playback.closeSubtitleMenu()
+                    }
+                )
+                .id(index)
+            }
+
+            if !menu.subtitles.names.isEmpty {
+                WorkbenchMenuDivider()
+            }
+
+            PlaybackMoreSubmenuItem(
+                name: L("playback.subtitle_menu.off"),
+                isChecked: menu.isChecked(at: menu.offPosition),
+                tag: nil,
+                width: itemWidth,
+                position: menu.offPosition,
+                suppressesInteraction: suppressesInteraction,
+                highlight: playback.subtitleMenuHighlight,
+                action: {
+                    onSelect(menu.offPosition)
+                    playback.closeSubtitleMenu()
+                }
+            )
+            .id(menu.offPosition)
+        }
+    }
+
+    private func interactiveRegion(_ frame: CGRect) -> some View {
+        Color.clear
+            .frame(width: frame.width, height: frame.height)
+            .playerInteractiveRegion()
+            .offset(x: frame.minX, y: frame.minY)
+            .allowsHitTesting(false)
+    }
+
+    static func menuLayout(
+        naturalItemWidth: CGFloat,
+        itemStackHeight: (CGFloat) -> CGFloat,
+        buttonFrame: CGRect,
+        bounds: CGRect
+    ) -> PlaybackSubtitleMenuLayout {
+        let padding = Self.padding * 2
+        let wanted = min(naturalItemWidth + padding, PlaybackChromeMetrics.audioTrackMenuMaxWidth)
+        let room = bounds.width
+        let maximumHeight = min(MenuMetrics.maximumHeight, bounds.height)
+        var itemWidth = min(wanted, room) - padding
+        var size = CGSize(width: itemWidth + padding, height: itemStackHeight(itemWidth) + padding)
+        if size.height > maximumHeight {
+            itemWidth = min(itemWidth, room - padding - MenuMetrics.scrollbarStrip)
+            size = CGSize(
+                width: itemWidth + padding + MenuMetrics.scrollbarStrip,
+                height: maximumHeight
+            )
+        }
+        return PlaybackSubtitleMenuLayout(
+            frame: MenuPlacement.openingFrame(
+                anchor: buttonFrame,
+                menuSize: size,
+                in: bounds,
+                gap: PlaybackChromeMetrics.speedMenuGap
+            ),
+            itemWidth: itemWidth,
+            maximumHeight: maximumHeight
+        )
+    }
+
+    func measuredLayout(stageSize: CGSize) -> PlaybackSubtitleMenuLayout {
+        let bounds = PlaybackChromeMoreMenuOverlay.bounds(
+            stageSize: stageSize,
+            buttonFrame: buttonFrame
+        )
+        return Self.menuLayout(
+            naturalItemWidth: NSHostingView(rootView: items(itemWidth: nil)).fittingSize.width,
+            itemStackHeight: { width in
+                NSHostingView(rootView: items(itemWidth: width)).fittingSize.height
+            },
+            buttonFrame: buttonFrame,
+            bounds: bounds
+        )
+    }
+}
+
+struct PlaybackSubtitleMenuLayout {
+    let frame: CGRect
+    let itemWidth: CGFloat
     let maximumHeight: CGFloat
 }
 
@@ -537,5 +746,35 @@ private struct PlaybackMoreSubmenuItem: View {
             )
         )
         .focusable(false)
+    }
+}
+
+/// A disabled row in the Audio Track submenu when the video has no audio
+/// tracks, without a leading checkmark slot.
+private struct PlaybackMoreDisabledSubmenuItem: View {
+    let title: String
+    let width: CGFloat?
+
+    private static let lineHeight: CGFloat = NSLayoutManager().defaultLineHeight(
+        for: NSFont.systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .medium
+        )
+    )
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            Text(title)
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeControl,
+                    weight: .medium
+                ))
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .foregroundStyle(PlaybackTheme.textTertiary)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignMenuItemHorizontalPadding)
+        .padding(.vertical, (WorkbenchControlMetrics.redesignMenuItemHeight - Self.lineHeight) / 2)
+        .frame(width: width, alignment: .leading)
     }
 }

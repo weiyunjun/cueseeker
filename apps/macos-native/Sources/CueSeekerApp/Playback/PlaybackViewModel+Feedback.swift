@@ -278,6 +278,16 @@ extension PlaybackViewModel {
         )
     }
 
+    func showSubtitleSwitchedFeedback() {
+        showFeedback(
+            PlaybackFeedback(
+                icon: .subtitles,
+                text: L("playback.hud.subtitle_switched")
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
     func showSpeedFeedback(_ speed: Double) {
         showFeedback(
             PlaybackFeedback(

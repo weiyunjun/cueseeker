@@ -24,6 +24,59 @@ extension AppCoordinator {
         )
     }
 
+    func togglePlaybackSubtitleMenu() {
+        guard playback.subtitleMenu == nil else {
+            playback.closeSubtitleMenu()
+            return
+        }
+        guard let videoPath = currentPlaybackVideoPath else {
+            return
+        }
+        playback.openSubtitleMenu(
+            PlaybackSubtitleMenu(
+                subtitles: playbackSubtitleMenuList(forVideoPath: videoPath),
+                areSubtitlesVisible: playback.playbackViewModel?.areSubtitlesVisible ?? false
+            )
+        )
+    }
+
+    /// Handles a choice in the Player Subtitle Menu: a subtitle row (`0 ..< count`)
+    /// or the trailing `Off` row (`count`). Choosing the already-checked row
+    /// does nothing and shows no HUD.
+    func selectPlaybackSubtitleMenuItem(_ position: Int) {
+        guard let videoPath = currentPlaybackVideoPath else {
+            return
+        }
+        let subtitles = recordedSubtitles(forVideoPath: videoPath)?.subtitles ?? []
+        let wasVisible = playback.playbackViewModel?.areSubtitlesVisible ?? false
+
+        if position == subtitles.count {
+            guard wasVisible else {
+                return
+            }
+            playback.playbackViewModel?.setSubtitlesVisible(false, showsFeedback: true)
+            return
+        }
+
+        guard subtitles.indices.contains(position) else {
+            return
+        }
+        let isSameSubtitle = subtitles[position].subtitleFileID == currentPlaybackSubtitleFileID
+        if wasVisible {
+            guard !isSameSubtitle else {
+                return
+            }
+            selectPlaybackSubtitle(position)
+            playback.playbackViewModel?.showSubtitleSwitchedFeedback()
+        } else if isSameSubtitle {
+            playback.playbackViewModel?.setSubtitlesVisible(true, showsFeedback: true)
+        } else {
+            selectPlaybackSubtitle(position)
+            playback.playbackViewModel?.setSubtitlesVisible(true, showsFeedback: false)
+            playback.playbackViewModel?.showSubtitleSwitchedFeedback()
+        }
+    }
+
     /// Switches this playback's subtitle where it stands: the time, playing or
     /// paused, and the Playlist stay as they are. The subtitle already playing
     /// is left alone. The subtitle loads on its own, so a video that failed to
@@ -52,28 +105,6 @@ extension AppCoordinator {
             player.loadSubtitleSource(source)
         }
         playbackSubtitle = subtitle
-    }
-
-    func setPlaybackDefaultSubtitle(_ index: Int) {
-        guard let database = libraryDatabase,
-              let videoPath = currentPlaybackVideoPath,
-              let recorded = recordedSubtitles(forVideoPath: videoPath),
-              recorded.subtitles.indices.contains(index),
-              recorded.effectiveDefault != recorded.subtitles[index]
-        else {
-            return
-        }
-        let subtitleFileID = recorded.subtitles[index].subtitleFileID
-        Task.detached(priority: .utility) {
-            do {
-                try database.setDefaultSubtitleFileID(
-                    subtitleFileID,
-                    forVideoFile: URL.fromMediaPath(videoPath)
-                )
-            } catch {
-                print("Failed to save the default subtitle: \(error)")
-            }
-        }
     }
 
     private func recordedSubtitles(forVideoPath videoPath: String) -> VideoSubtitles? {

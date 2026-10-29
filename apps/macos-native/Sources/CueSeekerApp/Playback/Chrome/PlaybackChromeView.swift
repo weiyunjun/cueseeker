@@ -14,6 +14,7 @@ struct PlaybackChromeControls {
     let isFullscreen: Bool
     let isFullscreenToggleDisabled: Bool
     let toggleFullscreen: () -> Void
+    let toggleSubtitleMenu: () -> Void
     let toggleMoreMenu: () -> Void
 }
 
@@ -40,8 +41,19 @@ extension PlaybackChromeControls {
             toggleFullscreen: fullscreenAction ?? {
                 appState.togglePlaybackFullscreenFromUser()
             },
+            toggleSubtitleMenu: { appState.togglePlaybackSubtitleMenu() },
             toggleMoreMenu: { appState.togglePlaybackMoreMenu() }
         )
+    }
+}
+
+/// The Subtitle button's bounds, read by the stage, which lays the Subtitle
+/// menu over the whole video rather than inside the bottom chrome.
+struct PlaybackSubtitleButtonAnchorKey: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = nextValue() ?? value
     }
 }
 
@@ -94,6 +106,7 @@ struct PlaybackChromeView: View {
             .frame(height: PlaybackChromeMetrics.height, alignment: .bottom)
             .onDisappear {
                 playback.closeSpeedMenu()
+                playback.closeSubtitleMenu()
             }
     }
 
@@ -253,16 +266,13 @@ struct PlaybackChromeView: View {
                 shortcut: .action(.copyScreenshot)
             )
 
-            PlaybackSubtitleChromeButton(
-                viewModel: viewModel
+            PlaybackChromeIconButton(
+                icon: .subtitles,
+                isOpen: playback.subtitleMenu != nil,
+                accessibilityLabel: L("playback.subtitles"),
+                action: controls.toggleSubtitleMenu
             )
-            .workbenchTooltip(
-                scenarioID: "player.control.subtitles",
-                label: viewModel.areSubtitlesVisible
-                    ? L("tooltip.player.subtitles.hide")
-                    : L("tooltip.player.subtitles.show"),
-                shortcut: .action(.toggleSubtitles)
-            )
+            .anchorPreference(key: PlaybackSubtitleButtonAnchorKey.self, value: .bounds) { $0 }
 
             speedControl
 
@@ -316,19 +326,6 @@ private struct PlaybackPlayPauseChromeButton: View {
             iconWeight: .fill,
             accessibilityLabel: viewModel.isPlaying ? L("playback.pause") : L("playback.play"),
             action: action
-        )
-    }
-}
-
-private struct PlaybackSubtitleChromeButton: View {
-    @ObservedObject var viewModel: PlaybackViewModel
-
-    var body: some View {
-        PlaybackChromeIconButton(
-            icon: .subtitles,
-            isOpen: viewModel.areSubtitlesVisible,
-            accessibilityLabel: L("playback.subtitles"),
-            action: viewModel.toggleSubtitles
         )
     }
 }

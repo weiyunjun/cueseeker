@@ -168,6 +168,7 @@ struct WorkbenchPopoverPanel<Content: View>: View {
     /// their own position for the reveal to find them.
     @ObservedObject var highlight: MenuHighlightModel
     @ViewBuilder var content: () -> Content
+    @Environment(\.colorScheme) private var colorScheme
     @State private var contentHeight: CGFloat = .infinity
 
     var body: some View {
@@ -204,6 +205,7 @@ struct WorkbenchPopoverPanel<Content: View>: View {
                     )
                 }
             }
+            .environment(\.colorScheme, isPlayerChrome ? .dark : colorScheme)
             .fixedSize(horizontal: true, vertical: false)
             .background(
                 Group {
