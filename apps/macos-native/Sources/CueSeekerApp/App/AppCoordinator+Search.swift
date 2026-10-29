@@ -196,8 +196,7 @@ extension AppCoordinator {
             languageFilter: languageFilter,
             watchStateFilter: watchStateFilter,
             databaseIsCompacting: indexing.databaseMaintenanceStatus.isCompacting,
-            shouldClearSelectionWhenUnavailable:
-                activePlaybackSource != .search || !isPlaybackPageVisible,
+            shouldClearSelectionWhenUnavailable: !isPlaybackPageVisible,
             filterSetOverride: filterSetOverride,
             probeScope: uiProbeScope,
             isContextCurrent: { [weak self] in

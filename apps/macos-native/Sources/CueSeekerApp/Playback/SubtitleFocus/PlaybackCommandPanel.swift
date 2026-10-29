@@ -24,6 +24,7 @@ struct PlaybackCommandPanel: View {
                         case .root:
                             PlaybackCommandPanelRoot(
                                 presentation: presentation,
+                                searchStore: searchStore,
                                 allowsHover: pointerVisibility.isVisible,
                                 onSelect: {
                                     appState
@@ -199,18 +200,27 @@ struct PlaybackCommandPanel: View {
 }
 
 private enum PlaybackCommandPanelMetrics {
-    static let maximumWidth: CGFloat = 1_040
-    static let maximumHeight: CGFloat = 720
-    static let outerInset: CGFloat = 40
-    static let cornerRadius: CGFloat = 18
-    static let contentInset: CGFloat = 20
-    static let rowHeight: CGFloat = 48
-    static let rowRadius: CGFloat = 10
-    static let headerHeight: CGFloat = 58
+    static let maximumWidth =
+        WorkbenchControlMetrics.redesignCommandPanelMaxWidth
+    static let maximumHeight =
+        WorkbenchControlMetrics.redesignCommandPanelMaxHeight
+    static let outerInset =
+        WorkbenchControlMetrics.redesignCommandPanelViewportInset
+    static let cornerRadius =
+        WorkbenchControlMetrics.redesignDialogCornerRadius
+    static let contentInset =
+        WorkbenchControlMetrics.redesignSpacing5
+    static let rowHeight =
+        WorkbenchControlMetrics.redesignCommandPanelItemHeight
+    static let rowRadius =
+        WorkbenchControlMetrics.redesignMenuItemRadius
+    static let headerHeight =
+        WorkbenchControlMetrics.redesignCommandPanelHeaderHeight
 }
 
 private struct PlaybackCommandPanelRoot: View {
     let presentation: PlaybackCommandPanelPresentation
+    @ObservedObject var searchStore: SearchStore
     let allowsHover: Bool
     let onSelect: (Int) -> Void
     @Binding var query: String
@@ -230,13 +240,12 @@ private struct PlaybackCommandPanelRoot: View {
             .padding(PlaybackCommandPanelMetrics.contentInset)
 
             VStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                if !query.trimmingCharacters(
-                    in: .whitespacesAndNewlines
-                ).isEmpty {
+                if !trimmedQuery.isEmpty {
                     PlaybackCommandPanelRootRow(
                         icon: .magnifyingGlass,
                         title: L("sidebar.search"),
                         detail: query,
+                        trailingText: searchResultCountText,
                         isSelected: presentation.selectedOrdinal == 0,
                         allowsHover: allowsHover
                     ) {
@@ -248,6 +257,7 @@ private struct PlaybackCommandPanelRoot: View {
                     icon: .video,
                     title: L("sidebar.recent_videos"),
                     detail: nil,
+                    trailingText: nil,
                     isSelected: presentation.selectedOrdinal
                         == recentVideosOrdinal,
                     allowsHover: allowsHover
@@ -259,6 +269,7 @@ private struct PlaybackCommandPanelRoot: View {
                     icon: .bookmarkSimple,
                     title: L("sidebar.recent_excerpts"),
                     detail: nil,
+                    trailingText: nil,
                     isSelected: presentation.selectedOrdinal
                         == recentExcerptsOrdinal,
                     allowsHover: allowsHover
@@ -281,6 +292,11 @@ private struct PlaybackCommandPanelRoot: View {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var searchResultCountText: String? {
+        searchStore.exactSearchResultTotalCount(matchingQuery: query)
+            .map(schemaWorkbenchResultCountText)
+    }
+
     private var recentVideosOrdinal: Int {
         trimmedQuery.isEmpty ? 0 : 1
     }
@@ -294,6 +310,7 @@ private struct PlaybackCommandPanelRootRow: View {
     let icon: AppIcon
     let title: String
     let detail: String?
+    let trailingText: String?
     let isSelected: Bool
     let allowsHover: Bool
     let action: () -> Void
@@ -310,7 +327,7 @@ private struct PlaybackCommandPanelRootRow: View {
             return WorkbenchRedesignColors.menuItemSelectedBg
         }
         if isHoverActive {
-            return WorkbenchRedesignColors.rowSelected
+            return WorkbenchRedesignColors.bgHover
         }
         return .clear
     }
@@ -324,13 +341,14 @@ private struct PlaybackCommandPanelRootRow: View {
                         height: WorkbenchControlMetrics.redesignControlIconSize
                     )
 
-                Text(title)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .medium
-                    ))
-
                 if let detail {
+                    Text(title)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeBody,
+                            weight: .medium
+                        ))
+                        .fixedSize(horizontal: true, vertical: false)
+
                     Text(detail)
                         .font(.system(
                             size: WorkbenchControlMetrics.redesignFontSizeBody,
@@ -338,9 +356,27 @@ private struct PlaybackCommandPanelRootRow: View {
                         ))
                         .foregroundStyle(WorkbenchRedesignColors.textMuted)
                         .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text(title)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeBody,
+                            weight: .medium
+                        ))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Spacer(minLength: 0)
+                if let trailingText {
+                    Text(trailingText)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeBody,
+                            weight: .regular
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
             }
             .foregroundStyle(WorkbenchRedesignColors.textPrimary)
             .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing3)
@@ -705,7 +741,7 @@ private struct PlaybackCommandPanelSearchResults: View {
         onUpdateSortOrder(order)
     }
 
-    private var resultStatus: String {
+    private var resultStatus: String? {
         if case .searchResults(let totalCount, let hasMoreResults) = heldPage {
             return PlaybackCueFooterStatus.searchResults(
                 totalCount: totalCount,
@@ -713,17 +749,15 @@ private struct PlaybackCommandPanelSearchResults: View {
                 hasMoreResults: hasMoreResults
             )
         }
+        guard let totalCount = searchStore.exactSearchResultTotalCount(
+            matchingQuery: presentation.query
+        ) else {
+            return nil
+        }
         return PlaybackCueFooterStatus.searchResults(
-            totalCount: resultTotalCount,
+            totalCount: totalCount,
             previewLimit: PlaybackCommandPanelPresentation.previewLimit,
             hasMoreResults: searchStore.hasMoreSearchResults
-        )
-    }
-
-    private var resultTotalCount: Int {
-        max(
-            searchStore.searchResultTotalCount,
-            searchStore.searchResults.count
         )
     }
 }

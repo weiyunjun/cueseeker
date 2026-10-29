@@ -617,7 +617,6 @@ func playbackCommandPanelPrefillsFocusedCurrentCueWithoutSearching() async throw
             keyboardActionSnapshot(lines: ["focused first", "focused second"]),
             token: session.token
         ))
-        let previousSearchQuery = app.search.searchQuery
 
         #expect(app.presentPlaybackCommandPanel())
 
@@ -626,7 +625,7 @@ func playbackCommandPanelPrefillsFocusedCurrentCueWithoutSearching() async throw
             app.playback.commandPanelPresentation?.query
                 == "focused first focused second"
         )
-        #expect(app.search.searchQuery == previousSearchQuery)
+        #expect(app.search.searchQuery == "focused first focused second")
         #expect(app.playback.subtitleFocusSession === session)
     }
 }
@@ -838,7 +837,7 @@ func playbackCommandPanelRecentVideosUsesNearestEdgeForPartialAndLazyTargets() {
 func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throws {
     try await withKeyboardActionApp { app, _ in
         let source = keyboardActionSource()
-        let results = (0..<60).map { ordinal in
+        let results = (0..<120).map { ordinal in
             let content: String
             if ordinal == 0 {
                 content = "first command result"
@@ -870,8 +869,8 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
         let previewWindow = try #require(
             app.playback.commandPanelSearchWindow
         )
-        #expect(previewWindow.snapshot.totalCount == 50)
-        #expect(previewWindow.snapshot.loadedItemCount == 50)
+        #expect(previewWindow.snapshot.totalCount == 100)
+        #expect(previewWindow.snapshot.loadedItemCount == 100)
         #expect(previewWindow.selectedOrdinal == 0)
         let previewAdapter = PlaybackCueResultReelAdapter(
             windowStore: previewWindow,
@@ -938,8 +937,136 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
         #expect(app.playback.commandPanelSearchWindow == nil)
         #expect(app.search.searchQuery == "command")
         #expect(app.search.selectedSearchResult?.entryID == 12)
-        #expect(app.playback.playlistSource?.boundary.totalCount == 60)
+        #expect(app.playback.playlistSource?.boundary.totalCount == 120)
         #expect(app.playback.playbackSearchPlaylistOrdinal == 1)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelRootLiveSearchUpdatesExactCountAndReusesCompletedSearch() async throws {
+    try await withKeyboardActionApp { app, _ in
+        app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media")]
+        app.playback.isPlaybackSurfaceExpanded = true
+        #expect(app.presentPlaybackCommandPanel())
+
+        app.updatePlaybackCommandPanelQuery("keyboard action")
+        #expect(app.search.searchQuery == "keyboard action")
+        #expect(app.search.isSearchDebouncing)
+        #expect(
+            app.search.exactSearchResultTotalCount(
+                matchingQuery: "keyboard action"
+            ) == nil
+        )
+
+        await app.search.searchTask?.value
+        #expect(!app.search.isSearchDebouncing)
+        #expect(
+            app.search.exactSearchResultTotalCount(
+                matchingQuery: "keyboard action"
+            ) == 30
+        )
+        #expect(
+            app.search.exactSearchResultTotalCount(
+                matchingQuery: "different query"
+            ) == nil
+        )
+
+        let completedGeneration = app.search.resultListGeneration
+        #expect(app.submitPlaybackCommandPanelSearch())
+        #expect(app.playback.commandPanelPresentation?.page == .searchResults)
+        #expect(app.search.resultListGeneration == completedGeneration)
+        #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 30)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelFirstPageRendersImmediatelyWithoutResettingOnExactCompletion() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let source = keyboardActionSource()
+        let results = (0..<150).map { ordinal in
+            keyboardActionPlaylistSearchResult(
+                id: Int64(500 + ordinal),
+                videoPath: source.videoPath,
+                subtitlePath: source.subtitlePath,
+                startMilliseconds: (ordinal + 1) * 1_000,
+                content: "command cue \(ordinal)"
+            )
+        }
+        let firstPageResults = Array(results.prefix(100))
+
+        app.playback.isPlaybackSurfaceExpanded = true
+        #expect(app.presentPlaybackCommandPanelSearch(
+            query: "command",
+            startsSearch: false
+        ))
+        let generation = app.search.prepareSearch(
+            appending: false,
+            filterSet: SubtitleSearchFilterSet()
+        )
+
+        let didComplete = app.search.commitVisibleSearchPage(
+            SubtitleSearchPage(
+                results: firstPageResults,
+                totalCount: 100,
+                fileSummaries: [],
+                countSnapshot: .exactProgress(
+                    knownResultCount: 100,
+                    knownFileCount: 1
+                ),
+                nextCursor: SubtitleSearchCursor(offset: 100),
+                pageMode: .visibleWindow
+            ),
+            appending: false,
+            offset: 0
+        )
+        #expect(!didComplete)
+        app.synchronizePlaybackCommandPanelSearchResults()
+
+        #expect(
+            app.search.exactSearchResultTotalCount(matchingQuery: "command")
+                == nil
+        )
+        let previewWindow = try #require(
+            app.playback.commandPanelSearchWindow
+        )
+        #expect(previewWindow.snapshot.totalCount == 100)
+        #expect(previewWindow.selectedOrdinal == 0)
+        let firstPageGeneration = previewWindow.snapshot.generation
+
+        #expect(app.playback.restoreCommandPanelSearchSelection(at: 2))
+        #expect(previewWindow.selectedOrdinal == 2)
+        #expect(
+            app.playback.commandPanelSearchKeyboardNavigationRequest?
+                .targetOrdinal == 2
+        )
+
+        #expect(app.search.commitExactSearchPage(
+            SubtitleSearchPage(
+                results: Array(results.dropFirst(100)),
+                renderableResultsOffset: 100,
+                cueIDs: results.map(\.entryID),
+                totalCount: 150,
+                fileSummaries: [],
+                countSnapshot: .exact(totalCount: 150, fileSummaryCount: 1)
+            ),
+            reportedResults: firstPageResults,
+            generation: generation
+        ))
+        app.synchronizePlaybackCommandPanelSearchResults()
+
+        #expect(
+            app.search.exactSearchResultTotalCount(matchingQuery: "command")
+                == 150
+        )
+        #expect(previewWindow.snapshot.totalCount == 100)
+        #expect(previewWindow.snapshot.generation == firstPageGeneration)
+        #expect(previewWindow.selectedOrdinal == 2)
+        #expect(
+            app.playback.commandPanelSearchKeyboardNavigationRequest?
+                .targetOrdinal == 2
+        )
     }
 }
 

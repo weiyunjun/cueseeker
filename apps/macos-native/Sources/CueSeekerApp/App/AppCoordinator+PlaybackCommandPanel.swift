@@ -37,6 +37,11 @@ extension AppCoordinator {
             : ""
         presentation.selectedOrdinal = 0
         playback.presentCommandPanel(presentation)
+        if !presentation.query.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).isEmpty {
+            startPlaybackCommandPanelLiveSearch(query: presentation.query)
+        }
         preparePlaybackKeyboardFocus()
         return true
     }
@@ -57,20 +62,19 @@ extension AppCoordinator {
             return false
         }
 
-        let normalizedFacetFilter = search.normalizedFacetFilter(
-            search.searchFacetFilter
-        )
-        _ = search.updateSearchFacetFilter(normalizedFacetFilter)
-        if settings.searchFacetFilter != normalizedFacetFilter {
-            settings.searchFacetFilter = normalizedFacetFilter
-        }
-        if settings.searchSortOrder != search.searchSortOrder {
-            settings.searchSortOrder = search.searchSortOrder
-        }
+        let normalizedFacetFilter =
+            synchronizePlaybackCommandPanelSearchParameters()
+        let shouldStartSearch = startsSearch
+            && !hasReusablePlaybackCommandPanelSearch(
+                for: trimmedQuery,
+                facetFilter: normalizedFacetFilter,
+                sortOrder: search.searchSortOrder,
+                allowsDebouncing: false
+            )
         search.updateQuery(trimmedQuery)
         search.updateActiveFilterSet(SubtitleSearchFilterSet())
         search.updateNavigationSnapshot(nil)
-        if startsSearch {
+        if shouldStartSearch {
             startSearch(
                 query: trimmedQuery,
                 cursor: .start,
@@ -97,10 +101,92 @@ extension AppCoordinator {
         else {
             return
         }
+        let normalizedQuery = SearchInputNormalizer.singleLine(query)
+        guard normalizedQuery != presentation.query else {
+            return
+        }
         var updated = presentation
-        updated.query = SearchInputNormalizer.singleLine(query)
+        updated.query = normalizedQuery
         updated.selectedOrdinal = 0
         playback.presentCommandPanel(updated)
+        startPlaybackCommandPanelLiveSearch(query: normalizedQuery)
+    }
+
+    private func startPlaybackCommandPanelLiveSearch(query: String) {
+        let normalizedQuery = SearchInputNormalizer.singleLine(query)
+        let trimmedQuery = normalizedQuery.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        let normalizedFacetFilter =
+            synchronizePlaybackCommandPanelSearchParameters()
+        guard !hasReusablePlaybackCommandPanelSearch(
+            for: trimmedQuery,
+            facetFilter: normalizedFacetFilter,
+            sortOrder: search.searchSortOrder,
+            allowsDebouncing: true
+        ) else {
+            return
+        }
+        search.updateQuery(normalizedQuery)
+        UIInvalidationProbe.mark(
+            "ACTION UI.SearchQuery.changed",
+            details: "length=\(search.searchQuery.count)"
+        )
+        search.updateActiveFilterSet(SubtitleSearchFilterSet())
+        search.updateNavigationSnapshot(nil)
+        startSearch(
+            query: search.searchQuery,
+            cursor: .start,
+            appending: false,
+            debounce: true
+        )
+    }
+
+    private func synchronizePlaybackCommandPanelSearchParameters() -> CueFacetFilter {
+        let normalizedFacetFilter = search.normalizedFacetFilter(
+            search.searchFacetFilter
+        )
+        _ = search.updateSearchFacetFilter(normalizedFacetFilter)
+        if settings.searchFacetFilter != normalizedFacetFilter {
+            settings.searchFacetFilter = normalizedFacetFilter
+        }
+        if settings.searchSortOrder != search.searchSortOrder {
+            settings.searchSortOrder = search.searchSortOrder
+        }
+        return normalizedFacetFilter
+    }
+
+    private func hasReusablePlaybackCommandPanelSearch(
+        for trimmedQuery: String,
+        facetFilter: CueFacetFilter,
+        sortOrder: SearchSortOrder,
+        allowsDebouncing: Bool
+    ) -> Bool {
+        guard !trimmedQuery.isEmpty,
+              search.hasReusableQueryExecution,
+              !search.hasMutatedSinceSearchSnapshot,
+              search.searchQuery.trimmingCharacters(
+                  in: .whitespacesAndNewlines
+              ) == trimmedQuery,
+              search.resultFacetFilter == facetFilter,
+              search.resultSortOrder == sortOrder,
+              search.resultFilterSet == SubtitleSearchFilterSet(),
+              search.acceptsFolderScope(
+                  indexing.selectedFolders,
+                  generation: search.resultFolderScopeGeneration
+              )
+        else {
+            return false
+        }
+        switch search.searchStatus {
+        case .completed:
+            return search.searchCountState == .exact
+                && !search.isSearchDebouncing
+        case .searching:
+            return allowsDebouncing || !search.isSearchDebouncing
+        case .idle, .failed:
+            return false
+        }
     }
 
     @discardableResult
@@ -347,11 +433,10 @@ extension AppCoordinator {
             return
         }
 
-        let results = search.searchResults
-        let previewCount = min(
-            results.count,
+        let results = search.searchResultsPrefix(
             PlaybackCommandPanelPresentation.previewLimit
         )
+        let previewCount = results.count
         let resultListGeneration = search.resultListGeneration
         let isSameGeneration =
             playback.commandPanelSearchResultListGeneration
@@ -368,7 +453,9 @@ extension AppCoordinator {
         }
         var updated = presentation
         updated.selectedOrdinal = nil
-        playback.presentCommandPanel(updated)
+        if updated != presentation {
+            playback.presentCommandPanel(updated)
+        }
         playback.synchronizeCommandPanelSearchPreview(
             results: results,
             selectedOrdinal: selectedOrdinal,

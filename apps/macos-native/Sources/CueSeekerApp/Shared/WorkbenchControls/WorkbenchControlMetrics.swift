@@ -404,6 +404,16 @@ enum WorkbenchControlMetrics {
     static let redesignTaskPanelHeight: CGFloat = 500
     /// --height-filter-dialog: 600px
     static let redesignFilterDialogHeight: CGFloat = 600
+    /// --width-command-panel-max: 1040px
+    static let redesignCommandPanelMaxWidth: CGFloat = 1_040
+    /// --height-command-panel-max: 720px
+    static let redesignCommandPanelMaxHeight: CGFloat = 720
+    /// --inset-command-panel-viewport: 40px
+    static let redesignCommandPanelViewportInset: CGFloat = 40
+    /// --height-command-panel-item: 48px
+    static let redesignCommandPanelItemHeight: CGFloat = 48
+    /// --height-command-panel-header: 58px
+    static let redesignCommandPanelHeaderHeight: CGFloat = 58
     /// --height-task-progress-bar: 4px
     static let redesignTaskProgressBarHeight = redesignLibraryProgressBarHeight
     /// --width-task-detail-progress-bar: 140px

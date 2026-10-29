@@ -27,7 +27,7 @@ extension AppCoordinator {
                 .searchResults(
                     totalCount: max(
                         search.searchResultTotalCount,
-                        search.searchResults.count
+                        search.loadedSearchResultCueIDs.count
                     ),
                     hasMoreResults: search.hasMoreSearchResults
                 )

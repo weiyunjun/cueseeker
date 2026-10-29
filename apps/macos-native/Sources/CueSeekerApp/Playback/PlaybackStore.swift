@@ -19,7 +19,7 @@ enum PlaybackCommandPanelPage: Equatable {
 }
 
 struct PlaybackCommandPanelPresentation: Equatable {
-    static let previewLimit = 50
+    static let previewLimit = SearchStore.searchPageSize
 
     var page: PlaybackCommandPanelPage
     var query: String
@@ -138,6 +138,7 @@ final class PlaybackStore: ObservableObject {
         PlaybackSubtitleFocusKeyboardNavigationRequest?
     private var commandPanelSearchKeyboardSequence = 0
     private var commandPanelSearchSource: PlaybackCueResultSource?
+    private var commandPanelSearchPreviewItems: [PlaybackCueResultItem] = []
     private(set) var commandPanelRecentCardColumnCount = WorkbenchControlMetrics
         .redesignLibraryRecentGridMaxColumnsWithoutSidebar
     private(set) var commandPanelRecentCardScrollSequence: UInt64 = 0
@@ -489,7 +490,6 @@ final class PlaybackStore: ObservableObject {
         selectedOrdinal: Int?,
         resultListGeneration: UInt64 = 0
     ) {
-        commandPanelSearchKeyboardNavigationRequest = nil
         guard commandPanelPresentation?.page == .searchResults else {
             releaseCommandPanelSearchPreview()
             return
@@ -511,11 +511,17 @@ final class PlaybackStore: ObservableObject {
         )
         if let commandPanelSearchSource,
            commandPanelSearchSource.origin == origin {
-            _ = commandPanelSearchSource.replaceResidentItems(
-                totalCount: items.count,
-                itemProvider: itemProvider
-            )
+            if commandPanelSearchPreviewItems != items {
+                commandPanelSearchKeyboardNavigationRequest = nil
+                commandPanelSearchPreviewItems = items
+                _ = commandPanelSearchSource.replaceResidentItems(
+                    totalCount: items.count,
+                    itemProvider: itemProvider
+                )
+            }
         } else {
+            commandPanelSearchKeyboardNavigationRequest = nil
+            commandPanelSearchPreviewItems = items
             commandPanelSearchWindow?.invalidate()
             commandPanelSearchSource?.invalidate()
             let source = PlaybackCueResultSource(
@@ -534,10 +540,14 @@ final class PlaybackStore: ObservableObject {
         else {
             return
         }
-        _ = commandPanelSearchWindow?.restoreSelection(
-            itemIdentity: items[selectedOrdinal].identity,
-            at: selectedOrdinal
-        )
+        if commandPanelSearchWindow?.selectedOrdinal != selectedOrdinal
+            || commandPanelSearchWindow?.selectedItemIdentity
+                != items[selectedOrdinal].identity {
+            _ = commandPanelSearchWindow?.restoreSelection(
+                itemIdentity: items[selectedOrdinal].identity,
+                at: selectedOrdinal
+            )
+        }
     }
 
     @discardableResult
@@ -626,6 +636,7 @@ final class PlaybackStore: ObservableObject {
 
     private func releaseCommandPanelSearchPreview() {
         commandPanelSearchKeyboardNavigationRequest = nil
+        commandPanelSearchPreviewItems = []
         commandPanelSearchWindow?.invalidate()
         commandPanelSearchSource?.invalidate()
         commandPanelSearchWindow = nil

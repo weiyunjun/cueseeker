@@ -41,6 +41,9 @@ final class SearchStore: ObservableObject {
     private(set) var activePerformanceRun: SearchPerformanceRun?
     private(set) var resultListGeneration: UInt64 = 0
     private(set) var folderScopeGeneration: UInt64 = 0
+    private(set) var resultFolderScopeGeneration: UInt64 = 0
+    private(set) var isSearchDebouncing = false
+    private(set) var hasReusableQueryExecution = false
     private var folderScopePaths: [String] = []
     private(set) var loadedGlobalResultCount = 0
     private(set) var nextGlobalCursor: SubtitleSearchCursor?
@@ -115,6 +118,44 @@ final class SearchStore: ObservableObject {
         }
     }
 
+    func searchResultsPrefix(_ limit: Int) -> [SubtitleSearchResult] {
+        guard limit > 0 else {
+            return []
+        }
+        return loadedSearchResultCueIDs.prefix(limit).compactMap { cueID in
+            cueContentStore.content(for: cueID).map {
+                SubtitleSearchResult(
+                    cueContent: $0,
+                    searchRank: searchRankByCueID[cueID] ?? 0
+                )
+            }
+        }
+    }
+
+    func exactSearchResultTotalCount(matchingQuery query: String? = nil) -> Int? {
+        let trimmedQuery = searchQuery.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard !trimmedQuery.isEmpty else {
+            return nil
+        }
+        if let query {
+            let requestedQuery = query.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            guard !requestedQuery.isEmpty, requestedQuery == trimmedQuery else {
+                return nil
+            }
+        }
+        guard searchStatus == .completed,
+              searchCountState == .exact,
+              !isSearchDebouncing
+        else {
+            return nil
+        }
+        return max(searchResultTotalCount, loadedSearchResultCueIDs.count)
+    }
+
     var displayedSearchFacetDistribution: CueFacetDistribution {
         guard !searchQuery.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -170,7 +211,7 @@ final class SearchStore: ObservableObject {
         startingAt offset: Int
     ) {
         let loadedCount = loadedSearchResultCueIDs.count
-        guard offset <= loadedCount else {
+        guard offset >= 0, offset <= loadedCount else {
             return
         }
         let overlap = loadedCount - offset
@@ -295,6 +336,7 @@ final class SearchStore: ObservableObject {
         resultFacetFilter = filter
         searchSortOrder = resolvedSortOrder
         resultSortOrder = resolvedSortOrder
+        resultFolderScopeGeneration = folderScopeGeneration
         cancelQueryTasks()
         advanceResultListGeneration()
         let projection = snapshot.filteredCueIDs(
@@ -333,6 +375,7 @@ final class SearchStore: ObservableObject {
             knownFileCount: searchKnownFileCount,
             hasMore: false
         )
+        hasReusableQueryExecution = true
         return true
     }
 
@@ -478,6 +521,8 @@ final class SearchStore: ObservableObject {
 
     func markSearchIdle() {
         commitResultMutation {
+            isSearchDebouncing = false
+            hasReusableQueryExecution = false
             searchStatus = .idle
         }
     }
@@ -490,17 +535,28 @@ final class SearchStore: ObservableObject {
 
     func markSearchCompleted() {
         commitResultMutation {
+            isSearchDebouncing = false
             searchStatus = .completed
         }
     }
 
     func markSearchFailed(_ message: String, hasMore: Bool? = nil) {
         commitResultMutation {
+            isSearchDebouncing = false
+            hasReusableQueryExecution = false
             searchStatus = .failed(message)
             if let hasMore {
                 hasMoreSearchResults = hasMore
             }
         }
+    }
+
+    func setSearchDebouncing(_ isDebouncing: Bool) {
+        isSearchDebouncing = isDebouncing
+    }
+
+    func markQueryExecutionReusable(_ isReusable: Bool) {
+        hasReusableQueryExecution = isReusable
     }
 
     func updateActiveFilterSet(_ filterSet: SubtitleSearchFilterSet) {
@@ -520,12 +576,14 @@ final class SearchStore: ObservableObject {
         appending: Bool,
         filterSet: SubtitleSearchFilterSet
     ) -> UInt64 {
+        isSearchDebouncing = false
         if !appending {
             pendingReappearanceRefreshMode = .none
             resultListGeneration &+= 1
             resultFilterSet = filterSet
             resultFacetFilter = searchFacetFilter
             resultSortOrder = searchSortOrder
+            resultFolderScopeGeneration = folderScopeGeneration
             // The counts belong to the result list: the new search carries its
             // own rows and counts.
             setSearchFacetSnapshot(nil)
@@ -549,6 +607,7 @@ final class SearchStore: ObservableObject {
     }
 
     func cancelQueryTasks() {
+        isSearchDebouncing = false
         searchTask?.cancel()
         searchTask = nil
     }
@@ -605,6 +664,8 @@ final class SearchStore: ObservableObject {
         nextCursor: SubtitleSearchCursor? = nil
     ) {
         commitResultMutation {
+            isSearchDebouncing = false
+            hasReusableQueryExecution = false
             setLoadedSearchResults(results, orderedCueIDs: orderedCueIDs)
             searchStatus = status
             searchResultTotalCount = totalCount
@@ -626,6 +687,8 @@ final class SearchStore: ObservableObject {
     ) -> Bool {
         var completesSearch = false
         commitResultMutation {
+            isSearchDebouncing = false
+            hasReusableQueryExecution = true
             let loadedResultCount: Int
             if appending {
                 let existingIDs = Set(searchResults.map(\.entryID))
@@ -684,6 +747,8 @@ final class SearchStore: ObservableObject {
             return false
         }
         commitResultMutation {
+            isSearchDebouncing = false
+            hasReusableQueryExecution = true
             let loadedResultCount: Int
             let results = reportedResults + page.renderableResults
             if !results.isEmpty {
@@ -828,6 +893,8 @@ final class SearchStore: ObservableObject {
             searchResultTotalCount
         )
         commitResultMutation {
+            isSearchDebouncing = false
+            hasReusableQueryExecution = false
             setLoadedSearchResults([], orderedCueIDs: [])
             searchResultTotalCount = 0
             searchFileSummaries = []

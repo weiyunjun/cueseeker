@@ -17,7 +17,7 @@ private final class SearchReportedRows: @unchecked Sendable {
 
 @MainActor
 extension SearchStore {
-    static let searchPageSize = 100
+    nonisolated static let searchPageSize = 100
     /// The most rows one read by cue ID asks for, as many as a scan batch.
     static let searchRowReadBatchSize = 5_000
     static let searchPrefetchThreshold = 10
@@ -97,6 +97,7 @@ extension SearchStore {
         }
 
         guard !folders.isEmpty else {
+            markQueryExecutionReusable(true)
             markSearchCompleted()
             if shouldClearSelectionWhenUnavailable {
                 selectResult(nil)
@@ -138,6 +139,8 @@ extension SearchStore {
             scope: probeScope,
             details: "offset=\(offset) appending=\(appending)"
         )
+        markQueryExecutionReusable(true)
+        setSearchDebouncing(debounce)
         replaceSearchTask(Task { [weak self] in
             guard let self else { return }
             do {
@@ -146,6 +149,7 @@ extension SearchStore {
                     try await Task.sleep(
                         nanoseconds: Self.searchInputDebounceNanoseconds
                     )
+                    self.setSearchDebouncing(false)
                     SearchPerformanceLogger.mark(
                         run,
                         "search_debounce_finished",
@@ -330,6 +334,7 @@ extension SearchStore {
                     self.clearPerformanceRunIfActive(run)
                 }
             } catch is CancellationError {
+                self.setSearchDebouncing(false)
                 self.logCancelledPage(
                     run: run,
                     event: "search_cancelled",
@@ -337,6 +342,7 @@ extension SearchStore {
                     databaseSearchMilliseconds: nil
                 )
             } catch {
+                self.setSearchDebouncing(false)
                 guard !Task.isCancelled,
                       self.acceptsFolderScope(
                         folders,
