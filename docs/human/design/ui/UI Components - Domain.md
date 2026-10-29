@@ -641,6 +641,11 @@
 - Placeholder
 - Badge Slot
   - Presence：Optional
+  - Placement：左下角，距左、下边缘各 `--spacing-2`（位于 Progress Slot 上方）
+- More Action Slot
+  - Component：Icon Button / Default（Icon `dots-three`）
+  - Placement：右下角，距右、下边缘各 `--spacing-2`（与 Badge Slot 同一水平高度）
+  - Presence：仅在所属卡片指针 Hover 或通过该按钮打开菜单期间显示；Disabled 态不显示
 - Progress Slot
   - Presence：Optional
 

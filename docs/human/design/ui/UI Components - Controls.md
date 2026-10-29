@@ -596,11 +596,6 @@
   - Height：`--size-inline-clear-button`
   - Radius：`--radius-inline-clear-button`
   - Icon Size：`--size-inline-clear-icon`
-- Row Action
-  - Width：`--size-row-action-button`
-  - Height：`--size-row-action-button`
-  - Radius：`--radius-row-action`
-  - Icon Size：`--size-control-icon`
 - Dialog Close
   - Width：`--size-dialog-close-button`
   - Height：`--size-dialog-close-button`
@@ -613,7 +608,8 @@
 | --- | --- | --- |
 | `--color-bg-surface` | `--color-bg-hover` | `--color-bg-pressed` |
 | `--color-table-bg`（普通与设置分组卡片） | `--color-bg-hover` | `--color-bg-pressed` |
-| `--color-table-bg` / `--color-row-hover`（File 与 Task 卡片右侧 `dots-three`） | `--color-row-selected` | `--color-row-action-bg-pressed` |
+| `--color-table-bg` / `--color-row-hover` / `--color-table-row-hover`（File、Task 卡片与表格行右侧 `dots-three`） | `--color-row-selected` | `--color-row-action-bg-pressed` |
+| `Cover`（封面右下角 `dots-three`，基底色同 `--color-library-time-badge-bg`） | `--opacity-library-cover-action-bg-hover` | `--opacity-library-cover-action-bg-pressed` |
 | `--color-bg-dialog` | `--color-bg-hover` | `--color-bg-pressed` |
 | `--color-subtitle-focus-overlay-bg` | `--color-overlay-surface-shortcut-button-bg-hover` | `--color-overlay-surface-shortcut-button-bg-pressed` |
 | `--color-bg-popover` | `--color-popover-surface-shortcut-button-bg-hover` | `--color-popover-surface-shortcut-button-bg-pressed` |
@@ -622,8 +618,8 @@
 ##### States
 
 - Default
-  - Background：Transparent
-  - Icon Color：`--color-text-secondary`；在 `--color-player-topbar-gradient-start` 上为 `--color-player-text-primary`
+  - Background：Transparent；在 `Cover` 上为 `--color-library-time-badge-bg` 基底色配合 `--opacity-library-cover-action-bg`
+  - Icon Color：`--color-text-secondary`；在 `--color-player-topbar-gradient-start` 上为 `--color-player-text-primary`；在 `Cover` 上为 `--color-library-time-badge-text`
 - Hover
   - Background：Surface Hover
 - Pressed
@@ -1151,6 +1147,10 @@
 - Cell Stack
 - Selection Slot
   - Presence：Select Mode，或未选中行 / 表头 Hover 时显示（已失效条目除外，不显示行号且不可选中；有效条目跳过已失效条目按 1 递增编号）
+- Action Slot
+  - Component：Icon Button / Default（Icon `dots-three`）
+  - Placement：`Cues` 列内部右侧（距右边缘 `--padding-table-cell-trailing`，与左侧文本或状态图标间距 `--spacing-2`，整行高度内垂直居中，恒定预留宽度空间）
+  - Presence：非 Select Mode 下，仅在该行 Hover 或通过该按钮打开菜单期间显示（含 Unavailable 行）；Select Mode 下隐藏
 
 ##### Sizes
 

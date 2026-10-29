@@ -46,7 +46,7 @@
 | | `C-02.4` | Segmented Control | — |
 | | `C-02.5` | Filter Chip | — |
 | **2.3 Buttons** | `C-03.1` | Button | `Neutral`、`Cover Summary`、`Primary`、`Destructive` |
-| | `C-03.2` | Icon Button | Sizes: `Default`、`Inline Clear`、`Row Action`、`Dialog Close` |
+| | `C-03.2` | Icon Button | Sizes: `Default`、`Inline Clear`、`Dialog Close` |
 | | `C-03.3` | Shortcut Action Button | `Overlay Surface`、`Popover Surface` |
 | **2.4 Menus** | `C-04.1` | Menu | `Dropdown Menu`、`Context Menu`、`Player Subtitle Menu`、`Player Speed Menu`、`Player More Menu` |
 | | `C-04.2` | Submenu | `Excerpt Destination Submenu`、`Audio Track Submenu` |

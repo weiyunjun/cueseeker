@@ -324,7 +324,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--size-dialog-close-icon`: `16px`
 - `--size-dialog-close-button`: `24px`
 - `--size-icon-button`: `32px`
-- `--size-row-action-button`: `36px`
 - `--scrollbar-size`: `8px`
 - `--scrollbar-min-thumb-length`: `24px`
 - `--width-page-scrollbar-channel`: `16px`
@@ -487,7 +486,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--radius-dialog`: `10px`
 - `--radius-select-menu-item`: `6px`
 - `--radius-action-menu-item`: `6px`
-- `--radius-row-action`: `8px`
 - `--radius-table-cell-hover`: `8px`
 - `--radius-chip`: `6px`
 - `--radius-keycap`: `4px`
@@ -545,6 +543,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--opacity-cover-summary-button-border`: `35%`
 - `--opacity-cover-summary-button-disabled`: `55%`
 - `--opacity-anki-export-dragging`: `0.5`
+- `--opacity-library-cover-action-bg`: Light `0.56`; Dark `0.44`
+- `--opacity-library-cover-action-bg-hover`: Light `0.72`; Dark `0.58`
+- `--opacity-library-cover-action-bg-pressed`: Light `0.88`; Dark `0.76`
 
 ## 1.6 动效
 
