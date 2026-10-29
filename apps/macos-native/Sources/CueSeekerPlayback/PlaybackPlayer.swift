@@ -681,7 +681,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     public func setPlaybackSpeed(_ value: Double) {
-        storedSpeed = min(max(value, 0.5), 2.0)
+        storedSpeed = min(max(value, 0.5), 3.0)
         nativePlayer.playbackRate = Float(storedSpeed)
         startASSSubtitleRenderTicks()
         delegate?.player(self, didUpdatePlaybackSpeed: storedSpeed)

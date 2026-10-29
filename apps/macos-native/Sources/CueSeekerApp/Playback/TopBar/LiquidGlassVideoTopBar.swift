@@ -71,6 +71,7 @@ struct LiquidGlassVideoTopBar: View {
                     .allowsHitTesting(false)
             } trailing: {
                 TopbarAppEntries(
+                    showsCommandPanel: true,
                     iconColor: PlaybackTheme.textPrimary,
                     hoverBackground: PlaybackTheme.controlHoverBackground,
                     pressedBackground: PlaybackTheme.controlPressedBackground,

@@ -419,6 +419,7 @@ struct PlaybackOverlayTopBar: View {
                     }
 
                     TopbarAppEntries(
+                        showsCommandPanel: true,
                         hoverBackground: WorkbenchRedesignColors
                             .overlaySurfaceShortcutButtonHoverBg,
                         pressedBackground: WorkbenchRedesignColors

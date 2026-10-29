@@ -84,6 +84,12 @@ struct TooltipTests {
         #expect(
             TooltipShortcut.action(.editCollage).resolvedText(keymap: keymap) == "P"
         )
+        #expect(
+            TooltipShortcut.action(.openCommandPanel).resolvedText(keymap: keymap) == "K"
+        )
+        #expect(
+            TooltipShortcut.action(.openPlaybackOverlay).resolvedText(keymap: keymap) == "↩"
+        )
 
         // Modified key (Shift + V -> ⇧V)
         keymap.set(
@@ -406,6 +412,8 @@ struct TooltipTests {
             "playback.mute",
             "playback.repeat",
             "settings.shortcuts.action.repeatCue",
+            "settings.shortcuts.action.openCommandPanel",
+            "settings.shortcuts.action.openPlaybackOverlay",
             "common.close",
             "table.state.content_changed",
             "table.state.changed_after_reindex",

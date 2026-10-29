@@ -110,29 +110,83 @@ func appCoordinatorMarksSearchCueAutoPauseAsPaused() async throws {
 
 @MainActor
 @Test
-func cueRepeatEligibilityUsesExactClosedRangeAndAutoSwitchSetting() async throws {
-    try await withTemporarySegmentCompletionApp { app, _ in
-        let result = segmentCompletionSearchResult(entryID: 1)
+func cueRepeatEligibilityUsesOverlayDefaultCueSelectionAcrossAllSourcesAndAutoSwitchStates() async throws {
+    try await withTemporarySegmentCompletionApp { app, database in
+        let subtitleURL = URL(fileURLWithPath: "/Media/Segment.srt")
+        let videoURL = URL(fileURLWithPath: "/Media/Segment.mkv")
+        try database.replaceEntries(
+            subtitleFile: subtitleURL,
+            videoFile: videoURL,
+            entries: [
+                SubtitleEntry(
+                    sequenceNumber: 1,
+                    startTimecode: "00:00:01,000",
+                    endTimecode: "00:00:02,500",
+                    startMilliseconds: 1_000,
+                    endMilliseconds: 2_500,
+                    text: "first cue"
+                ),
+                SubtitleEntry(
+                    sequenceNumber: 2,
+                    startTimecode: "00:00:04,000",
+                    endTimecode: "00:00:05,500",
+                    startMilliseconds: 4_000,
+                    endMilliseconds: 5_500,
+                    text: "second cue"
+                )
+            ]
+        )
+
+        let result = SubtitleSearchResult(
+            entryID: 1,
+            subtitleFileID: nil,
+            subtitlePath: subtitleURL.path,
+            subtitleFormat: .srt,
+            videoPath: videoURL.path,
+            videoName: "Segment",
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500,
+            content: "first cue",
+            cueLines: ["first cue"]
+        )
         app.playback.isPlaybackSurfaceExpanded = true
         app.activePlaybackSource = .search
         app.search.selectResult(result)
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = false
         app.beginCueAutoStopPlayback()
 
-        #expect(app.cueRepeatStartMilliseconds(at: 0.999) == nil)
+        // 1. Before first cue -> falls back to the first cue in the subtitle file (1_000ms).
+        #expect(app.cueRepeatStartMilliseconds(at: 0.500) == 1_000)
+        // 2. Active inside first cue [1_000, 2_500) -> selects first cue (1_000ms).
         #expect(app.cueRepeatStartMilliseconds(at: 1.000) == 1_000)
+        #expect(app.cueRepeatStartMilliseconds(at: 2.499) == 1_000)
+        // 3. In the gap between first cue and second cue [2_500, 4_000) -> falls back to nearest preceding cue (1_000ms).
         #expect(app.cueRepeatStartMilliseconds(at: 2.500) == 1_000)
-        #expect(app.cueRepeatStartMilliseconds(at: 2.501) == nil)
+        #expect(app.cueRepeatStartMilliseconds(at: 3.200) == 1_000)
+        // 4. Active inside second cue [4_000, 5_500) and after it -> selects second cue (4_000ms).
+        #expect(app.cueRepeatStartMilliseconds(at: 4.000) == 4_000)
+        #expect(app.cueRepeatStartMilliseconds(at: 6.000) == 4_000)
 
-        app.handlePlaybackTimeUpdated(currentTime: 1.000, duration: 10)
-        #expect(app.playback.canRepeatCurrentCue)
-        app.handlePlaybackTimeUpdated(currentTime: 2.501, duration: 10)
-        #expect(!app.playback.canRepeatCurrentCue)
-
+        // 5. Still available when Auto Switch is enabled.
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
         app.beginCueAutoStopPlayback()
-        #expect(app.cueRepeatStartMilliseconds(at: 1.500) == nil)
-        #expect(!app.playback.canRepeatCurrentCue)
+        #expect(app.cueRepeatStartMilliseconds(at: 1.500) == 1_000)
+        #expect(app.cueRepeatStartMilliseconds(at: 3.000) == 1_000)
+        #expect(app.cueRepeatStartMilliseconds(at: 4.500) == 4_000)
+
+        // 6. Still available during Library video playback.
+        app.search.selectResult(nil)
+        app.library.selectedLibraryVideo = LibraryVideo(
+            videoPath: videoURL.path,
+            videoName: "Segment",
+            duration: 100,
+            subtitlePath: subtitleURL.path,
+            subtitleFormat: .srt
+        )
+        app.activePlaybackSource = .library(videoPath: videoURL.path)
+        #expect(app.cueRepeatStartMilliseconds(at: 0.200) == 1_000)
+        #expect(app.cueRepeatStartMilliseconds(at: 3.500) == 1_000)
+        #expect(app.cueRepeatStartMilliseconds(at: 4.800) == 4_000)
     }
 }
 

@@ -149,7 +149,6 @@ final class PlaybackStore: ObservableObject {
     @Published var isPlaybackSidePanelVisible = false
     @Published var playbackViewModel: PlaybackViewModel?
     @Published private(set) var chromeSnapshot = PlaybackChromeSnapshot.empty
-    @Published private(set) var canRepeatCurrentCue = false
     /// The player's error banner, one line for the video and one for the
     /// subtitle. See `docs/human/requirements/20260921-Bug-Missing Files
     /// Treated As Missing Database Records.md`.
@@ -756,13 +755,6 @@ final class PlaybackStore: ObservableObject {
 
     func clearChromeSnapshot() {
         setChromeSnapshot(.empty)
-    }
-
-    func setCanRepeatCurrentCue(_ canRepeat: Bool) {
-        guard canRepeatCurrentCue != canRepeat else {
-            return
-        }
-        canRepeatCurrentCue = canRepeat
     }
 
     /// Shows `message` on `line`, replacing what was there, for the banner's

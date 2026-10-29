@@ -135,7 +135,6 @@ extension AppCoordinator {
             autoSwitchGapMilliseconds: settings.autoSwitchCueSequenceGapMilliseconds
         )
         activePlaylistCuePosition = playback.playlistPosition
-        playback.setCanRepeatCurrentCue(false)
     }
 
     func clearCueAutoStopPlayback() {
@@ -147,61 +146,54 @@ extension AppCoordinator {
         player?.setAutoPauseBoundary(nil)
         activePlaylistCueSettings = nil
         activePlaylistCuePosition = nil
-        playback.setCanRepeatCurrentCue(false)
     }
 
     func cueRepeatStartMilliseconds(at currentTime: Double) -> Int? {
         guard isPlaybackPageVisible,
               currentTime.isFinite,
-              activePlaylistCueSettings?.autoSwitchEnabled == false
+              let playbackSubtitleDatabase
         else {
             return nil
         }
 
-        let startMilliseconds: Int
-        let endMilliseconds: Int
-        switch activePlaybackSource {
-        case .search:
-            guard let result = search.selectedSearchResult else {
-                return nil
-            }
-            startMilliseconds = result.startMilliseconds
-            endMilliseconds = result.endMilliseconds
-        case .excerpt:
-            guard let selectedExcerpt = excerpt.selectedExcerpt else {
-                return nil
-            }
-            startMilliseconds = selectedExcerpt.startMilliseconds
-            endMilliseconds = selectedExcerpt.endMilliseconds
-        case .library, .none:
-            return nil
+        let timestampMilliseconds = Int(
+            max(0, currentTime * 1_000).rounded(.down)
+        )
+        if let subtitleFileID = currentPlaybackSubtitleFileID,
+           let timing = try? playbackSubtitleDatabase.subtitleFocusDefaultCueTiming(
+               forSubtitleFileID: subtitleFileID,
+               atMilliseconds: timestampMilliseconds
+           ) {
+            return timing.startMilliseconds
         }
-
-        let currentMilliseconds = currentTime * 1_000
-        guard currentMilliseconds >= Double(startMilliseconds),
-              currentMilliseconds <= Double(endMilliseconds)
-        else {
-            return nil
+        if let subtitlePath = currentPlaybackSubtitlePath,
+           let timing = try? playbackSubtitleDatabase.subtitleFocusDefaultCueTiming(
+               forSubtitleFile: URL.fromMediaPath(subtitlePath),
+               atMilliseconds: timestampMilliseconds
+           ) {
+            return timing.startMilliseconds
         }
-        return startMilliseconds
+        return nil
     }
 
     @discardableResult
     func repeatCurrentPlaylistCue() -> Bool {
-        guard let viewModel = playback.playbackViewModel,
+        guard playback.playbackStatus != .loadFailed,
+              !playback.isTimelineScrubbing,
+              let viewModel = playback.playbackViewModel,
+              !viewModel.isOpeningNewVideo,
               let startMilliseconds = cueRepeatStartMilliseconds(
                   at: viewModel.currentTime
               ),
               viewModel.playFromCue(
                   at: Double(startMilliseconds) / 1_000,
-                  autoPauseBoundary: activeCueAutoPauseBoundary
+                  autoPauseBoundary: nil
               )
         else {
             return false
         }
 
         playback.playbackStatus = .playing
-        playback.setCanRepeatCurrentCue(true)
         return true
     }
 

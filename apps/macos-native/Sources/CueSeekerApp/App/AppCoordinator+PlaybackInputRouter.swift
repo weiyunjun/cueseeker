@@ -80,6 +80,31 @@ extension AppCoordinator {
             return true
         }
 
+        // The cue action the press runs where the Playback Overlay and the
+        // Command Panel's search results offer Save to Excerpt, Copy Cue Text
+        // and Copy Deep Link.
+        let cueShortcutAction: PlaybackSubtitleFocusAction? = shortcuts
+            .action(for: shortcutKey, in: .overlay)
+            .flatMap(Self.cueAction(for:))
+
+        if let commandPanel = playback.commandPanelPresentation {
+            if shortcuts.effectiveKey(for: .openCommandPanel) == shortcutKey,
+               !textInputState.isEditableFocused {
+                if !isRepeat {
+                    _ = presentPlaybackCommandPanel()
+                }
+                return true
+            }
+            return handlePlaybackCommandPanelKeyDown(
+                commandPanel,
+                keyCode: keyCode,
+                modifierFlags: modifierFlags,
+                isRepeat: isRepeat,
+                textInputState: textInputState,
+                cueShortcutAction: cueShortcutAction
+            )
+        }
+
         if let subtitleFocusSession = playback.subtitleFocusSession,
            subtitleFocusSession.isEditingCollage {
             return handlePlaybackCollageKeyDown(
@@ -98,24 +123,6 @@ extension AppCoordinator {
                 _ = presentPlaybackCommandPanel()
             }
             return true
-        }
-
-        // The cue action the press runs where the Playback Overlay and the
-        // Command Panel's search results offer Save to Excerpt, Copy Cue Text
-        // and Copy Deep Link.
-        let cueShortcutAction: PlaybackSubtitleFocusAction? = shortcuts
-            .action(for: shortcutKey, in: .overlay)
-            .flatMap(Self.cueAction(for:))
-
-        if let commandPanel = playback.commandPanelPresentation {
-            return handlePlaybackCommandPanelKeyDown(
-                commandPanel,
-                keyCode: keyCode,
-                modifierFlags: modifierFlags,
-                isRepeat: isRepeat,
-                textInputState: textInputState,
-                cueShortcutAction: cueShortcutAction
-            )
         }
 
         if let subtitleFocusSession = playback.subtitleFocusSession {

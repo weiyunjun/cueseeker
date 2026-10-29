@@ -4,7 +4,7 @@ NSString * const SFXNativePlaybackErrorDomain = @"CueSeeker.NativePlayback";
 
 enum AVPixelFormat SFXHardwarePixelFormat = AV_PIX_FMT_NONE;
 const float SFXMinimumPlaybackRate = 0.5f;
-const float SFXMaximumPlaybackRate = 2.0f;
+const float SFXMaximumPlaybackRate = 3.0f;
 const double SFXVideoStarvationThresholdSeconds = 0.12;
 const double SFXVideoStarvationWatchdogIntervalSeconds = 0.05;
 const double SFXAudioPrimeWallSeconds = 0.35;

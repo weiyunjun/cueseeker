@@ -32,6 +32,7 @@ enum AppIcon: String, CaseIterable, Sendable {
     case gear = "gear"
     case gearFine = "gear-fine"
     case tray = "tray"
+    case list = "list"
     case listChecks = "list-checks"
     case folderPlus = "folder-plus"
     case folderMinus = "folder-minus"

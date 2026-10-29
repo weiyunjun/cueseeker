@@ -1303,7 +1303,10 @@ func playbackPlayerClampsNativeSpeedRange() {
     let player = PlaybackPlayer()
 
     player.setPlaybackSpeed(3.0)
-    #expect(player.playbackSpeed() == 2.0)
+    #expect(player.playbackSpeed() == 3.0)
+
+    player.setPlaybackSpeed(4.0)
+    #expect(player.playbackSpeed() == 3.0)
 
     player.setPlaybackSpeed(0.25)
     #expect(player.playbackSpeed() == 0.5)

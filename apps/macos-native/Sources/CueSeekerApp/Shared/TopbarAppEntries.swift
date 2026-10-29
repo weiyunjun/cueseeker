@@ -9,6 +9,7 @@ struct TopbarAppEntries: View {
     @EnvironmentObject private var appState: AppCoordinator
     // Observed so the entries' labels are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
+    var showsCommandPanel: Bool = false
     var iconColor: Color? = nil
     var openIconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
@@ -19,6 +20,22 @@ struct TopbarAppEntries: View {
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
+            if showsCommandPanel {
+                CommandPanelEntryButton(
+                    playback: appState.playback,
+                    iconColor: iconColor,
+                    openIconColor: openIconColor,
+                    hoverBackground: hoverBackground,
+                    pressedBackground: pressedBackground,
+                    openBackground: openBackground
+                ) {
+                    appState.performUserInitiatedAppCommand {
+                        _ = appState.presentPlaybackCommandPanel()
+                    }
+                }
+                .playerInteractiveRegion()
+            }
+
             TaskEntryButton(
                 tasks: appState.tasks,
                 iconColor: iconColor,
@@ -49,6 +66,36 @@ struct TopbarAppEntries: View {
             }
             .playerInteractiveRegion()
         }
+    }
+}
+
+struct CommandPanelEntryButton: View {
+    @ObservedObject var playback: PlaybackStore
+    var iconColor: Color? = nil
+    var openIconColor: Color? = nil
+    var hoverBackground: Color = WorkbenchRedesignColors.bgHover
+    var pressedBackground: Color = WorkbenchRedesignColors.bgPressed
+    var openBackground: Color? = nil
+    let onOpen: () -> Void
+
+    var body: some View {
+        WorkbenchIconButton(
+            icon: .magnifyingGlass,
+            isOpen: playback.commandPanelPresentation != nil,
+            hoverBackground: hoverBackground,
+            pressedBackground: pressedBackground,
+            openBackground: openBackground,
+            iconColor: iconColor,
+            openIconColor: openIconColor,
+            action: onOpen
+        )
+        .workbenchTooltip(
+            scenarioID: "topbar.entry.command_panel",
+            label: L("settings.shortcuts.action.openCommandPanel"),
+            shortcut: .action(.openCommandPanel)
+        )
+        .accessibilityLabel(L("settings.shortcuts.action.openCommandPanel"))
+        .accessibilityIdentifier("topbar-command-panel-button")
     }
 }
 

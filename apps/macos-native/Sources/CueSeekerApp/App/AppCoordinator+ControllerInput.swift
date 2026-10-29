@@ -74,22 +74,22 @@ extension AppCoordinator {
             return false
         }
 
-        if let session = playback.subtitleFocusSession,
-           session.isEditingCollage,
-           let handled = handlePlaybackCollageControllerButton(
-               session,
-               button: button,
-               isRepeat: isRepeat
-           ) {
-            return handled
-        }
-
         if let commandPanel = playback.commandPanelPresentation,
            let handled = handlePlaybackCommandPanelControllerButton(
                commandPanel,
                button: button,
                isRepeat: isRepeat,
                textActionHandler: textActionHandler
+           ) {
+            return handled
+        }
+
+        if let session = playback.subtitleFocusSession,
+           session.isEditingCollage,
+           let handled = handlePlaybackCollageControllerButton(
+               session,
+               button: button,
+               isRepeat: isRepeat
            ) {
             return handled
         }

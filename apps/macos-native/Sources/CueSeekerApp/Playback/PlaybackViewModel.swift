@@ -16,8 +16,8 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     static let minimumPlaybackSpeed = 0.5
-    static let maximumPlaybackSpeed = 2.0
-    static let speedPresets = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+    static let maximumPlaybackSpeed = 3.0
+    static let speedPresets = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0]
     private static let displayedCurrentTimePublishInterval: TimeInterval = 0.5
     private static let seekTimeProtectionDuration: TimeInterval = 1.5
     private static let seekTimeProtectionBaseTolerance = 0.75

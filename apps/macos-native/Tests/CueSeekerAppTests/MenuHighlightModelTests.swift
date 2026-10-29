@@ -200,8 +200,11 @@ struct MenuHighlightModelTests {
     func speedMenuCheckmarkIndexIsIndependentOfPopupHighlight() {
         AppCursorVisibility.resetForTesting()
         let presets = PlaybackViewModel.speedPresets
+        #expect(presets == [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0])
+        #expect(PlaybackViewModel.maximumPlaybackSpeed == 3.0)
         #expect(PlaybackViewModel.speedPresetIndex(for: 1.0) == 2)
         #expect(PlaybackViewModel.speedPresetIndex(for: 1.75) == 5)
+        #expect(PlaybackViewModel.speedPresetIndex(for: 3.0) == 7)
         #expect(PlaybackViewModel.speedPresetIndex(for: 1.3) == nil)
 
         let model = MenuHighlightModel()

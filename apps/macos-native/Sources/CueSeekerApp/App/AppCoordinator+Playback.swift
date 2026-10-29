@@ -354,11 +354,6 @@ extension AppCoordinator {
         try? player?.stop()
         playback.playbackViewModel?.resetPresentationForStoppedPlayback()
         playback.playbackStatus = .loadFailed
-        if let cueStartMilliseconds {
-            playback.setCanRepeatCurrentCue(
-                cueRepeatStartMilliseconds(at: Double(cueStartMilliseconds) / 1_000) != nil
-            )
-        }
         playback.showError(L("playback.error.video_load_failed", videoPath), on: .video)
     }
 
@@ -376,9 +371,6 @@ extension AppCoordinator {
         markCurrentLibraryPlaybackCompletedIfNeeded(
             currentTime: currentTime,
             duration: duration
-        )
-        playback.setCanRepeatCurrentCue(
-            cueRepeatStartMilliseconds(at: currentTime) != nil
         )
     }
 

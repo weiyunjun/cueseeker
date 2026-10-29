@@ -9,7 +9,7 @@ struct PlaybackChromeControls {
     let togglePlayPause: () -> Void
     let canGoNext: Bool
     let goNext: () -> Void
-    let canRepeatCurrentCue: Bool
+    var openPlaybackOverlay: () -> Void = {}
     let repeatCurrentCue: () -> Void
     let isFullscreen: Bool
     let isFullscreenToggleDisabled: Bool
@@ -34,8 +34,8 @@ extension PlaybackChromeControls {
             togglePlayPause: appState.togglePlaybackFromUser,
             canGoNext: snapshot.canGoNext,
             goNext: { appState.goNext() },
-            canRepeatCurrentCue: appState.playback.canRepeatCurrentCue,
-            repeatCurrentCue: { appState.repeatCurrentPlaylistCue() },
+            openPlaybackOverlay: { _ = appState.openPlaybackSubtitleFocusFromUser() },
+            repeatCurrentCue: { _ = appState.repeatCurrentPlaylistCue() },
             isFullscreen: isFullscreen,
             isFullscreenToggleDisabled: isFullscreenToggleDisabled,
             toggleFullscreen: fullscreenAction ?? {
@@ -242,17 +242,25 @@ struct PlaybackChromeView: View {
     private var rightGroup: some View {
         HStack(spacing: PlaybackChromeMetrics.controlsGap) {
             PlaybackChromeIconButton(
+                icon: .list,
+                accessibilityLabel: L("settings.shortcuts.action.openPlaybackOverlay"),
+                action: controls.openPlaybackOverlay
+            )
+            .workbenchTooltip(
+                scenarioID: "player.control.playback_overlay",
+                label: L("settings.shortcuts.action.openPlaybackOverlay"),
+                shortcut: .action(.openPlaybackOverlay)
+            )
+
+            PlaybackChromeIconButton(
                 icon: .repeatIcon,
-                isDisabled: !controls.canRepeatCurrentCue,
                 accessibilityLabel: L("playback.repeat"),
                 action: controls.repeatCurrentCue
             )
             .workbenchTooltip(
                 scenarioID: "player.control.repeat",
-                label: controls.canRepeatCurrentCue
-                    ? L("playback.repeat")
-                    : L("tooltip.player.repeat.disabled"),
-                shortcut: controls.canRepeatCurrentCue ? .action(.repeatCue) : .none
+                label: L("playback.repeat"),
+                shortcut: .action(.repeatCue)
             )
 
             PlaybackChromeIconButton(
