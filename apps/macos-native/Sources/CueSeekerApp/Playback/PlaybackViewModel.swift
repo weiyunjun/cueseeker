@@ -213,7 +213,11 @@ public final class PlaybackViewModel: ObservableObject {
         player.cancelPendingPresentation()
     }
 
-    private func scheduleLoadingFeedback(reset: Bool = true) {
+    func scheduleLoadingFeedback(reset: Bool = true) {
+        guard pendingPresentation != nil, feedback == nil else {
+            cancelLoadingFeedback()
+            return
+        }
         if !reset, (isLoadingFeedbackVisible || loadingFeedbackTask != nil) {
             return
         }
@@ -226,7 +230,11 @@ public final class PlaybackViewModel: ObservableObject {
                 return
             }
             await MainActor.run {
-                guard !Task.isCancelled, let self, self.pendingPresentation != nil else {
+                guard !Task.isCancelled,
+                      let self,
+                      self.pendingPresentation != nil,
+                      self.feedback == nil
+                else {
                     return
                 }
                 self.isLoadingFeedbackVisible = true
@@ -234,7 +242,7 @@ public final class PlaybackViewModel: ObservableObject {
         }
     }
 
-    private func cancelLoadingFeedback() {
+    func cancelLoadingFeedback() {
         loadingFeedbackTask?.cancel()
         loadingFeedbackTask = nil
         if isLoadingFeedbackVisible {

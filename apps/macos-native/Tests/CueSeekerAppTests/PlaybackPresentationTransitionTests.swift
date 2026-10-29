@@ -122,33 +122,52 @@ func playbackNewVideoOpeningResetsProgressToZeroAndIgnoresPlayPauseUntilCommit()
 
 @Test
 @MainActor
-func playbackLoadingFeedbackAppearsAfter150msYieldsToTransientHUDAndClearsOnCommit() async {
+func playbackLoadingFeedbackAppearsAfter300msAndCountsDelayAfterTransientHUDCompletes() async {
+    #expect(PlaybackChromeMetrics.feedbackSpinnerSize == 23)
+    #expect(PlaybackChromeMetrics.loadingFeedbackDelayMilliseconds == 300)
+
     let player = PlaybackPlayer()
     let viewModel = PlaybackViewModel(player: player)
 
     viewModel.prepareNewVideoOpening(to: 10)
     viewModel.bindPendingPresentation(to: 99)
 
-    // Immediately after trigger (< 150ms), loading spinner is not visible.
+    // Immediately after trigger (< 300ms), loading spinner is not visible.
     #expect(!viewModel.isLoadingFeedbackVisible)
     #expect(viewModel.effectiveFeedback == nil)
 
-    // Triggering a transient navigation HUD takes priority in the single center slot.
-    viewModel.showSearchNavigationFeedback(direction: .next, hasResult: true)
-    #expect(viewModel.effectiveFeedback?.showsSpinner == false)
-    #expect(viewModel.effectiveFeedback?.text != nil)
-
+    // Without a transient HUD, waiting past 300ms shows the loading spinner.
     try? await Task.sleep(
         nanoseconds: (PlaybackChromeMetrics.loadingFeedbackDelayMilliseconds + 60) * 1_000_000
     )
     await Task.yield()
-
-    // After 150ms, loading feedback is armed, but transient HUD still holds priority.
     #expect(viewModel.isLoadingFeedbackVisible)
-    #expect(viewModel.effectiveFeedback?.showsSpinner == false)
+    #expect(viewModel.effectiveFeedback == .loading)
 
-    // Once the transient HUD finishes (or clears), the loading spinner seamlessly takes over.
-    viewModel.feedback = nil
+    // Triggering a transient action HUD takes over the center slot and resets the loading timer
+    // so that the 300ms threshold is counted AFTER the action HUD finishes playing.
+    viewModel.showFeedback(
+        PlaybackFeedback(icon: .caretRight, text: "Next Video"),
+        durationMilliseconds: 120
+    )
+    #expect(!viewModel.isLoadingFeedbackVisible)
+    #expect(viewModel.effectiveFeedback?.showsSpinner == false)
+    #expect(viewModel.effectiveFeedback?.text == "Next Video")
+
+    // Wait for the 120ms action HUD to finish playing (+40ms margin, still < 300ms after HUD end).
+    try? await Task.sleep(nanoseconds: 160 * 1_000_000)
+    await Task.yield()
+    #expect(viewModel.feedback == nil)
+    #expect(!viewModel.isLoadingFeedbackVisible)
+    #expect(viewModel.effectiveFeedback == nil)
+
+    // Once 300ms have elapsed after the action HUD finished and the frame is still pending,
+    // the loading spinner appears.
+    try? await Task.sleep(
+        nanoseconds: (PlaybackChromeMetrics.loadingFeedbackDelayMilliseconds + 60) * 1_000_000
+    )
+    await Task.yield()
+    #expect(viewModel.isLoadingFeedbackVisible)
     #expect(viewModel.effectiveFeedback == .loading)
     #expect(viewModel.effectiveFeedback?.showsSpinner == true)
     #expect(viewModel.effectiveFeedback?.text == nil)

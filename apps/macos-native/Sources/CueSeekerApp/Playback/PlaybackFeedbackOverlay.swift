@@ -30,8 +30,11 @@ struct PlaybackFeedbackOverlay: View {
     @ViewBuilder
     private func capsule(_ feedback: PlaybackFeedback) -> some View {
         if feedback.showsSpinner && feedback.text == nil {
-            WorkbenchSpinner(size: PlaybackChromeMetrics.feedbackIconSize)
-                .environment(\.colorScheme, .dark)
+            WorkbenchSpinner(
+                size: PlaybackChromeMetrics.feedbackSpinnerSize,
+                trackColor: PlaybackTheme.feedbackSpinnerTrack,
+                indicatorColor: PlaybackTheme.feedbackSpinnerIndicator
+            )
                 .frame(
                     width: PlaybackChromeMetrics.feedbackMinimumHeight,
                     height: PlaybackChromeMetrics.feedbackMinimumHeight

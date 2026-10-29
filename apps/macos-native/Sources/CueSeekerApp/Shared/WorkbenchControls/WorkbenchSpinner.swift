@@ -9,6 +9,8 @@ import SwiftUI
 struct WorkbenchSpinner: View {
     var size: CGFloat = WorkbenchControlMetrics.redesignSpinnerSize
     var strokeWidth: CGFloat = WorkbenchControlMetrics.redesignSpinnerStrokeWidth
+    var trackColor: Color = WorkbenchRedesignColors.spinnerTrack
+    var indicatorColor: Color = WorkbenchRedesignColors.spinnerIndicator
 
     var body: some View {
         TimelineView(.animation) { context in
@@ -17,12 +19,12 @@ struct WorkbenchSpinner: View {
             ZStack {
                 Circle()
                     .inset(by: strokeWidth / 2)
-                    .stroke(WorkbenchRedesignColors.spinnerTrack, lineWidth: strokeWidth)
+                    .stroke(trackColor, lineWidth: strokeWidth)
 
                 Circle()
                     .inset(by: strokeWidth / 2)
                     .trim(from: 0, to: 0.25)
-                    .stroke(WorkbenchRedesignColors.spinnerIndicator, lineWidth: strokeWidth)
+                    .stroke(indicatorColor, lineWidth: strokeWidth)
                     .rotationEffect(.degrees(turns.truncatingRemainder(dividingBy: 1) * 360))
             }
         }

@@ -328,6 +328,7 @@ extension PlaybackViewModel {
         durationMilliseconds: UInt64 = 1_000
     ) {
         feedback = nextFeedback
+        cancelLoadingFeedback()
         feedbackClearTask?.cancel()
         feedbackClearTask = Task { @MainActor [weak self] in
             await Task.yield()
@@ -341,6 +342,7 @@ extension PlaybackViewModel {
             self.feedback = nil
             self.accumulatedForwardSeconds = 0
             self.accumulatedRewindSeconds = 0
+            self.scheduleLoadingFeedback(reset: true)
         }
     }
 }

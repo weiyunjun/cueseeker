@@ -274,6 +274,16 @@ public enum PlaybackTheme {
         Color.white.opacity(0.38)
     }
 
+    /// --color-playback-feedback-spinner-track: Light rgba(255,255,255,0.24); Dark rgba(255,255,255,0.24)
+    public static var feedbackSpinnerTrack: Color {
+        Color.white.opacity(0.24)
+    }
+
+    /// --color-playback-feedback-spinner-indicator: Light rgba(255,255,255,0.80); Dark rgba(255,255,255,0.80)
+    public static var feedbackSpinnerIndicator: Color {
+        Color.white.opacity(0.80)
+    }
+
     /// --color-player-window-close
     public static var windowClose: Color {
         Color(red: 1.0, green: 95 / 255, blue: 87 / 255)
@@ -572,11 +582,13 @@ enum PlaybackChromeMetrics {
     static let feedbackRadius: CGFloat = 16
     /// --size-playback-feedback-icon: 31px
     static let feedbackIconSize: CGFloat = 31
+    /// --size-playback-feedback-spinner: 23px
+    static let feedbackSpinnerSize: CGFloat = 23
     /// --font-size-playback-feedback: 18px
     static let feedbackFontSize: CGFloat = 18
-    /// --delay-playback-loading-feedback: 150ms
-    static let loadingFeedbackDelay: TimeInterval = 0.15
-    static let loadingFeedbackDelayMilliseconds: UInt64 = 150
+    /// --delay-playback-loading-feedback: 300ms
+    static let loadingFeedbackDelay: TimeInterval = 0.30
+    static let loadingFeedbackDelayMilliseconds: UInt64 = 300
 
     static let chromeHorizontalPadding: CGFloat = 24
     /// --padding-player-chrome-x + --spacing-2: 32px
