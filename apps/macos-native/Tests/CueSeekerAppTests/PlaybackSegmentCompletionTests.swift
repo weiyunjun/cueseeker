@@ -38,11 +38,17 @@ func playbackViewModelForwardsNaturalPlaybackCompletion() async {
     )
 
     viewModel.isPlaying = true
+    viewModel.player(player, didUpdateDuration: 100.0)
+    viewModel.player(player, didUpdateTimePosition: 99.96)
+    await Task.yield()
+
     viewModel.playerDidFinishPlayback(player)
     await Task.yield()
 
     #expect(completionCount == 1)
     #expect(!viewModel.isPlaying)
+    #expect(viewModel.currentTime == 100.0)
+    #expect(viewModel.displayedCurrentTime == 100.0)
 }
 
 @MainActor
@@ -1108,6 +1114,71 @@ func naturalLibraryPlaybackCompletionOpensNextVideoAndPersistsCompletion() async
         )
         #expect(history.completedAt != nil)
         #expect(history.positionMilliseconds == 100_000)
+    }
+}
+
+@MainActor
+@Test
+func singleEpisodeNaturalLibraryPlaybackCompletionPreservesFullDurationAndRestartsFromZeroOnReopen() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        let onlyVideo = LibraryVideo(
+            videoPath: "/Media/SingleEpisodeFolder/Episode 1.mkv",
+            videoName: "Episode 1",
+            duration: 100,
+            subtitlePath: "/Media/SingleEpisodeFolder/Episode 1.srt",
+            subtitleFormat: .srt
+        )
+        app.library.libraryVideos = [onlyVideo]
+        app.library.libraryPlaybackNavigationVideos = [onlyVideo]
+        app.library.selectedLibraryVideo = onlyVideo
+        app.ensurePlayerInitialized()
+        app.activePlaybackSource = .library(videoPath: onlyVideo.videoPath)
+        app.startLibraryPlaybackHistoryTracking(videoPath: onlyVideo.videoPath)
+        defer {
+            app.stopLibraryPlaybackHistoryTracking()
+            try? app.player?.stop()
+        }
+
+        let playbackViewModel = try #require(app.playback.playbackViewModel)
+        let player = try #require(app.player)
+        playbackViewModel.player(player, didUpdateDuration: 100.0)
+        playbackViewModel.player(player, didUpdateTimePosition: 99.96)
+        await Task.yield()
+
+        app.handlePlaybackFinishedNaturally()
+
+        #expect(playbackViewModel.currentTime == 100.0)
+        #expect(playbackViewModel.displayedCurrentTime == 100.0)
+        #expect(app.libraryResumePositionMilliseconds(for: onlyVideo) == 0)
+
+        // Staying on the completed playback page (periodic 5s save) and closing the playback surface
+        // must keep positionMilliseconds at full duration rather than overwriting it with 99_960.
+        app.saveCurrentLibraryPlaybackHistorySynchronously()
+        app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
+
+        let completedHistory = try #require(
+            try app.libraryDatabase!.libraryPlaybackHistory(
+                forVideoFile: URL(fileURLWithPath: onlyVideo.videoPath)
+            )
+        )
+        #expect(completedHistory.completedAt != nil)
+        #expect(completedHistory.positionMilliseconds == 100_000)
+        #expect(app.libraryResumePositionMilliseconds(for: onlyVideo) == 0)
+
+        // Seeking backward after natural completion while remaining on the playback page
+        // saves the newly seeked position normally.
+        playbackViewModel.player(player, didUpdateTimePosition: 42.0)
+        await Task.yield()
+        app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
+
+        let seekedHistory = try #require(
+            try app.libraryDatabase!.libraryPlaybackHistory(
+                forVideoFile: URL(fileURLWithPath: onlyVideo.videoPath)
+            )
+        )
+        #expect(seekedHistory.completedAt != nil)
+        #expect(seekedHistory.positionMilliseconds == 42_000)
+        #expect(app.libraryResumePositionMilliseconds(for: onlyVideo) == 42_000)
     }
 }
 

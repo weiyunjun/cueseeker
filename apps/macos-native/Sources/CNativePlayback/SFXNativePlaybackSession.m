@@ -660,7 +660,11 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
             return;
         }
         _playbackFinishNotified = YES;
+        if (isfinite(_duration) && _duration > 0) {
+            _currentTime = fmax(_currentTime, _duration);
+        }
     }
+    [self notifyTimeIfNeeded:YES];
 
     id<SFXNativePlaybackPlayerDelegate> delegate = _delegate;
     SFXNativePlaybackPlayer *owner = _owner;

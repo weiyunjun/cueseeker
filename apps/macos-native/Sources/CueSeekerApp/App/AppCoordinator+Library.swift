@@ -654,6 +654,9 @@ extension AppCoordinator {
         ]
         .compactMap { $0 }
         .first { $0.isFinite && $0 > 0 }
+        playbackViewModel?.completeNaturalPlaybackAtEnd(
+            fallbackDuration: resolvedDuration
+        )
         let positionMilliseconds = resolvedDuration.map {
             max(0, Int(($0 * 1_000).rounded(.down)))
         } ?? max(
@@ -676,6 +679,7 @@ extension AppCoordinator {
         guard let database = libraryDatabase else {
             return nil
         }
+        libraryPlaybackHistoryWriter.flush()
         do {
             return try database.libraryPlaybackHistory(
                 forVideoFile: URL.fromMediaPath(video.videoPath)

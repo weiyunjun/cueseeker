@@ -921,12 +921,30 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
         }
     }
 
+    func completeNaturalPlaybackAtEnd(fallbackDuration: Double? = nil) {
+        needsTimelineThumbnailRefreshAfterReset = true
+        clearTimelineThumbnailPreview()
+        clearProtectedSeekTarget()
+        isPlaying = false
+        let resolvedDuration = [duration, fallbackDuration]
+            .compactMap { $0 }
+            .first { $0.isFinite && $0 > 0 }
+        if let resolvedDuration {
+            if duration != resolvedDuration {
+                duration = resolvedDuration
+            }
+            updatePlaybackTime(
+                max(currentTime, resolvedDuration),
+                publishesControlsImmediately: true
+            )
+        } else {
+            publishDisplayedCurrentTimeIfNeeded(force: true)
+        }
+    }
+
     nonisolated public func playerDidFinishPlayback(_ player: PlaybackPlayer) {
         Task { @MainActor in
-            self.needsTimelineThumbnailRefreshAfterReset = true
-            self.clearTimelineThumbnailPreview()
-            self.isPlaying = false
-            self.publishDisplayedCurrentTimeIfNeeded(force: true)
+            self.completeNaturalPlaybackAtEnd()
             self.onPlaybackFinished()
         }
     }

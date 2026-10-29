@@ -217,6 +217,9 @@ func nativePlaybackNotifiesNaturalCompletionAfterAudioDrain() async throws {
 
     #expect(completed)
     #expect(delegate.audioOutputWasDrained)
+    #expect(player.duration > 0)
+    #expect(player.currentTime >= player.duration)
+    #expect(delegate.lastUpdatedTime >= player.duration)
     #expect(!delegate.hasFailures)
 
     player.stop()
@@ -481,6 +484,7 @@ private final class NativePlaybackCompletionDelegate: NSObject, SFXNativePlaybac
     private let lock = NSLock()
     private var completions = 0
     private var audioWasDrained = false
+    private var latestTime: Double = 0
     private var failures: [String] = []
 
     func nativePlaybackPlayer(
@@ -488,7 +492,11 @@ private final class NativePlaybackCompletionDelegate: NSObject, SFXNativePlaybac
         didUpdateTime time: Double,
         duration: Double,
         playing: Bool
-    ) {}
+    ) {
+        lock.lock()
+        latestTime = time
+        lock.unlock()
+    }
 
     func nativePlaybackPlayer(
         _ player: SFXNativePlaybackPlayer,
@@ -518,6 +526,12 @@ private final class NativePlaybackCompletionDelegate: NSObject, SFXNativePlaybac
         lock.lock()
         defer { lock.unlock() }
         return audioWasDrained
+    }
+
+    var lastUpdatedTime: Double {
+        lock.lock()
+        defer { lock.unlock() }
+        return latestTime
     }
 
     var hasFailures: Bool {
