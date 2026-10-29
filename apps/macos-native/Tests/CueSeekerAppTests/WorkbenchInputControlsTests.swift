@@ -1168,35 +1168,60 @@ struct WorkbenchInputControlsTests {
         window.dialogSize = { layers.topDialogSize }
         window.isWorkbenchCovered = { layers.isCovered(.workbenchPage) }
 
-        // 1. Rename Dialog (opened right as a card menu token is released & dialog layer opens) autofocuses and selects all prefilled name
-        var openMenuToken: InterfaceLayerRegistry.OpenMenuToken? = layers.registerOpenMenu(ownedBy: .workbenchPage)
+        // 1. Rename Dialog hosted inside WorkbenchDialogLayer with .workbenchDialog() transition (opened right as a card menu closes) autofocuses and selects all prefilled name
+        final class DialogHostState: ObservableObject {
+            @Published var renameSession: LibraryRenameSession?
+        }
+        struct DialogHostHarness: View {
+            @ObservedObject var state: DialogHostState
+            let layers: InterfaceLayerRegistry
+            var body: some View {
+                WorkbenchDialogLayer(
+                    dialogIDs: state.renameSession.map { [AnyHashable($0.id)] } ?? [],
+                    topBandHeight: 52
+                ) {
+                    if let session = state.renameSession {
+                        LibraryRenameDialog(
+                            session: session,
+                            onConfirm: {},
+                            onClose: { state.renameSession = nil }
+                        )
+                        .workbenchDialog()
+                    }
+                }
+                .frame(width: 900, height: 700)
+                .modifier(InterfaceLayerCoverageBridge(layers: layers))
+            }
+        }
+
+        let dialogState = DialogHostState()
+        let renameHosting = NSHostingView(
+            rootView: DialogHostHarness(state: dialogState, layers: layers)
+        )
+        renameHosting.frame = NSRect(x: 0, y: 0, width: 900, height: 700)
+        window.contentView = renameHosting
+        renameHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+
+        // Simulate clicking "Rename" in an open card menu: menu closes and renameSession opens in the same turn
+        let menuSession = layers.menuGate.open(MenuGate.Client(
+            owner: .workbenchPage,
+            kind: .cardMenu,
+            window: { window },
+            isPointerOnMenu: { _ in false },
+            handleKey: { _, _ in false },
+            dismiss: { _ in }
+        ))
         let folder = IndexedContentFolder(
             id: 1,
             relativePath: "Season 01",
             folderPath: "/Media/Season 01"
         )
-        let renameSession = LibraryRenameSession(folder: folder)
-        layers.topDialogSize = NSSize(width: WorkbenchControlMetrics.redesignDialogWidthMedium, height: 220)
-        layers.setOpen(.dialog, true)
-
-        let renameHosting = NSHostingView(
-            rootView: ZStack {
-                Color.clear
-                LibraryRenameDialog(
-                    session: renameSession,
-                    onConfirm: {},
-                    onClose: {}
-                )
-            }
-            .frame(width: 900, height: 700)
-        )
-        renameHosting.frame = NSRect(x: 0, y: 0, width: 900, height: 700)
-        window.contentView = renameHosting
+        menuSession.close()
+        dialogState.renameSession = LibraryRenameSession(folder: folder)
         renameHosting.layoutSubtreeIfNeeded()
-        // Release menu token on the next turn (simulating MenuGateClientView dismantle)
-        openMenuToken = nil
-        _ = openMenuToken
-        RunLoop.main.run(until: Date().addingTimeInterval(0.06))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.08))
+        renameHosting.layoutSubtreeIfNeeded()
 
         let renameField = try #require(collectEditableTextFields(in: renameHosting).first as? WorkbenchNativeSingleLineTextField)
         #expect(renameField.isCurrentlyFocused)
@@ -1204,7 +1229,9 @@ struct WorkbenchInputControlsTests {
         #expect(renameEditor.string == "Season 01")
         #expect(renameEditor.selectedRange() == NSRange(location: 0, length: "Season 01".utf16.count))
 
-        layers.setOpen(.dialog, false)
+        dialogState.renameSession = nil
+        renameHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
 
         // 2. Workbench Search Toolbar with autofocusSearchOnAppear = true autofocuses & selects all on initial entry,
         //    and does NOT re-autofocus after exiting selection mode; autofocusSearchOnAppear = false (Excerpt detail) does not autofocus.
@@ -1272,14 +1299,17 @@ struct WorkbenchInputControlsTests {
         let excerptSearchField = try #require(collectEditableTextFields(in: excerptToolbarHosting).first as? WorkbenchNativeSingleLineTextField)
         #expect(!excerptSearchField.isCurrentlyFocused)
 
-        // 3. Command Panel search field (autofocus: true, including prefilled cue text) autofocuses and selects all text
+        // 3. Command Panel search field (autofocus: true, including prefilled cue text and trailing onSubmit closure)
+        //    autofocuses and selects all text WITHOUT firing trailing onSubmit closure on open.
         let commandQueryBox = StringBox("prefilled subtitle cue")
         let commandHosting = NSHostingView(
             rootView: WorkbenchSearchField(
                 placeholder: "Search",
                 text: Binding(get: { commandQueryBox.text }, set: { commandQueryBox.text = $0 }),
                 autofocus: true
-            )
+            ) {
+                commandQueryBox.submitCount += 1
+            }
             .frame(width: 500)
             .frame(width: 900, height: 700)
         )
@@ -1290,8 +1320,63 @@ struct WorkbenchInputControlsTests {
 
         let commandField = try #require(collectEditableTextFields(in: commandHosting).first as? WorkbenchNativeSingleLineTextField)
         #expect(commandField.isCurrentlyFocused)
+        #expect(commandQueryBox.submitCount == 0)
         let commandEditor = try #require(commandField.currentEditor() as? NSTextView)
         #expect(commandEditor.selectedRange() == NSRange(location: 0, length: "prefilled subtitle cue".utf16.count))
+
+        // 4. Pasting a single long string wider than the search box into an empty WorkbenchSearchField
+        //    (which mounts the clear button + trailing status text and shrinks the text field width)
+        //    keeps focus and scrolls the insertion point at the end into the visible clip view.
+        final class DynamicSearchBox: ObservableObject {
+            @Published var text = ""
+        }
+        struct DynamicSearchHarness: View {
+            @ObservedObject var box: DynamicSearchBox
+            var body: some View {
+                WorkbenchSearchField(
+                    placeholder: "Search",
+                    text: $box.text,
+                    autofocus: true,
+                    trailingStatusText: box.text.isEmpty ? nil : "0/0"
+                )
+                .frame(width: 240)
+                .frame(width: 900, height: 700)
+            }
+        }
+
+        let dynamicBox = DynamicSearchBox()
+        let dynamicHosting = NSHostingView(
+            rootView: DynamicSearchHarness(box: dynamicBox)
+        )
+        dynamicHosting.frame = NSRect(x: 0, y: 0, width: 900, height: 700)
+        window.contentView = dynamicHosting
+        dynamicHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        let dynamicField = try #require(collectEditableTextFields(in: dynamicHosting).first as? WorkbenchNativeSingleLineTextField)
+        #expect(dynamicField.isCurrentlyFocused)
+        let widthBeforePaste = dynamicField.bounds.width
+        let dynamicEditor = try #require(dynamicField.currentEditor() as? NSTextView)
+        let longPaste = "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima"
+        dynamicEditor.insertText(longPaste, replacementRange: dynamicEditor.selectedRange())
+        dynamicHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        dynamicHosting.layoutSubtreeIfNeeded()
+
+        #expect(dynamicField.isCurrentlyFocused)
+        #expect(dynamicField.bounds.width < widthBeforePaste)
+        #expect(dynamicEditor.selectedRange() == NSRange(location: longPaste.utf16.count, length: 0))
+        let dynamicClipView = try #require(dynamicEditor.superview as? NSClipView)
+        #expect(dynamicClipView.bounds.origin.x > 0)
+        if let layoutManager = dynamicEditor.layoutManager,
+           let textContainer = dynamicEditor.textContainer {
+            let endGlyphIndex = layoutManager.glyphIndexForCharacter(at: max(0, longPaste.utf16.count - 1))
+            let endGlyphRect = layoutManager.boundingRect(
+                forGlyphRange: NSRange(location: endGlyphIndex, length: 1),
+                in: textContainer
+            )
+            #expect(dynamicClipView.bounds.maxX >= endGlyphRect.maxX - 2)
+        }
     }
 }
 

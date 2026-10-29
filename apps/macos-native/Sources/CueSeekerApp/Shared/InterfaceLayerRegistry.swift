@@ -114,8 +114,16 @@ final class InterfaceLayerRegistry: ObservableObject {
         else {
             return
         }
+        if let field = pageFocus as? WorkbenchNativeSingleLineTextField,
+           field.interfaceLayer == .dialog {
+            return
+        }
         Task { @MainActor in
             guard Self.focusOwner(in: window) === pageFocus else {
+                return
+            }
+            if let field = pageFocus as? WorkbenchNativeSingleLineTextField,
+               field.interfaceLayer == .dialog {
                 return
             }
             if let mainWindow = window as? CueSeekerMainWindow,

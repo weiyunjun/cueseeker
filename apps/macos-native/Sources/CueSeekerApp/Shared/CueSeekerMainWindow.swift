@@ -346,6 +346,11 @@ final class CueSeekerMainWindow: CueSeekerWindow {
         guard !target.isHiddenOrHasHiddenAncestor else {
             return false
         }
+        if let field = target as? WorkbenchNativeSingleLineTextField,
+           field.interfaceLayer == .dialog,
+           !isBehindDialog(target) {
+            return true
+        }
         guard let content = contentView, let frame = content.superview else {
             return true
         }

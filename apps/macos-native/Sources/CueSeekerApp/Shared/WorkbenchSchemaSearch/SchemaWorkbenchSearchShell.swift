@@ -444,9 +444,6 @@ struct SchemaWorkbenchSearchToolbar: View {
             text: $searchDraft,
             autofocus: autofocusSearchOnAppear && !hasConsumedInitialAutofocus && !isSelectionMode,
             trailingStatusText: nil,
-            onAutofocusCompleted: {
-                hasConsumedInitialAutofocus = true
-            },
             onSubmit: onSubmit
         )
     }

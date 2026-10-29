@@ -49,13 +49,11 @@ struct WorkbenchSearchField: View {
     @Binding var text: String
     var autofocus: Bool
     var trailingStatusText: String?
-    var onAutofocusCompleted: (() -> Void)?
     var onSubmit: (() -> Void)?
     var onMoveUp: (() -> Bool)?
     var onMoveDown: (() -> Bool)?
     var onCancel: (() -> Bool)?
 
-    @FocusState private var isFocused: Bool
     @State private var isNativeFocused = false
     @State private var textFieldBox = WeakTextFieldBox()
     @Environment(\.isEnabled) private var isEnabled
@@ -65,7 +63,6 @@ struct WorkbenchSearchField: View {
         text: Binding<String>,
         autofocus: Bool = false,
         trailingStatusText: String? = nil,
-        onAutofocusCompleted: (() -> Void)? = nil,
         onSubmit: (() -> Void)? = nil,
         onMoveUp: (() -> Bool)? = nil,
         onMoveDown: (() -> Bool)? = nil,
@@ -75,7 +72,6 @@ struct WorkbenchSearchField: View {
         _text = text
         self.autofocus = autofocus
         self.trailingStatusText = trailingStatusText
-        self.onAutofocusCompleted = onAutofocusCompleted
         self.onSubmit = onSubmit
         self.onMoveUp = onMoveUp
         self.onMoveDown = onMoveDown
@@ -108,10 +104,9 @@ struct WorkbenchSearchField: View {
                     : WorkbenchRedesignColors.textPlaceholder,
                 fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
                 autofocus: autofocus,
-                focus: $isFocused,
+                focus: nil,
                 accessibilityLabel: placeholder,
                 onFocusChange: { isNativeFocused = $0 },
-                onAutofocusCompleted: onAutofocusCompleted,
                 onBindTextField: { textFieldBox.field = $0 },
                 onSubmit: onSubmit,
                 onMoveUp: onMoveUp,

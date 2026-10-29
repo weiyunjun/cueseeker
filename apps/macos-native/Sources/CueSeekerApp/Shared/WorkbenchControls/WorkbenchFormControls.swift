@@ -10,11 +10,11 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
     var alignment: NSTextAlignment = .left
     var usesMonospacedDigits: Bool = false
     var autofocus: Bool = false
-    let focus: FocusState<Bool>.Binding
+    var isDialogField: Bool = false
+    var focus: FocusState<Bool>.Binding? = nil
     let accessibilityLabel: String
     var normalizeDraft: ((String) -> String)? = nil
     var onFocusChange: ((Bool) -> Void)? = nil
-    var onAutofocusCompleted: (() -> Void)? = nil
     var onBindTextField: ((WorkbenchNativeSingleLineTextField) -> Void)? = nil
     var onEditingEnded: (() -> Void)? = nil
     var onSubmit: (() -> Void)? = nil
@@ -23,6 +23,11 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
     var onCancel: (() -> Bool)? = nil
 
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.interfaceLayerContext) private var layerContext
+
+    var resolvedInterfaceLayer: InterfaceLayer {
+        isDialogField ? .dialog : layerContext.layer
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -31,14 +36,15 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
     func makeNSView(context: Context) -> WorkbenchNativeSingleLineTextField {
         let field = WorkbenchNativeSingleLineTextField()
         context.coordinator.textField = field
-        context.coordinator.lastObservedSwiftUIFocus = focus.wrappedValue
+        let initialFocus = focus?.wrappedValue ?? false
+        context.coordinator.lastObservedSwiftUIFocus = initialFocus
         field.delegate = context.coordinator
         field.onFocusChange = { [weak coordinator = context.coordinator] focused in
             coordinator?.setFocus(focused)
         }
         field.configure(with: self, isEnabled: isEnabled)
         field.stringValue = field.normalizeFullString(text)
-        field.wantsFocusFromSwiftUI = focus.wrappedValue
+        field.wantsFocusFromSwiftUI = initialFocus
         onBindTextField?(field)
         return field
     }
@@ -58,10 +64,12 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
                 if nsView.hasPerformedInitialAutofocus && !nsView.didUserInteractSinceAutofocus && nsView.isCurrentlyFocused {
                     editor.setSelectedRange(NSRange(location: 0, length: length))
                 } else {
-                    editor.setSelectedRange(NSRange(
+                    let clampedRange = NSRange(
                         location: min(selection.location, length),
                         length: 0
-                    ))
+                    )
+                    editor.setSelectedRange(clampedRange)
+                    editor.scrollRangeToVisible(clampedRange)
                 }
                 nsView.isApplyingProgrammaticText = false
             }
@@ -69,17 +77,21 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
             nsView.stringValue = normalizedText
         }
 
-        let swiftUIFocus = focus.wrappedValue
-        if swiftUIFocus != context.coordinator.lastObservedSwiftUIFocus {
-            context.coordinator.lastObservedSwiftUIFocus = swiftUIFocus
-            nsView.wantsFocusFromSwiftUI = swiftUIFocus
-        } else if !swiftUIFocus {
+        if let focus {
+            let swiftUIFocus = focus.wrappedValue
+            if swiftUIFocus != context.coordinator.lastObservedSwiftUIFocus {
+                context.coordinator.lastObservedSwiftUIFocus = swiftUIFocus
+                nsView.wantsFocusFromSwiftUI = swiftUIFocus
+            } else if !swiftUIFocus {
+                nsView.wantsFocusFromSwiftUI = false
+            }
+        } else {
             nsView.wantsFocusFromSwiftUI = false
         }
         if nsView.autofocus, !nsView.hasPerformedInitialAutofocus {
-            nsView.performInitialAutofocusIfPossible()
+            nsView.scheduleAutofocusIfNeeded()
         } else if nsView.wantsFocusFromSwiftUI, !nsView.isCurrentlyFocused {
-            nsView.requestFocusIfPossible()
+            nsView.scheduleSwiftUIFocusIfNeeded()
         }
     }
 
@@ -129,10 +141,12 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
                 editor.string = normalized
                 field.applyTextStyle(to: editor)
                 let length = (normalized as NSString).length
-                editor.setSelectedRange(NSRange(
+                let clampedRange = NSRange(
                     location: min(selection.location, length),
                     length: 0
-                ))
+                )
+                editor.setSelectedRange(clampedRange)
+                editor.scrollRangeToVisible(clampedRange)
                 field.isApplyingProgrammaticText = false
             }
             if parent.text != normalized {
@@ -208,8 +222,8 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
             textField?.wantsFocusFromSwiftUI = focused
             lastObservedSwiftUIFocus = focused
             parent.onFocusChange?(focused)
-            if parent.focus.wrappedValue != focused {
-                parent.focus.wrappedValue = focused
+            if let focus = parent.focus, focus.wrappedValue != focused {
+                focus.wrappedValue = focused
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self, let field = self.textField else { return }
@@ -217,8 +231,8 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
                 guard actualFocus == focused else { return }
                 self.lastObservedSwiftUIFocus = actualFocus
                 self.parent.onFocusChange?(actualFocus)
-                if self.parent.focus.wrappedValue != actualFocus {
-                    self.parent.focus.wrappedValue = actualFocus
+                if let focus = self.parent.focus, focus.wrappedValue != actualFocus {
+                    focus.wrappedValue = actualFocus
                 }
             }
         }
@@ -539,6 +553,7 @@ struct WorkbenchDialogFormTextField: View {
                         : WorkbenchRedesignColors.textDisabled,
                     fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
                     autofocus: autofocus,
+                    isDialogField: true,
                     focus: focus,
                     accessibilityLabel: label,
                     normalizeDraft: normalizeDraft,

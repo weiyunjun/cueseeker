@@ -9,16 +9,18 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     }
 
     var onFocusChange: ((Bool) -> Void)?
-    var onAutofocusCompleted: (() -> Void)?
     var normalizeDraft: ((String) -> String)?
     var autofocus = false
+    var interfaceLayer: InterfaceLayer = .workbenchPage
     private(set) var hasPerformedInitialAutofocus = false
     var didUserInteractSinceAutofocus = false
     private var isRetryingAutofocus = false
     private var autofocusRetryCount = 0
     var wantsFocusFromSwiftUI = false
+    private var isSchedulingSwiftUIFocus = false
     private var isRetryingSwiftUIFocus = false
     var isApplyingProgrammaticText = false
+    private var needsScrollSelectionVisibleOnLayout = false
     private var configuredAlignment: NSTextAlignment = .left
     private var isUpdatingEffectiveAlignment = false
 
@@ -130,7 +132,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         self.configuredAlignment = input.alignment
         self.normalizeDraft = input.normalizeDraft
         self.autofocus = input.autofocus
-        self.onAutofocusCompleted = input.onAutofocusCompleted
+        self.interfaceLayer = input.resolvedInterfaceLayer
         self.setAccessibilityLabel(input.accessibilityLabel)
 
         let resolvedFont: NSFont = input.usesMonospacedDigits
@@ -260,19 +262,61 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         didUserInteractSinceAutofocus = false
         autofocusRetryCount = 0
         selectAllInCurrentEditor()
-        onAutofocusCompleted?()
+    }
+
+    func scheduleAutofocusIfNeeded() {
+        guard autofocus, !hasPerformedInitialAutofocus, !isRetryingAutofocus else {
+            return
+        }
+        isRetryingAutofocus = true
+        RunLoop.main.perform(inModes: [.common]) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.isRetryingAutofocus = false
+                self.performInitialAutofocusIfPossible()
+            }
+        }
     }
 
     private func scheduleAutofocusRetryIfNeeded() {
-        guard autofocus, !hasPerformedInitialAutofocus, !isRetryingAutofocus, autofocusRetryCount < 8 else {
+        guard autofocus, !hasPerformedInitialAutofocus, !isRetryingAutofocus, autofocusRetryCount < 24 else {
             return
         }
         isRetryingAutofocus = true
         autofocusRetryCount += 1
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.isRetryingAutofocus = false
-            self.performInitialAutofocusIfPossible()
+        if autofocusRetryCount == 1 {
+            RunLoop.main.perform(inModes: [.common]) { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.isRetryingAutofocus = false
+                    self.performInitialAutofocusIfPossible()
+                }
+            }
+        } else {
+            Timer.scheduledTimer(withTimeInterval: 0.015, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.isRetryingAutofocus = false
+                    self.performInitialAutofocusIfPossible()
+                }
+            }
+        }
+    }
+
+    func scheduleSwiftUIFocusIfNeeded() {
+        guard wantsFocusFromSwiftUI, !isCurrentlyFocused, !isSchedulingSwiftUIFocus else {
+            return
+        }
+        isSchedulingSwiftUIFocus = true
+        RunLoop.main.perform(inModes: [.common]) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.isSchedulingSwiftUIFocus = false
+                guard self.wantsFocusFromSwiftUI, !self.isCurrentlyFocused else {
+                    return
+                }
+                self.requestFocusIfPossible()
+            }
         }
     }
 
@@ -284,15 +328,17 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
             isRetryingSwiftUIFocus = false
         } else if !isRetryingSwiftUIFocus {
             isRetryingSwiftUIFocus = true
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.isRetryingSwiftUIFocus = false
-                guard self.wantsFocusFromSwiftUI, !self.isCurrentlyFocused, let window = self.window else {
-                    return
-                }
-                if !window.makeFirstResponder(self) {
-                    self.wantsFocusFromSwiftUI = false
-                    self.onFocusChange?(false)
+            Timer.scheduledTimer(withTimeInterval: 0.015, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.isRetryingSwiftUIFocus = false
+                    guard self.wantsFocusFromSwiftUI, !self.isCurrentlyFocused, let window = self.window else {
+                        return
+                    }
+                    if !window.makeFirstResponder(self) {
+                        self.wantsFocusFromSwiftUI = false
+                        self.onFocusChange?(false)
+                    }
                 }
             }
         } else {
@@ -306,7 +352,18 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     }
 
     override func setFrameSize(_ newSize: NSSize) {
+        let widthChanged = abs(frame.size.width - newSize.width) > 0.01
+        if widthChanged, isCurrentlyFocused, didUserInteractSinceAutofocus {
+            needsScrollSelectionVisibleOnLayout = true
+        }
         super.setFrameSize(newSize)
+        if widthChanged,
+           isCurrentlyFocused,
+           didUserInteractSinceAutofocus,
+           let editor = currentEditor() as? NSTextView {
+            applyTextStyle(to: editor)
+            editor.scrollRangeToVisible(editor.selectedRange())
+        }
         needsLayout = true
     }
 
@@ -321,12 +378,15 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
                 if editor.selectedRange() != NSRange(location: 0, length: length) {
                     editor.setSelectedRange(NSRange(location: 0, length: length))
                 }
+            } else if needsScrollSelectionVisibleOnLayout, isCurrentlyFocused, didUserInteractSinceAutofocus {
+                needsScrollSelectionVisibleOnLayout = false
+                editor.scrollRangeToVisible(editor.selectedRange())
             }
         }
         if autofocus, !hasPerformedInitialAutofocus, bounds.width > 0 {
-            performInitialAutofocusIfPossible()
+            scheduleAutofocusIfNeeded()
         } else if wantsFocusFromSwiftUI, !isCurrentlyFocused, bounds.width > 0 {
-            requestFocusIfPossible()
+            scheduleSwiftUIFocusIfNeeded()
         }
     }
 
@@ -334,19 +394,9 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         super.viewDidMoveToWindow()
         ensureFieldEditorUsesTextKit1()
         if autofocus, !hasPerformedInitialAutofocus {
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.autofocus, !self.hasPerformedInitialAutofocus else {
-                    return
-                }
-                self.performInitialAutofocusIfPossible()
-            }
+            scheduleAutofocusIfNeeded()
         } else if wantsFocusFromSwiftUI, !isCurrentlyFocused {
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.wantsFocusFromSwiftUI, !self.isCurrentlyFocused else {
-                    return
-                }
-                self.requestFocusIfPossible()
-            }
+            scheduleSwiftUIFocusIfNeeded()
         }
     }
 
@@ -453,7 +503,9 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
                 with: normalized
             )
             applyTextStyle(to: textView)
-            textView.setSelectedRange(NSRange(location: cursorLocation, length: 0))
+            let newSelection = NSRange(location: cursorLocation, length: 0)
+            textView.setSelectedRange(newSelection)
+            textView.scrollRangeToVisible(newSelection)
             textView.didChangeText()
         }
         return false
@@ -472,6 +524,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         super.textDidChange(notification)
         if let editor = currentEditor() as? NSTextView {
             applyTextStyle(to: editor)
+            editor.scrollRangeToVisible(editor.selectedRange())
         }
     }
 
