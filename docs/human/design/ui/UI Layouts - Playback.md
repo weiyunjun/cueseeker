@@ -134,6 +134,7 @@
 
 - Duration：Playback Feedback / Duration
 - 列表中没有有效项时导航（上一个、下一个、Auto Switch、视频播完自动播放下一个）：由 Playback Feedback 呈现（持续 1 秒），文案按来源为 `No Available Results`、`No Available Excerpts`、`No Available Videos`
+- 加载状态（Spinner）：常规操作 HUD 优先级高于加载 Spinner；无操作 HUD 时等待画面超过 `--delay-playback-loading-feedback` 仍未就绪则显示无文字加载 Spinner，有操作 HUD 时待操作 HUD 播放结束后再按 `--delay-playback-loading-feedback` 计时，超时仍未就绪才显示加载 Spinner；画面就绪或加载失败时立即消失
 
 #### Components
 

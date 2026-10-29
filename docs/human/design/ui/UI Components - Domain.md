@@ -468,6 +468,10 @@
   - Font Weight：`--font-weight-control`
   - Color：`--color-player-text-primary`
   - 数字等宽；超出最大宽度换行，各行左对齐，不进入 Icon 所占宽度
+- Spinner
+  - Presence：Optional（仅无文字加载态显示，居中承载 `C-09.4 Spinner`）
+  - Track Color：`--color-playback-feedback-spinner-track`
+  - Indicator Color：`--color-playback-feedback-spinner-indicator`
 
 ##### Motion
 
@@ -482,8 +486,9 @@
 
 ##### Sizes
 
-- Minimum Height：`--height-playback-feedback`
+- Minimum Height：`--height-playback-feedback`（仅显示 Spinner 时容器宽高固定为 `--height-playback-feedback`）
 - Icon Size：`--size-playback-feedback-icon`
+- Spinner Size：`--size-playback-feedback-spinner`
 - Padding Inline：`--spacing-4`
 - Padding Block：`--spacing-2`
 - Icon to Label Gap：`--spacing-3`

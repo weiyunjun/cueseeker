@@ -201,6 +201,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-player-cue-control-status-active`: Light `#34D399`; Dark `#34D399`
 - `--color-player-error-bg`: Light `#B42318`; Dark `#B42318`
 - `--color-player-error-content`: Light `#FFFFFF`; Dark `#FFFFFF`
+- `--color-playback-feedback-spinner-track`: Light `rgba(255,255,255,0.24)`; Dark `rgba(255,255,255,0.24)`
+- `--color-playback-feedback-spinner-indicator`: Light `rgba(255,255,255,0.80)`; Dark `rgba(255,255,255,0.80)`
 
 ### Subtitle Focus
 
@@ -351,6 +353,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-player-topbar-title-max`: `520px`
 - `--size-player-error-icon`: `16px`
 - `--size-playback-feedback-icon`: `31px`
+- `--size-playback-feedback-spinner`: `23px`
 - `--width-playback-feedback-max`: `520px`
 - `--size-toast-icon`: `23px`
 - `--width-toast-max`: `400px`
@@ -576,6 +579,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - `--duration-spinner-motion`: `1s`
 - `--easing-spinner-motion`: `linear`
+- `--delay-playback-loading-feedback`: `300ms`
 
 ### Shimmer Motion
 
