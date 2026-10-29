@@ -296,6 +296,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--height-task-progress-bar`: `4px`
 - `--height-task-panel`: `500px`
 - `--height-filter-dialog`: `600px`
+- `--height-command-panel-max`: `720px`
+- `--height-command-panel-header`: `58px`
+- `--height-command-panel-item`: `48px`
 - `--height-library-list-cover`: `115px`
 - `--height-cover-summary-backdrop`: `225px`
 - `--height-cover-summary-progress-track`: `5px`
@@ -383,6 +386,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-dialog-medium`: `480px`
 - `--width-dialog-large`: `600px`
 - `--width-dialog-x-large`: `720px`
+- `--width-command-panel-max`: `1040px`
 - `--width-form-label`: `72px`
 - `--width-shortcut-field`: `144px`
 - `--width-settings-number-field`: `114px`
@@ -437,6 +441,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 ### Padding
 
 - `--inset-dialog`: `24px`
+- `--inset-command-panel-viewport`: `40px`
 - `--padding-control-x`: `14px`
 - `--padding-segmented-control`: `3px`
 - `--padding-field-x`: `10px`

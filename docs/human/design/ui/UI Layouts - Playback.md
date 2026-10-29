@@ -460,7 +460,7 @@
 
 1. Search Field
 2. Option List
-   1. Search Action
+   1. Search Action（精确结果数统计完成后，右侧 Trailing Slot 显示 `xx results`）
    2. Recent Videos
    3. Recent Excerpt Lists
 3. Footer
@@ -472,9 +472,20 @@
 - Playback Footer Layout
 - Scrollbar / Vertical
 
+#### Sizes
+
+- Maximum Width：`--width-command-panel-max`
+- Maximum Height：`--height-command-panel-max`
+- Viewport Inset：`--inset-command-panel-viewport`
+- Content Padding：`--spacing-5`
+- Option Item Height：`--height-command-panel-item`
+- Option Item Radius：`--radius-action-menu-item`
+
 #### Surface
 
 - Background：`--color-bg-dialog`
+- Radius：`--radius-dialog`
+- Shadow：`--shadow-popover`
 - Scrim：`--color-command-panel-scrim`
 
 #### Layer
@@ -512,6 +523,11 @@
 - Playback Footer Layout
 - Scrollbar / Vertical
 
+#### Sizes
+
+- Header Height：`--height-command-panel-header`
+- Content Horizontal Padding：`--spacing-5`
+
 #### Variants
 
 - Recent Videos
@@ -526,7 +542,7 @@
 
 #### Structure
 
-1. Playback Cue Reel / Cue Result Reel
+1. Playback Cue Reel / Cue Result Reel（最多显示前 100 条结果，首屏 100 条就绪后即刻渲染）
 2. Vertical Scrollbar
 
 #### Components
@@ -544,7 +560,7 @@
 #### States
 
 - Loading
-- Results
+- Results（精确总数统计完成后，Footer Status 显示 `xx results`；超过 100 条时显示 `xx results (Showing first 100 results)`）
 - Empty：无匹配结果时居中展示 Empty State（图标 `search-no-results`）
 - Scrolling
 - Settling
