@@ -212,9 +212,10 @@ extension SubtitleTableView.Coordinator {
                 ? row
                 : nil
             updateHoveredCueTextRow(cueTextRow)
-            updateHoveredRowActionRow(isActionButtonHit ? row : nil)
+            updateHoveredRowActionRow(nil)
         } else {
             updateHoveredColumnID(columnID)
+            updateHoveredRowActionRow(nil)
         }
         isMenuOpen = true
         activeRowMenuRow = row

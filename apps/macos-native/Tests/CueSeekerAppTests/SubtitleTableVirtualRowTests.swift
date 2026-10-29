@@ -811,7 +811,7 @@ func subtitleTableViewPlacesRowActionButtonInCuesColumnAndOpensMenu() throws {
         #expect(buttonDocFrame.width == 32)
         #expect(buttonDocFrame.height == 32)
         #expect(abs(cuesRect.maxX - buttonDocFrame.maxX - SubtitleTableMetrics.trailingInset) < 0.01)
-        #expect(abs(buttonDocFrame.minY - cuesRect.minY - SubtitleTableMetrics.rowActionButtonTopInset) < 0.01)
+        #expect(abs(buttonDocFrame.midY - cuesRect.midY) < 0.01)
         #expect(fixture.coordinator.shouldShowRowActionButtonForTesting(row: rowIndex) == false)
     }
 
@@ -845,6 +845,19 @@ func subtitleTableViewPlacesRowActionButtonInCuesColumnAndOpensMenu() throws {
         fixture.coordinator.rowActionButtonBackgroundColorForTesting(row: 0)
             === WorkbenchRedesignColors.NS.rowSelected
     )
+    fixture.coordinator.dismissMenu()
+
+    // Right-clicking on the row opens the row context menu without putting the `...` button into Open state.
+    let row0CuesRect = try #require(
+        fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "cues")
+    )
+    let row0RightClickPoint = fixture.documentView.convert(
+        CGPoint(x: row0CuesRect.minX + 20, y: row0CuesRect.midY),
+        to: nil
+    )
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: row0RightClickPoint) == true)
+    #expect(fixture.coordinator.isMenuOpenForTesting() == true)
+    #expect(fixture.coordinator.rowActionButtonBackgroundColorForTesting(row: 0) == nil)
     fixture.coordinator.dismissMenu()
 
     // Unavailable row in Excerpt table also shows and opens the row action button.

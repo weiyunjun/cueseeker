@@ -452,6 +452,13 @@ extension SubtitleTableView.Coordinator {
         image.draw(in: rect)
     }
 
+    func isRowActionMenuOpen(row: Int) -> Bool {
+        if case .rowActionButton(let menuRow, _) = activeMenuAnchor {
+            return menuRow == row
+        }
+        return false
+    }
+
     func shouldShowRowActionButton(row: Int) -> Bool {
         guard !isSelectionMode,
               row >= 0,
@@ -460,7 +467,7 @@ extension SubtitleTableView.Coordinator {
         else {
             return false
         }
-        return hoveredRow == row || activeRowMenuRow == row
+        return hoveredRow == row || isRowActionMenuOpen(row: row)
     }
 
     func rowActionButtonBackgroundColor(row: Int) -> NSColor? {
@@ -470,7 +477,7 @@ extension SubtitleTableView.Coordinator {
         if pressedRowActionRow == row {
             return WorkbenchRedesignColors.NS.rowActionBgPressed
         }
-        if activeRowMenuRow == row || hoveredRowActionRow == row {
+        if isRowActionMenuOpen(row: row) || hoveredRowActionRow == row {
             return WorkbenchRedesignColors.NS.rowSelected
         }
         return nil

@@ -17,6 +17,12 @@ private struct LibraryCardContextMenuOwnerKey: EnvironmentKey {
     static let defaultValue: String? = nil
 }
 
+/// Which card or control owns an open button-anchored (`...`) menu, or nil when
+/// the menu was opened via right-click or no menu is open.
+private struct LibraryCardContextMenuAnchorOwnerKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
 /// The nearest enclosing host's opener. A page that hosts the menu at its own
 /// root publishes it here, so a grid inside that page hands its cards the page's
 /// host instead of standing up one of its own.
@@ -49,6 +55,13 @@ extension EnvironmentValues {
     var libraryCardContextMenuOwner: String? {
         get { self[LibraryCardContextMenuOwnerKey.self] }
         set { self[LibraryCardContextMenuOwnerKey.self] = newValue }
+    }
+
+    /// The owner ID of a menu opened from a `...` button anchor (`anchorFrame != nil`).
+    /// Right-click context menus leave this nil so the `...` button does not enter `Open` state.
+    var libraryCardContextMenuAnchorOwner: String? {
+        get { self[LibraryCardContextMenuAnchorOwnerKey.self] }
+        set { self[LibraryCardContextMenuAnchorOwnerKey.self] = newValue }
     }
 }
 
@@ -191,6 +204,10 @@ struct LibraryCardContextMenuHost<Content: View>: View {
             .environment(\.libraryCardContextMenuOpen, openContextMenu)
             .environment(\.libraryCardContextMenuToggleAnchor, toggleAnchorMenu)
             .environment(\.libraryCardContextMenuOwner, activeMenu?.ownerID)
+            .environment(
+                \.libraryCardContextMenuAnchorOwner,
+                activeMenu?.anchorFrame != nil ? activeMenu?.ownerID : nil
+            )
             .coordinateSpace(name: LibraryCardContextMenuCoordinateSpace.name)
             .background(LibraryCardMenuViewportProbe(geometry: geometry))
             .overlay(alignment: .topLeading) {
@@ -275,7 +292,7 @@ struct LibraryCardContextMenuHost<Content: View>: View {
         anchor: MenuAnchorHandle,
         ownerID: String
     ) {
-        if activeMenu?.ownerID == ownerID {
+        if activeMenu?.ownerID == ownerID, activeMenu?.anchorFrame != nil {
             dismissContextMenu()
             return
         }

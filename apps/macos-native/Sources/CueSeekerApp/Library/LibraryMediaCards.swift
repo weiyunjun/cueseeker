@@ -214,7 +214,7 @@ private struct LibraryVideoCardContent {
 
 private struct LibraryVideoCard: View {
     @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
-    @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
+    @Environment(\.libraryCardContextMenuAnchorOwner) private var anchorMenuOwnerID
     let content: LibraryVideoCardContent
     @ObservedObject var highlight: CardHighlightModel
     let isSelected: Bool
@@ -230,7 +230,7 @@ private struct LibraryVideoCard: View {
     }
 
     private var isMoreMenuOpen: Bool {
-        contextMenuOwnerID == cardID
+        anchorMenuOwnerID == cardID
     }
 
     private var isMoreButtonVisible: Bool {
@@ -363,7 +363,7 @@ struct CompleteLibraryFolderGrid: View {
 
 struct LibraryFolderCard: View {
     @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
-    @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
+    @Environment(\.libraryCardContextMenuAnchorOwner) private var anchorMenuOwnerID
     let folder: CompleteLibraryFolderSummaryPresentation
     @ObservedObject var highlight: CardHighlightModel
     let isSelected: Bool
@@ -383,7 +383,7 @@ struct LibraryFolderCard: View {
     }
 
     private var isMoreMenuOpen: Bool {
-        isAvailable && contextMenuOwnerID == cardID
+        isAvailable && anchorMenuOwnerID == cardID
     }
 
     private var isMoreButtonVisible: Bool {

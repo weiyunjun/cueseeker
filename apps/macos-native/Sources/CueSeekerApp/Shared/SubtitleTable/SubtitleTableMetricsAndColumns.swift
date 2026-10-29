@@ -54,7 +54,6 @@ enum SubtitleTableMetrics {
     static let rowActionButtonIconSize = WorkbenchControlMetrics.redesignControlIconSize
     static let rowActionButtonCornerRadius = WorkbenchControlMetrics.redesignCornerRadius
     static let rowActionButtonSpacing = WorkbenchControlMetrics.redesignSpacing2
-    static let rowActionButtonTopInset = WorkbenchControlMetrics.redesignSpacing1
     static let rowActionButtonReservation = rowActionButtonSize + rowActionButtonSpacing
 }
 

@@ -713,7 +713,7 @@ extension SubtitleTableView.Coordinator {
         let size = SubtitleTableMetrics.rowActionButtonSize
         return CGRect(
             x: cuesRect.maxX - SubtitleTableMetrics.trailingInset - size,
-            y: rowRect.minY + SubtitleTableMetrics.rowActionButtonTopInset,
+            y: rowRect.minY + (rowRect.height - size) / 2,
             width: size,
             height: size
         )

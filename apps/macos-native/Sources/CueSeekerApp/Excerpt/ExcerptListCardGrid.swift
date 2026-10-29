@@ -125,7 +125,7 @@ struct ExcerptListCardGrid: View {
 
 private struct ExcerptListCard: View {
     @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
-    @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
+    @Environment(\.libraryCardContextMenuAnchorOwner) private var anchorMenuOwnerID
     let summary: ExcerptListSummary
     @ObservedObject var highlight: CardHighlightModel
     let isSelected: Bool
@@ -143,7 +143,7 @@ private struct ExcerptListCard: View {
     }
 
     private var isMoreMenuOpen: Bool {
-        contextMenuOwnerID == cardID
+        anchorMenuOwnerID == cardID
     }
 
     private var isMoreButtonVisible: Bool {
