@@ -413,23 +413,14 @@ struct PlaybackChromeMoreMenuOverlay: View {
             in: bounds,
             gap: PlaybackChromeMetrics.speedMenuGap
         )
-        let triggerFrame = Self.triggerFrame(menuWidth: menuFrame.width)
-        let naturalItemWidth = NSHostingView(rootView: items(itemWidth: nil)).fittingSize.width
-        let submenu = PlaybackWrappedMenuPanelLayout.resolve(
-            naturalItemWidth: naturalItemWidth,
+        let submenu = Self.submenuLayout(
+            naturalItemWidth: NSHostingView(rootView: items(itemWidth: nil)).fittingSize.width,
             itemStackHeight: { width in
                 NSHostingView(rootView: items(itemWidth: width)).fittingSize.height
             },
-            room: Self.submenuRoom(naturalItemWidth: naturalItemWidth, menuFrame: menuFrame, bounds: bounds),
-            boundsHeight: bounds.height,
-            place: { size in
-                MenuSubmenuGeometry.frame(
-                    parentMenuFrame: menuFrame,
-                    parentItemFrame: triggerFrame,
-                    submenuSize: size,
-                    visibleRect: bounds
-                )
-            }
+            menuFrame: menuFrame,
+            triggerFrame: Self.triggerFrame(menuWidth: menuFrame.width),
+            bounds: bounds
         )
         return PlaybackMoreMenuLayout(
             menuFrame: menuFrame,
@@ -537,28 +528,6 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
             )
             .id(menu.offPosition)
         }
-    }
-
-    static func menuLayout(
-        naturalItemWidth: CGFloat,
-        itemStackHeight: (CGFloat) -> CGFloat,
-        buttonFrame: CGRect,
-        bounds: CGRect
-    ) -> PlaybackSubtitleMenuLayout {
-        PlaybackWrappedMenuPanelLayout.resolve(
-            naturalItemWidth: naturalItemWidth,
-            itemStackHeight: itemStackHeight,
-            room: bounds.width,
-            boundsHeight: bounds.height,
-            place: { size in
-                MenuPlacement.openingFrame(
-                    anchor: buttonFrame,
-                    menuSize: size,
-                    in: bounds,
-                    gap: PlaybackChromeMetrics.speedMenuGap
-                )
-            }
-        )
     }
 
     func measuredLayout(stageSize: CGSize) -> PlaybackSubtitleMenuLayout {

@@ -10,22 +10,6 @@ extension AppCoordinator {
         recordedSubtitles(forVideoPath: videoPath)?.effectiveDefault
     }
 
-    func makePlaybackSubtitleMenu(forVideoPath videoPath: String) -> PlaybackSubtitleMenu {
-        let recorded = recordedSubtitles(forVideoPath: videoPath)
-        let subtitles = recorded?.subtitles ?? []
-        let currentID = currentPlaybackSubtitleFileID
-        let defaultID = recorded?.effectiveDefault?.subtitleFileID
-        return PlaybackSubtitleMenu(
-            records: subtitles,
-            subtitles: PlaybackMoreMenuList(
-                names: subtitles.map { PlaybackSubtitleName.name(forSubtitlePath: $0.subtitlePath) },
-                currentIndex: subtitles.firstIndex { $0.subtitleFileID == currentID } ?? 0,
-                defaultIndex: subtitles.firstIndex { $0.subtitleFileID == defaultID } ?? 0
-            ),
-            areSubtitlesVisible: playback.playbackViewModel?.areSubtitlesVisible ?? false
-        )
-    }
-
     func togglePlaybackSubtitleMenu() {
         guard playback.subtitleMenu == nil else {
             playback.closeSubtitleMenu()
@@ -34,17 +18,32 @@ extension AppCoordinator {
         guard let videoPath = currentPlaybackVideoPath else {
             return
         }
-        playback.openSubtitleMenu(makePlaybackSubtitleMenu(forVideoPath: videoPath))
+        let recorded = recordedSubtitles(forVideoPath: videoPath)
+        let subtitles = recorded?.subtitles ?? []
+        let currentID = currentPlaybackSubtitleFileID
+        let defaultID = recorded?.effectiveDefault?.subtitleFileID
+        playback.openSubtitleMenu(
+            PlaybackSubtitleMenu(
+                records: subtitles,
+                subtitles: PlaybackMoreMenuList(
+                    names: subtitles.map { PlaybackSubtitleName.name(forSubtitlePath: $0.subtitlePath) },
+                    currentIndex: subtitles.firstIndex { $0.subtitleFileID == currentID } ?? 0,
+                    defaultIndex: subtitles.firstIndex { $0.subtitleFileID == defaultID } ?? 0
+                ),
+                areSubtitlesVisible: playback.playbackViewModel?.areSubtitlesVisible ?? false
+            )
+        )
     }
 
-    /// Handles a choice in the Player Subtitle Menu using the snapshot captured
-    /// when the menu opened, without re-querying the database. Choosing the
-    /// already-checked row does nothing and shows no HUD.
+    /// Handles a choice in the open Player Subtitle Menu using the snapshot
+    /// captured when the menu opened, without re-querying the database.
+    /// Choosing the already-checked row does nothing and shows no HUD.
     func selectPlaybackSubtitleMenuItem(_ position: Int) {
-        guard let videoPath = currentPlaybackVideoPath else {
+        guard let videoPath = currentPlaybackVideoPath,
+              let menu = playback.subtitleMenu
+        else {
             return
         }
-        let menu = playback.subtitleMenu ?? makePlaybackSubtitleMenu(forVideoPath: videoPath)
         let wasVisible = playback.playbackViewModel?.areSubtitlesVisible ?? false
 
         switch menu.choice(at: position) {
@@ -83,16 +82,6 @@ extension AppCoordinator {
     /// paused, and the Playlist stay as they are. The subtitle already playing
     /// is left alone. The subtitle loads on its own, so a video that failed to
     /// load still switches it and the Playback Overlay follows.
-    func selectPlaybackSubtitle(_ index: Int) {
-        guard let videoPath = currentPlaybackVideoPath,
-              let subtitles = recordedSubtitles(forVideoPath: videoPath)?.subtitles,
-              subtitles.indices.contains(index)
-        else {
-            return
-        }
-        applyPlaybackSubtitle(subtitles[index], forVideoPath: videoPath)
-    }
-
     private func applyPlaybackSubtitle(_ subtitle: VideoSubtitle, forVideoPath videoPath: String) {
         guard subtitle.subtitleFileID != currentPlaybackSubtitleFileID else {
             return
