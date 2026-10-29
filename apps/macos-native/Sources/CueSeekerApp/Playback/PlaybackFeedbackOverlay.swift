@@ -27,20 +27,31 @@ struct PlaybackFeedbackOverlay: View {
         .animation(ToastCenter.motion, value: feedback != nil)
     }
 
+    @ViewBuilder
     private func capsule(_ feedback: PlaybackFeedback) -> some View {
-        HStack(
-            alignment: .feedbackFirstLineCenter,
-            spacing: WorkbenchControlMetrics.redesignSpacing3
-        ) {
-            feedbackIcon(feedback.icon, weight: feedback.iconWeight)
-            feedbackText(feedback.text)
+        if feedback.showsSpinner && feedback.text == nil {
+            WorkbenchSpinner(size: PlaybackChromeMetrics.feedbackIconSize)
+                .environment(\.colorScheme, .dark)
+                .frame(
+                    width: PlaybackChromeMetrics.feedbackMinimumHeight,
+                    height: PlaybackChromeMetrics.feedbackMinimumHeight
+                )
+                .background(feedbackBackground)
+        } else {
+            HStack(
+                alignment: .feedbackFirstLineCenter,
+                spacing: WorkbenchControlMetrics.redesignSpacing3
+            ) {
+                feedbackIcon(feedback.icon, weight: feedback.iconWeight)
+                feedbackText(feedback.text)
+            }
+            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+            // A single line stays inside the 52px floor, which still sets its
+            // height; the padding only takes over once a message wraps.
+            .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
+            .frame(minHeight: PlaybackChromeMetrics.feedbackMinimumHeight)
+            .background(feedbackBackground)
         }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
-        // A single line stays inside the 52px floor, which still sets its
-        // height; the padding only takes over once a message wraps.
-        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
-        .frame(minHeight: PlaybackChromeMetrics.feedbackMinimumHeight)
-        .background(feedbackBackground)
     }
 
     @ViewBuilder

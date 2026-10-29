@@ -45,6 +45,14 @@ extension AppCoordinator {
             showPlaybackError(PlaybackError.playbackPlayerUnavailable)
             return false
         }
+        guard player.currentVideoURL != nil else {
+            cancelAutoSwitchCueSequenceTask()
+            clearCueSubtitlePresentationHold()
+            if hasPlaybackSelection {
+                playback.playbackStatus = .paused
+            }
+            return true
+        }
 
         do {
             cancelAutoSwitchCueSequenceTask()
@@ -341,7 +349,10 @@ extension AppCoordinator {
 
     func togglePlaybackFromUser() {
         // Nothing plays or pauses, so nothing is reported either.
-        guard playback.playbackStatus != .loadFailed else {
+        guard playback.playbackStatus != .loadFailed,
+              playback.playbackStatus != .opening,
+              playback.playbackViewModel?.isOpeningNewVideo != true
+        else {
             return
         }
         let willPlay = !(playback.playbackViewModel?.isPlaying ?? false)

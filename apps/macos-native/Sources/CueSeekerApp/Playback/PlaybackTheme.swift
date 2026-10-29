@@ -570,10 +570,13 @@ enum PlaybackChromeMetrics {
     static let feedbackMaxWidth: CGFloat = 520
     /// --radius-playback-feedback: 16px
     static let feedbackRadius: CGFloat = 16
-    /// Provisional --size-playback-feedback-icon: 31px icon box (document: 24px)
+    /// --size-playback-feedback-icon: 31px
     static let feedbackIconSize: CGFloat = 31
     /// --font-size-playback-feedback: 18px
     static let feedbackFontSize: CGFloat = 18
+    /// --delay-playback-loading-feedback: 150ms
+    static let loadingFeedbackDelay: TimeInterval = 0.15
+    static let loadingFeedbackDelayMilliseconds: UInt64 = 150
 
     static let chromeHorizontalPadding: CGFloat = 24
     /// --padding-player-chrome-x + --spacing-2: 32px

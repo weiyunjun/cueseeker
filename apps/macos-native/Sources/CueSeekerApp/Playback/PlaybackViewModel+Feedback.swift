@@ -11,17 +11,25 @@ struct PlaybackFeedback: Identifiable, Equatable {
     let id = UUID()
     let icon: AppIcon?
     let iconWeight: AppIconWeight?
+    let showsSpinner: Bool
     let text: String?
 
     init(
         icon: AppIcon? = nil,
         iconWeight: AppIconWeight? = nil,
+        showsSpinner: Bool = false,
         text: String?
     ) {
         self.icon = icon
         self.iconWeight = iconWeight
+        self.showsSpinner = showsSpinner
         self.text = text
     }
+
+    static let loading = PlaybackFeedback(
+        showsSpinner: true,
+        text: nil
+    )
 }
 
 @MainActor
@@ -321,17 +329,18 @@ extension PlaybackViewModel {
     ) {
         feedback = nextFeedback
         feedbackClearTask?.cancel()
-        feedbackClearTask = Task { [weak self] in
+        feedbackClearTask = Task { @MainActor [weak self] in
+            await Task.yield()
             try? await Task.sleep(nanoseconds: durationMilliseconds * 1_000_000)
             guard !Task.isCancelled else {
                 return
             }
-
-            await MainActor.run {
-                self?.feedback = nil
-                self?.accumulatedForwardSeconds = 0
-                self?.accumulatedRewindSeconds = 0
+            guard let self, self.feedback?.id == nextFeedback.id else {
+                return
             }
+            self.feedback = nil
+            self.accumulatedForwardSeconds = 0
+            self.accumulatedRewindSeconds = 0
         }
     }
 }

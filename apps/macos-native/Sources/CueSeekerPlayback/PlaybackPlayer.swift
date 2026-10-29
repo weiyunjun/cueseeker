@@ -12,6 +12,7 @@ public protocol PlaybackPlayerDelegate: AnyObject {
     func player(_ player: PlaybackPlayer, didUpdateVolume volume: Double)
     func player(_ player: PlaybackPlayer, didUpdatePlaybackSpeed speed: Double)
     func player(_ player: PlaybackPlayer, didFailWithMessage message: String)
+    func player(_ player: PlaybackPlayer, didFailToOpenVideoAt url: URL, error: Error)
     func player(_ player: PlaybackPlayer, didFailToLoadSubtitleSource url: URL)
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int)
     func playerDidFinishPlayback(_ player: PlaybackPlayer)
@@ -33,6 +34,7 @@ public extension PlaybackPlayerDelegate {
     func player(_ player: PlaybackPlayer, didUpdatePaused isPaused: Bool) {}
     func player(_ player: PlaybackPlayer, didUpdateVolume volume: Double) {}
     func player(_ player: PlaybackPlayer, didUpdatePlaybackSpeed speed: Double) {}
+    func player(_ player: PlaybackPlayer, didFailToOpenVideoAt url: URL, error: Error) {}
     func player(_ player: PlaybackPlayer, didFailToLoadSubtitleSource url: URL) {}
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int) {}
     func playerDidFinishPlayback(_ player: PlaybackPlayer) {}
@@ -1040,6 +1042,25 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         didFailWithMessage message: String
     ) {
         delegate?.player(self, didFailWithMessage: message)
+    }
+
+    public func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        didFailToOpenWithError error: Error,
+        presentationGeneration: UInt
+    ) {
+        guard pendingPresentation?.generation == presentationGeneration else {
+            return
+        }
+        let failedURL = currentVideoURL ?? currentRequest?.videoURL
+        cancelPendingPresentation()
+        currentRequest = nil
+        currentVideoURL = nil
+        if let failedURL {
+            delegate?.player(self, didFailToOpenVideoAt: failedURL, error: error)
+        } else {
+            delegate?.player(self, didFailWithMessage: error.localizedDescription)
+        }
     }
 
     public func nativePlaybackPlayer(

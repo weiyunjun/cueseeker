@@ -552,6 +552,7 @@ extension AppCoordinator {
         )
         playback.isPlaybackSurfaceExpanded = true
         if !itemInLibrary {
+            cancelPendingPlaybackOpenTask()
             playback.clearPlaylistPosition()
             playback.playbackStatus = .loadFailed
             try? player?.stop()
@@ -565,9 +566,17 @@ extension AppCoordinator {
             }
         } else {
             playback.clearError(on: .notInLibrary)
-            Task { @MainActor in
-                await Task.yield()
-                _ = play(excerpt)
+            preparePlaybackTransition(
+                forVideoPath: excerpt.videoPath,
+                startMilliseconds: excerpt.startMilliseconds,
+                subtitleCues: [],
+                resetsLoadingTimer: true
+            )
+            schedulePlaybackOpen(
+                videoPath: excerpt.videoPath,
+                subtitlePath: excerpt.subtitlePath
+            ) { [weak self] in
+                _ = self?.play(excerpt)
             }
         }
     }
@@ -591,9 +600,11 @@ extension AppCoordinator {
         playback.playbackStatus = .opening
         playback.clearError(on: .video)
         playback.clearError(on: .notInLibrary)
-        playback.playbackViewModel?.preparePresentationTransition(
-            to: Double(excerpt.startMilliseconds) / 1_000,
-            subtitleCues: []
+        preparePlaybackTransition(
+            forVideoPath: excerpt.videoPath,
+            startMilliseconds: excerpt.startMilliseconds,
+            subtitleCues: [],
+            resetsLoadingTimer: false
         )
 
         do {

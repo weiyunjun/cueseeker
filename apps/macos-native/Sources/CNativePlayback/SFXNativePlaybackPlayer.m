@@ -324,6 +324,33 @@ presentationGeneration:(NSUInteger)presentationGeneration {
     }
 }
 
+- (void)session:(SFXNativePlaybackSession *)session
+didFailToOpenWithError:(NSError *)error
+presentationGeneration:(NSUInteger)presentationGeneration {
+    id<SFXNativePlaybackPlayerDelegate> delegate = nil;
+    @synchronized (self) {
+        if (_session != session
+            || _currentPresentationGeneration != presentationGeneration) {
+            return;
+        }
+        _session = nil;
+        _currentPath = nil;
+        delegate = self.delegate;
+    }
+
+    NSError *resolvedError = error ?: SFXNativePlaybackError(10, @"Native playback failed to open media.");
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if ([delegate respondsToSelector:@selector(nativePlaybackPlayer:didFailToOpenWithError:presentationGeneration:)]) {
+            [delegate nativePlaybackPlayer:self
+                    didFailToOpenWithError:resolvedError
+                  presentationGeneration:presentationGeneration];
+        } else {
+            [delegate nativePlaybackPlayer:self
+                        didFailWithMessage:resolvedError.localizedDescription];
+        }
+    });
+}
+
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
            error:(NSError **)error {
@@ -803,8 +830,9 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
             [thumbnailDecoder invalidate];
         });
     }
-    [_session stopAndWait];
+    SFXNativePlaybackSession *previousSession = nil;
     @synchronized (self) {
+        previousSession = _session;
         _session = nil;
         _currentPath = nil;
         _audioOutputRecoveryScheduled = NO;
@@ -815,6 +843,13 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
                 _latestSubmittedPixelBuffer = NULL;
             }
             _latestSubmittedVideoFrameSnapshot = nil;
+        }
+    }
+    if (previousSession != nil) {
+        if (SFXIsHTTPMediaPath(previousSession.path.UTF8String)) {
+            [previousSession cancelAsync];
+        } else {
+            [previousSession stopAndWait];
         }
     }
     if (flushDisplay) {

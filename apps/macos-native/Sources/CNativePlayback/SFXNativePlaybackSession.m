@@ -1,5 +1,13 @@
 #import "SFXNativePlaybackInternal.h"
 
+static int SFXFFmpegInterruptCallback(void *opaque) {
+    if (opaque == NULL) {
+        return 0;
+    }
+    SFXNativePlaybackSession *session = (__bridge SFXNativePlaybackSession *)opaque;
+    return [session isCancelledForIOInterrupt] ? 1 : 0;
+}
+
 @implementation SFXNativePlaybackSession
 
 - (instancetype)initWithPath:(NSString *)path
@@ -76,9 +84,11 @@
     atomic_init(&_paused, false);
     atomic_init(&_playing, false);
 
-    if (![self prepareWithError:error]) {
-        [self teardown];
-        return nil;
+    if (!SFXIsHTTPMediaPath(_path.UTF8String)) {
+        if (![self prepareWithError:error]) {
+            [self teardown];
+            return nil;
+        }
     }
 
     return self;
@@ -671,6 +681,19 @@
 }
 
 - (BOOL)prepareWithError:(NSError **)error {
+    if (atomic_load(&_cancelled)) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(10, @"Native playback session was cancelled before open.");
+        }
+        return NO;
+    }
+    if (_formatContext == NULL) {
+        _formatContext = avformat_alloc_context();
+        if (_formatContext != NULL) {
+            _formatContext->interrupt_callback.callback = SFXFFmpegInterruptCallback;
+            _formatContext->interrupt_callback.opaque = (__bridge void *)self;
+        }
+    }
     CFTimeInterval s3Start = CACurrentMediaTime();
     int result = SFXOpenMediaInput(&_formatContext, _path.UTF8String, _owner.httpHeaders);
     _perfAvformatOpenMs = (CACurrentMediaTime() - s3Start) * 1000.0;
@@ -748,6 +771,26 @@
         }
         return NO;
     }
+
+    [_packetQueueCondition lock];
+    if (_seekRequestPending) {
+        _seekSeconds = _pendingSeekSeconds;
+        _segmentEndSeconds = _pendingSeekSegmentEndSeconds;
+        _pausesAtSegmentEnd = _pendingSeekPausesAtSegmentEnd;
+        _presentationGeneration = _pendingSeekPresentationGeneration;
+        atomic_store(&_pauseAfterFirstFrame, _pendingSeekPauseAfterFirstFrame);
+        atomic_store(&_didPauseAfterFirstFrame, false);
+        @synchronized (self) {
+            _currentTime = _seekSeconds;
+        }
+        _seekRequestPending = NO;
+        _pendingSeekRebuildsAudioOutput = NO;
+        _seekRequestSucceeded = YES;
+        _seekRequestError = nil;
+        _completedSeekRequestGeneration = _seekRequestGeneration;
+        [_packetQueueCondition broadcast];
+    }
+    [_packetQueueCondition unlock];
 
     CFTimeInterval s6Start = CACurrentMediaTime();
     if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, _seekSeconds, _timelineOriginSeconds, error)) {
@@ -1261,23 +1304,57 @@
 }
 
 - (void)start {
-    _perfStartHostSeconds = CACurrentMediaTime();
-    double totalPrepareMs = _perfOpenStartHostSeconds > 0
-        ? (_perfStartHostSeconds - _perfOpenStartHostSeconds) * 1000.0
-        : (_perfStopPrevMs + _perfAvformatOpenMs + _perfFindStreamInfoMs + _perfInitCodecAudioMs + _perfInitialSeekMs);
-    NSLog(@"[PlaybackPerf] OPEN_PREPARE gen=%lu startMs=%ld totalPrepare=%.1fms | S2_stopPrev=%.1fms S3_avformatOpen=%.1fms S4_findStreamInfo=%.1fms S5_initCodecAudio=%.1fms S6_initialSeek=%.1fms hwDecode=%d",
-          (unsigned long)_presentationGeneration,
-          (long)llround(_seekSeconds * 1000.0),
-          totalPrepareMs,
-          _perfStopPrevMs,
-          _perfAvformatOpenMs,
-          _perfFindStreamInfoMs,
-          _perfInitCodecAudioMs,
-          _perfInitialSeekMs,
-          _usingHardwareDecode ? 1 : 0);
+    BOOL deferPrepareToDecodeQueue = (_formatContext == NULL && SFXIsHTTPMediaPath(_path.UTF8String));
+    if (!deferPrepareToDecodeQueue) {
+        _perfStartHostSeconds = CACurrentMediaTime();
+        double totalPrepareMs = _perfOpenStartHostSeconds > 0
+            ? (_perfStartHostSeconds - _perfOpenStartHostSeconds) * 1000.0
+            : (_perfStopPrevMs + _perfAvformatOpenMs + _perfFindStreamInfoMs + _perfInitCodecAudioMs + _perfInitialSeekMs);
+        NSLog(@"[PlaybackPerf] OPEN_PREPARE gen=%lu startMs=%ld totalPrepare=%.1fms | S2_stopPrev=%.1fms S3_avformatOpen=%.1fms S4_findStreamInfo=%.1fms S5_initCodecAudio=%.1fms S6_initialSeek=%.1fms hwDecode=%d",
+              (unsigned long)_presentationGeneration,
+              (long)llround(_seekSeconds * 1000.0),
+              totalPrepareMs,
+              _perfStopPrevMs,
+              _perfAvformatOpenMs,
+              _perfFindStreamInfoMs,
+              _perfInitCodecAudioMs,
+              _perfInitialSeekMs,
+              _usingHardwareDecode ? 1 : 0);
+    }
     [self startStarvationWatchdog];
     dispatch_async(_decodeQueue, ^{
         @autoreleasepool {
+            if (deferPrepareToDecodeQueue) {
+                NSError *prepareError = nil;
+                if (![self prepareWithError:&prepareError]) {
+                    atomic_store(&_decodeLoopFinished, true);
+                    [_packetQueueCondition lock];
+                    [_packetQueueCondition broadcast];
+                    [_packetQueueCondition unlock];
+                    [self teardown];
+                    if (!atomic_load(&_cancelled)) {
+                        SFXNativePlaybackPlayer *owner = _owner;
+                        [owner session:self
+                            didFailToOpenWithError:prepareError
+                            presentationGeneration:_presentationGeneration];
+                    }
+                    return;
+                }
+                _perfStartHostSeconds = CACurrentMediaTime();
+                double totalPrepareMs = _perfOpenStartHostSeconds > 0
+                    ? (_perfStartHostSeconds - _perfOpenStartHostSeconds) * 1000.0
+                    : (_perfStopPrevMs + _perfAvformatOpenMs + _perfFindStreamInfoMs + _perfInitCodecAudioMs + _perfInitialSeekMs);
+                NSLog(@"[PlaybackPerf] OPEN_PREPARE gen=%lu startMs=%ld totalPrepare=%.1fms | S2_stopPrev=%.1fms S3_avformatOpen=%.1fms S4_findStreamInfo=%.1fms S5_initCodecAudio=%.1fms S6_initialSeek=%.1fms hwDecode=%d",
+                      (unsigned long)_presentationGeneration,
+                      (long)llround(_seekSeconds * 1000.0),
+                      totalPrepareMs,
+                      _perfStopPrevMs,
+                      _perfAvformatOpenMs,
+                      _perfFindStreamInfoMs,
+                      _perfInitCodecAudioMs,
+                      _perfInitialSeekMs,
+                      _usingHardwareDecode ? 1 : 0);
+            }
             [self decodeLoop];
             [self startAudioForDrainAfterVideoDecodeIfNeeded];
             [self waitForSegmentAudioDrainIfNeeded];
@@ -1289,13 +1366,21 @@
     });
 }
 
-- (void)stopAndWait {
+- (BOOL)isCancelledForIOInterrupt {
+    return atomic_load(&_cancelled);
+}
+
+- (void)cancelAsync {
     atomic_store(&_cancelled, true);
     atomic_store(&_paused, false);
     [_packetQueueCondition lock];
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
     [self signalPacingCondition];
+}
+
+- (void)stopAndWait {
+    [self cancelAsync];
 
     if (_decodeQueue != NULL) {
         dispatch_sync(_decodeQueue, ^{});
@@ -1327,12 +1412,15 @@
 	    double seekSeconds = MAX(0, (double)milliseconds / 1000.0);
 	    NSInteger safeEndMilliseconds = SFXSanitizedSegmentEndMilliseconds(milliseconds, endMilliseconds);
 	    double segmentEndSeconds = safeEndMilliseconds >= 0 ? (double)safeEndMilliseconds / 1000.0 : -1;
+    BOOL isAsyncHTTPSeek = !rebuildsAudioOutput && SFXIsHTTPMediaPath(_path.UTF8String);
 
     [_packetQueueCondition lock];
-    while ((_seekRequestPending || _seekRequestInProgress)
-           && !atomic_load(&_cancelled)
-           && !atomic_load(&_decodeLoopFinished)) {
-        [_packetQueueCondition wait];
+    if (!isAsyncHTTPSeek) {
+        while ((_seekRequestPending || _seekRequestInProgress)
+               && !atomic_load(&_cancelled)
+               && !atomic_load(&_decodeLoopFinished)) {
+            [_packetQueueCondition wait];
+        }
     }
 
     if (atomic_load(&_cancelled) || atomic_load(&_decodeLoopFinished)) {
@@ -1359,6 +1447,14 @@
     _seekRequestError = nil;
     [_packetQueueCondition broadcast];
     [self signalPacingCondition];
+
+    if (isAsyncHTTPSeek) {
+        [_packetQueueCondition unlock];
+        @synchronized (self) {
+            _currentTime = seekSeconds;
+        }
+        return YES;
+    }
 
     while (_completedSeekRequestGeneration < generation
            && !atomic_load(&_cancelled)
@@ -1440,6 +1536,9 @@
     });
 
     [_packetQueueCondition lock];
+    if (!paused) {
+        _pendingSeekPauseAfterFirstFrame = NO;
+    }
     [_packetQueueCondition broadcast];
     NSUInteger generation = _playbackGeneration;
     [_packetQueueCondition unlock];
@@ -1963,6 +2062,7 @@
 	           && !atomic_load(&_segmentEnding)
 	           && !atomic_load(&_finishingForAutomaticRecycle)
 	           && !_packetQueueEOF
+	           && ![self hasPendingSeekRequestLocked]
 	           && _packetQueueBytes < SFXReadAheadMaxBytes
            && [self packetQueueBufferedSecondsLocked] < SFXReadAheadStartupSeconds) {
         [_packetQueueCondition wait];

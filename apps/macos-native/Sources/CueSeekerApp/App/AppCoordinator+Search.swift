@@ -251,6 +251,27 @@ extension AppCoordinator {
             )
             return
         }
+        if !search.hasMutatedSinceSearchSnapshot,
+           let selectedResult = search.selectedSearchResult,
+           let snapshot = search.searchNavigationSnapshot,
+           snapshot.current?.entryID == selectedResult.entryID {
+            let target = direction == .previous ? snapshot.previous : snapshot.next
+            if let target {
+                playback.playbackViewModel?.showSearchNavigationFeedback(
+                    direction: direction,
+                    hasResult: true
+                )
+                openSearchResult(target)
+                return
+            } else if (direction == .previous && !canOpenPreviousSearchResult)
+                || (direction == .next && !canOpenNextSearchResult) {
+                playback.playbackViewModel?.showSearchNavigationFeedback(
+                    direction: direction,
+                    hasResult: false
+                )
+                return
+            }
+        }
         loadSearchNavigationSnapshot(opening: direction)
     }
 

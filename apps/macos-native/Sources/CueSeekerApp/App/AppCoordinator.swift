@@ -414,6 +414,8 @@ final class AppCoordinator: ObservableObject {
     var pendingLibraryPlaybackHistoryPresentationVideoPaths: Set<String> = []
     var autoSwitchCueSequenceTask: Task<Void, Never>?
     var autoSwitchCueSequenceGeneration = 0
+    var playbackOpenTask: Task<Void, Never>?
+    var playbackOpenGeneration: UInt = 0
     var pendingURLSchemeDirectPlayIntent: URLSchemeDirectPlayIntent?
     var pendingURLSchemeCuePlaybackIntent: URLSchemeCuePlaybackIntent?
     var urlSchemeCueLookupTask: Task<Void, Never>?

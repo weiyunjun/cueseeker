@@ -44,8 +44,15 @@ public final class PlaybackViewModel: ObservableObject {
     @Published public private(set) var videoAspectRatio: Double = 16.0 / 9.0
     @Published public private(set) var activeSubtitleText: String?
     @Published var feedback: PlaybackFeedback?
+    @Published private(set) var isLoadingFeedbackVisible = false
+    @Published private(set) var isOpeningNewVideo = false
+
+    var effectiveFeedback: PlaybackFeedback? {
+        feedback ?? (isLoadingFeedbackVisible ? .loading : nil)
+    }
 
     var feedbackClearTask: Task<Void, Never>?
+    var loadingFeedbackTask: Task<Void, Never>?
     var accumulatedForwardSeconds = 0
     var accumulatedRewindSeconds = 0
     private var lastNonzeroVolume = 100.0
@@ -67,6 +74,7 @@ public final class PlaybackViewModel: ObservableObject {
     private let onSeekCommitted: (Int) -> Void
     private let onPresentationCommitted: (Bool) -> Void
     private let onSubtitleSourceLoadFailure: (URL) -> Void
+    private let onVideoOpenFailure: (URL, Error) -> Void
     private let uiProbeScope: String?
     private var pendingPresentation: PendingPresentation?
     private var activeTimelineHoverProgress: Double?
@@ -92,7 +100,8 @@ public final class PlaybackViewModel: ObservableObject {
         onSeekInteractionBegan: @escaping () -> Void = {},
         onSeekCommitted: @escaping (Int) -> Void = { _ in },
         onPresentationCommitted: @escaping (Bool) -> Void = { _ in },
-        onSubtitleSourceLoadFailure: @escaping (URL) -> Void = { _ in }
+        onSubtitleSourceLoadFailure: @escaping (URL) -> Void = { _ in },
+        onVideoOpenFailure: @escaping (URL, Error) -> Void = { _, _ in }
     ) {
         self.player = player
         self.timelineThumbnailStore = PlaybackTimelineThumbnailStore(player: player)
@@ -107,6 +116,7 @@ public final class PlaybackViewModel: ObservableObject {
         self.onSeekCommitted = onSeekCommitted
         self.onPresentationCommitted = onPresentationCommitted
         self.onSubtitleSourceLoadFailure = onSubtitleSourceLoadFailure
+        self.onVideoOpenFailure = onVideoOpenFailure
         self.uiProbeScope = uiProbeScope
 
         volume = Self.clampedVolume(initialVolume)
@@ -121,10 +131,14 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     public func togglePlayPause() {
+        guard !isOpeningNewVideo else {
+            return
+        }
         let willPlay = !isPlaying
 
         do {
             try player.setPaused(isPlaying) // if isPlaying is true, set pause to yes
+            isPlaying = willPlay
             showPlayPauseFeedback(isPlaying: willPlay)
         } catch {
             print("Failed to toggle pause: \(error)")
@@ -135,21 +149,51 @@ public final class PlaybackViewModel: ObservableObject {
         performSeek(to: seconds, resetsAccumulatedFeedback: true)
     }
 
-    func preparePresentationTransition(
+    func prepareNewVideoOpening(
         to seconds: Double,
-        subtitleCues: [PlaybackSubtitleCue]? = nil
+        subtitleCues: [PlaybackSubtitleCue]? = nil,
+        resetsLoadingTimer: Bool = true
     ) {
         let targetTime = seconds.isFinite ? max(seconds, 0) : 0
         let heldActiveSubtitleText = pendingPresentation?.heldActiveSubtitleText
             ?? activeSubtitleText
         let stagedSubtitleTrack = subtitleCues.map { PlaybackSubtitleTrack(cues: $0) }
             ?? pendingPresentation?.stagedSubtitleTrack
+        isOpeningNewVideo = true
         pendingPresentation = PendingPresentation(
             generation: nil,
             targetTime: targetTime,
             heldActiveSubtitleText: heldActiveSubtitleText,
             stagedSubtitleTrack: stagedSubtitleTrack
         )
+        clearProtectedSeekTarget()
+        clearTimelineThumbnailPreview()
+        duration = 0
+        isPlaying = true
+        updatePlaybackTime(0, publishesControlsImmediately: true)
+        scheduleLoadingFeedback(reset: resetsLoadingTimer)
+    }
+
+    func preparePresentationTransition(
+        to seconds: Double,
+        subtitleCues: [PlaybackSubtitleCue]? = nil,
+        resetsLoadingTimer: Bool = true
+    ) {
+        let targetTime = clampedPlaybackTime(seconds)
+        let heldActiveSubtitleText = pendingPresentation?.heldActiveSubtitleText
+            ?? activeSubtitleText
+        let stagedSubtitleTrack = subtitleCues.map { PlaybackSubtitleTrack(cues: $0) }
+            ?? pendingPresentation?.stagedSubtitleTrack
+        isOpeningNewVideo = false
+        pendingPresentation = PendingPresentation(
+            generation: nil,
+            targetTime: targetTime,
+            heldActiveSubtitleText: heldActiveSubtitleText,
+            stagedSubtitleTrack: stagedSubtitleTrack
+        )
+        protectSeekTarget(targetTime)
+        updatePlaybackTime(targetTime, publishesControlsImmediately: true)
+        scheduleLoadingFeedback(reset: resetsLoadingTimer)
     }
 
     func bindPendingPresentation(to generation: UInt) {
@@ -163,8 +207,39 @@ public final class PlaybackViewModel: ObservableObject {
 
     func cancelPendingPresentation() {
         pendingPresentation = nil
+        isOpeningNewVideo = false
+        cancelLoadingFeedback()
         clearProtectedSeekTarget()
         player.cancelPendingPresentation()
+    }
+
+    private func scheduleLoadingFeedback(reset: Bool = true) {
+        if !reset, (isLoadingFeedbackVisible || loadingFeedbackTask != nil) {
+            return
+        }
+        loadingFeedbackTask?.cancel()
+        isLoadingFeedbackVisible = false
+        let delayNanoseconds = PlaybackChromeMetrics.loadingFeedbackDelayMilliseconds * 1_000_000
+        loadingFeedbackTask = Task.detached(priority: .userInitiated) { [weak self] in
+            try? await Task.sleep(nanoseconds: delayNanoseconds)
+            guard !Task.isCancelled else {
+                return
+            }
+            await MainActor.run {
+                guard !Task.isCancelled, let self, self.pendingPresentation != nil else {
+                    return
+                }
+                self.isLoadingFeedbackVisible = true
+            }
+        }
+    }
+
+    private func cancelLoadingFeedback() {
+        loadingFeedbackTask?.cancel()
+        loadingFeedbackTask = nil
+        if isLoadingFeedbackVisible {
+            isLoadingFeedbackVisible = false
+        }
     }
 
     /// A video that failed to load leaves the player empty until another one
@@ -248,10 +323,10 @@ public final class PlaybackViewModel: ObservableObject {
         }
         let targetTime = clampedPlaybackTime(seconds)
         onSeekInteractionBegan()
+        isPlaying = true
         preparePresentationTransition(
             to: targetTime
         )
-        protectSeekTarget(targetTime)
         accumulatedForwardSeconds = 0
         accumulatedRewindSeconds = 0
 
@@ -280,6 +355,7 @@ public final class PlaybackViewModel: ObservableObject {
             return
         }
 
+        cancelLoadingFeedback()
         clearSubtitlePresentationHold()
         onSeekInteractionBegan()
         timelineScrubbingWasPlaying = isPlaying
@@ -311,10 +387,10 @@ public final class PlaybackViewModel: ObservableObject {
         timelineScrubbingWasPlaying = nil
 
         let targetTime = clampedPlaybackTime(seconds)
+        isPlaying = shouldResumePlayback
         preparePresentationTransition(
             to: targetTime
         )
-        protectSeekTarget(targetTime)
         accumulatedForwardSeconds = 0
         accumulatedRewindSeconds = 0
 
@@ -362,7 +438,6 @@ public final class PlaybackViewModel: ObservableObject {
         preparePresentationTransition(
             to: targetTime
         )
-        protectSeekTarget(targetTime)
         if resetsAccumulatedFeedback {
             accumulatedForwardSeconds = 0
             accumulatedRewindSeconds = 0
@@ -828,6 +903,16 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
         }
     }
 
+    nonisolated public func player(
+        _ player: PlaybackPlayer,
+        didFailToOpenVideoAt url: URL,
+        error: Error
+    ) {
+        Task { @MainActor in
+            self.onVideoOpenFailure(url, error)
+        }
+    }
+
     nonisolated public func playerDidFinishPlayback(_ player: PlaybackPlayer) {
         Task { @MainActor in
             self.needsTimelineThumbnailRefreshAfterReset = true
@@ -877,6 +962,8 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
         }
 
         self.pendingPresentation = nil
+        isOpeningNewVideo = false
+        cancelLoadingFeedback()
         if let stagedSubtitleTrack = pendingPresentation.stagedSubtitleTrack {
             subtitleTrack = stagedSubtitleTrack
         }

@@ -204,7 +204,99 @@ extension AppCoordinator {
             },
             onSubtitleSourceLoadFailure: { [weak self] url in
                 self?.handleSubtitleSourceLoadFailure(url)
+            },
+            onVideoOpenFailure: { [weak self] url, error in
+                self?.handleAsyncPlaybackOpenFailure(url: url, error: error)
             }
+        )
+    }
+
+    func preparePlaybackTransition(
+        forVideoPath videoPath: String,
+        startMilliseconds: Int,
+        subtitleCues: [PlaybackSubtitleCue]? = nil,
+        resetsLoadingTimer: Bool = true
+    ) {
+        let targetTime = Double(max(0, startMilliseconds)) / 1_000
+        if canSeekInCurrentlyOpenVideo(forVideoPath: videoPath) {
+            playback.playbackViewModel?.preparePresentationTransition(
+                to: targetTime,
+                subtitleCues: subtitleCues,
+                resetsLoadingTimer: resetsLoadingTimer
+            )
+        } else {
+            playback.playbackViewModel?.prepareNewVideoOpening(
+                to: targetTime,
+                subtitleCues: subtitleCues,
+                resetsLoadingTimer: resetsLoadingTimer
+            )
+        }
+    }
+
+    func cancelPendingPlaybackOpenTask() {
+        playbackOpenGeneration &+= 1
+        playbackOpenTask?.cancel()
+        playbackOpenTask = nil
+    }
+
+    func schedulePlaybackOpen(
+        videoPath: String,
+        subtitlePath: String?,
+        action: @escaping @MainActor () -> Void
+    ) {
+        cancelPendingPlaybackOpenTask()
+        let generation = playbackOpenGeneration
+        let videoURL = URL.fromMediaPath(videoPath)
+        let subtitleURL = subtitlePath.map(URL.fromMediaPath)
+        let hasRemoteMedia = videoURL.isRemoteMediaURL || (subtitleURL?.isRemoteMediaURL == true)
+
+        playbackOpenTask = Task { @MainActor [weak self] in
+            if hasRemoteMedia {
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.main.async {
+                        continuation.resume()
+                    }
+                }
+                guard !Task.isCancelled,
+                      let self,
+                      self.playbackOpenGeneration == generation
+                else {
+                    return
+                }
+                await Task.detached(priority: .userInitiated) {
+                    if let subtitleURL, subtitleURL.isRemoteMediaURL {
+                        _ = WebDAVSubtitleCache.shared.loadData(for: subtitleURL)
+                    }
+                    if videoURL.isRemoteMediaURL {
+                        _ = try? WebDAVClient.shared.resolvePlayableInput(for: videoURL)
+                    }
+                }.value
+            } else {
+                await Task.yield()
+            }
+            guard !Task.isCancelled,
+                  let self,
+                  self.playbackOpenGeneration == generation
+            else {
+                return
+            }
+            self.playbackOpenTask = nil
+            action()
+        }
+    }
+
+    func handleAsyncPlaybackOpenFailure(url: URL, error: Error) {
+        guard let currentPath = currentPlaybackVideoPath,
+              URL.fromMediaPath(currentPath).mediaPath == url.mediaPath
+        else {
+            return
+        }
+        let cueStartMilliseconds = search.selectedSearchResult?.startMilliseconds
+            ?? excerpt.selectedExcerpt?.startMilliseconds
+        handlePlaybackOpenFailure(
+            error,
+            videoPath: currentPath,
+            cueStartMilliseconds: cueStartMilliseconds
         )
     }
 
@@ -307,6 +399,12 @@ extension AppCoordinator {
                     ordinal: 0
                 )
             }
+        } else if let playbackSearchPromotion,
+                  let source = playback.playlistSource,
+                  !search.hasMutatedSinceSearchSnapshot,
+                  source.itemIdentity(at: playbackSearchPromotion.selectedOrdinal)
+                      == .search(result.entryID) {
+            // Reuse existing unmutated search playlist source without rebuilding.
         } else {
             synchronizeSearchAndPlaylistOnPlayback(seed: result)
         }
@@ -348,6 +446,7 @@ extension AppCoordinator {
         )
         playback.isPlaybackSurfaceExpanded = true
         if !itemInLibrary {
+            cancelPendingPlaybackOpenTask()
             playback.clearPlaylistPosition()
             playback.playbackStatus = .loadFailed
             try? player?.stop()
@@ -361,9 +460,17 @@ extension AppCoordinator {
             }
         } else {
             playback.clearError(on: .notInLibrary)
-            Task { @MainActor in
-                await Task.yield()
-                _ = play(result)
+            preparePlaybackTransition(
+                forVideoPath: result.videoPath,
+                startMilliseconds: result.startMilliseconds,
+                subtitleCues: [],
+                resetsLoadingTimer: true
+            )
+            schedulePlaybackOpen(
+                videoPath: result.videoPath,
+                subtitlePath: result.subtitlePath
+            ) { [weak self] in
+                _ = self?.play(result)
             }
         }
     }
@@ -443,9 +550,11 @@ extension AppCoordinator {
         playback.playbackStatus = .opening
         playback.clearError(on: .video)
         playback.clearError(on: .notInLibrary)
-        playback.playbackViewModel?.preparePresentationTransition(
-            to: Double(result.startMilliseconds) / 1_000,
-            subtitleCues: []
+        preparePlaybackTransition(
+            forVideoPath: result.videoPath,
+            startMilliseconds: result.startMilliseconds,
+            subtitleCues: [],
+            resetsLoadingTimer: false
         )
 
         do {
@@ -496,6 +605,7 @@ extension AppCoordinator {
 
 
     func stopPlayback() {
+        cancelPendingPlaybackOpenTask()
         playbackAwaitsLibraryReconcile = false
         _ = playback.dismissCommandPanel()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
@@ -507,7 +617,7 @@ extension AppCoordinator {
             playbackFullscreenManager.exitFullscreen()
             playback.playbackViewModel?.cancelPendingPresentation()
             try player?.stop()
-            playback.playbackViewModel?.clearSubtitleCues()
+            playback.playbackViewModel?.resetPresentationForStoppedPlayback()
             activePlaybackSource = .none
             currentPlaybackItemLeftLibrary = false
             search.selectResult(nil)

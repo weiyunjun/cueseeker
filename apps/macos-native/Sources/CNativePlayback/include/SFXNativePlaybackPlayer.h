@@ -71,6 +71,9 @@ shouldPauseAtAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds
       presentationGeneration:(NSUInteger)presentationGeneration;
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
 didReachAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds;
+- (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
+        didFailToOpenWithError:(NSError *)error
+      presentationGeneration:(NSUInteger)presentationGeneration;
 @end
 
 @interface SFXNativePlaybackPlayer : NSObject

@@ -336,6 +336,8 @@ extension AppCoordinator {
         if savesCurrentPlaybackHistory, case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
         }
+        stopLibraryPlaybackHistoryTracking()
+        activePlaybackSource = .library(videoPath: video.videoPath)
         let itemInLibrary = !libraryHasLost(videoPath: video.videoPath)
         currentPlaybackItemLeftLibrary = !itemInLibrary
         library.selectedLibraryVideo = video
@@ -352,6 +354,7 @@ extension AppCoordinator {
         )
         playback.isPlaybackSurfaceExpanded = true
         if !itemInLibrary {
+            cancelPendingPlaybackOpenTask()
             playback.clearPlaylistPosition()
             playback.playbackStatus = .loadFailed
             try? player?.stop()
@@ -359,11 +362,22 @@ extension AppCoordinator {
             showPlaybackItemNotInLibrary()
         } else {
             playback.clearError(on: .notInLibrary)
-            Task { @MainActor in
-                await Task.yield()
-                let didStartPlayback = play(video)
+            let startMilliseconds = libraryResumePositionMilliseconds(for: video)
+            let targetSubtitle = defaultPlaybackSubtitle(forVideoPath: video.videoPath)
+            preparePlaybackTransition(
+                forVideoPath: video.videoPath,
+                startMilliseconds: startMilliseconds,
+                subtitleCues: [],
+                resetsLoadingTimer: true
+            )
+            schedulePlaybackOpen(
+                videoPath: video.videoPath,
+                subtitlePath: targetSubtitle?.subtitlePath ?? video.subtitlePath
+            ) { [weak self] in
+                guard let self else { return }
+                let didStartPlayback = self.play(video)
                 if didStartPlayback {
-                    recordRecentLibraryWatching(for: video)
+                    self.recordRecentLibraryWatching(for: video)
                 }
             }
         }
@@ -406,15 +420,17 @@ extension AppCoordinator {
               targetDecodeMode.rawValue)
         clearCueAutoStopPlayback()
         stopLibraryPlaybackHistoryTracking()
-        activePlaybackSource = .none
+        activePlaybackSource = .library(videoPath: video.videoPath)
         playbackSubtitle = defaultPlaybackSubtitle(forVideoPath: video.videoPath)
         playback.playbackStatus = .opening
         playback.clearError(on: .video)
         playback.clearError(on: .notInLibrary)
         let startMilliseconds = libraryResumePositionMilliseconds(for: video)
-        playback.playbackViewModel?.preparePresentationTransition(
-            to: Double(startMilliseconds) / 1_000,
-            subtitleCues: []
+        preparePlaybackTransition(
+            forVideoPath: video.videoPath,
+            startMilliseconds: startMilliseconds,
+            subtitleCues: [],
+            resetsLoadingTimer: false
         )
 
         do {
@@ -526,7 +542,8 @@ extension AppCoordinator {
         guard case .library(let videoPath) = activePlaybackSource,
               !currentPlaybackItemLeftLibrary,
               let playbackViewModel = playback.playbackViewModel,
-              !playbackViewModel.isPlayerEmpty
+              !playbackViewModel.isPlayerEmpty,
+              !playbackViewModel.isOpeningNewVideo
         else {
             return false
         }

@@ -224,6 +224,9 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 - (void)session:(SFXNativePlaybackSession *)session
 didPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
 presentationGeneration:(NSUInteger)presentationGeneration;
+- (void)session:(SFXNativePlaybackSession *)session
+didFailToOpenWithError:(NSError *)error
+presentationGeneration:(NSUInteger)presentationGeneration;
 @end
 
 @interface SFXNativePlaybackSession : NSObject {
@@ -430,7 +433,9 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
                        error:(NSError **)error;
 - (void)configurePerfOpenStart:(CFTimeInterval)openStart stopPrevMs:(double)stopPrevMs;
 - (void)start;
+- (void)cancelAsync;
 - (void)stopAndWait;
+- (BOOL)isCancelledForIOInterrupt;
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds
            endMilliseconds:(NSInteger)endMilliseconds
         pausesAtSegmentEnd:(BOOL)pausesAtSegmentEnd
