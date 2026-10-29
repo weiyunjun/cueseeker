@@ -308,7 +308,7 @@ final class PlaybackStore: ObservableObject {
         moreMenu = menu
         moreSubmenuState.reset()
         moreMenuHighlight.open(
-            selectablePositions: menu.enabledSubmenus.map(\.rawValue)
+            selectablePositions: [PlaybackMoreSubmenu.audioTrack.rawValue]
         )
     }
 
@@ -328,7 +328,7 @@ final class PlaybackStore: ObservableObject {
     func handleMoreMenuKey(
         _ keyCode: UInt16,
         isRepeat: Bool,
-        onSelect: (PlaybackMoreSubmenu, Int) -> Void
+        onSelect: (Int) -> Void
     ) -> Bool {
         guard moreMenu != nil else {
             return false
@@ -350,9 +350,9 @@ final class PlaybackStore: ObservableObject {
             guard !isRepeat else {
                 break
             }
-            if let openSubmenu {
+            if openSubmenu != nil {
                 if let index = moreSubmenuHighlight.highlightedPosition {
-                    onSelect(openSubmenu, index)
+                    onSelect(index)
                     closeMoreMenu()
                 }
             } else {
@@ -391,10 +391,10 @@ final class PlaybackStore: ObservableObject {
             guard let self else {
                 return
             }
-            if let submenu {
+            if submenu != nil {
                 if !moreSubmenuHighlight.isOpen, let moreMenu {
                     moreSubmenuHighlight.open(
-                        selectablePositions: Array(moreMenu.list(in: submenu).names.indices)
+                        selectablePositions: Array(moreMenu.audioTracks.names.indices)
                     )
                 }
             } else {

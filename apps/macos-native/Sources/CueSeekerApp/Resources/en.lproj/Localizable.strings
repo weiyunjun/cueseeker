@@ -231,11 +231,7 @@
 "playback.more" = "More";
 "playback.more.audio_track" = "Audio Track";
 "playback.more.no_audio_tracks" = "No Audio Tracks";
-"playback.more.subtitle" = "Subtitle";
-"playback.more.default_audio_track" = "Default Audio Track";
-"playback.more.default_subtitle" = "Default Subtitle";
 "playback.more.default_tag" = "Default";
-"playback.more.current_tag" = "Current";
 "playback.subtitle_menu.off" = "Off";
 "playback.mute" = "Mute";
 "playback.close_and_return" = "Close video and return to results";
@@ -790,8 +786,6 @@
 "tooltip.player.unmute" = "Unmute";
 "tooltip.player.repeat.disabled" = "No active cue to replay";
 "tooltip.player.copy_screenshot" = "Copy Current Screenshot";
-"tooltip.player.subtitles.show" = "Show Subtitles";
-"tooltip.player.subtitles.hide" = "Hide Subtitles";
 "tooltip.player.speed" = "Playback Speed";
 "tooltip.player.fullscreen.enter" = "Enter Fullscreen";
 "tooltip.player.fullscreen.exit" = "Exit Fullscreen";

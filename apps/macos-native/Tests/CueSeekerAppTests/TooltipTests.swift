@@ -429,8 +429,6 @@ struct TooltipTests {
             "tooltip.player.unmute",
             "tooltip.player.repeat.disabled",
             "tooltip.player.copy_screenshot",
-            "tooltip.player.subtitles.show",
-            "tooltip.player.subtitles.hide",
             "tooltip.player.speed",
             "tooltip.player.fullscreen.enter",
             "tooltip.player.fullscreen.exit",

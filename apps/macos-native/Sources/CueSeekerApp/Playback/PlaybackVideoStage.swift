@@ -275,11 +275,8 @@ struct PlaybackVideoStage: View {
                     menu: menu,
                     buttonFrame: proxy[anchor],
                     suppressesInteraction: playback.interfaceLayers.isOpen(.commandPanel),
-                    onSelect: { submenu, index in
-                        switch submenu {
-                        case .audioTrack:
-                            appState.selectPlaybackAudioTrack(index)
-                        }
+                    onSelect: { index in
+                        appState.selectPlaybackAudioTrack(index)
                     }
                 )
             }

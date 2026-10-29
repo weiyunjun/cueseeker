@@ -231,11 +231,7 @@
 "playback.more" = "更多";
 "playback.more.audio_track" = "音軌";
 "playback.more.no_audio_tracks" = "沒有音軌";
-"playback.more.subtitle" = "字幕";
-"playback.more.default_audio_track" = "預設音軌";
-"playback.more.default_subtitle" = "預設字幕";
 "playback.more.default_tag" = "預設";
-"playback.more.current_tag" = "目前";
 "playback.subtitle_menu.off" = "關閉";
 "playback.mute" = "靜音";
 "playback.close_and_return" = "關閉影片並返回結果";
@@ -790,8 +786,6 @@
 "tooltip.player.unmute" = "取消靜音";
 "tooltip.player.repeat.disabled" = "目前沒有可重播的台詞";
 "tooltip.player.copy_screenshot" = "拷貝目前截圖";
-"tooltip.player.subtitles.show" = "開啟字幕";
-"tooltip.player.subtitles.hide" = "關閉字幕";
 "tooltip.player.speed" = "播放速度";
 "tooltip.player.fullscreen.enter" = "進入全螢幕";
 "tooltip.player.fullscreen.exit" = "退出全螢幕";

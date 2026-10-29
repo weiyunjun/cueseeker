@@ -2,15 +2,12 @@ import AppKit
 import CueSeekerCore
 import SwiftUI
 
-/// The More menu's submenus, in the order the menu lists them.
+/// The More menu's single submenu trigger.
 enum PlaybackMoreSubmenu: Int, CaseIterable, Hashable {
     case audioTrack
 
     var title: String {
-        switch self {
-        case .audioTrack:
-            L("playback.more.audio_track")
-        }
+        L("playback.more.audio_track")
     }
 }
 
@@ -28,36 +25,40 @@ struct PlaybackMoreMenuList: Equatable {
 struct PlaybackMoreMenu: Equatable {
     let audioTracks: PlaybackMoreMenuList
 
-    func list(in submenu: PlaybackMoreSubmenu) -> PlaybackMoreMenuList {
-        switch submenu {
-        case .audioTrack:
-            audioTracks
-        }
-    }
-
     /// Audio Track checks the track playing now and tags the default track.
-    func checkedIndex(in submenu: PlaybackMoreSubmenu) -> Int {
-        list(in: submenu).currentIndex
+    var checkedIndex: Int {
+        audioTracks.currentIndex
     }
 
-    func tag(in submenu: PlaybackMoreSubmenu) -> (index: Int, title: String) {
-        (list(in: submenu).defaultIndex, L("playback.more.default_tag"))
-    }
-
-    /// The triggers that open a submenu. `Audio Track` is always enabled; when
-    /// the video has no audio tracks its submenu opens to a disabled
-    /// `No Audio Tracks` item.
-    var enabledSubmenus: [PlaybackMoreSubmenu] {
-        PlaybackMoreSubmenu.allCases
+    var defaultTag: (index: Int, title: String) {
+        (audioTracks.defaultIndex, L("playback.more.default_tag"))
     }
 }
 
-/// What the Player Subtitle Menu lists for the open video: its matched
-/// subtitles in database order, which one is active, which one is the default,
-/// and whether subtitles are currently visible.
+/// A choice in the Player Subtitle Menu: a subtitle from the snapshot captured
+/// when the menu opened, or the trailing `Off` item.
+enum PlaybackSubtitleMenuChoice: Equatable {
+    case subtitle(Int)
+    case off
+}
+
+/// What the Player Subtitle Menu lists for the open video: the snapshot of
+/// matched subtitles in database order, which one is active, which one is the
+/// default, and whether subtitles are currently visible.
 struct PlaybackSubtitleMenu: Equatable {
+    let records: [VideoSubtitle]
     let subtitles: PlaybackMoreMenuList
     let areSubtitlesVisible: Bool
+
+    init(
+        records: [VideoSubtitle] = [],
+        subtitles: PlaybackMoreMenuList,
+        areSubtitlesVisible: Bool
+    ) {
+        self.records = records
+        self.subtitles = subtitles
+        self.areSubtitlesVisible = areSubtitlesVisible
+    }
 
     /// The position of the trailing `Off` item after all subtitle rows.
     var offPosition: Int {
@@ -79,6 +80,16 @@ struct PlaybackSubtitleMenu: Equatable {
             return offPosition
         }
         return subtitles.currentIndex
+    }
+
+    func choice(at position: Int) -> PlaybackSubtitleMenuChoice? {
+        if position == offPosition {
+            return .off
+        }
+        guard subtitles.names.indices.contains(position) else {
+            return nil
+        }
+        return .subtitle(position)
     }
 
     func isChecked(at position: Int) -> Bool {
@@ -126,22 +137,85 @@ enum PlaybackSubtitleName {
     }
 }
 
-/// The More menu and its open submenu, laid over the playback stage so a long
-/// list has the stage's height to open into.
+/// Shared layout and two-pass measurement for Player Chrome menu panels whose
+/// item names wrap up to `PlaybackChromeMetrics.audioTrackMenuMaxWidth` and
+/// shrink by `MenuMetrics.scrollbarStrip` when scrolling is needed.
+struct PlaybackWrappedMenuPanelLayout {
+    let frame: CGRect
+    /// The width the items are laid out at; names wrap inside it.
+    let itemWidth: CGFloat
+    /// How tall the panel may grow before it scrolls.
+    let maximumHeight: CGFloat
+
+    static func resolve(
+        naturalItemWidth: CGFloat,
+        itemStackHeight: (CGFloat) -> CGFloat,
+        room: CGFloat,
+        boundsHeight: CGFloat,
+        place: (CGSize) -> CGRect
+    ) -> PlaybackWrappedMenuPanelLayout {
+        let padding = MenuMetrics.padding * 2
+        let wanted = min(naturalItemWidth + padding, PlaybackChromeMetrics.audioTrackMenuMaxWidth)
+        let maximumHeight = min(MenuMetrics.maximumHeight, boundsHeight)
+        var itemWidth = min(wanted, room) - padding
+        var size = CGSize(width: itemWidth + padding, height: itemStackHeight(itemWidth) + padding)
+        if size.height > maximumHeight {
+            itemWidth = min(itemWidth, room - padding - MenuMetrics.scrollbarStrip)
+            size = CGSize(
+                width: itemWidth + padding + MenuMetrics.scrollbarStrip,
+                height: maximumHeight
+            )
+        }
+        return PlaybackWrappedMenuPanelLayout(
+            frame: place(size),
+            itemWidth: itemWidth,
+            maximumHeight: maximumHeight
+        )
+    }
+
+    @MainActor
+    static func measure<Items: View>(
+        room: CGFloat,
+        boundsHeight: CGFloat,
+        @ViewBuilder items: (CGFloat?) -> Items,
+        place: (CGSize) -> CGRect
+    ) -> PlaybackWrappedMenuPanelLayout {
+        resolve(
+            naturalItemWidth: NSHostingView(rootView: items(nil)).fittingSize.width,
+            itemStackHeight: { width in
+                NSHostingView(rootView: items(width)).fittingSize.height
+            },
+            room: room,
+            boundsHeight: boundsHeight,
+            place: place
+        )
+    }
+}
+
+typealias PlaybackMoreSubmenuLayout = PlaybackWrappedMenuPanelLayout
+typealias PlaybackSubtitleMenuLayout = PlaybackWrappedMenuPanelLayout
+
+/// Where the More menu and its Audio Track submenu sit on the stage.
+struct PlaybackMoreMenuLayout {
+    let menuFrame: CGRect
+    let submenu: PlaybackWrappedMenuPanelLayout
+}
+
+/// The More menu and its Audio Track submenu, laid over the playback stage so a
+/// long list has the stage's height to open into.
 struct PlaybackChromeMoreMenuOverlay: View {
     @ObservedObject var playback: PlaybackStore
     @ObservedObject var submenuState: MenuSubmenuState<PlaybackMoreSubmenu>
     let menu: PlaybackMoreMenu
     let buttonFrame: CGRect
     let suppressesInteraction: Bool
-    let onSelect: (PlaybackMoreSubmenu, Int) -> Void
+    let onSelect: (Int) -> Void
     @State private var layout: PlaybackMoreMenuLayout?
 
     private static let padding = MenuMetrics.padding
     private static let itemHeight = WorkbenchControlMetrics.redesignMenuItemHeight
     private static let itemGap: CGFloat = 0
 
-    /// What the layout is measured from.
     private struct LayoutInput: Equatable {
         let stageSize: CGSize
         let buttonFrame: CGRect
@@ -151,8 +225,7 @@ struct PlaybackChromeMoreMenuOverlay: View {
     var body: some View {
         GeometryReader { proxy in
             let menuFrame = layout?.menuFrame ?? .zero
-            let openSubmenu = submenuState.openParent
-            let submenu = openSubmenu.flatMap { layout?.submenus[$0] }
+            let submenu = submenuState.openParent != nil ? layout?.submenu : nil
 
             ZStack(alignment: .topLeading) {
                 MenuGateClientView(
@@ -161,17 +234,15 @@ struct PlaybackChromeMoreMenuOverlay: View {
                     kind: .playerMoreMenu,
                     menuFrame: menuFrame,
                     submenuFrame: submenu?.frame,
-                    // A press on the More button is left to the button, which
-                    // closes the menu it opened.
                     anchorFrame: buttonFrame,
                     notePointer: { point in
-                        guard let openSubmenu, let submenu else {
+                        guard let submenu else {
                             return
                         }
                         submenuState.notePointer(
                             point,
                             parentMenuFrame: menuFrame,
-                            triggerFrame: Self.triggerFrame(openSubmenu, menuWidth: menuFrame.width)
+                            triggerFrame: Self.triggerFrame(menuWidth: menuFrame.width)
                                 .offsetBy(dx: menuFrame.minX, dy: menuFrame.minY),
                             submenuFrame: submenu.frame
                         )
@@ -189,25 +260,21 @@ struct PlaybackChromeMoreMenuOverlay: View {
                 .allowsHitTesting(false)
 
                 if layout != nil {
-                    PlaybackMoreMenuHost(content: AnyView(firstLevelMenu))
-                        .frame(width: menuFrame.width, height: menuFrame.height)
-                        .offset(x: menuFrame.minX, y: menuFrame.minY)
-                    interactiveRegion(menuFrame)
+                    PlaybackHostedMenuSurface(frame: menuFrame) {
+                        firstLevelMenu
+                    }
                 }
 
-                if let openSubmenu, let submenu {
-                    PlaybackMoreMenuHost(
-                        content: AnyView(
-                            submenuPanel(
-                                openSubmenu,
-                                itemWidth: submenu.itemWidth,
-                                maximumHeight: submenu.maximumHeight
-                            )
-                        )
-                    )
-                    .frame(width: submenu.frame.width, height: submenu.frame.height)
-                    .offset(x: submenu.frame.minX, y: submenu.frame.minY)
-                    interactiveRegion(submenu.frame)
+                if let submenu {
+                    PlaybackHostedMenuSurface(frame: submenu.frame) {
+                        WorkbenchPopoverPanel(
+                            surface: .playerChrome,
+                            maximumHeight: submenu.maximumHeight,
+                            highlight: playback.moreSubmenuHighlight
+                        ) {
+                            items(itemWidth: submenu.itemWidth)
+                        }
+                    }
                 }
             }
             .onAppear {
@@ -219,67 +286,53 @@ struct PlaybackChromeMoreMenuOverlay: View {
         }
     }
 
-    // MARK: - Menus
-
     private var firstLevelMenu: some View {
         WorkbenchPopoverPanel(
             surface: .playerChrome,
             highlight: playback.moreMenuHighlight
         ) {
-            VStack(spacing: Self.itemGap) {
-                ForEach(PlaybackMoreSubmenu.allCases, id: \.self) { submenu in
-                    PlaybackMoreMenuTrigger(
-                        submenu: submenu,
-                        isEnabled: menu.enabledSubmenus.contains(submenu),
-                        suppressesInteraction: suppressesInteraction,
-                        highlight: playback.moreMenuHighlight,
-                        submenuState: submenuState
-                    )
-                    .id(submenu.rawValue)
-                }
-            }
+            PlaybackMoreMenuTrigger(
+                submenu: .audioTrack,
+                suppressesInteraction: suppressesInteraction,
+                highlight: playback.moreMenuHighlight,
+                submenuState: submenuState
+            )
+            .id(PlaybackMoreSubmenu.audioTrack.rawValue)
         }
     }
 
-    private func submenuPanel(
-        _ submenu: PlaybackMoreSubmenu,
-        itemWidth: CGFloat,
-        maximumHeight: CGFloat
-    ) -> some View {
-        WorkbenchPopoverPanel(
-            surface: .playerChrome,
-            maximumHeight: maximumHeight,
-            highlight: playback.moreSubmenuHighlight
-        ) {
-            items(submenu, itemWidth: itemWidth)
-        }
-    }
-
-    /// The submenu's items, laid out at the given width, or each name on one
-    /// line when there is none. When the video has no audio tracks, the
-    /// submenu shows a single disabled row without a leading checkmark slot.
+    /// The Audio Track submenu's items, laid out at the given width, or each
+    /// name on one line when measuring natural width. When the video has no
+    /// audio tracks, the submenu shows a single disabled row without a leading
+    /// checkmark slot.
     @ViewBuilder
-    private func items(_ submenu: PlaybackMoreSubmenu, itemWidth: CGFloat?) -> some View {
-        let names = menu.list(in: submenu).names
+    private func items(itemWidth: CGFloat?) -> some View {
+        let names = menu.audioTracks.names
         if names.isEmpty {
-            PlaybackMoreDisabledSubmenuItem(
-                title: L("playback.more.no_audio_tracks"),
-                width: itemWidth
+            PlaybackChromeMenuItem(
+                name: L("playback.more.no_audio_tracks"),
+                showsCheckmarkSlot: false,
+                isEnabled: false,
+                width: itemWidth,
+                position: 0,
+                suppressesInteraction: suppressesInteraction,
+                highlight: playback.moreSubmenuHighlight,
+                action: {}
             )
         } else {
-            let tag = menu.tag(in: submenu)
+            let tag = menu.defaultTag
             VStack(spacing: Self.itemGap) {
                 ForEach(Array(names.enumerated()), id: \.offset) { index, name in
-                    PlaybackMoreSubmenuItem(
+                    PlaybackChromeMenuItem(
                         name: name,
-                        isChecked: menu.checkedIndex(in: submenu) == index,
+                        isChecked: menu.checkedIndex == index,
                         tag: tag.index == index ? tag.title : nil,
                         width: itemWidth,
                         position: index,
                         suppressesInteraction: suppressesInteraction,
                         highlight: playback.moreSubmenuHighlight,
                         action: {
-                            onSelect(submenu, index)
+                            onSelect(index)
                             playback.closeMoreMenu()
                         }
                     )
@@ -287,16 +340,6 @@ struct PlaybackChromeMoreMenuOverlay: View {
                 }
             }
         }
-    }
-
-    /// A clickable control for the Player UI's idle hide: the menus are hosted
-    /// in AppKit views, which the stage's SwiftUI preference cannot see into.
-    private func interactiveRegion(_ frame: CGRect) -> some View {
-        Color.clear
-            .frame(width: frame.width, height: frame.height)
-            .playerInteractiveRegion()
-            .offset(x: frame.minX, y: frame.minY)
-            .allowsHitTesting(false)
     }
 
     // MARK: - Geometry
@@ -314,22 +357,31 @@ struct PlaybackChromeMoreMenuOverlay: View {
         )
     }
 
-    /// The trigger's frame in the menu's own space.
-    private static func triggerFrame(_ submenu: PlaybackMoreSubmenu, menuWidth: CGFloat) -> CGRect {
+    private static func triggerFrame(menuWidth: CGFloat) -> CGRect {
         CGRect(
             x: padding,
-            y: padding + CGFloat(submenu.rawValue) * (itemHeight + itemGap),
+            y: padding,
             width: menuWidth - padding * 2,
             height: itemHeight
         )
     }
 
-    /// Where a submenu sits and the width its items are laid out at. It is as
-    /// wide as its names on one line, held to the cap and to the room on the
-    /// side it opens to: the right when it fits there, else the left, else the
-    /// wider side. When the room cannot hold its height it scrolls, and the
-    /// scrollbar's strip comes out of the items' width where the room has
-    /// nothing more to give.
+    private static func submenuRoom(
+        naturalItemWidth: CGFloat,
+        menuFrame: CGRect,
+        bounds: CGRect
+    ) -> CGFloat {
+        let wanted = min(
+            naturalItemWidth + padding * 2,
+            PlaybackChromeMetrics.audioTrackMenuMaxWidth
+        )
+        let roomRight = bounds.maxX - menuFrame.maxX
+        let roomLeft = menuFrame.minX - bounds.minX
+        return wanted <= roomRight ? roomRight
+            : wanted <= roomLeft ? roomLeft
+            : max(roomRight, roomLeft)
+    }
+
     static func submenuLayout(
         naturalItemWidth: CGFloat,
         itemStackHeight: (CGFloat) -> CGFloat,
@@ -337,38 +389,22 @@ struct PlaybackChromeMoreMenuOverlay: View {
         triggerFrame: CGRect,
         bounds: CGRect
     ) -> PlaybackMoreSubmenuLayout {
-        let padding = Self.padding * 2
-        let wanted = min(naturalItemWidth + padding, PlaybackChromeMetrics.audioTrackMenuMaxWidth)
-        let roomRight = bounds.maxX - menuFrame.maxX
-        let roomLeft = menuFrame.minX - bounds.minX
-        let room = wanted <= roomRight ? roomRight
-            : wanted <= roomLeft ? roomLeft
-            : max(roomRight, roomLeft)
-        let maximumHeight = min(MenuMetrics.maximumHeight, bounds.height)
-        var itemWidth = min(wanted, room) - padding
-        var size = CGSize(width: itemWidth + padding, height: itemStackHeight(itemWidth) + padding)
-        if size.height > maximumHeight {
-            itemWidth = min(itemWidth, room - padding - MenuMetrics.scrollbarStrip)
-            size = CGSize(
-                width: itemWidth + padding + MenuMetrics.scrollbarStrip,
-                height: maximumHeight
-            )
-        }
-        return PlaybackMoreSubmenuLayout(
-            frame: MenuSubmenuGeometry.frame(
-                parentMenuFrame: menuFrame,
-                parentItemFrame: triggerFrame,
-                submenuSize: size,
-                visibleRect: bounds
-            ),
-            itemWidth: itemWidth,
-            maximumHeight: maximumHeight
+        PlaybackWrappedMenuPanelLayout.resolve(
+            naturalItemWidth: naturalItemWidth,
+            itemStackHeight: itemStackHeight,
+            room: submenuRoom(naturalItemWidth: naturalItemWidth, menuFrame: menuFrame, bounds: bounds),
+            boundsHeight: bounds.height,
+            place: { size in
+                MenuSubmenuGeometry.frame(
+                    parentMenuFrame: menuFrame,
+                    parentItemFrame: triggerFrame,
+                    submenuSize: size,
+                    visibleRect: bounds
+                )
+            }
         )
     }
 
-    /// Measures the menus as they lay out and places them on the stage. A
-    /// submenu and its Default submenu tag different items, and a tag narrows
-    /// the name beside it, so each is measured on its own.
     func measuredLayout(stageSize: CGSize) -> PlaybackMoreMenuLayout {
         let bounds = Self.bounds(stageSize: stageSize, buttonFrame: buttonFrame)
         let menuFrame = MenuPlacement.openingFrame(
@@ -377,37 +413,29 @@ struct PlaybackChromeMoreMenuOverlay: View {
             in: bounds,
             gap: PlaybackChromeMetrics.speedMenuGap
         )
+        let triggerFrame = Self.triggerFrame(menuWidth: menuFrame.width)
+        let naturalItemWidth = NSHostingView(rootView: items(itemWidth: nil)).fittingSize.width
+        let submenu = PlaybackWrappedMenuPanelLayout.resolve(
+            naturalItemWidth: naturalItemWidth,
+            itemStackHeight: { width in
+                NSHostingView(rootView: items(itemWidth: width)).fittingSize.height
+            },
+            room: Self.submenuRoom(naturalItemWidth: naturalItemWidth, menuFrame: menuFrame, bounds: bounds),
+            boundsHeight: bounds.height,
+            place: { size in
+                MenuSubmenuGeometry.frame(
+                    parentMenuFrame: menuFrame,
+                    parentItemFrame: triggerFrame,
+                    submenuSize: size,
+                    visibleRect: bounds
+                )
+            }
+        )
         return PlaybackMoreMenuLayout(
             menuFrame: menuFrame,
-            submenus: Dictionary(uniqueKeysWithValues: PlaybackMoreSubmenu.allCases.map { submenu in
-                let layout = Self.submenuLayout(
-                    naturalItemWidth: NSHostingView(rootView: items(submenu, itemWidth: nil))
-                        .fittingSize.width,
-                    itemStackHeight: { width in
-                        NSHostingView(rootView: items(submenu, itemWidth: width)).fittingSize.height
-                    },
-                    menuFrame: menuFrame,
-                    triggerFrame: Self.triggerFrame(submenu, menuWidth: menuFrame.width),
-                    bounds: bounds
-                )
-                return (submenu, layout)
-            })
+            submenu: submenu
         )
     }
-}
-
-/// Where the More menu and its submenus sit on the stage.
-struct PlaybackMoreMenuLayout {
-    let menuFrame: CGRect
-    let submenus: [PlaybackMoreSubmenu: PlaybackMoreSubmenuLayout]
-}
-
-struct PlaybackMoreSubmenuLayout {
-    let frame: CGRect
-    /// The width the tracks are laid out at; names wrap inside it.
-    let itemWidth: CGFloat
-    /// How tall the submenu may grow before it scrolls.
-    let maximumHeight: CGFloat
 }
 
 /// The Player Subtitle Menu, laid over the playback stage above the subtitle
@@ -421,7 +449,6 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
     let onSelect: (Int) -> Void
     @State private var layout: PlaybackSubtitleMenuLayout?
 
-    private static let padding = MenuMetrics.padding
     private static let itemGap: CGFloat = 0
 
     private struct LayoutInput: Equatable {
@@ -454,17 +481,15 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
                 .allowsHitTesting(false)
 
                 if let layout {
-                    PlaybackMoreMenuHost(
-                        content: AnyView(
-                            menuPanel(
-                                itemWidth: layout.itemWidth,
-                                maximumHeight: layout.maximumHeight
-                            )
-                        )
-                    )
-                    .frame(width: menuFrame.width, height: menuFrame.height)
-                    .offset(x: menuFrame.minX, y: menuFrame.minY)
-                    interactiveRegion(menuFrame)
+                    PlaybackHostedMenuSurface(frame: menuFrame) {
+                        WorkbenchPopoverPanel(
+                            surface: .playerChrome,
+                            maximumHeight: layout.maximumHeight,
+                            highlight: playback.subtitleMenuHighlight
+                        ) {
+                            items(itemWidth: layout.itemWidth)
+                        }
+                    }
                 }
             }
             .onAppear {
@@ -476,20 +501,10 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
         }
     }
 
-    private func menuPanel(itemWidth: CGFloat, maximumHeight: CGFloat) -> some View {
-        WorkbenchPopoverPanel(
-            surface: .playerChrome,
-            maximumHeight: maximumHeight,
-            highlight: playback.subtitleMenuHighlight
-        ) {
-            items(itemWidth: itemWidth)
-        }
-    }
-
     private func items(itemWidth: CGFloat?) -> some View {
         VStack(spacing: Self.itemGap) {
             ForEach(Array(menu.subtitles.names.enumerated()), id: \.offset) { index, name in
-                PlaybackMoreSubmenuItem(
+                PlaybackChromeMenuItem(
                     name: name,
                     isChecked: menu.isChecked(at: index),
                     tag: menu.tag(at: index),
@@ -505,11 +520,9 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
                 .id(index)
             }
 
-            if !menu.subtitles.names.isEmpty {
-                WorkbenchMenuDivider()
-            }
+            WorkbenchMenuDivider()
 
-            PlaybackMoreSubmenuItem(
+            PlaybackChromeMenuItem(
                 name: L("playback.subtitle_menu.off"),
                 isChecked: menu.isChecked(at: menu.offPosition),
                 tag: nil,
@@ -526,42 +539,25 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
         }
     }
 
-    private func interactiveRegion(_ frame: CGRect) -> some View {
-        Color.clear
-            .frame(width: frame.width, height: frame.height)
-            .playerInteractiveRegion()
-            .offset(x: frame.minX, y: frame.minY)
-            .allowsHitTesting(false)
-    }
-
     static func menuLayout(
         naturalItemWidth: CGFloat,
         itemStackHeight: (CGFloat) -> CGFloat,
         buttonFrame: CGRect,
         bounds: CGRect
     ) -> PlaybackSubtitleMenuLayout {
-        let padding = Self.padding * 2
-        let wanted = min(naturalItemWidth + padding, PlaybackChromeMetrics.audioTrackMenuMaxWidth)
-        let room = bounds.width
-        let maximumHeight = min(MenuMetrics.maximumHeight, bounds.height)
-        var itemWidth = min(wanted, room) - padding
-        var size = CGSize(width: itemWidth + padding, height: itemStackHeight(itemWidth) + padding)
-        if size.height > maximumHeight {
-            itemWidth = min(itemWidth, room - padding - MenuMetrics.scrollbarStrip)
-            size = CGSize(
-                width: itemWidth + padding + MenuMetrics.scrollbarStrip,
-                height: maximumHeight
-            )
-        }
-        return PlaybackSubtitleMenuLayout(
-            frame: MenuPlacement.openingFrame(
-                anchor: buttonFrame,
-                menuSize: size,
-                in: bounds,
-                gap: PlaybackChromeMetrics.speedMenuGap
-            ),
-            itemWidth: itemWidth,
-            maximumHeight: maximumHeight
+        PlaybackWrappedMenuPanelLayout.resolve(
+            naturalItemWidth: naturalItemWidth,
+            itemStackHeight: itemStackHeight,
+            room: bounds.width,
+            boundsHeight: bounds.height,
+            place: { size in
+                MenuPlacement.openingFrame(
+                    anchor: buttonFrame,
+                    menuSize: size,
+                    in: bounds,
+                    gap: PlaybackChromeMetrics.speedMenuGap
+                )
+            }
         )
     }
 
@@ -570,26 +566,25 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
             stageSize: stageSize,
             buttonFrame: buttonFrame
         )
-        return Self.menuLayout(
-            naturalItemWidth: NSHostingView(rootView: items(itemWidth: nil)).fittingSize.width,
-            itemStackHeight: { width in
-                NSHostingView(rootView: items(itemWidth: width)).fittingSize.height
-            },
-            buttonFrame: buttonFrame,
-            bounds: bounds
+        return PlaybackWrappedMenuPanelLayout.measure(
+            room: bounds.width,
+            boundsHeight: bounds.height,
+            items: { width in items(itemWidth: width) },
+            place: { size in
+                MenuPlacement.openingFrame(
+                    anchor: buttonFrame,
+                    menuSize: size,
+                    in: bounds,
+                    gap: PlaybackChromeMetrics.speedMenuGap
+                )
+            }
         )
     }
 }
 
-struct PlaybackSubtitleMenuLayout {
-    let frame: CGRect
-    let itemWidth: CGFloat
-    let maximumHeight: CGFloat
-}
-
 /// Hosts a menu surface in the menu hosting view, the way every menu in the
-/// App is hosted, so the submenu's own scrolling sees the wheel first and
-/// nothing underneath takes what it leaves.
+/// App is hosted, so the menu's own scrolling sees the wheel first and nothing
+/// underneath takes what it leaves.
 struct PlaybackMoreMenuHost: NSViewRepresentable {
     let content: AnyView
 
@@ -602,18 +597,36 @@ struct PlaybackMoreMenuHost: NSViewRepresentable {
     }
 }
 
+/// Places a hosted Player Chrome menu panel at `frame` and reports its bounds
+/// as an interactive region so the Player UI's idle timer does not hide while
+/// the pointer rests on the menu.
+private struct PlaybackHostedMenuSurface<Content: View>: View {
+    let frame: CGRect
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        PlaybackMoreMenuHost(content: AnyView(content()))
+            .frame(width: frame.width, height: frame.height)
+            .offset(x: frame.minX, y: frame.minY)
+        Color.clear
+            .frame(width: frame.width, height: frame.height)
+            .playerInteractiveRegion()
+            .offset(x: frame.minX, y: frame.minY)
+            .allowsHitTesting(false)
+    }
+}
+
 /// A Submenu Trigger: the pointer reaching it opens its submenu at once, and a
 /// press opens it too.
 private struct PlaybackMoreMenuTrigger: View {
     let submenu: PlaybackMoreSubmenu
-    let isEnabled: Bool
     let suppressesInteraction: Bool
     @ObservedObject var highlight: MenuHighlightModel
     @ObservedObject var submenuState: MenuSubmenuState<PlaybackMoreSubmenu>
 
     var body: some View {
         Button {
-            guard isEnabled, !suppressesInteraction else {
+            guard !suppressesInteraction else {
                 return
             }
             highlight.selectPosition(submenu.rawValue)
@@ -630,11 +643,10 @@ private struct PlaybackMoreMenuTrigger: View {
                     size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
                 )
             }
-            .foregroundStyle(isEnabled ? PlaybackTheme.textPrimary : PlaybackTheme.textTertiary)
+            .foregroundStyle(PlaybackTheme.textPrimary)
             .padding(.leading, WorkbenchControlMetrics.redesignMenuItemHorizontalPadding)
             // A Trailing Slot holding an icon gives up 2pt on its side.
             .padding(.trailing, WorkbenchControlMetrics.redesignMenuItemTrailingIconPadding)
-            // As wide as the widest trigger's content, which the menu takes.
             .frame(maxWidth: .infinity)
             .frame(height: WorkbenchControlMetrics.redesignMenuItemHeight)
             .contentShape(
@@ -653,7 +665,7 @@ private struct PlaybackMoreMenuTrigger: View {
                     submenuState.noteItemHover(
                         isHovered,
                         at: submenu.rawValue,
-                        trigger: isEnabled ? submenu : nil,
+                        trigger: submenu,
                         highlight: highlight
                     )
                 }
@@ -663,11 +675,16 @@ private struct PlaybackMoreMenuTrigger: View {
     }
 }
 
-/// One item: the check, the whole name, which wraps, and the tag.
-private struct PlaybackMoreSubmenuItem: View {
+/// One Player Chrome menu item: optional leading checkmark slot, wrapping
+/// label, and optional trailing tag. Supports both selectable radio items and
+/// disabled status rows (such as `No Audio Tracks`, which omits the leading
+/// checkmark slot).
+private struct PlaybackChromeMenuItem: View {
     let name: String
-    let isChecked: Bool
-    let tag: String?
+    var showsCheckmarkSlot: Bool = true
+    var isChecked: Bool = false
+    var isEnabled: Bool = true
+    var tag: String? = nil
     /// The width the item is laid out at; nil keeps the name on one line.
     let width: CGFloat?
     let position: Int
@@ -685,13 +702,34 @@ private struct PlaybackMoreSubmenuItem: View {
     )
 
     var body: some View {
-        Button {
-            guard !suppressesInteraction else {
-                return
+        if isEnabled {
+            Button {
+                guard !suppressesInteraction else {
+                    return
+                }
+                action()
+            } label: {
+                rowContent
             }
-            action()
-        } label: {
-            HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            .buttonStyle(
+                PlaybackChromeMenuButtonStyle(
+                    isHighlighted: highlight.isSelected(position),
+                    isHovered: highlight.isHovered(position),
+                    suppressesInteraction: suppressesInteraction,
+                    onHoverChange: { isHovered in
+                        highlight.noteHover(isHovered, at: position)
+                    }
+                )
+            )
+            .focusable(false)
+        } else {
+            rowContent
+        }
+    }
+
+    private var rowContent: some View {
+        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            if showsCheckmarkSlot {
                 AppIconImage(
                     .check,
                     size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
@@ -701,80 +739,39 @@ private struct PlaybackMoreSubmenuItem: View {
                     width: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS,
                     height: Self.lineHeight
                 )
-
-                Text(name)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeControl,
-                        weight: .medium
-                    ))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                if let tag {
-                    Text(tag)
-                        .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .medium))
-                        .foregroundStyle(PlaybackTheme.textSecondary)
-                        .padding(.horizontal, WorkbenchControlMetrics.redesignChipHorizontalPadding)
-                        .padding(.vertical, WorkbenchControlMetrics.redesignChipVerticalPadding)
-                        .background(
-                            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignChipRadius)
-                                .fill(PlaybackTheme.controlHoverBackground)
-                        )
-                        .fixedSize()
-                        .frame(height: Self.lineHeight)
-                }
             }
-            .foregroundStyle(PlaybackTheme.textPrimary)
-            .padding(.horizontal, WorkbenchControlMetrics.redesignMenuItemHorizontalPadding)
-            .padding(.vertical, (WorkbenchControlMetrics.redesignMenuItemHeight - Self.lineHeight) / 2)
-            .frame(width: width, alignment: .leading)
-            .contentShape(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius,
-                    style: .continuous
-                )
-            )
-        }
-        .buttonStyle(
-            PlaybackChromeMenuButtonStyle(
-                isHighlighted: highlight.isSelected(position),
-                isHovered: highlight.isHovered(position),
-                suppressesInteraction: suppressesInteraction,
-                onHoverChange: { isHovered in
-                    highlight.noteHover(isHovered, at: position)
-                }
-            )
-        )
-        .focusable(false)
-    }
-}
 
-/// A disabled row in the Audio Track submenu when the video has no audio
-/// tracks, without a leading checkmark slot.
-private struct PlaybackMoreDisabledSubmenuItem: View {
-    let title: String
-    let width: CGFloat?
-
-    private static let lineHeight: CGFloat = NSLayoutManager().defaultLineHeight(
-        for: NSFont.systemFont(
-            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
-            weight: .medium
-        )
-    )
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            Text(title)
+            Text(name)
                 .font(.system(
                     size: WorkbenchControlMetrics.redesignFontSizeControl,
                     weight: .medium
                 ))
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let tag {
+                Text(tag)
+                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .medium))
+                    .foregroundStyle(PlaybackTheme.textSecondary)
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignChipHorizontalPadding)
+                    .padding(.vertical, WorkbenchControlMetrics.redesignChipVerticalPadding)
+                    .background(
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignChipRadius)
+                            .fill(PlaybackTheme.controlHoverBackground)
+                    )
+                    .fixedSize()
+                    .frame(height: Self.lineHeight)
+            }
         }
-        .foregroundStyle(PlaybackTheme.textTertiary)
+        .foregroundStyle(isEnabled ? PlaybackTheme.textPrimary : PlaybackTheme.textTertiary)
         .padding(.horizontal, WorkbenchControlMetrics.redesignMenuItemHorizontalPadding)
         .padding(.vertical, (WorkbenchControlMetrics.redesignMenuItemHeight - Self.lineHeight) / 2)
         .frame(width: width, alignment: .leading)
+        .contentShape(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius,
+                style: .continuous
+            )
+        )
     }
 }

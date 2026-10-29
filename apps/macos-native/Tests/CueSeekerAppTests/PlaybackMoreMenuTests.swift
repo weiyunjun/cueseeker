@@ -1,5 +1,5 @@
 import AppKit
-import CueSeekerCore
+@testable import CueSeekerCore
 import Foundation
 import SwiftUI
 import Testing
@@ -54,10 +54,9 @@ func moreMenuExposesOnlyAudioTrackAndTagsDefault() {
         audioTracks: PlaybackMoreMenuList(names: ["#1", "#2", "#3"], currentIndex: 1, defaultIndex: 0)
     )
 
-    #expect(menu.enabledSubmenus == [.audioTrack])
-    #expect(menu.checkedIndex(in: .audioTrack) == 1)
-    #expect(menu.tag(in: .audioTrack).index == 0)
-    #expect(menu.tag(in: .audioTrack).title == L("playback.more.default_tag"))
+    #expect(menu.checkedIndex == 1)
+    #expect(menu.defaultTag.index == 0)
+    #expect(menu.defaultTag.title == L("playback.more.default_tag"))
 }
 
 @Test
@@ -68,6 +67,10 @@ func subtitleMenuChecksActiveSubtitleWhenVisibleAndOffWhenHidden() {
     #expect(visibleMenu.offPosition == 3)
     #expect(visibleMenu.selectablePositions == [0, 1, 2, 3])
     #expect(visibleMenu.checkedPosition == 2)
+    #expect(visibleMenu.choice(at: 0) == .subtitle(0))
+    #expect(visibleMenu.choice(at: 2) == .subtitle(2))
+    #expect(visibleMenu.choice(at: 3) == .off)
+    #expect(visibleMenu.choice(at: 4) == nil)
     #expect(!visibleMenu.isChecked(at: 0))
     #expect(!visibleMenu.isChecked(at: 1))
     #expect(visibleMenu.isChecked(at: 2))
@@ -91,8 +94,8 @@ func moreMenuKeysOpenAudioTrackSubmenuAndPickWithEnter() {
     let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
     defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
     let store = PlaybackStore(userDefaults: userDefaults)
-    var picks: [(PlaybackMoreSubmenu, Int)] = []
-    let pick: (PlaybackMoreSubmenu, Int) -> Void = { picks.append(($0, $1)) }
+    var picks: [Int] = []
+    let pick: (Int) -> Void = { picks.append($0) }
     store.openMoreMenu(
         PlaybackMoreMenu(
             audioTracks: PlaybackMoreMenuList(names: ["#1", "#2", "#3"], currentIndex: 2, defaultIndex: 0)
@@ -131,9 +134,7 @@ func moreMenuKeysOpenAudioTrackSubmenuAndPickWithEnter() {
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
     #expect(store.moreSubmenuHighlight.highlightedPosition == 1)
     #expect(store.handleMoreMenuKey(36, isRepeat: false, onSelect: pick))
-    #expect(picks.count == 1)
-    #expect(picks.first?.0 == .audioTrack)
-    #expect(picks.first?.1 == 1)
+    #expect(picks == [1])
     #expect(store.moreMenu == nil)
     #expect(!store.handleMoreMenuKey(36, isRepeat: false, onSelect: pick))
 }
@@ -147,10 +148,9 @@ func moreMenuWithoutAudioTracksStillExpandsToNonSelectableSubmenu() {
     let store = PlaybackStore(userDefaults: userDefaults)
     let empty = PlaybackMoreMenuList(names: [], currentIndex: 0, defaultIndex: 0)
     let menu = PlaybackMoreMenu(audioTracks: empty)
-    #expect(menu.enabledSubmenus == [.audioTrack])
 
-    var picks: [(PlaybackMoreSubmenu, Int)] = []
-    let pick: (PlaybackMoreSubmenu, Int) -> Void = { picks.append(($0, $1)) }
+    var picks: [Int] = []
+    let pick: (Int) -> Void = { picks.append($0) }
     store.openMoreMenu(menu)
     #expect(store.moreMenuHighlight.highlightedPosition == nil)
 
@@ -208,6 +208,159 @@ func subtitleMenuKeysNavigateSubtitlesAndOffItemAndMutuallyExcludeOtherPlayerMen
     #expect(store.handleSubtitleMenuKey(36, isRepeat: false, onSelect: pick))
     #expect(pickedPositions == [2])
     #expect(store.subtitleMenu == nil)
+}
+
+@MainActor
+@Test
+func subtitleMenuSelectionsUpdateActiveSubtitleVisibilityAndHUDFeedback() async throws {
+    try await withPlaybackMenuApp { app, database in
+        app.ensurePlayerInitialized()
+        try indexPlaybackMenuSubtitle("/Media/EP01.sc.ass", forVideo: "/Media/EP01.mkv", in: database)
+        try indexPlaybackMenuSubtitle("/Media/EP01.tc.ass", forVideo: "/Media/EP01.mkv", in: database)
+
+        let viewModel = try #require(app.playback.playbackViewModel)
+        viewModel.setSubtitlesVisible(true, showsFeedback: false)
+        viewModel.feedback = nil
+
+        let video = makeTestLibraryVideo()
+        app.library.selectedLibraryVideo = video
+        _ = app.play(video)
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.sc.ass")
+
+        // 1. Clicking the already-checked active subtitle (index 0) shows no HUD.
+        app.togglePlaybackSubtitleMenu()
+        #expect(app.playback.subtitleMenu?.checkedPosition == 0)
+        app.selectPlaybackSubtitleMenuItem(0)
+        app.playback.closeSubtitleMenu()
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.sc.ass")
+        #expect(viewModel.areSubtitlesVisible)
+        #expect(viewModel.feedback == nil)
+
+        // 2. Clicking a different subtitle while On switches subtitle and shows Subtitle Switched HUD.
+        app.togglePlaybackSubtitleMenu()
+        app.selectPlaybackSubtitleMenuItem(1)
+        app.playback.closeSubtitleMenu()
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.tc.ass")
+        #expect(viewModel.areSubtitlesVisible)
+        #expect(viewModel.feedback?.icon == .subtitles)
+        #expect(viewModel.feedback?.text == L("playback.hud.subtitle_switched"))
+
+        // 3. Clicking Off while On hides subtitles and shows Subtitles Off HUD.
+        viewModel.feedback = nil
+        app.togglePlaybackSubtitleMenu()
+        app.selectPlaybackSubtitleMenuItem(2)
+        app.playback.closeSubtitleMenu()
+        #expect(!viewModel.areSubtitlesVisible)
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.tc.ass")
+        #expect(viewModel.feedback?.icon == .subtitles)
+        #expect(viewModel.feedback?.text == L("playback.hud.subtitles_off"))
+
+        // 4. Clicking already-checked Off while Off shows no HUD.
+        viewModel.feedback = nil
+        app.togglePlaybackSubtitleMenu()
+        #expect(app.playback.subtitleMenu?.checkedPosition == 2)
+        app.selectPlaybackSubtitleMenuItem(2)
+        app.playback.closeSubtitleMenu()
+        #expect(!viewModel.areSubtitlesVisible)
+        #expect(viewModel.feedback == nil)
+
+        // 5. Clicking the previously active subtitle (index 1) while Off turns subtitles On with Subtitles On HUD.
+        app.togglePlaybackSubtitleMenu()
+        app.selectPlaybackSubtitleMenuItem(1)
+        app.playback.closeSubtitleMenu()
+        #expect(viewModel.areSubtitlesVisible)
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.tc.ass")
+        #expect(viewModel.feedback?.icon == .subtitles)
+        #expect(viewModel.feedback?.text == L("playback.hud.subtitles_on"))
+
+        // 6. Clicking a different subtitle (index 0) while Off switches subtitle, turns subtitles On, and shows Subtitle Switched HUD.
+        viewModel.setSubtitlesVisible(false, showsFeedback: false)
+        viewModel.feedback = nil
+        app.togglePlaybackSubtitleMenu()
+        app.selectPlaybackSubtitleMenuItem(0)
+        app.playback.closeSubtitleMenu()
+        #expect(viewModel.areSubtitlesVisible)
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.sc.ass")
+        #expect(viewModel.feedback?.icon == .subtitles)
+        #expect(viewModel.feedback?.text == L("playback.hud.subtitle_switched"))
+    }
+}
+
+@MainActor
+@Test
+func subtitleMenuUsesOpenSnapshotWhenDatabaseChangesWhileMenuIsOpen() async throws {
+    try await withPlaybackMenuApp { app, database in
+        app.ensurePlayerInitialized()
+        try indexPlaybackMenuSubtitle("/Media/EP01.sc.ass", forVideo: "/Media/EP01.mkv", in: database)
+        try indexPlaybackMenuSubtitle("/Media/EP01.tc.ass", forVideo: "/Media/EP01.mkv", in: database)
+
+        let viewModel = try #require(app.playback.playbackViewModel)
+        viewModel.setSubtitlesVisible(true, showsFeedback: false)
+        viewModel.feedback = nil
+
+        let video = makeTestLibraryVideo()
+        app.library.selectedLibraryVideo = video
+        _ = app.play(video)
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.sc.ass")
+
+        // Open the subtitle menu when there are 2 subtitles (Off is at position 2).
+        app.togglePlaybackSubtitleMenu()
+        #expect(app.playback.subtitleMenu?.offPosition == 2)
+
+        // Background indexing adds a 3rd subtitle while the menu is still open.
+        try indexPlaybackMenuSubtitle("/Media/EP01.zz.srt", forVideo: "/Media/EP01.mkv", in: database)
+
+        // Clicking position 2 (Off in the open menu) must still turn subtitles Off
+        // rather than selecting the newly indexed 3rd subtitle.
+        app.selectPlaybackSubtitleMenuItem(2)
+        app.playback.closeSubtitleMenu()
+        #expect(!viewModel.areSubtitlesVisible)
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.sc.ass")
+        #expect(viewModel.feedback?.icon == .subtitles)
+        #expect(viewModel.feedback?.text == L("playback.hud.subtitles_off"))
+    }
+}
+
+@MainActor
+@Test
+func temporarySubtitleSwitchDoesNotPersistAcrossLibraryOrSearchReopen() async throws {
+    try await withPlaybackMenuApp { app, database in
+        app.ensurePlayerInitialized()
+        try indexPlaybackMenuSubtitle("/Media/EP01.sc.ass", forVideo: "/Media/EP01.mkv", in: database)
+        try indexPlaybackMenuSubtitle("/Media/EP01.tc.ass", forVideo: "/Media/EP01.mkv", in: database)
+
+        let libraryVideo = makeTestLibraryVideo()
+        app.library.selectedLibraryVideo = libraryVideo
+        _ = app.play(libraryVideo)
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.sc.ass")
+
+        // Temporarily switch to the second subtitle in the Player UI.
+        app.togglePlaybackSubtitleMenu()
+        app.selectPlaybackSubtitleMenuItem(1)
+        app.playback.closeSubtitleMenu()
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.tc.ass")
+
+        // Reopening the video from Library reloads the default subtitle (.sc.ass).
+        app.library.selectedLibraryVideo = libraryVideo
+        _ = app.play(libraryVideo)
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.sc.ass")
+
+        // Opening a Search result explicitly specifying .tc.ass loads .tc.ass.
+        let results = try SearchDatabase(path: database.path)
+            .search("placeholder")
+            .filter { $0.subtitlePath == "/Media/EP01.tc.ass" }
+        let explicitResult = try #require(results.first)
+        app.library.selectedLibraryVideo = nil
+        app.search.selectResult(explicitResult)
+        _ = app.play(explicitResult)
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.tc.ass")
+
+        // Reopening from Library again returns to the default subtitle (.sc.ass).
+        app.search.selectResult(nil)
+        app.library.selectedLibraryVideo = libraryVideo
+        _ = app.play(libraryVideo)
+        #expect(app.currentPlaybackSubtitlePath == "/Media/EP01.sc.ass")
+    }
 }
 
 @MainActor
@@ -310,7 +463,7 @@ func audioTrackSubmenuScrollsBetweenTheTopBarAndTheButtons() {
 
 @MainActor
 @Test
-func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
+func moreMenuFitsItsTriggerAndSubmenuAndSubtitleMenuStayInTheirRoom() {
     let suiteName = "PlaybackMoreMenuTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
     defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
@@ -325,25 +478,23 @@ func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
     store.openMoreMenu(menu)
     // The narrowest window, the More button left of the fullscreen button.
     let stage = CGSize(width: 480, height: 560)
-    let button = CGRect(x: 480 - 24 - 32 - 4 - 32, y: 560 - 50, width: 32, height: 32)
+    let button = CGRect(x: 392, y: 510, width: 32, height: 32)
     let overlay = PlaybackChromeMoreMenuOverlay(
         playback: store,
         submenuState: store.moreSubmenuState,
         menu: menu,
         buttonFrame: button,
         suppressesInteraction: false,
-        onSelect: { _, _ in }
+        onSelect: { _ in }
     )
     let layout = overlay.measuredLayout(stageSize: stage)
     let bounds = PlaybackChromeMoreMenuOverlay.bounds(stageSize: stage, buttonFrame: button)
 
     // The trigger's label, the gap, the caret and both paddings all fit.
-    let label = PlaybackMoreSubmenu.allCases.map { submenu in
-        NSHostingView(
-            rootView: Text(submenu.title)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: .medium))
-        ).fittingSize.width
-    }.max() ?? 0
+    let label = NSHostingView(
+        rootView: Text(PlaybackMoreSubmenu.audioTrack.title)
+            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: .medium))
+    ).fittingSize.width
     let trigger = label
         + WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
         + WorkbenchControlMetrics.redesignMenuItemTrailingIconPadding
@@ -351,15 +502,8 @@ func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
         + WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
     #expect(layout.menuFrame.width >= trigger + MenuMetrics.padding * 2)
     #expect(bounds.contains(layout.menuFrame))
-
-    for submenu in PlaybackMoreSubmenu.allCases {
-        guard let frame = layout.submenus[submenu]?.frame else {
-            Issue.record("No layout for \(submenu)")
-            continue
-        }
-        #expect(bounds.contains(frame))
-        #expect(frame.maxX <= layout.menuFrame.minX || frame.minX >= layout.menuFrame.maxX)
-    }
+    #expect(bounds.contains(layout.submenu.frame))
+    #expect(layout.submenu.frame.maxX <= layout.menuFrame.minX || layout.submenu.frame.minX >= layout.menuFrame.maxX)
 
     // Also verify the empty-audio-tracks submenu layout stays within bounds.
     let emptyMenu = PlaybackMoreMenu(
@@ -371,14 +515,10 @@ func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
         menu: emptyMenu,
         buttonFrame: button,
         suppressesInteraction: false,
-        onSelect: { _, _ in }
+        onSelect: { _ in }
     )
     let emptyLayout = emptyOverlay.measuredLayout(stageSize: stage)
-    if let emptySubmenuFrame = emptyLayout.submenus[.audioTrack]?.frame {
-        #expect(bounds.contains(emptySubmenuFrame))
-    } else {
-        Issue.record("No layout for empty audioTrack submenu")
-    }
+    #expect(bounds.contains(emptyLayout.submenu.frame))
 
     // And verify the Player Subtitle Menu layout stays within stage bounds.
     let subtitleMenu = PlaybackSubtitleMenu(
@@ -438,4 +578,58 @@ func progressTimeCapsulePlacementClampsWithinScrubberBounds() {
             containerWidth: 300
         ) == 258
     )
+}
+
+private func makeTestLibraryVideo() -> LibraryVideo {
+    LibraryVideo(
+        videoPath: "/Media/EP01.mkv",
+        videoName: "EP01.mkv",
+        duration: nil,
+        subtitlePath: "/Media/EP01.sc.ass",
+        subtitleFormat: .ass
+    )
+}
+
+private func indexPlaybackMenuSubtitle(
+    _ subtitlePath: String,
+    forVideo videoPath: String,
+    in database: IndexingDatabase
+) throws {
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: subtitlePath),
+        videoFile: URL(fileURLWithPath: videoPath),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "placeholder \(subtitlePath)"
+            )
+        ]
+    )
+}
+
+@MainActor
+private func withPlaybackMenuApp(
+    _ body: @MainActor (AppCoordinator, IndexingDatabase) async throws -> Void
+) async throws {
+    let suiteName = "CueSeekerPlaybackMenuTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerPlaybackMenuTests-\(UUID().uuidString)")
+        .appendingPathExtension("sqlite")
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
+    }
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    await app.startupDatabaseTask?.value
+    let database = try #require(app.indexingDatabase)
+    try await body(app, database)
 }
