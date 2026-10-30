@@ -152,7 +152,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - `--color-library-progress-fill`: macOS accent color
 - `--color-library-progress-track`: Light `#E5E7EB`; Dark `#303036`
-- `--color-library-time-badge-bg`: Light `rgba(15,23,42,0.72)`; Dark `rgba(0,0,0,0.58)`
+- `--color-library-time-badge-bg`: Light `rgba(15,23,42,0.72)`; Dark `rgba(15,23,42,0.72)`
 - `--color-library-time-badge-text`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-library-cover-placeholder-bg`: Light `#E5E7EB`; Dark `#2E2E33`
 - `--color-skeleton-base`: Same as `--color-library-cover-placeholder-bg`
@@ -553,15 +553,14 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--opacity-cover-summary-button-border`: `35%`
 - `--opacity-cover-summary-button-disabled`: `55%`
 - `--opacity-anki-export-dragging`: `0.5`
-- `--opacity-library-cover-action-bg`: Light `0.56`; Dark `0.44`
-- `--opacity-library-cover-action-bg-hover`: Light `0.72`; Dark `0.58`
-- `--opacity-library-cover-action-bg-pressed`: Light `0.88`; Dark `0.76`
+- `--opacity-library-cover-action-bg`: `0.72`
+- `--opacity-library-cover-action-bg-hover`: `0.56`
+- `--opacity-library-cover-action-bg-pressed`: `0.40`
 
 ## 1.6 动效
 
 ### Interaction Motion
 
-- `--scale-library-cover-hover`: `1.02`
 - `--duration-library-cover-hover`: `0.12s`
 - `--scale-collage-group-hover`: `1.02`
 - `--duration-collage-group-hover`: `0.12s`
