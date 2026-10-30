@@ -559,7 +559,11 @@ extension AppCoordinator {
                     return
                 }
                 self.playbackSubtitleFocusCompleteLoadTask = nil
-                print("Failed to load complete Playback Subtitle Focus cues: \(error)")
+                AppLogger.shared.error(
+                    .playback,
+                    "Failed to load complete Playback Subtitle Focus cues",
+                    details: "error=\"\(error.localizedDescription)\""
+                )
             }
         }
     }
@@ -577,7 +581,11 @@ extension AppCoordinator {
 
         playback.releaseSubtitleFocusSession(session)
         if let error {
-            print("Failed to open Playback Subtitle Focus: \(error)")
+            AppLogger.shared.error(
+                .playback,
+                "Failed to open Playback Subtitle Focus",
+                details: "error=\"\(error.localizedDescription)\""
+            )
         }
         if shouldResume {
             resumePlayback()

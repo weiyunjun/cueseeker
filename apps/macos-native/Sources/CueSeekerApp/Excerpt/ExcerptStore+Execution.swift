@@ -57,7 +57,11 @@ extension ExcerptStore {
                 guard !Task.isCancelled else {
                     return
                 }
-                print("Failed to load Excerpt list overview: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to load Excerpt list overview",
+                    fields: [("error", error.localizedDescription)]
+                )
                 if !self.hasLoadedListOverview {
                     self.installListOverview(
                         ExcerptListOverview(lists: [], uniqueCueCount: 0)
@@ -108,7 +112,11 @@ extension ExcerptStore {
                 ordinal: ordinal
             )
         } catch {
-            print("Failed to open Excerpt list playback: \(error)")
+            AppLogger.shared.error(
+                .database,
+                "Failed to open Excerpt list playback",
+                fields: [("list_id", "\(summary.list.id)"), ("error", error.localizedDescription)]
+            )
             return nil
         }
     }
@@ -164,7 +172,11 @@ extension ExcerptStore {
                 excludingListID: session.mode.editedList?.id
             ))
         } catch {
-            print("Failed to validate Excerpt list: \(error)")
+            AppLogger.shared.warn(
+                .database,
+                "Failed to validate Excerpt list",
+                fields: [("error", error.localizedDescription)]
+            )
         }
     }
 
@@ -229,7 +241,11 @@ extension ExcerptStore {
             } catch is CancellationError {
                 return
             } catch {
-                print("Failed to load Excerpt list cover: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to load Excerpt list cover",
+                    fields: [("file", sourceURL.lastPathComponent), ("error", error.localizedDescription)]
+                )
             }
         }
     }
@@ -298,7 +314,11 @@ extension ExcerptStore {
                     do {
                         try await self.coverStorage.remove(path: oldCoverPath)
                     } catch {
-                        print("Failed to remove replaced Excerpt list cover: \(error)")
+                        AppLogger.shared.warn(
+                            .database,
+                            "Failed to remove replaced Excerpt list cover",
+                            fields: [("error", error.localizedDescription)]
+                        )
                     }
                 }
                 guard self.listEditorSession?.id == session.id else {
@@ -336,10 +356,18 @@ extension ExcerptStore {
                     if let validation {
                         session.apply(validation: validation)
                     } else {
-                        print("Failed to revalidate Excerpt list after \(validationError)")
+                        AppLogger.shared.warn(
+                            .database,
+                            "Failed to revalidate Excerpt list",
+                            fields: [("error", "\(validationError)")]
+                        )
                     }
                 } else {
-                    print("Failed to save Excerpt list: \(error)")
+                    AppLogger.shared.error(
+                        .database,
+                        "Failed to save Excerpt list",
+                        fields: [("error", error.localizedDescription)]
+                    )
                 }
             }
             self.listSaveTask = nil
@@ -393,11 +421,19 @@ extension ExcerptStore {
                     do {
                         try await self.coverStorage.remove(path: coverPath)
                     } catch {
-                        print("Failed to remove deleted Excerpt list cover: \(error)")
+                        AppLogger.shared.warn(
+                            .database,
+                            "Failed to remove deleted Excerpt list cover",
+                            fields: [("error", error.localizedDescription)]
+                        )
                     }
                 }
             } catch {
-                print("Failed to delete Excerpt list in background: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to delete Excerpt list in background",
+                    fields: [("list_id", "\(id)"), ("error", error.localizedDescription)]
+                )
                 self?.reloadListOverview()
             }
         }
@@ -539,7 +575,11 @@ extension ExcerptStore {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
-                print("Failed to load resident Excerpt data: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to load resident Excerpt data",
+                    fields: [("list_id", "\(listID)"), ("error", error.localizedDescription)]
+                )
                 ExcerptOpenPerformanceTracker.cancelOpen(listID: listID)
                 if self.excerptTableRequestMatches(
                     resultSnapshotID: resultSnapshotID,
@@ -958,7 +998,11 @@ extension ExcerptStore {
             }
             destination = availableDestination
         } catch {
-            print("Failed to resolve Excerpt save destination: \(error)")
+            AppLogger.shared.error(
+                .database,
+                "Failed to resolve Excerpt save destination",
+                fields: [("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+            )
             onReportToast(ExcerptToastRequest.saveFailed(listName: listName))
             return false
         }
@@ -1000,7 +1044,11 @@ extension ExcerptStore {
                     _ = self.adjustListCueCounts([destinationListID: 0], uniqueCueCount: uniqueCueCount)
                     self.installRecentListSummaries(recentSummaries)
                 } catch {
-                    print("Failed to save Excerpt in background: \(error)")
+                    AppLogger.shared.error(
+                        .database,
+                        "Failed to save Excerpt in background",
+                        fields: [("cue_id", "\(cueID)"), ("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+                    )
                     guard let self else { return }
                     onReportToast(
                         ExcerptToastRequest.saveFailed(listName: destination.name)
@@ -1010,7 +1058,11 @@ extension ExcerptStore {
             }
             return true
         } catch {
-            print("Failed to save Excerpt: \(error)")
+            AppLogger.shared.error(
+                .database,
+                "Failed to save Excerpt",
+                fields: [("cue_id", "\(cueID)"), ("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+            )
             onReportToast(
                 ExcerptToastRequest.saveFailed(listName: destination.name)
             )
@@ -1050,7 +1102,11 @@ extension ExcerptStore {
             }
             destination = availableDestination
         } catch {
-            print("Failed to resolve Excerpt move destination: \(error)")
+            AppLogger.shared.error(
+                .database,
+                "Failed to resolve Excerpt move destination",
+                fields: [("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+            )
             onToast(ExcerptToastRequest.moveFailed)
             return false
         }
@@ -1108,7 +1164,11 @@ extension ExcerptStore {
                 self?.reloadListOverview()
                 onReloadTableRows()
             } catch {
-                print("Failed to move Excerpt in background: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to move Excerpt in background",
+                    fields: [("excerpt_id", "\(itemID)"), ("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+                )
                 onToast(ExcerptToastRequest.moveFailed)
                 self?.reloadListOverview()
                 onReloadTableRows()
@@ -1147,7 +1207,11 @@ extension ExcerptStore {
             }
             destination = availableDestination
         } catch {
-            print("Failed to resolve Excerpt duplicate destination: \(error)")
+            AppLogger.shared.error(
+                .database,
+                "Failed to resolve Excerpt duplicate destination",
+                fields: [("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+            )
             onToast(ExcerptToastRequest.duplicateFailed)
             return false
         }
@@ -1194,7 +1258,11 @@ extension ExcerptStore {
                 onToast(ExcerptToastRequest.destinationAlreadyContainsCue(listName: destinationName))
                 self?.reloadListOverview()
             } catch {
-                print("Failed to duplicate Excerpt in background: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to duplicate Excerpt in background",
+                    fields: [("excerpt_id", "\(itemID)"), ("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+                )
                 onToast(ExcerptToastRequest.duplicateFailed)
                 self?.reloadListOverview()
             }
@@ -1250,7 +1318,11 @@ extension ExcerptStore {
                 }
                 self.installRecentListSummaries(recentSummaries)
             } catch {
-                print("Failed to remove Excerpt in background: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to remove Excerpt in background",
+                    fields: [("excerpt_id", "\(itemID)"), ("error", error.localizedDescription)]
+                )
                 guard let self else { return }
                 onFeedback(.unavailable)
                 self.reloadListOverview()
@@ -1316,7 +1388,11 @@ extension ExcerptStore {
                 self.listOverviewTask?.cancel()
                 self.installRecentListSummaries(summaries)
             } catch {
-                print("Failed to record recent Excerpt playback: \(error)")
+                AppLogger.shared.warn(
+                    .database,
+                    "Failed to record recent Excerpt playback",
+                    fields: [("excerpt_id", "\(itemID)"), ("error", error.localizedDescription)]
+                )
             }
         }
     }
@@ -1345,7 +1421,11 @@ extension ExcerptStore {
             cueContentStore.install([content])
             return Excerpt(relation: relation, cueContent: content)
         } catch {
-            print("Failed to load scoped Excerpt: \(error)")
+            AppLogger.shared.error(
+                .database,
+                "Failed to load scoped Excerpt",
+                fields: [("excerpt_id", "\(id)"), ("error", error.localizedDescription)]
+            )
             return nil
         }
     }
@@ -1431,7 +1511,11 @@ extension ExcerptStore {
                 )
                 return nil
             } catch {
-                print("Failed to load adjacent Excerpt: \(error)")
+                AppLogger.shared.warn(
+                    .database,
+                    "Failed to load adjacent Excerpt",
+                    fields: [("excerpt_id", "\(selectedID)"), ("error", error.localizedDescription)]
+                )
             }
         }
 

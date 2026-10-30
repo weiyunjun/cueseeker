@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 #endif
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        AppLogger.shared.performStartupMaintenance()
         NSAppleEventManager.shared().setEventHandler(
             self,
             andSelector: #selector(handleGetURLEvent(_:withReplyEvent:)),
@@ -44,6 +45,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let shortVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0"
+        let buildVersion = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        let osVersion = ProcessInfo.processInfo.operatingSystemVersion
+        let osVersionString = "\(osVersion.majorVersion).\(osVersion.minorVersion).\(osVersion.patchVersion)"
+        AppLogger.shared.info(
+            .app,
+            "App launched",
+            details: "version=\(shortVersion)(\(buildVersion)) build=\(AppBuildConfiguration.current.rawValue) macOS=\(osVersionString)"
+        )
         AppPerformanceProbe.mark("MARK CueSeeker.applicationDidFinishLaunching")
         UIInvalidationProbe.markStartup()
         AppPerformanceProbe.startMainThreadWatchdog()
@@ -131,6 +141,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         appState.saveCurrentLibraryPlaybackHistorySynchronously()
         appState.playbackFullscreenManager.exitFullscreen()
+        AppLogger.shared.info(.app, "App terminating")
+        AppLogger.shared.flush()
     }
 
     @objc private func handleGetURLEvent(
@@ -334,6 +346,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// The menu bar and window titles are AppKit state that does not take part
     /// in SwiftUI invalidation, so they are refreshed explicitly.
     @objc private func applyLanguageChange(_ notification: Notification) {
+        AppLogger.shared.info(
+            .app,
+            "App language changed",
+            details: "language=\(appState.settings.localization.language.rawValue)"
+        )
         configureMainMenu()
         window?.title = L("app.name")
         settingsWindow?.title = L("settings.window.title")
@@ -344,6 +361,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func showSettings(_ sender: Any?) {
+        AppLogger.shared.info(.app, "Settings window opened")
         appState.workbenchLayout.clearSearchFocus()
         appState.workbenchLayout.isSettingsWindowOpen = true
 
@@ -449,6 +467,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        AppLogger.shared.info(.app, "Main window closing")
         appState.playbackFullscreenManager.windowWillClose(notification)
         appState.saveCurrentLibraryPlaybackHistorySynchronously()
         appState.playbackFullscreenManager.exitFullscreen()

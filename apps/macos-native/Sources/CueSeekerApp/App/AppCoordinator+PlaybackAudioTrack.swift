@@ -39,17 +39,19 @@ extension AppCoordinator {
             return false
         }
         guard player.activeDecodeMode == player.decodeMode else {
-            NSLog("[Playback] canSeekInOpenVideo: decodeMode mismatch (active=%@, target=%@), reopening session",
-                  player.activeDecodeMode.rawValue,
-                  player.decodeMode.rawValue)
+            AppLogger.shared.debug(
+                .playback,
+                "Reopening playback session due to decode mode mismatch",
+                details: "active=\(player.activeDecodeMode.rawValue) target=\(player.decodeMode.rawValue)"
+            )
             return false
         }
         let canSeek = player.currentAudioTrackIndex.map { $0 == request.audioTrackIndex } ?? true
-        NSLog("[Playback] canSeekInOpenVideo: %@ -> canSeek=%d, activeMode=%@, usingHardware=%d",
-              request.videoURL.lastPathComponent,
-              canSeek ? 1 : 0,
-              player.activeDecodeMode.rawValue,
-              player.usingHardwareDecode ? 1 : 0)
+        AppLogger.shared.debug(
+            .playback,
+            "Evaluated in-session seek eligibility",
+            details: "video=\"\(request.videoURL.lastPathComponent)\" can_seek=\(canSeek ? 1 : 0) active_mode=\(player.activeDecodeMode.rawValue) hw_decode=\(player.usingHardwareDecode ? 1 : 0)"
+        )
         return canSeek
     }
 
@@ -94,6 +96,11 @@ extension AppCoordinator {
         }
         do {
             try player.selectAudioTrack(at: index)
+            AppLogger.shared.info(
+                .playback,
+                "Audio track switched",
+                details: "video=\"\(player.currentVideoURL?.lastPathComponent ?? "none")\" track_index=\(index)"
+            )
         } catch {
             showPlaybackError(error)
         }
@@ -108,7 +115,11 @@ extension AppCoordinator {
                 forVideoFile: URL.fromMediaPath(videoPath)
             )
         } catch {
-            print("Failed to load the audio tracks: \(error)")
+            AppLogger.shared.warn(
+                .database,
+                "Failed to load video audio tracks",
+                details: "error=\"\(error.localizedDescription)\""
+            )
             return nil
         }
     }

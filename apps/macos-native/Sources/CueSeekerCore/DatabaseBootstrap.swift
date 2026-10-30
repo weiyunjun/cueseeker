@@ -78,6 +78,11 @@ extension DatabaseBootstrap {
                 || previousVersion == 63
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
+            AppLogger.shared.error(
+                .database,
+                "Unsupported database schema version",
+                details: "found=\(previousVersion) supported=\(DatabaseBootstrap.currentSchemaVersion)"
+            )
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
                 found: previousVersion,
                 supported: DatabaseBootstrap.currentSchemaVersion
@@ -701,6 +706,26 @@ extension DatabaseBootstrap {
             )
 
             try database.execute("PRAGMA user_version = \(DatabaseBootstrap.currentSchemaVersion);")
+        }
+
+        if previousVersion == 0 {
+            AppLogger.shared.info(
+                .database,
+                "Database schema created",
+                details: "schema_version=\(DatabaseBootstrap.currentSchemaVersion)"
+            )
+        } else if previousVersion < DatabaseBootstrap.currentSchemaVersion {
+            AppLogger.shared.info(
+                .database,
+                "Database schema migrated",
+                details: "from_version=\(previousVersion) to_version=\(DatabaseBootstrap.currentSchemaVersion)"
+            )
+        } else {
+            AppLogger.shared.debug(
+                .database,
+                "Database schema verified",
+                details: "schema_version=\(previousVersion)"
+            )
         }
     }
 

@@ -506,7 +506,11 @@ final class AppCoordinator: ObservableObject {
                     database: openedExcerptDatabase
                 )
             } catch {
-                print("Failed to copy pre-rename Excerpt list covers: \(error)")
+                AppLogger.shared.warn(
+                    .database,
+                    "Failed to adopt pre-rename Excerpt list covers",
+                    details: "error=\"\(error.localizedDescription)\""
+                )
             }
         }
 
@@ -572,7 +576,13 @@ final class AppCoordinator: ObservableObject {
         configureLibraryTaskRunners()
 
         if let initialError {
-            startupError = Self.errorMessage(for: initialError)
+            let errorText = Self.errorMessage(for: initialError)
+            AppLogger.shared.error(
+                .database,
+                "Database initialization failed",
+                details: "error=\"\(errorText)\""
+            )
+            startupError = errorText
             return
         }
 
@@ -599,6 +609,11 @@ final class AppCoordinator: ObservableObject {
         }
         setupSettingsObservers()
         setupInterfaceLayerObservers()
+        AppLogger.shared.info(
+            .app,
+            "Workbench initialized",
+            details: "folders=\(indexing.selectedFolders.count) panel=\(workbenchLayout.panelMode.rawValue)"
+        )
     }
 
     /// The dialog layer registers itself from the dialogs it draws. What is
@@ -683,7 +698,11 @@ final class AppCoordinator: ObservableObject {
         settings.$playbackDecodeMode
             .dropFirst()
             .sink { [weak self] mode in
-                NSLog("[Playback] AppCoordinator settings.$playbackDecodeMode changed to: %@", mode.rawValue)
+                AppLogger.shared.info(
+                    .playback,
+                    "Decode mode setting changed",
+                    details: "mode=\(mode.rawValue)"
+                )
                 self?.player?.decodeMode = mode
             }
             .store(in: &settingsCancellables)
@@ -755,8 +774,36 @@ final class AppCoordinator: ObservableObject {
             return
         }
 
+        AppLogger.shared.info(
+            .app,
+            "Workbench route changed",
+            details: "route=\(Self.logRouteLabel(for: route))"
+        )
         workbenchLayout.navigate(to: route)
         prepareWorkbenchRoute(route)
+    }
+
+    private static func logRouteLabel(for route: WorkbenchRoute) -> String {
+        switch route {
+        case .search:
+            return "search"
+        case .recent:
+            return "recent"
+        case .library:
+            return "library"
+        case .libraryFolder:
+            return "libraryFolder"
+        case .file:
+            return "file"
+        case .fileFolder:
+            return "fileFolder"
+        case .fileFiles:
+            return "fileFiles"
+        case .excerpt:
+            return "excerpt"
+        case .excerptList(let id):
+            return "excerptList(\(id))"
+        }
     }
 
     func goBackInWorkbench() {

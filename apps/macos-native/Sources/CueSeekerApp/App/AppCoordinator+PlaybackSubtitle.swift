@@ -51,6 +51,11 @@ extension AppCoordinator {
             guard wasVisible else {
                 return
             }
+            AppLogger.shared.info(
+                .playback,
+                "Subtitle visibility changed",
+                details: "video=\"\(URL.fromMediaPath(videoPath).lastPathComponent)\" visible=false"
+            )
             playback.playbackViewModel?.setSubtitlesVisible(false, showsFeedback: true)
 
         case .subtitle(let index):
@@ -66,6 +71,11 @@ extension AppCoordinator {
                 applyPlaybackSubtitle(subtitle, forVideoPath: videoPath)
                 playback.playbackViewModel?.showSubtitleSwitchedFeedback()
             } else if isSameSubtitle {
+                AppLogger.shared.info(
+                    .playback,
+                    "Subtitle visibility changed",
+                    details: "video=\"\(URL.fromMediaPath(videoPath).lastPathComponent)\" visible=true"
+                )
                 playback.playbackViewModel?.setSubtitlesVisible(true, showsFeedback: true)
             } else {
                 applyPlaybackSubtitle(subtitle, forVideoPath: videoPath)
@@ -86,6 +96,11 @@ extension AppCoordinator {
         guard subtitle.subtitleFileID != currentPlaybackSubtitleFileID else {
             return
         }
+        AppLogger.shared.info(
+            .playback,
+            "Subtitle track switched",
+            details: "video=\"\(URL.fromMediaPath(videoPath).lastPathComponent)\" subtitle=\"\(URL.fromMediaPath(subtitle.subtitlePath).lastPathComponent)\" format=\(subtitle.format.rawValue)"
+        )
         let seconds = playback.playbackViewModel?.currentTime ?? 0
         let milliseconds = seconds.isFinite ? Int(max(0, seconds * 1_000).rounded(.down)) : 0
         let source = loadablePlaybackSubtitleSource(
@@ -112,7 +127,11 @@ extension AppCoordinator {
                 forVideoFile: URL.fromMediaPath(videoPath)
             )
         } catch {
-            print("Failed to load the subtitles: \(error)")
+            AppLogger.shared.warn(
+                .database,
+                "Failed to load video subtitles",
+                details: "error=\"\(error.localizedDescription)\""
+            )
             return nil
         }
     }

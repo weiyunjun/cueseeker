@@ -69,7 +69,11 @@ extension LibraryStore {
                 } catch is CancellationError {
                     return
                 } catch {
-                    print("Failed to load Library cover source: \(error)")
+                    AppLogger.shared.error(
+                        .database,
+                        "Failed to load Library cover source",
+                        details: "error=\"\(error.localizedDescription)\""
+                    )
                 }
             }
         }
@@ -121,7 +125,11 @@ extension LibraryStore {
                     return
                 }
                 session.isSaving = false
-                print("Failed to save Library cover: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to save Library cover",
+                    details: "error=\"\(error.localizedDescription)\""
+                )
             }
         }
     }
@@ -215,7 +223,11 @@ extension LibraryStore {
                 self?.libraryStatus = .completed
             } catch {
                 guard !Task.isCancelled else { return }
-                print("Failed to hydrate library asynchronously: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to hydrate Library asynchronously",
+                    details: "error=\"\(error.localizedDescription)\""
+                )
                 self?.libraryStatus = .failed(AppCoordinator.errorMessage(for: error))
             }
         }
@@ -344,7 +356,11 @@ extension LibraryStore {
                 guard !(error is CancellationError) else {
                     return
                 }
-                print("Failed to backfill Library display renditions: \(error)")
+                AppLogger.shared.warn(
+                    .database,
+                    "Failed to backfill Library display renditions",
+                    details: "error=\"\(error.localizedDescription)\""
+                )
             }
         }
     }
@@ -398,7 +414,11 @@ extension LibraryStore {
                 self?.recentWatchingStatus = .completed
             } catch {
                 guard !Task.isCancelled else { return }
-                print("Failed to hydrate recent Library watching asynchronously: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to hydrate recent Library watching",
+                    details: "error=\"\(error.localizedDescription)\""
+                )
                 self?.applyRecentWatching([])
                 self?.recentWatchingStatus = .failed(AppCoordinator.errorMessage(for: error))
             }
@@ -438,7 +458,11 @@ extension LibraryStore {
                 self?.testRecentWatchingStatus = .completed
             } catch {
                 guard !Task.isCancelled else { return }
-                print("Failed to hydrate Test Recent Watching asynchronously: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to hydrate Test Recent Watching",
+                    details: "error=\"\(error.localizedDescription)\""
+                )
                 self?.applyTestRecentWatching([])
                 self?.testRecentWatchingStatus = .failed(AppCoordinator.errorMessage(for: error))
             }
@@ -489,7 +513,11 @@ extension LibraryStore {
                 self?.completeLibraryStatus = .completed
             } catch {
                 guard !Task.isCancelled else { return }
-                print("Failed to hydrate Complete Library asynchronously: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to hydrate Complete Library",
+                    details: "error=\"\(error.localizedDescription)\""
+                )
                 self?.applyCompleteLibrary([])
                 self?.completeLibraryStatus = .failed(AppCoordinator.errorMessage(for: error))
             }
@@ -635,7 +663,11 @@ extension LibraryStore {
                 if preservesExistingSnapshot,
                    self.completeLibraryFolderDetailsByPath[folderPath] != nil
                 {
-                    print("Failed to refresh Complete Library folder detail asynchronously: \(error)")
+                    AppLogger.shared.warn(
+                        .database,
+                        "Failed to refresh Complete Library folder detail",
+                        details: "error=\"\(error.localizedDescription)\""
+                    )
                     return
                 }
                 self.completeLibraryFolderDetailStatusesByPath[folderPath]

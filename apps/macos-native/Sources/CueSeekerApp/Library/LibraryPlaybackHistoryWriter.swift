@@ -70,7 +70,11 @@ final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
                 markCompleted: snapshot.markCompleted
             )
         } catch {
-            print("Failed to save Library playback history: \(error)")
+            AppLogger.shared.error(
+                .database,
+                "Failed to save Library playback history",
+                details: "error=\"\(error.localizedDescription)\""
+            )
         }
     }
 
@@ -93,7 +97,11 @@ final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
                     state: snapshot.state
                 )
             } catch {
-                print("Failed to set Library watch state: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to set Library watch state",
+                    details: "error=\"\(error.localizedDescription)\""
+                )
             }
         }
     }

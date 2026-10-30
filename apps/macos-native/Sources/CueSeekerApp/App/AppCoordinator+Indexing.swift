@@ -42,6 +42,7 @@ private func performFolderIndex(
         LibraryCoverDisplayRenditionCommitToken,
     onProgress: @escaping @Sendable (TaskIndexStage, Int, Int) -> Void
 ) async throws -> CompletedFolderIndex {
+    let folderStart = Date()
     onProgress(.scanningFiles, 0, 0)
     let result = try SubtitleIndexer().index(
         folder: folder,
@@ -187,6 +188,21 @@ private func performFolderIndex(
         }
     }
 
+    let elapsedMs = max(0, Date().timeIntervalSince(folderStart) * 1000.0)
+    let folderLabel = IndexingStore.displayName(for: folder)
+    AppLogger.shared.info(
+        .task,
+        "Folder index finished",
+        details: "folder=\"\(folderLabel)\" scanned=\(result.scannedSubtitleFiles) indexed_files=\(result.indexedSubtitleFiles) indexed_cues=\(result.indexedSubtitleEntries) skipped_unchanged=\(result.skippedUnchangedSubtitleFiles) skipped_missing_video=\(result.skippedMissingVideo) skipped_unreadable=\(result.skippedUnreadableSubtitle) failed=\(result.failedFiles.count) elapsed_ms=\(String(format: "%.1f", elapsedMs))"
+    )
+    for failure in failures {
+        AppLogger.shared.warn(
+            .task,
+            "Folder index auxiliary warning",
+            details: "folder=\"\(folderLabel)\" message=\"\(failure.message)\""
+        )
+    }
+
     return CompletedFolderIndex(
         result: result,
         auxiliaryFailures: failures,
@@ -298,7 +314,11 @@ extension AppCoordinator {
                     WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
                 }
             } catch {
-                print("Failed to take back an unfinished folder addition: \(error)")
+                AppLogger.shared.warn(
+                    .task,
+                    "Failed to roll back unfinished folder addition",
+                    details: "folder=\"\(IndexingStore.displayName(for: folder))\" error=\"\(error.localizedDescription)\""
+                )
             }
         }
         search.reloadEmptySearchFacetDistribution()
@@ -463,7 +483,11 @@ extension AppCoordinator {
                     databaseURL: databaseURL
                 )
             } catch {
-                print("Failed to take back an unfinished folder addition: \(error)")
+                AppLogger.shared.warn(
+                    .task,
+                    "Failed to roll back unfinished folder addition",
+                    details: "folder=\"\(IndexingStore.displayName(for: folder))\" error=\"\(error.localizedDescription)\""
+                )
             }
             if folder.isWebDAVURL && !indexing.selectedFolders.contains(folder) {
                 WebDAVConfigurationStore.shared.remove(url: folder)
@@ -1083,6 +1107,11 @@ extension AppCoordinator {
         indexing.databaseStorageStats = statsBefore
         indexing.databaseMaintenanceStatus = .compacting
         let databaseURL = self.databaseURL
+        AppLogger.shared.info(
+            .database,
+            "Database compaction started",
+            details: "db_bytes=\(statsBefore.databaseFileBytes) wal_bytes=\(statsBefore.walFileBytes) freelist_bytes=\(statsBefore.freelistBytes)"
+        )
 
         databaseCompactionTask = Task {
             do {
@@ -1100,13 +1129,24 @@ extension AppCoordinator {
                 let bytesBefore = statsBefore.databaseFileBytes + statsBefore.walFileBytes
                 let bytesAfter = statsAfter.databaseFileBytes + statsAfter.walFileBytes
                 let reclaimedBytes = max(0, bytesBefore - bytesAfter)
+                AppLogger.shared.info(
+                    .database,
+                    "Database compaction completed",
+                    details: "reclaimed_bytes=\(reclaimedBytes) db_bytes=\(statsAfter.databaseFileBytes)"
+                )
                 indexing.databaseMaintenanceStatus = .completed(L("status.reclaimed", Self.formattedBytes(reclaimedBytes)))
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
 
-                indexing.databaseMaintenanceStatus = .failed(Self.errorMessage(for: error))
+                let errorText = Self.errorMessage(for: error)
+                AppLogger.shared.error(
+                    .database,
+                    "Database compaction failed",
+                    details: "error=\"\(errorText)\""
+                )
+                indexing.databaseMaintenanceStatus = .failed(errorText)
             }
         }
     }

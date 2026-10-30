@@ -1,5 +1,6 @@
 import Foundation
 import GameController
+import CueSeekerCore
 
 @MainActor
 final class GameControllerInputMonitor {
@@ -96,6 +97,11 @@ final class GameControllerInputMonitor {
         activeController = controller
         controller.handlerQueue = .main
         configure(profile)
+        AppLogger.shared.info(
+            .system,
+            "Game controller connected",
+            details: "category=\"\(controller.productCategory)\""
+        )
         return true
     }
 
@@ -309,9 +315,13 @@ final class GameControllerInputMonitor {
             profile.leftThumbstick.valueChangedHandler = nil
         }
 
+        let hadController = activeController != nil
         cancelInputRepeat()
         thumbstickInterpreter.reset()
         activeController = nil
+        if hadController {
+            AppLogger.shared.info(.system, "Game controller disconnected")
+        }
     }
 
     @discardableResult

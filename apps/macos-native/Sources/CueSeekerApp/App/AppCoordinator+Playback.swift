@@ -336,6 +336,12 @@ extension AppCoordinator {
     }
 
     private func showSubtitleLoadError(path: String) {
+        let subtitleName = URL.fromMediaPath(path).lastPathComponent
+        AppLogger.shared.warn(
+            .playback,
+            "Subtitle load failed",
+            details: "subtitle=\"\(subtitleName)\""
+        )
         playback.showError(L("playback.error.subtitle_load_failed", path), on: .subtitle)
     }
 
@@ -349,7 +355,12 @@ extension AppCoordinator {
         videoPath: String,
         cueStartMilliseconds: Int? = nil
     ) {
-        print("Failed to open the video: \(error)")
+        let videoName = URL.fromMediaPath(videoPath).lastPathComponent
+        AppLogger.shared.error(
+            .playback,
+            "Playback open failed",
+            details: "video=\"\(videoName)\" error=\"\(Self.errorMessage(for: error))\""
+        )
         stopLibraryPlaybackHistoryTracking()
         try? player?.stop()
         playback.playbackViewModel?.resetPresentationForStoppedPlayback()
@@ -360,7 +371,11 @@ extension AppCoordinator {
     /// A player failure other than loading a file shows on the video line and
     /// blocks nothing.
     func showPlaybackError(_ error: Error) {
-        print("Playback failed: \(error)")
+        AppLogger.shared.error(
+            .playback,
+            "Playback error",
+            details: "error=\"\(Self.errorMessage(for: error))\""
+        )
         playback.showError(
             L("playback.error.playback_failed", Self.errorMessage(for: error)),
             on: .video
@@ -509,7 +524,11 @@ extension AppCoordinator {
         // Gate 1: Check database indexed metadata for known codec hardware capability
         if let codec = libraryDatabase?.videoCodec(forVideoPath: videoPath),
            !PlaybackHardwareCapabilities.isHardwareDecodeSupported(forCodec: codec) {
-            NSLog("[Playback] Gate 1 (Metadata Pre-routing): codec=%@ not supported by hardware on current device, pre-routing to software decode", codec)
+            AppLogger.shared.warn(
+                .playback,
+                "Hardware decode unsupported for codec, routing to software decode",
+                details: "codec=\(codec) video=\"\(URL.fromMediaPath(videoPath).lastPathComponent)\""
+            )
             return .software
         }
 
@@ -528,12 +547,12 @@ extension AppCoordinator {
         ensurePlayerInitialized()
         let targetDecodeMode = prepareDecodeModeForPlayback(videoPath: result.videoPath)
         let codec = libraryDatabase?.videoCodec(forVideoPath: result.videoPath) ?? "unknown"
-        NSLog("[Playback] AppCoordinator.play: videoPath=%@, codec=%@, startMs=%ld, settingMode=%@, targetMode=%@",
-              result.videoPath,
-              codec,
-              result.startMilliseconds,
-              settings.playbackDecodeMode.rawValue,
-              targetDecodeMode.rawValue)
+        let videoName = URL.fromMediaPath(result.videoPath).lastPathComponent
+        AppLogger.shared.info(
+            .playback,
+            "Playback requested",
+            details: "source=search video=\"\(videoName)\" codec=\(codec) start_ms=\(result.startMilliseconds) setting_mode=\(settings.playbackDecodeMode.rawValue) target_mode=\(targetDecodeMode.rawValue)"
+        )
         beginCueAutoStopPlayback()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
@@ -743,7 +762,11 @@ extension AppCoordinator {
                 endMilliseconds: endMilliseconds
             )
         } catch {
-            print("Failed to load ASS subtitle preparation window: \(error)")
+            AppLogger.shared.warn(
+                .playback,
+                "Failed to load ASS subtitle preparation window",
+                details: "error=\"\(error.localizedDescription)\""
+            )
             return fallback
         }
     }

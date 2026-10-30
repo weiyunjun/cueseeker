@@ -843,14 +843,20 @@ func playbackCollageActionsRouteEmptyNotReadyFailedAndCompletionFeedback() async
 @MainActor
 @Test
 func playbackCollagePerformanceLoggerRecordsInitialAndIncrementalCommitsAndTrimsLogFile() async throws {
-    let logFileURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("CueSeeker-CollagePerf-\(UUID().uuidString).log")
+    let logDirectoryURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeeker-CollagePerf-\(UUID().uuidString)", isDirectory: true)
     defer {
-        try? FileManager.default.removeItem(at: logFileURL)
+        try? FileManager.default.removeItem(at: logDirectoryURL)
     }
 
+    let appLogger = AppLogger(
+        logDirectoryURL: logDirectoryURL,
+        minimumLevel: .info,
+        isEnabled: true
+    )
+    let logFileURL = appLogger.logFileURL()
     let logger = PlaybackCollagePerformanceLogger(
-        logFileURL: logFileURL,
+        appLogger: appLogger,
         videoFileName: "Episode 01.mkv",
         subtitleFileName: "Episode 01.ass"
     )
@@ -896,11 +902,13 @@ func playbackCollagePerformanceLoggerRecordsInitialAndIncrementalCommitsAndTrims
     var plan = try SubtitleCollageSelectionPlan(selectedCues: [first])
     store.update(plan: plan)
     await waitForCollagePreviewToSettle(store)
+    appLogger.flush()
 
     let initialLines = try String(contentsOf: logFileURL, encoding: .utf8)
         .split(separator: "\n")
         .map(String.init)
     #expect(initialLines.count == 1)
+    #expect(initialLines[0].contains("[INFO] [Playback] Collage rendered | "))
     #expect(initialLines[0].contains("action=initial"))
     #expect(initialLines[0].contains("video=\"Episode 01.mkv\""))
     #expect(initialLines[0].contains("sub=\"Episode 01.ass\""))
@@ -915,11 +923,13 @@ func playbackCollagePerformanceLoggerRecordsInitialAndIncrementalCommitsAndTrims
     _ = plan.select(second)
     store.update(plan: plan)
     await waitForCollagePreviewToSettle(store)
+    appLogger.flush()
 
     let incrementalLines = try String(contentsOf: logFileURL, encoding: .utf8)
         .split(separator: "\n")
         .map(String.init)
     #expect(incrementalLines.count == 2)
+    #expect(incrementalLines[1].contains("[INFO] [Playback] Collage rendered | "))
     #expect(incrementalLines[1].contains("action=incremental"))
     #expect(incrementalLines[1].contains("groups=2(new=1,cached=1)"))
     #expect(incrementalLines[1].contains("target=#2@00:04.50"))
@@ -930,6 +940,7 @@ func playbackCollagePerformanceLoggerRecordsInitialAndIncrementalCommitsAndTrims
     // Deselecting a cue when all remaining groups are cached (new=0) appends no log line.
     store.update(plan: try SubtitleCollageSelectionPlan(selectedCues: [first]))
     await waitForCollagePreviewToSettle(store)
+    appLogger.flush()
 
     let cachedOnlyLines = try String(contentsOf: logFileURL, encoding: .utf8)
         .split(separator: "\n")
@@ -937,10 +948,10 @@ func playbackCollagePerformanceLoggerRecordsInitialAndIncrementalCommitsAndTrims
     #expect(cachedOnlyLines.count == 2)
 
     // Verify log rotation trims the oldest half of lines when maxFileSizeBytes is exceeded.
-    let rotatingLogURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("CueSeeker-CollagePerfRotate-\(UUID().uuidString).log")
+    let rotatingDirURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeeker-CollagePerfRotate-\(UUID().uuidString)", isDirectory: true)
     defer {
-        try? FileManager.default.removeItem(at: rotatingLogURL)
+        try? FileManager.default.removeItem(at: rotatingDirURL)
     }
     let sampleGroup = plan.groups[0]
     let singleLineLength = logger.formatLine(
@@ -954,11 +965,16 @@ func playbackCollagePerformanceLoggerRecordsInitialAndIncrementalCommitsAndTrims
         subtitleRenderMilliseconds: 3,
         composeMilliseconds: 1
     ).utf8.count + 1
+    let rotatingAppLogger = AppLogger(
+        logDirectoryURL: rotatingDirURL,
+        minimumLevel: .info,
+        maxFileSizeBytes: singleLineLength * 3,
+        isEnabled: true
+    )
     let rotatingLogger = PlaybackCollagePerformanceLogger(
-        logFileURL: rotatingLogURL,
+        appLogger: rotatingAppLogger,
         videoFileName: "Episode 01.mkv",
-        subtitleFileName: "Episode 01.ass",
-        maxFileSizeBytes: singleLineLength * 3
+        subtitleFileName: "Episode 01.ass"
     )
     for index in 1...4 {
         rotatingLogger.record(
@@ -973,6 +989,8 @@ func playbackCollagePerformanceLoggerRecordsInitialAndIncrementalCommitsAndTrims
             composeMilliseconds: 1
         )
     }
+    rotatingAppLogger.flush()
+    let rotatingLogURL = rotatingAppLogger.logFileURL()
     let rotatedData = try Data(contentsOf: rotatingLogURL)
     #expect(rotatedData.count <= singleLineLength * 3)
     let rotatedLines = try String(contentsOf: rotatingLogURL, encoding: .utf8)

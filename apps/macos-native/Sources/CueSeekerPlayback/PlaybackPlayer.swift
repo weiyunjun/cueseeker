@@ -98,9 +98,13 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
     public var decodeMode: PlaybackDecodeMode = .auto {
         didSet {
-            NSLog("[Playback] PlaybackPlayer.decodeMode: %@ -> %@",
-                  oldValue.rawValue,
-                  decodeMode.rawValue)
+            if oldValue != decodeMode {
+                AppLogger.shared.debug(
+                    .playback,
+                    "Player decode mode updated",
+                    details: "from=\(oldValue.rawValue) to=\(decodeMode.rawValue)"
+                )
+            }
             nativePlayer.decodeMode = decodeMode.nativeDecodeMode
         }
     }
@@ -128,10 +132,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     @discardableResult
     public func open(_ request: PlaybackRequest) throws -> UInt {
-        NSLog("[Playback] PlaybackPlayer.open: path=%@, startMs=%ld, decodeMode=%@",
-              request.videoURL.mediaPath,
-              request.startMilliseconds,
-              decodeMode.rawValue)
+        AppLogger.shared.debug(
+            .playback,
+            "Player opening media",
+            details: "video=\"\(request.videoURL.lastPathComponent)\" start_ms=\(request.startMilliseconds) decode_mode=\(decodeMode.rawValue) audio_track=\(request.audioTrackIndex)"
+        )
         nativePlayer.cancelTimelineThumbnailRequests()
         delegate?.playerDidResetTimelineThumbnails(self)
         reachedAutoStopBoundaryMilliseconds = nil
@@ -281,10 +286,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     ) throws -> UInt {
         reachedAutoStopBoundaryMilliseconds = nil
         let safeMilliseconds = max(0, milliseconds)
-        NSLog("[Playback] PlaybackPlayer.seek: targetMs=%ld, currentVideo=%@, usingHardware=%d",
-              safeMilliseconds,
-              currentVideoURL?.lastPathComponent ?? "none",
-              nativePlayer.usingHardwareDecode ? 1 : 0)
+        AppLogger.shared.debug(
+            .playback,
+            "Player seek requested",
+            details: "video=\"\(currentVideoURL?.lastPathComponent ?? "none")\" target_ms=\(safeMilliseconds) hw_decode=\(nativePlayer.usingHardwareDecode ? 1 : 0)"
+        )
         beginPresentationTransition(
             targetMilliseconds: safeMilliseconds,
             subtitleAction: subtitleAction
@@ -923,15 +929,22 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         let now = CACurrentMediaTime()
         let totalEndToEndMs = (now - pendingPresentation.startedAt) * 1000.0
         let commitElapsedMs = (now - commitStart) * 1000.0
-        NSLog(
-            "[PlaybackPerf] UI_COMMIT gen=%lu targetMs=%ld presentedMs=%ld totalEndToEnd=%.1fms | S1_resolve302=%.1fms subtitleCommit=%.1fms uiDelegateCommit=%.1fms",
-            generation,
-            pendingPresentation.targetMilliseconds,
-            safeMilliseconds,
-            totalEndToEndMs,
-            pendingPresentation.resolve302Milliseconds,
-            subtitleCommitMs,
-            commitElapsedMs
+        let videoName = (currentVideoURL ?? currentRequest?.videoURL)?.lastPathComponent ?? "none"
+        AppLogger.shared.info(
+            .playback,
+            "Playback presentation committed",
+            details: String(
+                format: "video=\"%@\" gen=%lu target_ms=%ld presented_ms=%ld hw_decode=%d total_ms=%.1f resolve_ms=%.1f subtitle_ms=%.1f ui_commit_ms=%.1f",
+                videoName,
+                generation,
+                pendingPresentation.targetMilliseconds,
+                safeMilliseconds,
+                nativePlayer.usingHardwareDecode ? 1 : 0,
+                totalEndToEndMs,
+                pendingPresentation.resolve302Milliseconds,
+                subtitleCommitMs,
+                commitElapsedMs
+            )
         )
     }
 

@@ -389,7 +389,11 @@ final class TaskQueueStore: ObservableObject {
             }
             return unfinishedFolderAdditions
         } catch {
-            print("Failed to read task records: \(error)")
+            AppLogger.shared.error(
+                .database,
+                "Failed to read task records",
+                details: "error=\"\(error.localizedDescription)\""
+            )
             return []
         }
     }
@@ -419,9 +423,18 @@ final class TaskQueueStore: ObservableObject {
                     progress: TaskProgressModel()
                 )
             )
+            AppLogger.shared.info(
+                .export,
+                "Anki export task queued",
+                details: "id=\(record.id) file=\"\(record.fileName)\" cards=\(items.count)"
+            )
             startEligibleTasks()
         } catch {
-            print("Failed to queue Anki export: \(error)")
+            AppLogger.shared.error(
+                .export,
+                "Failed to queue Anki export",
+                details: "file=\"\(destinationURL.lastPathComponent)\" error=\"\(error.localizedDescription)\""
+            )
         }
     }
 
@@ -513,11 +526,20 @@ final class TaskQueueStore: ObservableObject {
                         progress: TaskProgressModel()
                     )
                 )
+                AppLogger.shared.info(
+                    .task,
+                    "Task queued",
+                    details: "id=\(record.id) kind=\(record.kind.rawValue) target=\"\(record.fileName)\""
+                )
             }
             startEligibleTasks()
             return true
         } catch {
-            print("Failed to queue \(TaskRecordKind.addFolder.rawValue): \(error)")
+            AppLogger.shared.error(
+                .task,
+                "Failed to queue task",
+                details: "kind=\(TaskRecordKind.addFolder.rawValue) error=\"\(error.localizedDescription)\""
+            )
             return false
         }
     }
@@ -563,10 +585,19 @@ final class TaskQueueStore: ObservableObject {
                     progress: TaskProgressModel()
                 )
             )
+            AppLogger.shared.info(
+                .task,
+                "Task queued",
+                details: "id=\(record.id) kind=\(record.kind.rawValue) target=\"\(record.fileName)\" items=\(itemCount)"
+            )
             startEligibleTasks()
             return true
         } catch {
-            print("Failed to queue \(kind.rawValue): \(error)")
+            AppLogger.shared.error(
+                .task,
+                "Failed to queue task",
+                details: "kind=\(kind.rawValue) error=\"\(error.localizedDescription)\""
+            )
             return false
         }
     }
@@ -610,7 +641,11 @@ final class TaskQueueStore: ObservableObject {
             do {
                 try database?.deleteRecord(id: id)
             } catch {
-                print("Failed to delete task record: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to delete task record",
+                    details: "id=\(id) error=\"\(error.localizedDescription)\""
+                )
             }
         }
     }
@@ -687,6 +722,12 @@ final class TaskQueueStore: ObservableObject {
         if entry.record.kind.isFileStatusTask {
             activeFileStatusTaskID = entry.id
         }
+        let logCategory: AppLogCategory = entry.record.kind == .ankiExport ? .export : .task
+        AppLogger.shared.info(
+            logCategory,
+            "Task started",
+            details: "id=\(entry.id) kind=\(entry.record.kind.rawValue) target=\"\(entry.record.fileName)\""
+        )
 
         switch entry.work {
         case .ankiExport(let items, let options, let destinationURL):
@@ -783,7 +824,8 @@ final class TaskQueueStore: ObservableObject {
 
     private func finishRunningTask(id: Int64, failure: String?, itemCount: Int? = nil) {
         defer { runningTasks[id] = nil }
-        let isFileStatusTask = current.first(where: { $0.id == id })?.record.kind.isFileStatusTask == true
+        let entrySnapshot = current.first(where: { $0.id == id })
+        let isFileStatusTask = entrySnapshot?.record.kind.isFileStatusTask == true
         if activeFileStatusTaskID == id {
             activeFileStatusTaskID = nil
         }
@@ -795,14 +837,31 @@ final class TaskQueueStore: ObservableObject {
                 do {
                     try database?.updateItemCount(id: id, to: itemCount)
                 } catch {
-                    print("Failed to update task item count: \(error)")
+                    AppLogger.shared.error(
+                        .database,
+                        "Failed to update task item count",
+                        details: "id=\(id) error=\"\(error.localizedDescription)\""
+                    )
                 }
             }
         }
 
+        let kindLabel = entrySnapshot?.record.kind.rawValue ?? "unknown"
+        let targetName = entrySnapshot?.record.fileName ?? ""
+        let resolvedItems = itemCount ?? entrySnapshot?.record.itemCount ?? 0
+        let logCategory: AppLogCategory = entrySnapshot?.record.kind == .ankiExport ? .export : .task
+        let elapsedMs = entrySnapshot.map {
+            max(0, Date().timeIntervalSince($0.record.startedAt ?? $0.record.createdAt) * 1000.0)
+        } ?? 0
+
         if cancelledTaskIDs.remove(id) != nil {
             // Whatever the task threw on the way down, the reader removed it;
             // that is what the record has to say.
+            AppLogger.shared.warn(
+                logCategory,
+                "Task cancelled",
+                details: "id=\(id) kind=\(kindLabel) target=\"\(targetName)\" elapsed_ms=\(String(format: "%.1f", elapsedMs))"
+            )
             moveToHistory(
                 id: id,
                 state: .incomplete,
@@ -812,6 +871,11 @@ final class TaskQueueStore: ObservableObject {
             if isFileStatusTask {
                 lastFileStatusNoticeTaskID = id
             }
+            AppLogger.shared.error(
+                logCategory,
+                "Task failed",
+                details: "id=\(id) kind=\(kindLabel) target=\"\(targetName)\" elapsed_ms=\(String(format: "%.1f", elapsedMs)) error=\"\(failure)\""
+            )
             moveToHistory(id: id, state: .incomplete, errorMessage: failure)
         } else {
             if isFileStatusTask {
@@ -819,6 +883,11 @@ final class TaskQueueStore: ObservableObject {
                 lastCompletedFileStatusTaskID = id
                 onCompleteFileStatusTask?(id)
             }
+            AppLogger.shared.info(
+                logCategory,
+                "Task completed",
+                details: "id=\(id) kind=\(kindLabel) target=\"\(targetName)\" items=\(resolvedItems) elapsed_ms=\(String(format: "%.1f", elapsedMs))"
+            )
             moveToHistory(id: id, state: .completed, errorMessage: nil)
         }
 
@@ -902,7 +971,11 @@ final class TaskQueueStore: ObservableObject {
                     changedAt: changedAt
                 )
             } catch {
-                print("Failed to update task record: \(error)")
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to update task record",
+                    details: "id=\(id) state=\(state.rawValue) error=\"\(error.localizedDescription)\""
+                )
             }
         }
     }

@@ -389,6 +389,11 @@ extension AppCoordinator {
                 session.validationTask = nil
                 session.existingRootFolders = self.indexing.selectedFolders
                 session.enterBrowser(config: connected.config, initialItems: connected.items)
+                AppLogger.shared.info(
+                    .network,
+                    "Remote folder connected",
+                    details: "scheme=\(connected.config.rootURL.scheme ?? "unknown") items=\(connected.items.count)"
+                )
             } catch is CancellationError {
                 return
             } catch {
@@ -401,7 +406,13 @@ extension AppCoordinator {
                 }
                 session.isSubmitting = false
                 session.validationTask = nil
-                session.validationMessage = Self.errorMessage(for: error)
+                let errorText = Self.errorMessage(for: error)
+                session.validationMessage = errorText
+                AppLogger.shared.warn(
+                    .network,
+                    "Remote folder connection failed",
+                    details: "error=\"\(errorText)\""
+                )
             }
         }
     }
@@ -518,8 +529,14 @@ extension AppCoordinator {
                 }
                 session.items = []
                 session.isLoadingDirectory = false
-                session.directoryErrorMessage = Self.errorMessage(for: error)
+                let errorText = Self.errorMessage(for: error)
+                session.directoryErrorMessage = errorText
                 session.directoryTask = nil
+                AppLogger.shared.warn(
+                    .network,
+                    "Remote directory browse failed",
+                    details: "folder=\"\(folderURL.lastPathComponent)\" error=\"\(errorText)\""
+                )
             }
         }
     }

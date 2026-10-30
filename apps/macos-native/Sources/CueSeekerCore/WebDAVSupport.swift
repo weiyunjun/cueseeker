@@ -1131,7 +1131,11 @@ public final class WebDAVClient: @unchecked Sendable {
         if let cached = resolvedPlayableCache[cacheKey], cached.expiresAt > now {
             lock.unlock()
             let elapsedMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-            NSLog("[PlaybackPerf] S1_resolve302 cached=1 elapsed=%.1fms targetHost=%@", elapsedMs, URL(string: cached.input.url)?.host ?? "unknown")
+            AppLogger.shared.debug(
+                .network,
+                "WebDAV playable URL resolved",
+                details: "cached=1 elapsed_ms=\(String(format: "%.1f", elapsedMs)) target_host=\"\(URL(string: cached.input.url)?.host ?? "unknown")\""
+            )
             return cached.input
         }
         let hasCustomHandler = customHTTPHandler != nil
@@ -1161,7 +1165,11 @@ public final class WebDAVClient: @unchecked Sendable {
                 (_, response) = try performSingleHopRequest(request)
             } catch {
                 let elapsedMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-                NSLog("[PlaybackPerf] S1_resolve302 cached=0 hop=%d error=%@ elapsed=%.1fms", hop, error.localizedDescription, elapsedMs)
+                AppLogger.shared.warn(
+                    .network,
+                    "WebDAV redirect resolution failed",
+                    details: "hop=\(hop) elapsed_ms=\(String(format: "%.1f", elapsedMs)) error=\"\(error.localizedDescription)\""
+                )
                 if hasCustomHandler {
                     throw error
                 }
@@ -1180,7 +1188,11 @@ public final class WebDAVClient: @unchecked Sendable {
                     )
                     cacheResolvedInput(resolved, forKey: cacheKey)
                     let elapsedMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-                    NSLog("[PlaybackPerf] S1_resolve302 cached=0 status=%d crossOrigin=1 elapsed=%.1fms targetHost=%@", status, elapsedMs, nextURL.host ?? "unknown")
+                    AppLogger.shared.debug(
+                        .network,
+                        "WebDAV playable URL resolved",
+                        details: "cached=0 status=\(status) cross_origin=1 elapsed_ms=\(String(format: "%.1f", elapsedMs)) target_host=\"\(nextURL.host ?? "unknown")\""
+                    )
                     return resolved
                 }
                 currentURL = nextURL
@@ -1198,7 +1210,11 @@ public final class WebDAVClient: @unchecked Sendable {
             )
             cacheResolvedInput(resolved, forKey: cacheKey)
             let elapsedMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-            NSLog("[PlaybackPerf] S1_resolve302 cached=0 status=%d crossOrigin=0 elapsed=%.1fms targetHost=%@", status, elapsedMs, currentURL.host ?? "unknown")
+            AppLogger.shared.debug(
+                .network,
+                "WebDAV playable URL resolved",
+                details: "cached=0 status=\(status) cross_origin=0 elapsed_ms=\(String(format: "%.1f", elapsedMs)) target_host=\"\(currentURL.host ?? "unknown")\""
+            )
             return resolved
         }
 

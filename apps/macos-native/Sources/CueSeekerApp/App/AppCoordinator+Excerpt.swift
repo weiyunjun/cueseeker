@@ -586,12 +586,12 @@ extension AppCoordinator {
         ensurePlayerInitialized()
         let targetDecodeMode = prepareDecodeModeForPlayback(videoPath: excerpt.videoPath)
         let codec = libraryDatabase?.videoCodec(forVideoPath: excerpt.videoPath) ?? "unknown"
-        NSLog("[Playback] AppCoordinator.play(excerpt): videoPath=%@, codec=%@, startMs=%ld, settingMode=%@, targetMode=%@",
-              excerpt.videoPath,
-              codec,
-              excerpt.startMilliseconds,
-              settings.playbackDecodeMode.rawValue,
-              targetDecodeMode.rawValue)
+        let videoName = URL.fromMediaPath(excerpt.videoPath).lastPathComponent
+        AppLogger.shared.info(
+            .playback,
+            "Playback requested",
+            details: "source=excerpt video=\"\(videoName)\" codec=\(codec) start_ms=\(excerpt.startMilliseconds) setting_mode=\(settings.playbackDecodeMode.rawValue) target_mode=\(targetDecodeMode.rawValue)"
+        )
         beginCueAutoStopPlayback()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()

@@ -47,6 +47,11 @@ extension AppCoordinator {
 
         switch command {
         case let .search(keyword):
+            AppLogger.shared.info(
+                .system,
+                "URL scheme command received",
+                details: "kind=search play_first=\(settings.urlSchemePlayFirstSearchResultEnabled ? 1 : 0)"
+            )
             search.updateSearchFacetFilter(settings.searchFacetFilter)
             search.updateSearchSortOrder(settings.searchSortOrder)
             search.updateActiveFilterSet(SubtitleSearchFilterSet())
@@ -79,6 +84,11 @@ extension AppCoordinator {
                 urlSchemeIntentID: intent.id
             )
         case let .cue(cueID):
+            AppLogger.shared.info(
+                .system,
+                "URL scheme command received",
+                details: "kind=cue cue_id=\(cueID)"
+            )
             let intent = URLSchemeCuePlaybackIntent(
                 id: UUID(),
                 cueID: cueID,
@@ -102,7 +112,11 @@ extension AppCoordinator {
                     guard !Task.isCancelled else {
                         return
                     }
-                    print("Failed to resolve URL Scheme CueID: \(error)")
+                    AppLogger.shared.error(
+                        .system,
+                        "URL scheme cue lookup failed",
+                        details: "cue_id=\(cueID) error=\"\(error.localizedDescription)\""
+                    )
                     result = nil
                 }
 

@@ -43,31 +43,18 @@ struct PlaybackCollagePerformanceLogger: Sendable {
         case incremental
     }
 
-    static var defaultLogFileURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(
-                "Library/Application Support/CueSeeker/logs/collage-performance.log",
-                isDirectory: false
-            )
-    }
-
-    static let defaultMaxFileSizeBytes = 2 * 1024 * 1024
-
-    let logFileURL: URL
+    let appLogger: AppLogger
     let videoFileName: String
     let subtitleFileName: String
-    let maxFileSizeBytes: Int
 
     init(
-        logFileURL: URL = Self.defaultLogFileURL,
+        appLogger: AppLogger = .shared,
         videoFileName: String,
-        subtitleFileName: String,
-        maxFileSizeBytes: Int = Self.defaultMaxFileSizeBytes
+        subtitleFileName: String
     ) {
-        self.logFileURL = logFileURL
+        self.appLogger = appLogger
         self.videoFileName = videoFileName
         self.subtitleFileName = subtitleFileName
-        self.maxFileSizeBytes = max(1, maxFileSizeBytes)
     }
 
     func record(
@@ -82,7 +69,7 @@ struct PlaybackCollagePerformanceLogger: Sendable {
         composeMilliseconds: Double,
         timestamp: Date = Date()
     ) {
-        let line = formatLine(
+        let details = formatDetails(
             action: action,
             totalGroupCount: totalGroupCount,
             newGroups: newGroups,
@@ -91,10 +78,14 @@ struct PlaybackCollagePerformanceLogger: Sendable {
             subtitleLoadMilliseconds: subtitleLoadMilliseconds,
             frameGrabMilliseconds: frameGrabMilliseconds,
             subtitleRenderMilliseconds: subtitleRenderMilliseconds,
-            composeMilliseconds: composeMilliseconds,
+            composeMilliseconds: composeMilliseconds
+        )
+        appLogger.info(
+            .playback,
+            "Collage rendered",
+            details: details,
             timestamp: timestamp
         )
-        appendLine(line)
     }
 
     func formatLine(
@@ -109,19 +100,48 @@ struct PlaybackCollagePerformanceLogger: Sendable {
         composeMilliseconds: Double,
         timestamp: Date = Date()
     ) -> String {
+        AppLogger.formatLine(
+            level: .info,
+            category: .playback,
+            message: "Collage rendered",
+            details: formatDetails(
+                action: action,
+                totalGroupCount: totalGroupCount,
+                newGroups: newGroups,
+                cachedGroupCount: cachedGroupCount,
+                totalMilliseconds: totalMilliseconds,
+                subtitleLoadMilliseconds: subtitleLoadMilliseconds,
+                frameGrabMilliseconds: frameGrabMilliseconds,
+                subtitleRenderMilliseconds: subtitleRenderMilliseconds,
+                composeMilliseconds: composeMilliseconds
+            ),
+            timestamp: timestamp
+        )
+    }
+
+    func formatDetails(
+        action: Action,
+        totalGroupCount: Int,
+        newGroups: [SubtitleCollageGroup],
+        cachedGroupCount: Int,
+        totalMilliseconds: Double,
+        subtitleLoadMilliseconds: Double,
+        frameGrabMilliseconds: Double,
+        subtitleRenderMilliseconds: Double,
+        composeMilliseconds: Double
+    ) -> String {
         let targets = newGroups
             .map(Self.targetDescription(for:))
             .joined(separator: ",")
-        return "[\(Self.timestampString(for: timestamp))] "
-            + "action=\(action.rawValue) | "
-            + "video=\"\(videoFileName)\" | "
-            + "sub=\"\(subtitleFileName)\" | "
-            + "groups=\(totalGroupCount)(new=\(newGroups.count),cached=\(cachedGroupCount)) | "
-            + "target=\(targets) | "
-            + "total_ms=\(Self.formattedMilliseconds(totalMilliseconds)) | "
-            + "sub_load_ms=\(Self.formattedMilliseconds(subtitleLoadMilliseconds)) | "
-            + "frame_grab_ms=\(Self.formattedMilliseconds(frameGrabMilliseconds)) | "
-            + "sub_render_ms=\(Self.formattedMilliseconds(subtitleRenderMilliseconds)) | "
+        return "action=\(action.rawValue) "
+            + "video=\"\(videoFileName)\" "
+            + "sub=\"\(subtitleFileName)\" "
+            + "groups=\(totalGroupCount)(new=\(newGroups.count),cached=\(cachedGroupCount)) "
+            + "target=\(targets) "
+            + "total_ms=\(Self.formattedMilliseconds(totalMilliseconds)) "
+            + "sub_load_ms=\(Self.formattedMilliseconds(subtitleLoadMilliseconds)) "
+            + "frame_grab_ms=\(Self.formattedMilliseconds(frameGrabMilliseconds)) "
+            + "sub_render_ms=\(Self.formattedMilliseconds(subtitleRenderMilliseconds)) "
             + "compose_ms=\(Self.formattedMilliseconds(composeMilliseconds))"
     }
 
@@ -159,77 +179,6 @@ struct PlaybackCollagePerformanceLogger: Sendable {
 
     private static func formattedMilliseconds(_ value: Double) -> String {
         String(format: "%.1f", max(0, value))
-    }
-
-    private static func timestampString(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
-        return formatter.string(from: date)
-    }
-
-    private func appendLine(_ line: String) {
-        let lineData = Data((line + "\n").utf8)
-        let fileManager = FileManager.default
-        let directoryURL = logFileURL.deletingLastPathComponent()
-
-        do {
-            try fileManager.createDirectory(
-                at: directoryURL,
-                withIntermediateDirectories: true
-            )
-            if fileManager.fileExists(atPath: logFileURL.path) {
-                let handle = try FileHandle(forUpdating: logFileURL)
-                defer {
-                    try? handle.close()
-                }
-                try handle.seekToEnd()
-                try handle.write(contentsOf: lineData)
-            } else {
-                try lineData.write(to: logFileURL, options: .atomic)
-            }
-
-            let attributes = try fileManager.attributesOfItem(atPath: logFileURL.path)
-            if let fileSize = attributes[.size] as? NSNumber,
-               fileSize.intValue > maxFileSizeBytes {
-                let existingData = try Data(contentsOf: logFileURL)
-                let trimmedData = trimLogDataIfNeeded(existingData)
-                try trimmedData.write(to: logFileURL, options: .atomic)
-            }
-        } catch {
-            // Performance logging is diagnostic only and must never disrupt UI.
-        }
-    }
-
-    private func trimLogDataIfNeeded(_ data: Data) -> Data {
-        guard data.count > maxFileSizeBytes else {
-            return data
-        }
-
-        let newline = UInt8(ascii: "\n")
-        let targetDropCount = max(data.count / 2, data.count - maxFileSizeBytes)
-        let searchLimit = max(0, data.count - 1)
-
-        var cutIndex: Int?
-        if targetDropCount > 0,
-           targetDropCount <= searchLimit,
-           data[targetDropCount - 1] == newline {
-            cutIndex = targetDropCount
-        } else if targetDropCount < searchLimit,
-                  let forwardNewline = data[targetDropCount..<searchLimit].firstIndex(of: newline) {
-            cutIndex = forwardNewline + 1
-        } else if targetDropCount > 0,
-                  let backwardNewline = data[0..<min(targetDropCount, searchLimit)].lastIndex(of: newline),
-                  backwardNewline + 1 <= data.count,
-                  data.count - (backwardNewline + 1) <= maxFileSizeBytes {
-            cutIndex = backwardNewline + 1
-        }
-
-        if let cutIndex, cutIndex < data.count {
-            return Data(data[cutIndex...])
-        }
-        return Data(data.suffix(maxFileSizeBytes))
     }
 }
 
@@ -607,16 +556,30 @@ final class PlaybackCollagePreviewStore: ObservableObject {
             return false
         }
         let workItem = PlaybackCollageImageActionWorkItem(image: result.image)
+        let groupCount = result.plan.groups.count
+        let imageWidth = result.image.width
+        let imageHeight = result.image.height
         let writeImageToPasteboard = self.writeImageToPasteboard
+        let startedAt = DispatchTime.now().uptimeNanoseconds
 
         Task.detached(priority: .userInitiated) {
             do {
                 try await writeImageToPasteboard(workItem.image)
+                let elapsedMs = Self.elapsedMilliseconds(since: startedAt)
+                AppLogger.shared.info(
+                    .export,
+                    "Collage copied to clipboard",
+                    details: "groups=\(groupCount) size=\(imageWidth)x\(imageHeight) elapsed_ms=\(String(format: "%.1f", elapsedMs))"
+                )
                 await MainActor.run {
                     completion?(true)
                 }
             } catch {
-                print("Failed to copy playback Collage: \(error)")
+                AppLogger.shared.error(
+                    .export,
+                    "Collage copy failed",
+                    details: "groups=\(groupCount) error=\"\(error.localizedDescription)\""
+                )
                 await MainActor.run {
                     completion?(false)
                 }
@@ -642,16 +605,31 @@ final class PlaybackCollagePreviewStore: ObservableObject {
             return false
         }
         let workItem = PlaybackCollageImageActionWorkItem(image: result.image)
+        let groupCount = result.plan.groups.count
+        let imageWidth = result.image.width
+        let imageHeight = result.image.height
+        let fileName = destinationURL.lastPathComponent
         let exportImageToFile = self.exportImageToFile
+        let startedAt = DispatchTime.now().uptimeNanoseconds
 
         Task.detached(priority: .userInitiated) {
             do {
                 try await exportImageToFile(workItem.image, destinationURL)
+                let elapsedMs = Self.elapsedMilliseconds(since: startedAt)
+                AppLogger.shared.info(
+                    .export,
+                    "Collage exported to file",
+                    details: "file=\"\(fileName)\" groups=\(groupCount) size=\(imageWidth)x\(imageHeight) elapsed_ms=\(String(format: "%.1f", elapsedMs))"
+                )
                 await MainActor.run {
                     completion?(true)
                 }
             } catch {
-                print("Failed to export playback Collage: \(error)")
+                AppLogger.shared.error(
+                    .export,
+                    "Collage export failed",
+                    details: "file=\"\(fileName)\" groups=\(groupCount) error=\"\(error.localizedDescription)\""
+                )
                 await MainActor.run {
                     completion?(false)
                 }
@@ -763,7 +741,7 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         )
     }
 
-    private static func elapsedMilliseconds(since startNanoseconds: UInt64) -> Double {
+    private nonisolated static func elapsedMilliseconds(since startNanoseconds: UInt64) -> Double {
         let nowNanoseconds = DispatchTime.now().uptimeNanoseconds
         guard nowNanoseconds >= startNanoseconds else {
             return 0
