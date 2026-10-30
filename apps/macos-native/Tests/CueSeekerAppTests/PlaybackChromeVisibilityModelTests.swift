@@ -143,9 +143,6 @@ func sameWindowLayerPreservesPointerVisibilityAndFreezesThePlayerUI() {
     area.movePointer(to: NSPoint(x: 410, y: 300))
     #expect(area.model.isPointerVisible)
     #expect(!AppCursorVisibility.isCursorHidden)
-    // Not governed while the layer is open: a controller's request changes nothing.
-    area.model.pointerHideRequested()
-    #expect(area.model.isPointerVisible)
     area.model.setLayerOpen(false)
     #expect(!area.model.isPlayerUIVisible)
     #expect(area.model.isIdleCountdownRunning)
@@ -182,7 +179,7 @@ func losingFocusOrLeavingTheWindowHidesThePlayerUIAndShowsThePointer() {
 
 @MainActor
 @Test
-func fullscreenEntryAndControllerInputHideBoth() {
+func fullscreenEntryHidesBothUntilPointerMoves() {
     let area = PlayerArea()
     defer { area.finish() }
 
@@ -194,10 +191,6 @@ func fullscreenEntryAndControllerInputHideBoth() {
     area.movePointer(to: NSPoint(x: 300, y: 300))
     #expect(area.model.isPlayerUIVisible)
     #expect(area.model.isPointerVisible)
-
-    area.model.pointerHideRequested()
-    #expect(!area.model.isPlayerUIVisible)
-    #expect(!area.model.isPointerVisible)
 }
 
 @MainActor

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
@@ -80,6 +81,9 @@ struct SettingsView: View {
                 .padding(.top, WorkbenchControlMetrics.redesignSettingsTitlebarHeight)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+
+            SettingsDialogLayerHost(confirmation: settingsStore.confirmation)
+                .zIndex(AppShellLayout.dialogLayerZIndex)
 
             TooltipOverlayView(surface: .settings)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -175,6 +179,7 @@ struct SettingsView: View {
             SettingsAppearanceCategory()
             SettingsSearchCategory()
             SettingsLanguageCategory()
+                .zIndex(10)
             SettingsURLSchemeCategory()
         case .play:
             SettingsPlayCategory()
@@ -187,6 +192,66 @@ struct SettingsView: View {
             SettingsMaintenanceCategory()
         case .developer:
             SettingsDeveloperCategory()
+        }
+    }
+}
+
+private struct SettingsDialogLayerHost: View {
+    @ObservedObject var confirmation: ConfirmationCenter
+
+    var body: some View {
+        WorkbenchDialogLayer(
+            dialogIDs: confirmation.session.map { [$0.id] } ?? [],
+            topBandHeight: WorkbenchControlMetrics.redesignSettingsTitlebarHeight
+        ) {
+            if let session = confirmation.session {
+                WorkbenchConfirmationDialog(
+                    session: session,
+                    onClose: { confirmation.session = nil }
+                )
+                .workbenchDialog(level: 2)
+            }
+        }
+        .background(
+            SettingsWindowCloseButtonSyncView(
+                isCloseEnabled: confirmation.session == nil
+            )
+            .frame(width: 0, height: 0)
+        )
+    }
+}
+
+private struct SettingsWindowCloseButtonSyncView: NSViewRepresentable {
+    let isCloseEnabled: Bool
+
+    func makeNSView(context _: Context) -> SyncView {
+        let view = SyncView()
+        view.isCloseEnabled = isCloseEnabled
+        return view
+    }
+
+    func updateNSView(_ nsView: SyncView, context _: Context) {
+        nsView.isCloseEnabled = isCloseEnabled
+        nsView.applyToWindow()
+    }
+
+    final class SyncView: NSView {
+        var isCloseEnabled = true
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            nil
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            applyToWindow()
+        }
+
+        func applyToWindow() {
+            if !isCloseEnabled {
+                window?.makeFirstResponder(nil)
+            }
+            window?.standardWindowButton(.closeButton)?.isEnabled = isCloseEnabled
         }
     }
 }

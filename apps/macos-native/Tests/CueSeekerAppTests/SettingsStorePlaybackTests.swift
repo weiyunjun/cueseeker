@@ -190,6 +190,71 @@ func settingsStoreKeepsTheSRTSubtitleStyleAcrossLaunches() {
 }
 
 @MainActor
+@Test
+func settingsLanguageMenuMatchesPopupWidthAndMapsLocalRowPositions() {
+    #expect(
+        SettingsLanguageMenu.panelSize.width
+            == WorkbenchControlMetrics.redesignSettingsPopupWidth
+    )
+    #expect(
+        SettingsLanguageMenu.panelSize.height
+            == CGFloat(AppLanguage.allCases.count) * WorkbenchControlMetrics.redesignMenuItemHeight
+                + MenuMetrics.padding * 2
+    )
+    #expect(SettingsLanguageMenu.position(atLocalPoint: CGPoint(x: 20, y: 2)) == nil)
+    for index in AppLanguage.allCases.indices {
+        let midY = MenuMetrics.padding
+            + (CGFloat(index) + 0.5) * WorkbenchControlMetrics.redesignMenuItemHeight
+        #expect(
+            SettingsLanguageMenu.position(atLocalPoint: CGPoint(x: 20, y: midY)) == index
+        )
+    }
+    #expect(
+        SettingsLanguageMenu.position(
+            atLocalPoint: CGPoint(x: 20, y: SettingsLanguageMenu.panelSize.height - 1)
+        ) == nil
+    )
+}
+
+@MainActor
+@Test
+func compactDatabaseConfirmationUsesUnifiedConfirmationSessionAndBlocksTermination() throws {
+    let tempRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerCompactConfirmationTests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults in
+        let app = AppCoordinator(
+            userDefaults: userDefaults,
+            databaseURL: tempRoot.appendingPathComponent("index.sqlite")
+        )
+        #expect(!app.isBlockingConfirmationPresented)
+        #expect(app.settings.confirmation.session == nil)
+
+        app.requestCompactDatabaseConfirmation()
+
+        #expect(app.isBlockingConfirmationPresented)
+        guard let session = app.settings.confirmation.session else {
+            Issue.record("Expected Settings compact database confirmation session")
+            return
+        }
+        #expect(session.title == L("settings.maintenance.compact_title"))
+        #expect(session.message == L("settings.maintenance.compact_message"))
+        #expect(session.actions.count == 2)
+        #expect(session.actions[0].style == .neutral)
+        #expect(session.actions[0].isDefault)
+        #expect(session.actions[0].isCancel)
+        #expect(session.actions[1].style == .destructive)
+        #expect(session.actions[1].title == L("settings.maintenance.compact_confirm"))
+
+        session.actions[0].action()
+        #expect(app.settings.confirmation.session == nil)
+        #expect(!app.isBlockingConfirmationPresented)
+    }
+}
+
+@MainActor
 private func withTemporaryPlaybackSettingsUserDefaults(_ body: (UserDefaults) -> Void) {
     _ = NSApplication.shared
     let suiteName = "CueSeekerPlaybackSettingsTests-\(UUID().uuidString)"

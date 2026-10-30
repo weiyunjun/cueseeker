@@ -739,7 +739,7 @@ private struct SettingsSubtitleFontMenuState: Identifiable {
 }
 
 @MainActor
-private final class SettingsSubtitleViewportGeometry {
+final class SettingsSubtitleViewportGeometry {
     weak var probe: SettingsSubtitleViewportProbe.ProbeView?
 
     func anchorFrame(for handle: MenuAnchorHandle) -> CGRect? {
@@ -777,7 +777,7 @@ private final class SettingsSubtitleViewportGeometry {
     }
 }
 
-private struct SettingsSubtitleViewportProbe: NSViewRepresentable {
+struct SettingsSubtitleViewportProbe: NSViewRepresentable {
     let geometry: SettingsSubtitleViewportGeometry
 
     func makeNSView(context _: Context) -> ProbeView {

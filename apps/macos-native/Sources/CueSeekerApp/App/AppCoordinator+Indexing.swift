@@ -1041,6 +1041,26 @@ extension AppCoordinator {
         }
     }
 
+    func requestCompactDatabaseConfirmation() {
+        guard canCompactDatabase else {
+            return
+        }
+        settings.confirmation.session = WorkbenchConfirmationSession(
+            title: L("settings.maintenance.compact_title"),
+            message: L("settings.maintenance.compact_message"),
+            destructiveTitle: L("settings.maintenance.compact_confirm"),
+            cancelTitle: L("common.cancel"),
+            onDestructive: { [weak self] in
+                guard let self else { return }
+                self.compactDatabaseStorage()
+                self.settings.confirmation.session = nil
+            },
+            onCancel: { [weak self] in
+                self?.settings.confirmation.session = nil
+            }
+        )
+    }
+
     func compactDatabaseStorage() {
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
             return

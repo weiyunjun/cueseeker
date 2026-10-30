@@ -217,9 +217,6 @@ struct PlaybackVideoStage: View {
                     TooltipCenter.shared.dismiss()
                 }
             }
-            .onReceive(playback.pointerHideRequests) {
-                chrome.pointerHideRequested()
-            }
             .onChange(of: chrome.isPointerVisible) { isVisible in
                 playback.pointerVisibility.setVisible(isVisible)
             }

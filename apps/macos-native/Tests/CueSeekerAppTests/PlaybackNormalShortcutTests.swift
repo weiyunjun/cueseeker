@@ -26,23 +26,13 @@ func normalPlaybackQToggleSubtitlesWhileSAndCDoNothing() throws {
         let viewModel = try #require(app.playback.playbackViewModel)
 
         #expect(viewModel.areSubtitlesVisible)
-        // Keyboard input never hides the pointer.
-        let initialPointerHideGeneration = app.playback.pointerHideRequestGeneration
         #expect(app.handlePlaybackKeyDown(keyCode: 12, modifierFlagsRawValue: 0))
-        #expect(
-            app.playback.pointerHideRequestGeneration
-                == initialPointerHideGeneration
-        )
         #expect(!viewModel.areSubtitlesVisible)
         #expect(viewModel.feedback?.text == "Subtitles Off")
 
         let feedbackAfterQ = viewModel.feedback
         #expect(!app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
         #expect(!app.handlePlaybackKeyDown(keyCode: 8, modifierFlagsRawValue: 0))
-        #expect(
-            app.playback.pointerHideRequestGeneration
-                == initialPointerHideGeneration
-        )
 
         #expect(!viewModel.areSubtitlesVisible)
         #expect(viewModel.feedback == feedbackAfterQ)
@@ -55,14 +45,8 @@ func normalPlaybackQToggleSubtitlesWhileSAndCDoNothing() throws {
 func normalPlaybackBarePCopiesScreenshotWhileShiftPDoesNothing() throws {
     try withNormalPlaybackApp { app, _ in
         let viewModel = try #require(app.playback.playbackViewModel)
-        let initialPointerHideGeneration = app.playback.pointerHideRequestGeneration
 
         #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
-        // Keyboard input never hides the pointer.
-        #expect(
-            app.playback.pointerHideRequestGeneration
-                == initialPointerHideGeneration
-        )
         #expect(viewModel.feedback == nil)
 
         #expect(app.handlePlaybackKeyDown(
@@ -75,10 +59,6 @@ func normalPlaybackBarePCopiesScreenshotWhileShiftPDoesNothing() throws {
             keyCode: 35,
             modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
         ))
-        #expect(
-            app.playback.pointerHideRequestGeneration
-                == initialPointerHideGeneration
-        )
     }
 }
 
@@ -143,25 +123,18 @@ func normalPlaybackBareRAndTriangleConsumeUnavailableRepeatSilently() throws {
 
 @MainActor
 @Test
-func playbackPointerHideRequestDoesNotInvalidatePlaybackStore() {
-    let suiteName = "PlaybackNormalShortcutTests-\(UUID().uuidString)"
-    let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
-    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
-    let store = PlaybackStore(userDefaults: userDefaults)
-    var playbackStoreInvalidations = 0
-    var pointerHideRequests = 0
-    let invalidationCancellable = store.objectWillChange.sink {
-        playbackStoreInvalidations += 1
-    }
-    let requestCancellable = store.pointerHideRequests.sink {
-        pointerHideRequests += 1
-    }
+func playbackControllerInputDoesNotHidePointerVisibility() throws {
+    try withNormalPlaybackApp { app, _ in
+        app.playback.isPlaybackSurfaceExpanded = true
+        app.playback.pointerVisibility.setVisible(true)
+        #expect(app.playback.pointerVisibility.isVisible)
 
-    store.requestPointerHide()
+        #expect(app.handlePlaybackControllerInput(.button(.north)))
+        #expect(app.playback.pointerVisibility.isVisible)
 
-    #expect(pointerHideRequests == 1)
-    #expect(playbackStoreInvalidations == 0)
-    withExtendedLifetime((invalidationCancellable, requestCancellable)) {}
+        #expect(app.handlePlaybackControllerInput(.direction(.right, source: .directionalPad, isRepeat: false)))
+        #expect(app.playback.pointerVisibility.isVisible)
+    }
 }
 
 @MainActor

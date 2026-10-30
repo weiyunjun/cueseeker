@@ -595,9 +595,23 @@ func playbackCommandPanelPreservesUnderlyingOverlay() async throws {
         #expect(app.playback.commandPanelPresentation?.page == .root)
         #expect(app.playback.subtitleFocusSession === session)
 
+        #expect(!app.handlePlaybackKeyDown(
+            keyCode: 53,
+            modifierFlagsRawValue: 0,
+            textInputState: PlaybackKeyboardTextInputState(
+                isEditableFocused: true,
+                hasMarkedText: true
+            )
+        ))
+        #expect(app.playback.commandPanelPresentation?.page == .root)
+
         #expect(app.handlePlaybackKeyDown(
             keyCode: 53,
-            modifierFlagsRawValue: 0
+            modifierFlagsRawValue: 0,
+            textInputState: PlaybackKeyboardTextInputState(
+                isEditableFocused: true,
+                hasMarkedText: false
+            )
         ))
         #expect(app.playback.commandPanelPresentation == nil)
         #expect(app.playback.subtitleFocusSession === session)

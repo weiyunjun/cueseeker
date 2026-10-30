@@ -40,7 +40,6 @@ struct LibraryEditCoverDialog: View {
                     isActive: !session.canSave,
                     label: L("tooltip.disabled.edit_cover.save")
                 )
-                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)

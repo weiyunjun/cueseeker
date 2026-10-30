@@ -398,14 +398,6 @@ final class WorkbenchLayoutState: ObservableObject {
         return true
     }
 
-    @discardableResult
-    func collapseOverlaySidebarOnMouseLeaveIfNeeded(
-        width: CGFloat,
-        threshold: CGFloat = AppShellLayout.sidebarAutoCollapseWindowWidth
-    ) -> Bool {
-        collapseSidebarForCompactWindowIfNeeded(width: width, threshold: threshold)
-    }
-
     func selectRecentSection(_ section: WorkbenchRecentSection) {
         route.selectedRecentSection = section
     }

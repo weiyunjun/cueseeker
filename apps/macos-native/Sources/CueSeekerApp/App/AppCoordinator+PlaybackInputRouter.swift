@@ -247,6 +247,12 @@ extension AppCoordinator {
             .control,
             .option,
         ]
+        if commandPanel.page == .root,
+           textInputState.isEditableFocused,
+           textInputState.hasMarkedText {
+            return false
+        }
+
         if keyCode == 53,
            modifierFlags.intersection(disallowedModifiers).isEmpty {
             guard !isRepeat else {
@@ -260,9 +266,6 @@ extension AppCoordinator {
 
         if commandPanel.page == .root,
            textInputState.isEditableFocused {
-            guard !textInputState.hasMarkedText else {
-                return false
-            }
             guard modifierFlags.intersection(disallowedModifiers).isEmpty
             else {
                 return false

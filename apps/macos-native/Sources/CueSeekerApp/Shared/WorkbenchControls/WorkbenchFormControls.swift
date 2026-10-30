@@ -208,8 +208,19 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
                 }
                 return false
             case #selector(NSResponder.cancelOperation(_:)):
-                if !textView.hasMarkedText(),
-                   let onCancel = parent.onCancel {
+                if textView.hasMarkedText() {
+                    let markedRange = textView.markedRange()
+                    textView.inputContext?.discardMarkedText()
+                    if markedRange.location != NSNotFound,
+                       markedRange.location + markedRange.length <= (textView.string as NSString).length {
+                        textView.replaceCharacters(in: markedRange, with: "")
+                        textView.didChangeText()
+                    } else {
+                        textView.unmarkText()
+                    }
+                    return true
+                }
+                if let onCancel = parent.onCancel {
                     return onCancel()
                 }
                 return false

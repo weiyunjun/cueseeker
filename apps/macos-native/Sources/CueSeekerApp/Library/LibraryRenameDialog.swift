@@ -200,7 +200,6 @@ struct LibraryRenameDialog: View {
                 title: L("rename.confirm"),
                 action: confirm
             )
-            .keyboardShortcut(.defaultAction)
             .accessibilityIdentifier("rename-confirm")
         }
     }

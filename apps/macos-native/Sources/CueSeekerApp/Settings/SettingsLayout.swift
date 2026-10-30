@@ -17,27 +17,33 @@ struct SettingsPage<Content: View>: View {
     }
 
     var body: some View {
-        WorkbenchScrollView {
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                Text(title)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizePageTitle,
-                        weight: WorkbenchControlMetrics.redesignFontWeightPageTitle
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+        GeometryReader { proxy in
+            WorkbenchScrollView {
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                    Text(title)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizePageTitle,
+                            weight: WorkbenchControlMetrics.redesignFontWeightPageTitle
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
 
-                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
-                    content
+                    VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
+                        content
+                    }
                 }
+                .padding(.leading, WorkbenchControlMetrics.redesignSpacing6)
+                .padding(
+                    .trailing,
+                    WorkbenchControlMetrics.redesignSpacing6
+                        + WorkbenchControlMetrics.redesignWorkbenchPageScrollbarChannel
+                )
+                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing6)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: proxy.size.height,
+                    alignment: .topLeading
+                )
             }
-            .padding(.leading, WorkbenchControlMetrics.redesignSpacing6)
-            .padding(
-                .trailing,
-                WorkbenchControlMetrics.redesignSpacing6
-                    + WorkbenchControlMetrics.redesignWorkbenchPageScrollbarChannel
-            )
-            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing6)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(WorkbenchRedesignColors.bgSurface)

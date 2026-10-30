@@ -70,10 +70,7 @@ private struct ContentRootView: View {
                     if !hidesWorkbenchChrome {
                         AppTopBar(
                             isDockedSidebarVisible: isDockedSidebarVisible,
-                            isOverlaySidebarVisible: isOverlaySidebarVisible,
-                            onOverlaySidebarMouseLeave: {
-                                collapseOverlaySidebarOnMouseLeaveIfNeeded(width: geometry.size.width)
-                            }
+                            isOverlaySidebarVisible: isOverlaySidebarVisible
                         )
                         .zIndex(AppShellLayout.topBarZIndex)
                     }
@@ -150,18 +147,6 @@ private struct ContentRootView: View {
             width: width,
             threshold: AppShellLayout.sidebarAutoCollapseWindowWidth
         )
-    }
-
-    private func collapseOverlaySidebarOnMouseLeaveIfNeeded(width: CGFloat) {
-        guard layoutState.isSidebarVisible else {
-            return
-        }
-        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-            _ = layoutState.collapseOverlaySidebarOnMouseLeaveIfNeeded(
-                width: width,
-                threshold: AppShellLayout.sidebarAutoCollapseWindowWidth
-            )
-        }
     }
 }
 
@@ -432,7 +417,6 @@ private struct ContentDialogLayerHost: View {
 struct AppTopBar: View {
     let isDockedSidebarVisible: Bool
     var isOverlaySidebarVisible: Bool = false
-    var onOverlaySidebarMouseLeave: () -> Void = {}
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
@@ -498,11 +482,6 @@ struct AppTopBar: View {
                         }
                     )
                     .frame(height: AppShellLayout.topBarHeight)
-                }
-                .overlay {
-                    OverlaySidebarPointerMonitorView(
-                        onMouseLeave: onOverlaySidebarMouseLeave
-                    )
                 }
         }
     }

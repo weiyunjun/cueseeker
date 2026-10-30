@@ -703,7 +703,6 @@ struct AnkiExportDialog: View {
                 title: L("anki_export.export"),
                 action: export
             )
-            .keyboardShortcut(.defaultAction)
         }
     }
 

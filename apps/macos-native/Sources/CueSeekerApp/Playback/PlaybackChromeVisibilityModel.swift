@@ -135,15 +135,6 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         reevaluate()
     }
 
-    /// A game controller has no pointer, so its input hides both at once. The
-    /// keyboard does not.
-    func pointerHideRequested() {
-        guard isGoverned else {
-            return
-        }
-        hideBoth()
-    }
-
     /// The window's or the App's focus changed.
     func focusChanged() {
         reevaluate()

@@ -31,7 +31,6 @@ extension AppCoordinator {
         guard isPlaybackPageVisible || playbackFullscreenManager.isFullscreen else {
             return false
         }
-        playback.requestPointerHide()
         let resolvedTextInputState = textInputState
             ?? PlaybackKeyboardTextInputState(
                 isEditableFocused: Self.isEditableTextInputFocused(),

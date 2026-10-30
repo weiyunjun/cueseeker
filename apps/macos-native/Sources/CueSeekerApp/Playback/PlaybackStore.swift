@@ -88,7 +88,6 @@ final class PlaybackPointerVisibilityStore: ObservableObject {
 final class PlaybackStore: ObservableObject {
     let timeline = PlaybackTimelineInteractionStore()
     let pointerVisibility = PlaybackPointerVisibilityStore()
-    let pointerHideRequests = PassthroughSubject<Void, Never>()
 
     /// The layer registry answers every "is this layer covered" question, so
     /// the store reports its layers — Playback Overlay, Command Panel — and
@@ -374,7 +373,6 @@ final class PlaybackStore: ObservableObject {
         moreSubmenuState.open(submenu)
     }
 
-    private(set) var pointerHideRequestGeneration: UInt64 = 0
     private var subtitleFocusSessionGeneration = 0
 
     @MainActor
@@ -799,10 +797,5 @@ final class PlaybackStore: ObservableObject {
         for line in PlaybackErrorLine.allCases {
             clearError(on: line)
         }
-    }
-
-    func requestPointerHide() {
-        pointerHideRequestGeneration &+= 1
-        pointerHideRequests.send()
     }
 }

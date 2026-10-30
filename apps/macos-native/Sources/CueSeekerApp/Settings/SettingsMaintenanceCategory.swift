@@ -7,7 +7,6 @@ struct SettingsMaintenanceCategory: View {
     @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var indexing: IndexingStore
-    @State private var isShowingCompactConfirmation = false
 
     var body: some View {
         SettingsGroup(
@@ -56,7 +55,7 @@ struct SettingsMaintenanceCategory: View {
                         title: L("settings.maintenance.compact"),
                         icon: .fileArrowDown
                     ) {
-                        isShowingCompactConfirmation = true
+                        appState.requestCompactDatabaseConfirmation()
                     }
                     .disabled(!appState.canCompactDatabase)
                     .workbenchTooltip(
@@ -82,14 +81,6 @@ struct SettingsMaintenanceCategory: View {
         }
         .onAppear {
             appState.refreshDatabaseStorageStats()
-        }
-        .alert(L("settings.maintenance.compact_title"), isPresented: $isShowingCompactConfirmation) {
-            Button(L("common.cancel"), role: .cancel) {}
-            Button(L("settings.maintenance.compact_confirm"), role: .destructive) {
-                appState.compactDatabaseStorage()
-            }
-        } message: {
-            Text(L("settings.maintenance.compact_message"))
         }
     }
 

@@ -130,6 +130,8 @@ final class SettingsStore: ObservableObject {
 
     let playbackShortcuts: PlaybackShortcutStore
 
+    let confirmation = ConfirmationCenter()
+
     var showCueGroup: Bool {
         get { cueGroupPresentation.isEnabled }
         set { cueGroupPresentation.set(newValue) }

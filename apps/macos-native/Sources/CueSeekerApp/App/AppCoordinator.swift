@@ -34,6 +34,9 @@ final class AppCoordinator: ObservableObject {
     let playback: PlaybackStore
     let toast = ToastCenter()
     let confirmation = ConfirmationCenter()
+    var isBlockingConfirmationPresented: Bool {
+        confirmation.session != nil || settings.confirmation.session != nil
+    }
     let filterDialog = CueFacetFilterDialogCenter()
     let tasks: TaskQueueStore
     let interfaceLayers = InterfaceLayerRegistry()

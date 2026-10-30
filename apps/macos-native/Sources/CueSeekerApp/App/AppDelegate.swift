@@ -95,7 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// See `docs/human/requirements/20260911-UI-In-Window Dialogs And Only
     /// Confirmation Blocks Closing.md`.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard appState.confirmation.session != nil,
+        guard appState.isBlockingConfirmationPresented,
               !Self.isSystemQuit(NSAppleEventManager.shared().currentAppleEvent)
         else {
             return .terminateNow
@@ -405,7 +405,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             defer: false
         )
         settingsWindow.isFocusLocked = { [settingsInterfaceLayers] in
-            settingsInterfaceLayers.hasUncoveredOpenMenu
+            MainActor.assumeIsolated {
+                settingsInterfaceLayers.hasUncoveredOpenMenu
+                    || settingsInterfaceLayers.isOpen(.dialog)
+            }
         }
         settingsWindow.title = L("settings.window.title")
         settingsWindow.titleVisibility = .hidden

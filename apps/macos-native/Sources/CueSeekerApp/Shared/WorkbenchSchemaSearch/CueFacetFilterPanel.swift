@@ -408,9 +408,9 @@ struct CueFacetFilterDialog: View {
             )
             .keyboardShortcut(.cancelAction)
 
-            // Show, and Return with it, waits for the total: until it is known
-            // the button says it is calculating, and a selection is handed to
-            // the table only once it is.
+            // Show waits for the total: until it is known the button says it is
+            // calculating, and a selection is handed to the table only once it
+            // is.
             WorkbenchPrimaryButton(
                 title: counts.totalCount.map { session.source.showTitle(totalCount: $0) }
                     ?? L("facet.calculating"),
@@ -420,7 +420,6 @@ struct CueFacetFilterDialog: View {
                     onClose()
                 }
             )
-            .keyboardShortcut(.defaultAction)
             .disabled(counts.totalCount == nil)
         }
     }

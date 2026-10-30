@@ -267,7 +267,6 @@ struct ExcerptListEditorDialog: View {
                 action: save
             )
             .disabled(session.isSaving)
-            .keyboardShortcut(.defaultAction)
         }
     }
 

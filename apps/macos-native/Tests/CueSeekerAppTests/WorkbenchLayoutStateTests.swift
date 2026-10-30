@@ -282,68 +282,6 @@ func workbenchSidebarCollapsesBeforeThePageDropsBelowItsMinimumWidth() {
     )
 }
 
-@MainActor
-@Test
-func overlaySidebarMouseLeaveCollapsesOnlyInCompactWindowWhenPointerLeaves240Width() {
-    let sidebarBounds = CGRect(x: 0, y: 0, width: 240, height: 600)
-
-    // 1. During entrance cooldown, even a pointer past x > 240 does not abort the fade-in.
-    #expect(
-        !OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
-            CGPoint(x: 320, y: 27),
-            sidebarBounds: sidebarBounds,
-            isWithinEntranceCooldown: true
-        )
-    )
-
-    // 2. Pointer inside x <= 240 (including upward nudges above the top-left toggle button) stays open.
-    #expect(
-        !OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
-            CGPoint(x: 96, y: 27),
-            sidebarBounds: sidebarBounds
-        )
-    )
-    #expect(
-        !OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
-            CGPoint(x: 96, y: -6),
-            sidebarBounds: sidebarBounds
-        )
-    )
-    #expect(
-        !OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
-            CGPoint(x: 96, y: 605),
-            sidebarBounds: sidebarBounds
-        )
-    )
-    #expect(
-        !OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
-            CGPoint(x: 240, y: 300),
-            sidebarBounds: sidebarBounds
-        )
-    )
-
-    // 3. Pointer moving horizontally past x > 240 after entrance cooldown collapses the overlay sidebar.
-    #expect(
-        OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
-            CGPoint(x: 241, y: 300),
-            sidebarBounds: sidebarBounds
-        )
-    )
-
-    withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
-        let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
-        layoutState.setSidebarVisible(true)
-
-        // Docked mode (>= 840px) never collapses on mouse leave.
-        #expect(!layoutState.collapseOverlaySidebarOnMouseLeaveIfNeeded(width: 840))
-        #expect(layoutState.isSidebarVisible)
-
-        // Overlay mode (< 840px) immediately collapses on mouse leave.
-        #expect(layoutState.collapseOverlaySidebarOnMouseLeaveIfNeeded(width: 720))
-        #expect(!layoutState.isSidebarVisible)
-    }
-}
-
 @Test
 func adaptiveHeaderGeometryCentersShiftsAndTruncatesWith12PxMinimumGap() {
     let leadingNaturalSize = CGSize(width: 140, height: 28)
