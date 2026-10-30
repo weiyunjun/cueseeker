@@ -1,0 +1,153 @@
+# 版本
+
+main
+
+# 关联设计
+
+- `docs/human/design/ui/UI Accessibility Rules.md`
+- `docs/human/design/ui/UI Design Rules.md`
+- `docs/human/design/ui/UI Interaction Rules.md`
+- `docs/human/design/ui/UI Tokens.md`
+- `docs/human/design/ui/UI Components - Controls.md`
+- `docs/human/design/ui/UI Components - Domain.md`
+- `docs/human/design/ui/UI Layouts - Workbench.md`
+- `docs/human/design/ui/UI Layouts - Playback.md`
+- `docs/human/design/playback/Controller.md`
+
+# 需求描述
+
+## 1. 全局通用无障碍规则
+
+1. **屏蔽系统自带无障碍与统一视觉表现**：
+   - 全局屏蔽 macOS 系统自带的键盘无障碍（含系统「键盘导航 / Full Keyboard Access」焦点环与系统级 `Tab` 焦点切换），在任何界面与任何时刻均不展示 macOS 系统自身的无障碍光圈；任何界面打开时初始均处于未开启无障碍状态（不带默认无障碍光圈）。
+   - 无障碍选中组件时，唯一视觉表现为在目标组件外围绘制带偏移间隙的半透明系统强调色光圈（颜色 `--color-focus-ring`、线宽 `--focus-ring-width: 2px`、外偏移 `--focus-ring-offset: 2px`），保持组件几何零偏移。
+   - **不改变组件自身边框与背景底色**：所有按钮（含 `Neutral`、`Destructive` 等）被无障碍选中时自身边框颜色保持不变；无障碍在任何场合下均不触发任何组件的鼠标 `Hover` 状态，也不因无障碍本身改变组件的背景底色（任何背景底色变化均仅来源于组件所属区域的 `Select` 状态）。
+   - **无可见外框组件的圆角光圈边界**：
+     - 表格普通模式下 `Cues` 列的台词文字（`Interactive Text`）：光圈套在其圆角点击热区框（内边距 `--padding-table-cell-hover-x` / `--padding-table-cell-hover-y`，圆角 `--radius-table-cell-hover: 8px`）外围；
+     - 面包屑未激活上级链接节点（`Breadcrumb`）、顶栏与弹窗标签页（`Tab`）、File 页面状态指示器（`Workbench Status Indicator`）：光圈按各自的点击热区矩形配合圆角 `--radius-field`（`6px`）向外偏移 `2px` 绘制。
+
+2. **显式组件类型白名单与状态规则**：
+   - 「鼠标左键点击可产生交互」作为划分哪些组件类型纳入无障碍白名单的设计原则；在规则上按**显式指定的组件类型白名单**纳入当前最上层界面的无障碍序列，**不因组件当前处于 `Disabled`（禁用）状态或 `Selected`（已选中）状态而动态跳过**。
+   - 处于 `Disabled` 状态的白名单组件（含禁用态按钮、禁用态输入框、禁用态复选框/开关、禁用态菜单项、远程目录浏览中已添加置灰的文件夹卡片及其左侧复选框、File 页面处于未索引或进行中状态的状态指示器），以及已处于 `Selected` 状态的单选切换项（含主窗口与设置窗口左侧导航栏 `Sidebar Item` 当前项、标签页 `Tab` 当前项、分段控制器 `Segmented Control` 当前项），均正常参与无障碍遍历并套上外圈无障碍光圈；在 `Disabled` 组件或已处于 `Selected` 的单选切换项上按下触发键（`Space` / `Return` / 手柄 `✕`）时不产生动作，无障碍光圈保持在该组件上。
+   - **非白名单元素（不参与无障碍）**：系统原生窗口红绿灯、设置页快捷键录制框（`Shortcut Field`，且其处于 `Recording` 录制状态期间全局禁用无障碍）、标题、普通文本、各页面数量统计文本（如 `xx folders`、`xx results`、`xx excerpts`、`xx / yy rows selected`）、静态图标、分割线（含 `Menu Divider`）、面包屑最右侧不可交互的当前末级节点（`Current Item`）、File 单集容器内的视频/字幕文件行整体、远程目录浏览中的纯视频/字幕文件行、任务卡片整体、表格行（`Table Row`）整体、表格已失效（`Unavailable`）行的首列空白槽位与台词文字、播放页进度条与音量滑块轨道、封面裁剪编辑态下的裁剪框与角点手柄、导出 Anki 数据对象胶囊本体与左侧拖拽手柄、长截图预览组、所有字幕流 `Playback Cue Reel` 及其内部项。
+
+3. **按需显现子控件（`Presence`）、布局层 `Hidden` 与结构层 `Collapsed / Closed`**：
+   - **受 `Presence` 控制的个体按需显现子控件**：全应用包含 ① 封面卡片（`Media Card`：含 `Library` 一级、`Excerpt` 一级及 `Recent` / `Command Panel` 中的摘录集卡片）右下角 `dots-three` 按钮、② File 页面卡片（含一/二级文件夹卡片、单集容器内视频/字幕行）右侧 `dots-three` 按钮、③ 任务面板卡片（`Task Card`）右侧 `dots-three` 按钮、④ 表格普通模式下表头首列 `#` 全选 `Checkbox`（存在有效行时）、有效行首列 `Checkbox` 及数据行右侧 `dots-three` 按钮。当无障碍选中父卡片整体或表格行内其他部位时，上述子控件保持不显示；**仅当无障碍光圈直接移至该子控件自身时（或通过该按钮打开菜单期间），仅该单个子控件切换为显示并套上无障碍光圈**（期间即便鼠标移开或窗口失焦也保持显示），无障碍移出该子控件后立即恢复不显示。
+   - **布局层 `Visible / Hidden`（播放页 `Player UI` 唤醒与常驻）**：在播放页主界面按下 `Tab` / `Shift + Tab` / `L1` / `R1` 开启无障碍时，立即将整套 `Player UI`（顶栏、台词队列控制栏、底栏）从 `Hidden` 切换为 `Visible`（不主动唤出已隐藏的鼠标指针）；当无障碍光圈位于 `Player UI` 上时，「不自动隐藏 `Player UI`」优先级高于所有自动隐藏条件（3 秒静止、鼠标移出窗口、`Cmd + Tab` 窗口失焦、进入全屏均不隐藏 `Player UI`）；退出无障碍后立即按当时指针与窗口状态重新判定显隐与 3 秒计时。
+   - **结构层 `Collapsed / Closed` 不参与无障碍**：处于收起态的 `Sidebar`、收起态的音量滑块区域、未打开的菜单/二级菜单、未展开的 `Color Well` 预设色块面板、未打开的弹窗/浮层内部组件均不参与无障碍。主窗口在窄窗口模式下展开浮层导航栏（`Overlay Sidebar`）时，被其视觉遮挡的顶栏后退/前进按钮及页面组件不做跳过处理，正常参与无障碍聚焦与触发。
+
+4. **开启、移动、触发、视口跟随与退出规则**：
+   - **按键映射与手柄全局生效范围**：
+     - 正序开启 / 下一个：键盘 `Tab`、手柄 `R1`；
+     - 逆序开启 / 上一个：键盘 `Shift + Tab`、手柄 `L1`；
+     - 触发当前组件：键盘 `Space` 或 `Return`、手柄 `✕`（叉键）；
+     - 退出无障碍：键盘 `Esc`、手柄 `◯`（圆圈键）或鼠标左/右键在窗口任意位置点击；
+     - `Select` 区域方向导航：键盘 `↑` `↓` `←` `→`、手柄十字键 / 左摇杆（左摇杆在封面卡片网格、选项列表、所有弹出菜单与二级菜单中支持长按像键盘方向键一样连续移动、斜向输入按主轴处理、且回到死区后才可重新触发）；
+     - **手柄全局支持**：手柄输入不再局限于播放页，而是在全应用所有活动窗口与界面层级（含主窗口工作台各页面、工作台与设置页弹出菜单及二级菜单、全部模态对话框与任务面板、独立设置窗口、以及播放相关界面）中全局生效。
+   - **开启初始位置（与是否存在聚焦输入框无关）**：只要当前最上层界面处于未开启无障碍状态（无论是否存在默认聚焦或手动点击聚焦的输入框），按 `Tab` / `R1` 始终选中当前最上层界面的第 1 个无障碍组件；按 `Shift + Tab` / `L1` 始终选中当前最上层界面的最后 1 个无障碍组件；若选中的组件不是此前已聚焦的输入框，原输入框立即取消输入焦点。
+   - **移动顺序与视口自动滚动露出**：仅在当前最上层可交互界面内按「从上到下、从左到右」及「先整体、再部分」（无论正序或逆序进入带内部子控件的父组件，均先选父组件整体再按序遍历内部子控件）首尾循环，不穿透下层界面；当移动至未完整显示在当前滚动可视区域内（含被固定顶栏或吸顶工具栏/表头遮挡）的组件时，所属滚动容器立即最小幅度无动画滚动使其完整可见。
+   - **文本框联动与输入法（IME）最高优先级**：无障碍移动至可编辑文本输入框（含 `Color Well` 十六进制输入框）时自动获得输入焦点（失焦状态进入时若按既有规则需全选则全选），离开该输入框移向任何其他组件（含搜索框内 `✕` 按钮、`Color Well` 色块、`Command Panel` 下方选项等）时原输入框立即取消输入焦点；位于文本框上时 `Space` 输入空格、多行文本框 `Return` 换行、左右方向键移动光标；当文本框存在未上屏输入法候选词（Marked Text）时，`Esc`、`Space`、`Return`、`Tab` 与方向键均优先由输入法响应，不触发无障碍动作。
+   - **退出优先级与组件消失自动退出**：
+     - 处于无障碍状态（且无未上屏候选词）时，第 1 次按 `Esc` / `◯` 仅退出无障碍状态（清除外圈光圈；位于文本框上时保留文本框输入焦点；位于已展开的 `Color Well` 色块面板或二级菜单时不收起面板或菜单）；无障碍光圈清除后（或原本未处于无障碍状态时），再次按 `Esc` / `◯` 在全应用所有窗口与层级中严格一致，正常执行界面原有的关闭或退出操作（含关闭工作台/设置页/播放页菜单或整套二级菜单、关闭模态对话框或任务面板、收起 `Color Well` 预设色块面板、关闭 `Command Panel` 或 `Playback Overlay`、退出表格批量选择模式或系统全屏）；
+     - 打开更高层界面（弹出菜单、展开二级菜单、打开 Dialog、打开 Command Panel）时，下层无障碍清除，新打开的上层界面初始处于未开启无障碍状态；
+     - **承载光圈的组件自身从界面消失时立即退出无障碍**：包括所属弹窗/菜单/浮层关闭、点击文件夹卡片进入下级页面/目录导致原卡片销毁、以及点击按条件显现的 `✕` 按钮导致该按钮自身从界面移除（搜索框右侧 `✕` 清除按钮、快捷键设置页行左侧 `✕` 恢复默认按钮、导出 Anki 数据胶囊右侧 `✕` 删除按钮）；
+     - **承载组件未消失时保持无障碍光圈**：点击左侧导航栏入口（`App Sidebar` / `Settings Sidebar`）、标签页（`Tab`）、分段控制器选项（`Segmented Control`）或按钮后，若该组件自身仍存在于界面中（即使状态变为 `Selected` 或 `Disabled`），无障碍光圈继续保留在该组件上；
+     - **窗口失焦保持原状**：`Cmd + Tab` 切换应用或在主窗口与设置窗口之间切换导致窗口失焦时，不清除无障碍光圈。
+
+5. **与 `Hover`、`Tooltip` 及 `Select` 的关系**：
+   - **与鼠标 `Hover` 及 `Tooltip` 独立**：无障碍的进入、移动与退出不触发、不清除、也不抑制鼠标指针所在位置的 `Hover`，不隐藏已显示的 `Tooltip`。
+   - **弹出菜单与二级菜单中 `Hover` 与 `Select` 独立**：菜单项的鼠标 `Hover`（`--color-bg-hover` / `--color-player-menu-item-hover-bg`）与键盘/手柄/无障碍 `Select`（`--color-menu-item-selected-bg` / `--color-player-menu-item-selected-bg`）相互独立，不合并为单一高亮；同一菜单项同时具有 `Select` 与 `Hover` 时优先显示 `Select` 底色。
+   - **`Select` 区域边界与双向跟随**：
+     - 全应用仅以下 3 类集合区域属于 `Select` 区域：① 封面卡片网格（`Recent`、`Library` 一/二级、`Excerpt` 一级、`Playback Video Playlist`、`Command Panel` 二级卡片网格）、② `Command Panel` 一级首页下方选项列表、③ 弹出菜单与二级菜单；其余所有组件（顶栏/底栏/工具栏按钮、含 `Command Panel` 在内的所有搜索框、`File` 卡片、远程目录卡片、任务卡片、表格）均不属于 `Select` 区域；
+     - 当通过 `Tab` / `Shift + Tab` / `L1` / `R1` 移入或在 `Select` 区域内移动时，按遍历顺序选中目标项（正序移入时选中第 1 项），并将该区域的 `Select` 同步更新至当前无障碍所在项（弹出菜单中的 `Disabled` 菜单项被选中时仅套外圈光圈，不显示 `Select` 底色；选中封面卡片右下角 `dots-three` 按钮时，`Select` 底色继续挂在该按钮所属的封面卡片上）；
+     - **已处于无障碍状态时，方向键（及十字键/左摇杆）仅在当前无障碍光圈正位于 `Select` 区域内部时才对该 `Select` 区域生效**，移动 `Select` 并使无障碍光圈同步落在新 `Select` 项整体（如封面卡片整体）上；当无障碍光圈位于 `Select` 区域之外的任何控件（如顶栏按钮、底栏按钮、`Command Panel` 顶部搜索框）上时，按方向键绝不移动 `Select` 区域的选中项，无障碍光圈也绝不跳入 `Select` 区域；
+     - 当无障碍脱离区域或退出无障碍时，常驻 `Select` 区域（`Playback` 卡片网格、`Command Panel` 首页选项与二级卡片网格、弹出菜单）的 `Select` 继续停留在离开前的最后一项上；Workbench 封面卡片区域（`Recent`、`Library` 一/二级、`Excerpt` 一级）的卡片 `Select` 底色立即消失。
+
+---
+
+## 2. 分步执行计划与各阶段具体规则
+
+> **分步执行与 E2E 验收铁律**：本需求必须严格按以下 **4 个阶段（Step 1 ~ Step 4）** 分步实现与提交。**每完成 1 个阶段的代码与测试后，必须立即停下并向用户汇报，交由用户进行 E2E 验收；在用户明确确认当前阶段 E2E 验收通过前，严禁进入下一阶段的开发。**
+
+### Step 1：主窗口工作台全部页面（含启动默认页）+ 弹出菜单与二级菜单（`L-01`、`L-03` ~ `L-05`、`C-04`、`C-06`）
+1. **全局无障碍底座与主窗口大区域顺序（`L-01`）**：
+   - 建立应用内统一的键盘与手柄无障碍状态机及外圈光圈绘制机制，全局屏蔽 macOS 系统自带焦点环；
+   - **顶栏（`L-01.2`）**：`Sidebar Toggle` → `Back` → `Forward` →（仅 `Recent` 页：顶栏中间 `Videos` Tab → `Excerpt Lists` Tab） → `Task Entry` → `Settings Entry`（含 `Disabled` 与 `Selected` 状态）；
+   - **左侧导航栏（`L-01.1`）**：仅在展开态（含宽窗口 `Docked` 与窄窗口 `Overlay`；窄窗口浮层展开时不跳过被遮挡的顶栏按钮与页面组件）参与，按从上到下依次遍历全部 5 项：`Search` → `Recent` → `Library` → `File` → `Excerpt`（含当前 `Selected` 项；触发切换页面后光圈留在该导航项上）；
+   - **页面内容区（`L-01.3`）**：遍历完最后一个组件后循环回顶栏 `Sidebar Toggle`。
+2. **工作台各业务页面内容区遍历顺序**：
+   - **`Search` 一级页面与 `L-05.3 Excerpt` 二级详情页（含表格 `C-06`）**：
+     - `Excerpt` 二级详情页先遍历顶部 `Cover Summary` 操作按钮（`Resume` / `Play` → `More`）；
+     - **普通模式（`Normal Mode`）**：搜索框（及有文字时的内部 `✕`；点击 `✕` 清空文字后 `✕` 消失并自动退出无障碍） → `Filter` 按钮 → `Sort` 按钮 → 表头首列 `#` 全选 `Checkbox`（存在有效行时，选中显现并套光圈，表头整行不变底色） → 各数据行（从上到下，整行不套光圈、不变底色：**有效行**依次选 ① 首列按需显现的 `Checkbox` → ② 圆角 `8px` 热区框套光圈的 `Cues` 台词文字［无下划线］ → ③ 右侧按需显现的 `dots-three` 按钮；**已失效 `Unavailable` 行**仅选右侧按需显现的 `dots-three` 按钮）；
+     - **批量选择模式（`Select Mode`）**：第一行右侧 `Exit Selection` 按钮 → 第二行 `Export to Anki` 按钮 → `Copy Deep Links` 按钮 → `Copy Table` 按钮 → 表头首列 `#` 全选 `Checkbox` → 各**有效数据行**首列 `Checkbox`（从上到下；**已失效 `Unavailable` 行**跳过）；
+     - 跨屏移动时表格立即最小幅度无动画滚动露出目标项。
+   - **`L-03.1 Recent`**：按非空时间分组（`Last 7 Days` → `Last 30 Days` → `Earlier` → `Never Played`）从上到下、每组网格内从左到右遍历封面卡片（`Videos` 下直接选卡片整体；`Excerpt Lists` 下每张卡片先选整体再选右下角 `dots-three` 按钮）。
+   - **`L-04.1 Library` 一级总览页**：搜索框（及内部 `✕`） → 排序按钮 → 下方文件夹卡片网格（从上到下、从左到右，每张卡片先选整体再选右下角 `dots-three` 按钮）。
+   - **`L-04.3 Library` 二级详情页**：`Cover Summary` 底部按钮行（`Resume` / `Play` → `View in File` → `More`） → 下方剧集卡片网格（从上到下、从左到右依次选每张剧集卡片整体）。
+   - **`L-05.1 Excerpt` 一级总览页**：搜索框（及内部 `✕`） → 排序按钮 → 新建按钮（`+`） → 下方摘录集卡片网格（从上到下、从左到右，每张卡片先选整体再选右下角 `dots-three` 按钮）。
+   - **`L-04.5 File` 一/二/三级页面**：顶部 `Add Folder` 按钮 → `Index All` 按钮 → `Status Indicator` 状态文字（所有状态下均可选中，圆角 `6px` 光圈，无下划线） → 面包屑未激活上级链接节点（仅二/三级，从左到右，跳过最右侧当前末级节点） → 一/二级文件夹卡片（从上到下，每张先选卡片整体再选右侧 `dots-three` 按钮，无 `Select` 底色） → 二/三级单集容器内各视频/字幕文件行右侧的 `dots-three` 按钮（从上到下，跳过文件行整体）。
+3. **弹出菜单与二级菜单（`C-04.1` ~ `C-04.3`，含工作台菜单手柄完整适配）**：
+   - 全应用所有弹出菜单与二级菜单（含工作台各页面排序菜单、`dots-three` 菜单、详情页 `More` 菜单、移动/复制到摘录集二级菜单，以及后续设置页下拉菜单）均完整支持键盘与手柄操作；
+   - 菜单打开时初始无默认选中项且未开启无障碍；菜单项的鼠标 `Hover` 与键盘/手柄/无障碍 `Select` 独立渲染；
+   - **已开启无障碍时**：按 `Tab` / `Shift + Tab` / `R1` / `L1` 从上到下遍历菜单内全部 `Menu Item`（**含 `Disabled` 项**，跳过 `Menu Divider`；`Disabled` 项被无障碍选中时仅套外圈光圈，不显示 `Select` 底色，触发无动作），并与上下方向键 / 手柄十字键及左摇杆双向同步跟随；
+   - **未开启无障碍时**：同样支持通过上下方向键或手柄十字键 / 左摇杆在可用菜单项间移动 `Select`（不开启无障碍光圈），按 `Return` / `Space` 或手柄 `✕` 触发当前 `Select` 菜单项，按 `Esc` 或手柄 `◯` 关闭菜单；
+   - 选中带二级菜单（`Submenu`）的父菜单项时不自动展开二级菜单，按 `Space` / `Return` / `✕` 或 `→`（十字右键/左摇杆右拨）展开；展开后二级菜单成为当前最上层界面，父菜单无障碍光圈清除，二级菜单内部初始无选中项且未开启无障碍；按 `←`（十字左键/左摇杆左拨）收起二级菜单；在二级菜单处于无障碍状态时按第 1 次 `Esc` / `◯` 仅清除无障碍光圈，按第 2 次 `Esc` / `◯` 关闭整套菜单。
+
+### Step 2：全部模态对话框与任务面板（`L-06.1` ~ `L-06.11`）
+1. **对话框通用规则**：
+   - 所有对话框打开时初始均无默认无障碍光圈；**移除 `Confirmation Dialog`（`L-06.7`）打开时按回车键直接触发右下角主确认按钮的行为**（所有对话框在未通过无障碍选中具体按钮前，按回车均不触发底部按钮）。
+2. **各对话框与任务面板特定遍历顺序**：
+   - **`L-06.1 Edit Cover Dialog`**：右上角关闭按钮 →（仅未选图 Preview 态）封面选图触发按钮（仅在封面外围套光圈，不显示 `Choose Image` 遮罩；已选图裁剪态跳过裁剪框与角点手柄） → `Cancel` → `Save`；
+   - **`L-06.2 Excerpt List Editor Dialog`**：右上角关闭按钮 →（仅未选图态）封面选图触发按钮 → `Name` 输入框 → `Description` 多行输入框 → `Cancel` → `Save`；
+   - **`L-06.3 Rename Dialog`**：打开时默认赋予 `New Name` 输入框普通输入焦点（无外圈光圈）；按 `Tab` 开启无障碍时依次为：右上角关闭按钮 → `New Name` 输入框 → `Cancel` → `Rename`；
+   - **`L-06.4 WebDAV / SMB / FTP / NFS Folder Dialog`**：
+     - Step 1：右上角关闭按钮 → 从上到下当前协议各输入框（`Address`、`Port`、`Username`、`Password`） → `Cancel` → `Connect`；
+     - Step 2：右上角关闭按钮 → 面包屑未激活上级链接节点（从左到右） → 目录列表内所有文件夹卡片（**含未添加与已添加置灰 `Added` 文件夹**，跳过纯文件行；从上到下，每张先选卡片整体再选内部左侧 `Checkbox`） → 底部 `Back` → `Cancel` → `Add`；
+   - **`L-06.5 Export to Anki Dialog`**：右上角关闭按钮 → `Front` 列顶部 `+` 按钮 → `Front` 列卡片内各数据对象右侧 `✕` 删除按钮（从上到下；跳过胶囊本体与左侧拖拽手柄；触发删除后胶囊消失并自动退出无障碍） → `Back` 列顶部 `+` 按钮 → `Back` 列卡片内各数据对象右侧 `✕` 删除按钮（从上到下） → `File Name` 输入框 → `Location` 输入框 → `Location` 右侧文件夹选择图标按钮 → 底部 `Cancel` → `Export`；
+   - **`L-06.6 Filter Dialog`**：右上角关闭按钮 → 各筛选维度分组（`Duration` → `Character` → `Language` → `Watch Status` → `Folder`）下的所有 `Filter Chip`（每组内从左到右、换行从上到下） → 底部 `Reset` → `Cancel` → `Show`；
+   - **`L-06.7 Confirmation Dialog`**：右上角关闭按钮 → `Cancel` → `Confirm`；
+   - **`L-06.8 File Detail Dialog` & `L-06.11 Task Detail Dialog`**：`Folder Info` 与 `Task Info` 仅右上角关闭按钮 1 项；`File Info` 为右上角关闭按钮 → 顶部配对文件下拉触发器；
+   - **`L-06.9 Task Panel`**：顶部 3 个 `Tab`（`Current` → `Completed` → `Incomplete`） → 右上角关闭按钮 → 下方列表内各任务卡片右侧按需显现的 `dots-three` 按钮（从上到下，跳过任务卡片整体）。
+
+### Step 3：独立设置窗口（`L-02 Settings` 全部 6 个分类页）
+1. **全局顺序**：左侧分类导航栏（`L-02.2`：从上到下依次遍历 `General` → `Play` → `Shortcuts` → `Subtitle` → `Maintenance` → `Developer`，含当前 `Selected` 项） → 右侧当前分类内容区（`L-02.3`）。
+2. **各分类页右侧内容区顺序**：
+   - **`General` 页**：`Appearance` 分段控制器的 3 个选项（从左到右，含当前已选项） → `Show Cue Group` 开关 → `Prefill Command Panel with Focused Cue` 开关 → `Language` 语言下拉按钮 → `Play First Search Result` 开关；
+   - **`Play` 页**：`Auto Pause` 开关 → `Auto Switch` 开关 → `Auto Switch Gap` 数字框 → `Decoder` 分段控制器的 3 个选项（从左到右，含当前已选项）；
+   - **`Shortcuts` 页（`L-02.4`）**：仅按从上到下遍历非默认键位行左侧显示的 `Restore Default`（`✕`）图标按钮（触发恢复默认后该 `✕` 按钮消失并自动退出无障碍）；所有 `Shortcut Field` 跳过，且任意 `Shortcut Field` 处于 `Recording` 录制状态期间全局禁用无障碍；
+   - **`Subtitle` 页（`L-02.5`）**：按从上到下、从左到右依次遍历当前显示的各分组控件（`Font` 下拉按钮、各 `Number Field`、`Bold` / `Italic` 复选框、各 `Color Well`、各 `Segmented Control` 的全部选项），最后选中右下角 `Restore Defaults` 按钮；其中 `Color Well`（`C-02.3`）无论正序还是逆序进入，均先选中十六进制输入框整体（进入可编辑状态并同步展开下方 `6×2` 预设色块面板），随后按从上到下、从左到右遍历 12 个预设色块（遍历色块期间输入框失焦但面板保持展开，触发选色后面板与光圈保持在当前色块上），离开 `Color Well` 时收起面板；
+   - **`Maintenance` 页**：`Refresh` 按钮 → `Compact Database` 按钮（及点击弹出的设置窗口内 `Confirmation Dialog`）；
+   - **`Developer` 页**：`Enable FTS Vocabulary Diagnostics` 开关 → `FTS Vocabulary Data` 分组的 `Refresh` 按钮。
+
+### Step 4：播放页主界面、播放浮层与命令面板（`L-07` ~ `L-09`）
+1. **播放页主界面（`L-07 Player`）**：
+   - 实现 `Player UI` 开启无障碍唤醒（保持已隐藏鼠标指针不唤出）、无障碍存续期间最高优先级常驻 `Visible`（忽略 3 秒静止、移出窗口、窗口失焦、进入全屏）、以及退出无障碍后按当时条件立即隐藏或重计 3 秒的完整联动；
+   - 遍历顺序：顶栏（返回按钮 → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口） → 台词队列控制栏（仅台词队列播放显示时：`Auto Pause` → `Auto Switch` → 步进器 `-` → 步进器 `+`，含 `Disabled` 态按钮，跳过中间毫秒数文本） → 底栏控制行（左侧播控按钮组从左到右 → 音量控件左侧静音喇叭按钮［不展开右侧音量滑块、不显示 Hover 背景，跳过音量滑块轨道］ → 右侧字幕菜单按钮 → 倍速菜单按钮 → 更多菜单按钮 → 全屏按钮；跳过顶部播放进度条 `Player Progress Scrubber`）。
+2. **播放页浮层（`L-08 Playback Overlay`）**：
+   - **移除原有的 `Tab` 与手柄 `L1` / `R1` 直接切换 `Current / Playlist` 标签页功能**，统一改为无障碍焦点遍历；
+   - **`Current` 与 `Subtitle Playlist` 视图**：顶栏（返回按钮 → `Current` Tab → `Playlist` Tab［存在时］ → `Collage` 按钮［仅 `Current`］ → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口） →（中间字幕流 `Reel` 跳过） → 底栏右侧各 `Shortcut Action Button`（从左到右）；
+   - **`Video Playlist` 视图**：顶栏（返回按钮 → `Current` Tab → `Playlist` Tab → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口） → 中间视频封面卡片网格（从上到下、从左到右依次选每张卡片整体，在网格内与常驻 `Select` 双向跟随） → 底栏右侧 `Play` 按钮；
+   - **`Editing Collage` 视图**：顶栏（返回按钮 → `Collage` 按钮 → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口） →（中间左侧长截图预览组与右侧字幕勾选流均跳过） → 底栏右侧各 `Shortcut Action Button`（`Copy Collage` → `Export Collage` → `Select`）。
+3. **命令面板（`L-09 Command Panel`）**：
+   - **一级根视图（`L-09.1`）**：打开时默认赋予顶部搜索框普通输入焦点（无外圈光圈）；按 `Tab` / `R1` 开启无障碍时从第 1 个组件（顶部搜索框整体）开始依次遍历：顶部搜索框（及有文字时的内部 `✕`） → 中间选项列表（`Search Action`［Filled Query 时］ → `Recent Videos` → `Recent Excerpt Lists`；仅当无障碍光圈位于该选项列表内时与常驻 `Select` 双向跟随，光圈在顶部搜索框或底栏按钮上时按方向键不移动选项列表 `Select`） → 底栏 `Open` 按钮；
+   - **二级视图 — `Recent Videos` / `Recent Excerpt Lists`（`L-09.2`）**：顶部返回按钮 → 中间封面卡片网格（按分组从上到下、从左到右，在网格内与常驻 `Select` 双向跟随；`Recent Videos` 选卡片整体，`Recent Excerpt Lists` 每张卡片先选整体再选右下角 `dots-three` 按钮） → 底栏 `Open` 按钮；
+   - **二级视图 — `Search Results`（`L-09.2` / `L-09.3`）**：顶部返回按钮 → `Filter` 按钮 → `Sort` 按钮 →（中间搜索结果字幕流 `Reel` 跳过） → 底栏各 `Shortcut Action Button`（`Save to Excerpt List` → `Copy Cue Text` → `Copy Deep Link` → `Play`）。
+
+---
+
+# 验收标准
+
+1. **Step 1 验收（主窗口工作台全部页面 + 弹出菜单与二级菜单）**：
+   - 启动应用后在默认 `Search` 页及各工作台页面均无系统焦点环与默认无障碍光圈；按 `Tab` / `Shift + Tab` 或手柄 `R1` / `L1` 可循环遍历顶栏（含禁用态前进/后退、`Recent` 全部 Tab）、展开态左侧导航栏（含当前已选页，窄窗口浮层展开时不跳过被遮挡的顶栏按钮）与当前页面内容区；点击左侧导航项或顶栏 Tab 切换后光圈保持在该项上。
+   - 在 `Search` 与 `Excerpt` 二级详情页中，普通模式下按顺序遍历工具栏、表头首列 `#` 按需显现的全选 `Checkbox`、以及各数据行内部子控件（有效行依次为按需显现的首列 `Checkbox` → 圆角 `8px` 热区框套光圈的台词文字 → 按需显现的右侧 `dots-three` 按钮；`Unavailable` 行仅选右侧 `dots-three` 按钮）；批量选择模式下遍历批量工具栏按钮、表头全选框与各有效行首列 `Checkbox`（跳过 `Unavailable` 行），任何模式下均不对表格整行套光圈，且跨屏移动时表格无动画自动滚动露出目标项。
+   - 在 `Recent`、`Library` 一/二级、`Excerpt` 一级页中，搜索框聚焦/失焦与内部 `✕` 清除按钮（点击清空后 `✕` 消失并自动退出无障碍）工作正常；无障碍进入封面卡片网格时卡片同步呈现 `Select` 底色与外圈光圈，右下角 `dots-three` 按钮仅在被无障碍直接选中时显现且 `Select` 底色保持在所属卡片上；仅当无障碍位于卡片网格内时按方向键/十字键/左摇杆可带动卡片 `Select` 与光圈同步移动，离开网格或退出无障碍后 Workbench 卡片的 `Select` 底色立即消失。
+   - 在 `File` 一/二/三级页面中，顶部状态指示器文字在所有状态下均可被套光圈选中，面包屑仅选中未激活上级节点，文件夹卡片按「先整体、再右侧 `dots-three`」遍历且不改变底色，单集容器仅依次选中各文件行右侧按需显现的 `dots-three` 按钮。
+   - 工作台所有弹出菜单与二级菜单均同时支持键盘与手柄操作，鼠标 `Hover` 与 `Select` 独立显示，无障碍遍历包含 `Disabled` 项（仅套光圈不显 `Select` 底色），未开启无障碍时同样可用方向键或手柄十字键/左摇杆移动菜单 `Select` 并用 `✕` 触发、`◯` 关闭；带二级菜单的项按空格/回车/`✕` 或 `→`/十字右键/左摇杆右拨展开后二级菜单初始无选中项，按 `←`/十字左键/左摇杆左拨收回，按第 1 次 `Esc` / `◯` 仅清光圈、第 2 次 `Esc` / `◯` 关闭整套菜单（表格批量选择模式下同样支持第 1 次 `◯` 清光圈、第 2 次 `◯` 退出批量模式）。
+2. **Step 2 验收（全部模态对话框与任务面板）**：
+   - 全部模态对话框（`L-06.1` ~ `L-06.11`）在键盘与手柄下均正常工作，打开时无默认无障碍光圈，且包括 `Confirmation Dialog` 在内的所有弹窗打开时直接按回车均不触发右下角主按钮；`Rename` 弹窗按 `Tab` / `R1` 从右上角关闭按钮第 1 项开始遍历；远程文件夹弹窗 Step 2 包含已添加置灰卡片及其复选框；`Export to Anki` 点击胶囊 `✕` 删除后自动退出无障碍；`Task Panel` 依次遍历顶部全部 Tab、关闭按钮与各任务卡片右侧按需显现的 `dots-three` 按钮；按第 1 次 `Esc` / `◯` 仅清光圈、第 2 次 `Esc` / `◯` 关闭弹窗。
+3. **Step 3 验收（独立设置窗口）**：
+   - 在设置窗口中，键盘与手柄均可完整操作左侧 6 个分类项（含已选中项）与右侧 6 个分类页的实际控件（含语言与字体下拉菜单的手柄操作）；`Shortcuts` 页点击非默认行左侧 `✕` 按钮恢复默认后自动退出无障碍，录制快捷键期间全局禁用无障碍；`Subtitle` 页 `Color Well` 正逆序进入均先选中输入框整体并展开 12 个预设色块面板，依次遍历 12 个色块且第 1 次 `Esc` / `◯` 仅清光圈不收起面板、第 2 次 `Esc` / `◯` 收起面板；主窗口与设置窗口之间切换焦点时各自保留无障碍光圈。
+4. **Step 4 验收（播放页主界面、播放浮层与命令面板）**：
+   - 在播放页主界面按 `Tab` / `Shift + Tab` / `L1` / `R1` 立即唤醒 `Player UI`（不唤出已隐藏指针），无障碍在 `Player UI` 上期间静止满 3 秒、鼠标移出窗口、切换窗口失焦或进入全屏均保持 `Player UI` 常驻显示，退出无障碍后立即按当时状态隐藏或重计 3 秒；台词队列控制栏含禁用态按钮均可遍历，静音按钮选中时不展开音量滑块，进度条跳过。
+   - 在 `Playback Overlay` 中，`Tab` 与 `L1` / `R1` 不再直接切换标签页，而是正常遍历顶栏、视频卡片网格（`Video Playlist`）与底栏快捷动作按钮，所有字幕流 `Reel` 与长截图预览组均跳过。
+   - 在 `Command Panel` 一级首页按第 1 次 `Tab` 选中顶部搜索框整体并套上光圈，继续按 `Tab` 遍历内部 `✕`、下方选项列表与底栏 `Open` 按钮；当无障碍光圈在顶部搜索框或底栏按钮上时，按方向键不会移动下方选项列表的 `Select` 也不会将光圈拉入选项列表；`Recent Videos` / `Recent Excerpt Lists` 二级视图卡片网格遍历与常驻 `Select` 驻留、以及搜索后打开的 `Search Results` 二级视图（返回按钮 → `Filter` 按钮 → `Sort` 按钮 → 跳过字幕流 → 底栏 4 个快捷动作按钮）遍历与触发均符合规范。
