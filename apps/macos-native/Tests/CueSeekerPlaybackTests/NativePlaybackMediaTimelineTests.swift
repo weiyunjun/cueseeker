@@ -245,6 +245,15 @@ func nativePlaybackNotifiesNaturalCompletionAfterAudioDrain() async throws {
     #expect(wrapperCompleted)
     #expect(playbackPlayer.currentVideoURL == nil)
     #expect(!playbackDelegate.hasFailures)
+
+    _ = try playbackPlayer.seek(toMilliseconds: 0, pauseAfterFirstFrame: false)
+    #expect(playbackPlayer.currentVideoURL == mediaURL.standardizedMediaURL)
+
+    let wrapperReplayedToCompletion = await waitUntil(timeoutSeconds: 5) {
+        playbackDelegate.completionCount == 2
+    }
+    #expect(wrapperReplayedToCompletion)
+    #expect(!playbackDelegate.hasFailures)
 }
 
 @Test

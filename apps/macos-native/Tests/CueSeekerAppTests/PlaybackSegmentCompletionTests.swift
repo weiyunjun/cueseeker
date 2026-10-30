@@ -1165,6 +1165,14 @@ func singleEpisodeNaturalLibraryPlaybackCompletionPreservesFullDurationAndRestar
         #expect(completedHistory.positionMilliseconds == 100_000)
         #expect(app.libraryResumePositionMilliseconds(for: onlyVideo) == 0)
 
+        // Pressing Play while remaining at the end of the last video restarts from 00:00.
+        app.togglePlaybackFromUser()
+        #expect(app.playback.playbackStatus == .playing)
+        #expect(playbackViewModel.isPlaying)
+        #expect(playbackViewModel.currentTime == 0.0)
+        #expect(playbackViewModel.displayedCurrentTime == 0.0)
+        #expect(playbackViewModel.feedback?.icon == .play)
+
         // Seeking backward after natural completion while remaining on the playback page
         // saves the newly seeked position normally.
         playbackViewModel.player(player, didUpdateTimePosition: 42.0)

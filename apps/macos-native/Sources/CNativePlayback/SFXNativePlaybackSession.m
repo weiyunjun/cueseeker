@@ -652,6 +652,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     if (atomic_load(&_cancelled)
         || atomic_load(&_finishingForAutomaticRecycle)
         || [self hasActiveSegmentEnd]) {
+        atomic_store(&_playing, false);
         return;
     }
 
@@ -664,6 +665,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
             _currentTime = fmax(_currentTime, _duration);
         }
     }
+    atomic_store(&_playing, false);
     [self notifyTimeIfNeeded:YES];
 
     id<SFXNativePlaybackPlayerDelegate> delegate = _delegate;

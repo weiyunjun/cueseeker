@@ -36,4 +36,29 @@ public enum LibraryPlaybackIntentResolver {
     ) -> LibraryPlaybackCompletionAction {
         hasNextVideo ? .playNextVideo : .remainAtEnd
     }
+
+    public static func shouldRestartFromBeginningOnPlay(
+        hasNextVideo: Bool,
+        currentTime: Double,
+        duration: Double?
+    ) -> Bool {
+        guard completionAction(hasNextVideo: hasNextVideo) == .remainAtEnd,
+              currentTime.isFinite,
+              let duration,
+              duration.isFinite,
+              duration > 0
+        else {
+            return false
+        }
+
+        let positionMilliseconds = max(0, (currentTime * 1_000).rounded(.down))
+        let durationMilliseconds = (duration * 1_000).rounded(.down)
+        guard durationMilliseconds.isFinite,
+              durationMilliseconds > 0
+        else {
+            return false
+        }
+
+        return positionMilliseconds >= durationMilliseconds
+    }
 }

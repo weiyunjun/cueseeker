@@ -149,6 +149,14 @@ public final class PlaybackViewModel: ObservableObject {
         performSeek(to: seconds, resetsAccumulatedFeedback: true)
     }
 
+    public func restartPlaybackFromBeginning() {
+        guard !isPlayerEmpty else {
+            return
+        }
+        isPlaying = true
+        performSeek(to: 0, resetsAccumulatedFeedback: true)
+    }
+
     func prepareNewVideoOpening(
         to seconds: Double,
         subtitleCues: [PlaybackSubtitleCue]? = nil,

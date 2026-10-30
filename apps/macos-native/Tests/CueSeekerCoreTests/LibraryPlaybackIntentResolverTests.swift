@@ -59,4 +59,25 @@ func libraryPlaybackCompletionAdvancesOnlyWhenNextVideoExists() {
         LibraryPlaybackIntentResolver.completionAction(hasNextVideo: false)
             == .remainAtEnd
     )
+    #expect(
+        LibraryPlaybackIntentResolver.shouldRestartFromBeginningOnPlay(
+            hasNextVideo: false,
+            currentTime: 100.0,
+            duration: 100.0
+        )
+    )
+    #expect(
+        !LibraryPlaybackIntentResolver.shouldRestartFromBeginningOnPlay(
+            hasNextVideo: true,
+            currentTime: 100.0,
+            duration: 100.0
+        )
+    )
+    #expect(
+        !LibraryPlaybackIntentResolver.shouldRestartFromBeginningOnPlay(
+            hasNextVideo: false,
+            currentTime: 42.5,
+            duration: 100.0
+        )
+    )
 }

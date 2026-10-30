@@ -60,9 +60,12 @@
 	        }
 	        segmentEnding = atomic_load(&_segmentEnding);
 	    }
-	    atomic_store(&_playing, false);
-	    if (!cancelled && !segmentEnding && !finishingForAutomaticRecycle) {
-	        [self notifyTimeIfNeeded:YES];
+	    BOOL hasActiveSegmentEnd = [self hasActiveSegmentEnd];
+	    if (cancelled || segmentEnding || finishingForAutomaticRecycle || hasActiveSegmentEnd) {
+	        atomic_store(&_playing, false);
+	        if (!cancelled && !segmentEnding && !finishingForAutomaticRecycle) {
+	            [self notifyTimeIfNeeded:YES];
+	        }
 	    }
     atomic_store(&_decodeLoopFinished, true);
     [_packetQueueCondition lock];

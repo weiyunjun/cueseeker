@@ -89,6 +89,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public weak var delegate: PlaybackPlayerDelegate?
 
     public private(set) var currentVideoURL: URL?
+    private var lastOpenedVideoURL: URL?
     public var usingHardwareDecode: Bool {
         nativePlayer.usingHardwareDecode
     }
@@ -183,7 +184,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
         let generation = bindPendingPresentationToNativeGeneration()
         authorizeAutoPauseBoundary(autoPauseBoundary, generation: generation)
-        currentVideoURL = request.videoURL.standardizedMediaURL
+        let standardizedURL = request.videoURL.standardizedMediaURL
+        currentVideoURL = standardizedURL
+        lastOpenedVideoURL = standardizedURL
         Task { @MainActor in
             self.attachActiveRenderView()
         }
@@ -318,6 +321,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             throw error
         }
         let generation = bindPendingPresentationToNativeGeneration()
+        if currentVideoURL == nil {
+            currentVideoURL = lastOpenedVideoURL
+        }
         authorizeAutoPauseBoundary(autoPauseBoundary, generation: generation)
         return generation
     }
@@ -345,6 +351,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             throw error
         }
         let generation = bindPendingPresentationToNativeGeneration()
+        if currentVideoURL == nil {
+            currentVideoURL = lastOpenedVideoURL
+        }
         authorizeAutoPauseBoundary(boundary, generation: generation)
         return generation
     }
@@ -371,7 +380,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             cancelPendingPresentation()
             throw error
         }
-        return bindPendingPresentationToNativeGeneration()
+        let generation = bindPendingPresentationToNativeGeneration()
+        if currentVideoURL == nil {
+            currentVideoURL = lastOpenedVideoURL
+        }
+        return generation
     }
 
     private func beginPresentationTransition(
@@ -483,6 +496,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         delegate?.playerDidResetTimelineThumbnails(self)
         currentRequest = nil
         currentVideoURL = nil
+        lastOpenedVideoURL = nil
         pendingPresentation = nil
         committedPresentationGeneration = nil
         reachedAutoStopBoundaryMilliseconds = nil
@@ -1056,6 +1070,7 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         cancelPendingPresentation()
         currentRequest = nil
         currentVideoURL = nil
+        lastOpenedVideoURL = nil
         if let failedURL {
             delegate?.player(self, didFailToOpenVideoAt: failedURL, error: error)
         } else {

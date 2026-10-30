@@ -618,6 +618,29 @@ extension AppCoordinator {
         )
     }
 
+    func shouldRestartLibraryPlaybackFromBeginningOnPlay() -> Bool {
+        guard case .library(let videoPath) = activePlaybackSource,
+              let selectedLibraryVideo = library.selectedLibraryVideo,
+              selectedLibraryVideo.videoPath == videoPath,
+              let playbackViewModel = playback.playbackViewModel
+        else {
+            return false
+        }
+
+        let resolvedDuration = [
+            playbackViewModel.duration,
+            selectedLibraryVideo.duration
+        ]
+        .compactMap { $0 }
+        .first { $0.isFinite && $0 > 0 }
+
+        return LibraryPlaybackIntentResolver.shouldRestartFromBeginningOnPlay(
+            hasNextVideo: libraryAdjacentVideo(offset: 1) != nil,
+            currentTime: playbackViewModel.currentTime,
+            duration: resolvedDuration
+        )
+    }
+
     func handlePlaybackFinishedNaturally() {
         guard case .library(let videoPath) = activePlaybackSource,
               library.selectedLibraryVideo?.videoPath == videoPath

@@ -89,7 +89,11 @@ extension AppCoordinator {
             cancelAutoSwitchCueSequenceTask()
             clearCueSubtitlePresentationHold()
             currentCueAutoStopReached = false
-            try player?.setPaused(false)
+            if shouldRestartLibraryPlaybackFromBeginningOnPlay() {
+                playback.playbackViewModel?.restartPlaybackFromBeginning()
+            } else {
+                try player?.setPaused(false)
+            }
             if hasPlaybackSelection {
                 playback.playbackStatus = .playing
             }
