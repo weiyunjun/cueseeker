@@ -513,8 +513,6 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryListInfoVerticalGap: CGFloat = 8
     /// --gap-library-folder-card-content: 12px
     static let redesignLibraryFolderCardContentGap: CGFloat = 12
-    /// --scale-library-cover-hover: 1.02
-    static let redesignLibraryCoverHoverScale: CGFloat = 1.02
     /// --duration-library-cover-hover: 0.12s
     static let redesignLibraryCoverHoverDuration: Double = 0.12
     /// --scale-collage-group-hover: 1.02
@@ -527,15 +525,15 @@ enum WorkbenchControlMetrics {
     /// --padding-library-time-badge: 2px 6px
     static let redesignLibraryTimeBadgeVerticalPadding: CGFloat = 2
     static let redesignLibraryTimeBadgeHorizontalPadding: CGFloat = 6
-    /// --opacity-library-cover-action-bg: Light 0.56, Dark 0.44
-    static let redesignLibraryCoverActionBackgroundLightOpacity: CGFloat = 0.56
-    static let redesignLibraryCoverActionBackgroundDarkOpacity: CGFloat = 0.44
-    /// --opacity-library-cover-action-bg-hover: Light 0.72, Dark 0.58
-    static let redesignLibraryCoverActionHoverBackgroundLightOpacity: CGFloat = 0.72
-    static let redesignLibraryCoverActionHoverBackgroundDarkOpacity: CGFloat = 0.58
-    /// --opacity-library-cover-action-bg-pressed: Light 0.88, Dark 0.76
-    static let redesignLibraryCoverActionPressedBackgroundLightOpacity: CGFloat = 0.88
-    static let redesignLibraryCoverActionPressedBackgroundDarkOpacity: CGFloat = 0.76
+    /// --opacity-library-cover-action-bg: Light 0.72, Dark 0.72
+    static let redesignLibraryCoverActionBackgroundLightOpacity: CGFloat = 0.72
+    static let redesignLibraryCoverActionBackgroundDarkOpacity: CGFloat = 0.72
+    /// --opacity-library-cover-action-bg-hover: Light 0.56, Dark 0.56
+    static let redesignLibraryCoverActionHoverBackgroundLightOpacity: CGFloat = 0.56
+    static let redesignLibraryCoverActionHoverBackgroundDarkOpacity: CGFloat = 0.56
+    /// --opacity-library-cover-action-bg-pressed: Light 0.40, Dark 0.40
+    static let redesignLibraryCoverActionPressedBackgroundLightOpacity: CGFloat = 0.40
+    static let redesignLibraryCoverActionPressedBackgroundDarkOpacity: CGFloat = 0.40
     /// --padding-library-media-card-hover: 12px
     static let redesignLibraryMediaCardHoverPadding: CGFloat = 12
     /// --padding-library-list-card: 12px 16px

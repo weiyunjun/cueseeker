@@ -234,22 +234,22 @@ enum WorkbenchRedesignColors {
         static let libraryProgressTrack = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
         static let libraryTimeBadgeBg = NSColor.dynamic(
             lightHex: "#0F172A",
-            lightAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionHoverBackgroundLightOpacity,
-            darkHex: "#000000",
-            darkAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionHoverBackgroundDarkOpacity
-        )
-        static let libraryTimeBadgeText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
-        static let libraryCoverActionBg = NSColor.dynamic(
-            lightHex: "#0F172A",
             lightAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionBackgroundLightOpacity,
-            darkHex: "#000000",
+            darkHex: "#0F172A",
             darkAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionBackgroundDarkOpacity
         )
-        static let libraryCoverActionBgHover = libraryTimeBadgeBg
+        static let libraryTimeBadgeText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
+        static let libraryCoverActionBg = libraryTimeBadgeBg
+        static let libraryCoverActionBgHover = NSColor.dynamic(
+            lightHex: "#0F172A",
+            lightAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionHoverBackgroundLightOpacity,
+            darkHex: "#0F172A",
+            darkAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionHoverBackgroundDarkOpacity
+        )
         static let libraryCoverActionBgPressed = NSColor.dynamic(
             lightHex: "#0F172A",
             lightAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionPressedBackgroundLightOpacity,
-            darkHex: "#000000",
+            darkHex: "#0F172A",
             darkAlpha: WorkbenchControlMetrics.redesignLibraryCoverActionPressedBackgroundDarkOpacity
         )
         static let libraryCoverPlaceholderBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#2E2E33")

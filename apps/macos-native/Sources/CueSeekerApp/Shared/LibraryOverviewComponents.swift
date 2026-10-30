@@ -668,6 +668,7 @@ struct LibraryOverviewCardSurface<Content: View>: View {
     var isSelected = false
     var isHovered = false
     var isEnabled = true
+    var animatesHover = true
     let action: () -> Void
     private let content: Content
 
@@ -675,12 +676,14 @@ struct LibraryOverviewCardSurface<Content: View>: View {
         isSelected: Bool = false,
         isHovered: Bool = false,
         isEnabled: Bool = true,
+        animatesHover: Bool = true,
         action: @escaping () -> Void,
         @ViewBuilder content: () -> Content
     ) {
         self.isSelected = isSelected
         self.isHovered = isHovered
         self.isEnabled = isEnabled
+        self.animatesHover = animatesHover
         self.action = action
         self.content = content()
     }
@@ -696,6 +699,15 @@ struct LibraryOverviewCardSurface<Content: View>: View {
             return WorkbenchRedesignColors.libraryMediaCardHoverBg
         }
         return .clear
+    }
+
+    private var hoverAnimation: Animation? {
+        guard animatesHover else {
+            return nil
+        }
+        return .easeOut(
+            duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
+        )
     }
 
     var body: some View {
@@ -729,12 +741,7 @@ struct LibraryOverviewCardSurface<Content: View>: View {
             .contentShape(Rectangle())
             .opacity(isEnabled ? 1 : 0.55)
             .animation(nil, value: isSelected)
-            .animation(
-                .easeOut(
-                    duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
-                ),
-                value: isHovered
-            )
+            .animation(hoverAnimation, value: isHovered)
     }
 }
 
@@ -742,24 +749,29 @@ struct LibraryOverviewCardButtonStyle: ButtonStyle {
     var isSelected = false
     var isHovered = false
     var isEnabled = true
+    var animatesHover = true
 
     init(
         isSelected: Bool = false,
         isHovered: Bool = false,
-        isEnabled: Bool = true
+        isEnabled: Bool = true,
+        animatesHover: Bool = true
     ) {
         self.isSelected = isSelected
         self.isHovered = isHovered
         self.isEnabled = isEnabled
+        self.animatesHover = animatesHover
     }
 
     init(
         isCurrent: Bool,
-        isEnabled: Bool = true
+        isEnabled: Bool = true,
+        animatesHover: Bool = true
     ) {
         self.isSelected = false
         self.isHovered = isCurrent
         self.isEnabled = isEnabled
+        self.animatesHover = animatesHover
     }
 
     private var backgroundFill: Color {
@@ -773,6 +785,15 @@ struct LibraryOverviewCardButtonStyle: ButtonStyle {
             return WorkbenchRedesignColors.libraryMediaCardHoverBg
         }
         return .clear
+    }
+
+    private var hoverAnimation: Animation? {
+        guard animatesHover else {
+            return nil
+        }
+        return .easeOut(
+            duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
+        )
     }
 
     func makeBody(configuration: Configuration) -> some View {
@@ -795,11 +816,6 @@ struct LibraryOverviewCardButtonStyle: ButtonStyle {
             .contentShape(Rectangle())
             .opacity(isEnabled ? 1 : 0.55)
             .animation(nil, value: isSelected)
-            .animation(
-                .easeOut(
-                    duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
-                ),
-                value: isHovered
-            )
+            .animation(hoverAnimation, value: isHovered)
     }
 }

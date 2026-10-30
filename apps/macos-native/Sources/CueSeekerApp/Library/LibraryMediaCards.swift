@@ -241,6 +241,7 @@ private struct LibraryVideoCard: View {
         LibraryOverviewCardSurface(
             isSelected: isSelected,
             isHovered: isHovered,
+            animatesHover: highlight.animatesHoverBackground,
             action: {
                 highlight.notePress(id: cardID)
                 onOpen()
@@ -298,10 +299,6 @@ private struct LibraryVideoCard: View {
                 highlight.notePress(id: cardID)
                 toggleAnchorMenu?(contextMenuItems, moreMenuAnchor, cardID)
             }
-        )
-        .libraryCoverHoverEffect(
-            isSelected: isSelected,
-            isHovered: isHovered
         )
     }
 
@@ -395,6 +392,7 @@ struct LibraryFolderCard: View {
             isSelected: isSelected,
             isHovered: isHovered,
             isEnabled: isAvailable,
+            animatesHover: highlight.animatesHoverBackground,
             action: {
                 guard isAvailable else {
                     return
@@ -438,10 +436,6 @@ struct LibraryFolderCard: View {
                 highlight.notePress(id: cardID)
                 toggleAnchorMenu?(folderContextMenuItems, moreMenuAnchor, cardID)
             }
-        )
-        .libraryCoverHoverEffect(
-            isSelected: isSelected && isAvailable,
-            isHovered: isHovered && isAvailable
         )
     }
 

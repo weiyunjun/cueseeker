@@ -475,6 +475,7 @@ struct WorkbenchBadge: View {
 
 struct WorkbenchIconButton: View {
     let icon: AppIcon
+    var iconWeight: AppIconWeight? = nil
     /// The button stays lit for as long as the menu or panel it hangs off is
     /// open, and for as long as the mode it switches on is on. Lit looks the
     /// same as hover, the way a shortcut button does.
@@ -572,7 +573,7 @@ struct WorkbenchIconButton: View {
     }
 
     private var glyph: some View {
-        AppIconImage(icon, size: glyphLength)
+        AppIconImage(icon, size: glyphLength, weight: iconWeight)
             .foregroundStyle(redesignIconColor)
     }
 

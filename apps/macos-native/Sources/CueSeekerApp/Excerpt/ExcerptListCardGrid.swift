@@ -154,6 +154,7 @@ private struct ExcerptListCard: View {
         LibraryOverviewCardSurface(
             isSelected: isSelected,
             isHovered: isHovered,
+            animatesHover: highlight.animatesHoverBackground,
             action: {
                 highlight.notePress(id: cardID)
                 onOpen()
@@ -205,10 +206,6 @@ private struct ExcerptListCard: View {
                 )
             }
         }
-        .libraryCoverHoverEffect(
-            isSelected: isSelected,
-            isHovered: isHovered
-        )
     }
 
     private var contextMenuItems: [LibraryCardContextMenuItem] {

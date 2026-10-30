@@ -44,7 +44,7 @@ func everyIconResolvesAtEveryDocumentedSize() {
 func stateVariantIconsResolveFilled() {
     let filled: [AppIcon] = [
         .checkCircle, .minusCircle, .bookmarkSimple,
-        .play, .pause, .skipBack, .skipForward
+        .play, .pause, .skipBack, .skipForward, .dotsThree
     ]
 
     for icon in filled {

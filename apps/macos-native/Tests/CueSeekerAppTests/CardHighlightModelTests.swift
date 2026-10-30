@@ -210,4 +210,16 @@ struct CardHighlightModelTests {
         frozenModel.setFrozen(false)
         #expect(frozenModel.hoveredID == nil)
     }
+
+    @Test
+    func workbenchAnimatesHoverBackgroundWhilePlaybackDisablesHoverAnimation() {
+        #expect(workbench().animatesHoverBackground)
+        #expect(!playback().animatesHoverBackground)
+        #expect(WorkbenchControlMetrics.redesignLibraryCoverActionBackgroundLightOpacity == 0.72)
+        #expect(WorkbenchControlMetrics.redesignLibraryCoverActionBackgroundDarkOpacity == 0.72)
+        #expect(WorkbenchControlMetrics.redesignLibraryCoverActionHoverBackgroundLightOpacity == 0.56)
+        #expect(WorkbenchControlMetrics.redesignLibraryCoverActionHoverBackgroundDarkOpacity == 0.56)
+        #expect(WorkbenchControlMetrics.redesignLibraryCoverActionPressedBackgroundLightOpacity == 0.40)
+        #expect(WorkbenchControlMetrics.redesignLibraryCoverActionPressedBackgroundDarkOpacity == 0.40)
+    }
 }

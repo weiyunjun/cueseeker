@@ -415,7 +415,6 @@ enum WorkbenchLibraryMetrics {
 
     static let recentCardGap = WorkbenchControlMetrics.redesignSpacing2
 
-    static let coverHoverScale = WorkbenchControlMetrics.redesignLibraryCoverHoverScale
     static let coverHoverDuration = WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
 
     static let progressBarHeight = WorkbenchControlMetrics.redesignLibraryProgressBarHeight

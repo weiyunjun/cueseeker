@@ -2,45 +2,6 @@ import CoreGraphics
 import CueSeekerCore
 import SwiftUI
 
-private struct LibraryCoverHoverEffectModifier: ViewModifier {
-    let isSelected: Bool
-    let isHovered: Bool
-
-    private var isActive: Bool {
-        isSelected || isHovered
-    }
-
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(isActive ? WorkbenchLibraryMetrics.coverHoverScale : 1)
-            .animation(nil, value: isSelected)
-            .animation(.easeOut(duration: WorkbenchLibraryMetrics.coverHoverDuration), value: isHovered)
-    }
-}
-
-extension View {
-    func libraryCoverHoverEffect(
-        isSelected: Bool = false,
-        isHovered: Bool
-    ) -> some View {
-        modifier(
-            LibraryCoverHoverEffectModifier(
-                isSelected: isSelected,
-                isHovered: isHovered
-            )
-        )
-    }
-
-    func libraryCoverHoverEffect(isActive: Bool) -> some View {
-        modifier(
-            LibraryCoverHoverEffectModifier(
-                isSelected: false,
-                isHovered: isActive
-            )
-        )
-    }
-}
-
 struct LibraryCoverBadge: View {
     let text: String
 
@@ -79,6 +40,7 @@ struct LibraryCoverMoreButton: View {
     var body: some View {
         WorkbenchIconButton(
             icon: .dotsThree,
+            iconWeight: .fill,
             isOpen: isOpen,
             defaultBackground: WorkbenchRedesignColors.libraryCoverActionBg,
             hoverBackground: WorkbenchRedesignColors.libraryCoverActionBgHover,

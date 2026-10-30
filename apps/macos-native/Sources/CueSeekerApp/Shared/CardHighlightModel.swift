@@ -98,6 +98,13 @@ final class CardHighlightModel: ObservableObject {
         keepsCurrentWhenPointerLeaves ? selectedID : hoveredID
     }
 
+    /// Workbench card grids animate `Hover` background transitions (`0.12s`),
+    /// whereas Playback card grids (`Playback Overlay` and `Command Panel`)
+    /// switch `Hover` and `Select` backgrounds immediately without animation.
+    var animatesHoverBackground: Bool {
+        !keepsCurrentWhenPointerLeaves
+    }
+
     private let keepsCurrentWhenPointerLeaves: Bool
 
     /// Kept for API compatibility; pointer hover no longer mutates `Select`.
@@ -135,8 +142,7 @@ final class CardHighlightModel: ObservableObject {
         hoveredID == id
     }
 
-    /// Whether `id` is either `Select`ed or `Hover`ed (used by effects shared
-    /// by both states, such as the `1.02`x cover scale).
+    /// Whether `id` is either `Select`ed or `Hover`ed.
     func isHighlighted(_ id: String) -> Bool {
         selectedID == id || hoveredID == id
     }
