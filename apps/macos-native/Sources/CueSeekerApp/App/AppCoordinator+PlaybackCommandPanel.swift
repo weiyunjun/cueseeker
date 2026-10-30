@@ -37,6 +37,11 @@ extension AppCoordinator {
             : ""
         presentation.selectedOrdinal = 0
         playback.presentCommandPanel(presentation)
+        AppLogger.shared.info(
+            .playback,
+            "Command panel opened",
+            fields: [("prefilled_query", presentation.query.isEmpty ? nil : presentation.query)]
+        )
         if !presentation.query.trimmingCharacters(
             in: .whitespacesAndNewlines
         ).isEmpty {
@@ -90,6 +95,14 @@ extension AppCoordinator {
         presentation.query = trimmedQuery
         presentation.selectedOrdinal = nil
         playback.presentCommandPanel(presentation)
+        AppLogger.shared.info(
+            .playback,
+            "Command panel search opened",
+            fields: [
+                ("query", trimmedQuery),
+                ("starts_search", "\(shouldStartSearch)")
+            ]
+        )
         synchronizePlaybackCommandPanelSearchResults()
         preparePlaybackKeyboardFocus()
         return true

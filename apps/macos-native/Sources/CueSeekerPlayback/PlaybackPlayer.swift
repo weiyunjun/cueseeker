@@ -286,7 +286,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     ) throws -> UInt {
         reachedAutoStopBoundaryMilliseconds = nil
         let safeMilliseconds = max(0, milliseconds)
-        AppLogger.shared.debug(
+        AppLogger.shared.info(
             .playback,
             "Player seek requested",
             details: "video=\"\(currentVideoURL?.lastPathComponent ?? "none")\" target_ms=\(safeMilliseconds) hw_decode=\(nativePlayer.usingHardwareDecode ? 1 : 0)"
@@ -341,6 +341,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     ) throws -> UInt {
         reachedAutoStopBoundaryMilliseconds = nil
         replacePersistentAutoPauseBoundary(boundary)
+        AppLogger.shared.info(
+            .playback,
+            "Player seek requested",
+            details: "video=\"\(currentVideoURL?.lastPathComponent ?? "none")\" target_ms=\(boundary.startMilliseconds) auto_stop_ms=\(boundary.endMilliseconds) hw_decode=\(nativePlayer.usingHardwareDecode ? 1 : 0)"
+        )
         beginPresentationTransition(
             targetMilliseconds: boundary.startMilliseconds,
             subtitleAction: subtitleAction

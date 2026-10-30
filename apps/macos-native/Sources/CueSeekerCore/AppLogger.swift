@@ -48,6 +48,9 @@ public enum AppLogLevel: Int, Comparable, Sendable, CaseIterable {
 
 public enum AppLogCategory: String, Sendable, CaseIterable {
     case app = "App"
+    case search = "Search"
+    case excerpt = "Excerpt"
+    case library = "Library"
     case database = "Database"
     case task = "Task"
     case playback = "Playback"

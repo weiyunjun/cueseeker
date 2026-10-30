@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import CueSeekerCore
 import CueSeekerPlayback
 
 private struct PlaybackScreenshotRenderWorkItem: @unchecked Sendable {
@@ -361,7 +362,11 @@ public final class PlaybackViewModel: ObservableObject {
             return true
         } catch {
             cancelPendingPresentation()
-            print("Failed to play from cue: \(error)")
+            AppLogger.shared.error(
+                .playback,
+                "Failed to play from cue",
+                fields: [("error", error.localizedDescription)]
+            )
             return false
         }
     }
@@ -385,7 +390,11 @@ public final class PlaybackViewModel: ObservableObject {
             }
         } catch {
             timelineScrubbingWasPlaying = nil
-            print("Failed to begin timeline scrubbing: \(error)")
+            AppLogger.shared.error(
+                .playback,
+                "Failed to begin timeline scrubbing",
+                fields: [("error", error.localizedDescription)]
+            )
         }
     }
 
@@ -423,7 +432,11 @@ public final class PlaybackViewModel: ObservableObject {
         } catch {
             try? player.endTimelineScrubbing()
             cancelPendingPresentation()
-            print("Failed to end timeline scrubbing: \(error)")
+            AppLogger.shared.error(
+                .playback,
+                "Failed to end timeline scrubbing",
+                fields: [("error", error.localizedDescription)]
+            )
         }
     }
 
@@ -440,7 +453,11 @@ public final class PlaybackViewModel: ObservableObject {
             try player.setPaused(!wasPlaying)
             isPlaying = wasPlaying
         } catch {
-            print("Failed to cancel timeline scrubbing: \(error)")
+            AppLogger.shared.error(
+                .playback,
+                "Failed to cancel timeline scrubbing",
+                fields: [("error", error.localizedDescription)]
+            )
         }
     }
 
@@ -471,7 +488,11 @@ public final class PlaybackViewModel: ObservableObject {
             }
         } catch {
             cancelPendingPresentation()
-            print("Failed to seek: \(error)")
+            AppLogger.shared.error(
+                .playback,
+                "Failed to seek",
+                fields: [("error", error.localizedDescription)]
+            )
         }
     }
 
@@ -576,9 +597,17 @@ public final class PlaybackViewModel: ObservableObject {
 
     public func setSpeed(_ value: Double, showsFeedback: Bool = true) {
         let clampedValue = Self.clampedPlaybackSpeed(value)
+        let didChange = abs(clampedValue - playbackSpeed) > 0.001
 
         player.setPlaybackSpeed(clampedValue)
         applyPlaybackSpeedPreference(clampedValue)
+        if didChange {
+            AppLogger.shared.info(
+                .playback,
+                "Playback speed changed",
+                fields: [("speed", String(format: "%.2gx", clampedValue))]
+            )
+        }
         if showsFeedback, !isPlayerEmpty {
             showSpeedFeedback(clampedValue)
         }
@@ -678,8 +707,17 @@ public final class PlaybackViewModel: ObservableObject {
                     pngData,
                     requestGeneration: requestGeneration
                 )
+                AppLogger.shared.info(
+                    .export,
+                    "Frame screenshot copied to clipboard",
+                    fields: [("size", "\(image.width)x\(image.height)")]
+                )
             } catch {
-                print("Failed to copy current frame screenshot: \(error)")
+                AppLogger.shared.error(
+                    .export,
+                    "Failed to copy current frame screenshot",
+                    fields: [("error", error.localizedDescription)]
+                )
             }
         }
     }

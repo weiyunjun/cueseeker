@@ -299,10 +299,39 @@ extension SearchStore {
                 onResultsChanged(generation)
                 let stateAssignMilliseconds =
                     SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
+                _ = stateAssignMilliseconds
+
+                if appending {
+                    AppLogger.shared.debug(
+                        .search,
+                        "Search page loaded",
+                        fields: [
+                            ("query", trimmedQuery),
+                            ("offset", "\(offset)"),
+                            ("loaded", "\(self.loadedSearchResultCueIDs.count)"),
+                            ("total", "\(self.searchResultTotalCount)"),
+                            ("db_ms", String(format: "%.1f", pageLoad.databaseSearchMilliseconds))
+                        ]
+                    )
+                } else {
+                    AppLogger.shared.info(
+                        .search,
+                        "Search completed",
+                        fields: [
+                            ("query", trimmedQuery),
+                            ("results", "\(self.searchResultTotalCount)"),
+                            ("files", "\(self.searchFileSummaries.count)"),
+                            ("sort", sortOrder.rawValue),
+                            ("filtered", "\(!facetFilter.isEmpty)"),
+                            ("db_ms", String(format: "%.1f", pageLoad.databaseSearchMilliseconds))
+                        ]
+                    )
+                }
 
                 let completionStart = SearchPerformanceLogger.now()
                 let statusCompletionMilliseconds =
                     SearchPerformanceLogger.elapsedMilliseconds(since: completionStart)
+                _ = statusCompletionMilliseconds
                 let statusText = page.countState == .exact
                     ? "completed"
                     : "searching"
@@ -362,6 +391,14 @@ extension SearchStore {
                 }
                 let message = String(describing: error)
                 self.markSearchFailed(message, hasMore: false)
+                AppLogger.shared.error(
+                    .search,
+                    "Search failed",
+                    fields: [
+                        ("query", trimmedQuery),
+                        ("error", message)
+                    ]
+                )
                 SearchPerformanceLogger.mark(
                     run,
                     "search_failed",
@@ -435,6 +472,19 @@ extension SearchStore {
                 return
             }
             onResultsChanged(generation)
+            let elapsedMs = SearchPerformanceLogger.elapsedMilliseconds(since: started)
+            AppLogger.shared.info(
+                .search,
+                "Search filter/sort applied",
+                fields: [
+                    ("query", trimmedQuery),
+                    ("results", "\(searchResultTotalCount)"),
+                    ("files", "\(searchFileSummaries.count)"),
+                    ("sort", resolvedSortOrder.rawValue),
+                    ("filtered", "\(!normalizedFilter.isEmpty)"),
+                    ("elapsed_ms", String(format: "%.1f", elapsedMs))
+                ]
+            )
             SearchPerformanceLogger.mark(
                 run,
                 "search_facet_projection_rows_loaded",

@@ -44,6 +44,17 @@ extension AppCoordinator {
         guard search.updateSearchFacetFilter(normalizedFilter) else {
             return
         }
+        AppLogger.shared.info(
+            .search,
+            "Search filter updated",
+            fields: [
+                ("filtered", "\(!normalizedFilter.isEmpty)"),
+                ("durations", "\(normalizedFilter.durations.count)"),
+                ("characters", "\(normalizedFilter.characters.count)"),
+                ("languages", "\(normalizedFilter.languages.count)"),
+                ("watch_states", "\(normalizedFilter.watchStates.count)")
+            ]
+        )
         resetSearchTableAndCommandPanelPreviewForFilterOrSortChange()
         let query = search.searchQuery
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -80,6 +91,11 @@ extension AppCoordinator {
         guard search.updateSearchSortOrder(sortOrder) else {
             return
         }
+        AppLogger.shared.info(
+            .search,
+            "Search sort order updated",
+            fields: [("sort", sortOrder.rawValue)]
+        )
         resetSearchTableAndCommandPanelPreviewForFilterOrSortChange()
         let query = search.searchQuery
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

@@ -616,6 +616,8 @@ extension AppCoordinator {
 
 
     func stopPlayback() {
+        let wasPlayingOrExpanded = activePlaybackSource != .none || playback.isPlaybackSurfaceExpanded
+        let stoppedVideoName = currentPlaybackVideoPath.map { URL.fromMediaPath($0).lastPathComponent }
         cancelPendingPlaybackOpenTask()
         playbackAwaitsLibraryReconcile = false
         _ = playback.dismissCommandPanel()
@@ -637,6 +639,13 @@ extension AppCoordinator {
             clearPlaybackChromeSnapshot()
             playback.isPlaybackSurfaceExpanded = false
             playback.playbackStatus = .idle
+            if wasPlayingOrExpanded {
+                AppLogger.shared.info(
+                    .playback,
+                    "Playback stopped",
+                    fields: [("video", stoppedVideoName)]
+                )
+            }
             switch workbenchLayout.currentRoute {
             case .excerpt, .excerptList:
                 refreshExcerptOnReappearanceIfNeeded()

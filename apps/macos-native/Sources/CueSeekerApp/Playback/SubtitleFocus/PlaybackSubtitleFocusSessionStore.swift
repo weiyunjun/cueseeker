@@ -254,6 +254,11 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         if module == .playlist {
             libraryStore?.activate()
         }
+        AppLogger.shared.info(
+            .playback,
+            "Playback overlay module selected",
+            fields: [("module", "\(module)")]
+        )
         return true
     }
 
@@ -337,6 +342,11 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
         if isEditingCollage {
             clearCollageEditingState()
+            AppLogger.shared.info(
+                .playback,
+                "Collage mode toggled",
+                fields: [("enabled", "false")]
+            )
             return true
         }
 
@@ -353,6 +363,14 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         previewStore.update(plan: selectionPlan)
         collagePreviewStore = previewStore
         isEditingCollage = true
+        AppLogger.shared.info(
+            .playback,
+            "Collage mode toggled",
+            fields: [
+                ("enabled", "true"),
+                ("initial_cue_id", "\(selectedCue.id)")
+            ]
+        )
         return true
     }
 

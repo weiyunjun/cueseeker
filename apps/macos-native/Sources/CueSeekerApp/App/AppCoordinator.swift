@@ -777,33 +777,45 @@ final class AppCoordinator: ObservableObject {
         AppLogger.shared.info(
             .app,
             "Workbench route changed",
-            details: "route=\(Self.logRouteLabel(for: route))"
+            fields: logRouteFields(for: route)
         )
         workbenchLayout.navigate(to: route)
         prepareWorkbenchRoute(route)
     }
 
-    private static func logRouteLabel(for route: WorkbenchRoute) -> String {
+    private func logRouteFields(for route: WorkbenchRoute, navigation: String? = nil) -> [(String, String?)] {
+        var fields: [(String, String?)] = []
+        if let navigation {
+            fields.append(("navigation", navigation))
+        }
         switch route {
         case .search:
-            return "search"
+            fields.append(("route", "search"))
         case .recent:
-            return "recent"
+            fields.append(("route", "recent"))
         case .library:
-            return "library"
-        case .libraryFolder:
-            return "libraryFolder"
+            fields.append(("route", "library"))
+        case .libraryFolder(let folderPath):
+            fields.append(("route", "libraryFolder"))
+            fields.append(("folder", URL.fromMediaPath(folderPath).lastPathComponent))
         case .file:
-            return "file"
-        case .fileFolder:
-            return "fileFolder"
-        case .fileFiles:
-            return "fileFiles"
+            fields.append(("route", "file"))
+        case .fileFolder(let rootPath):
+            fields.append(("route", "fileFolder"))
+            fields.append(("root", URL.fromMediaPath(rootPath).lastPathComponent))
+        case .fileFiles(let rootPath, let folderPath):
+            fields.append(("route", "fileFiles"))
+            fields.append(("root", URL.fromMediaPath(rootPath).lastPathComponent))
+            fields.append(("folder", URL.fromMediaPath(folderPath).lastPathComponent))
         case .excerpt:
-            return "excerpt"
+            fields.append(("route", "excerpt"))
         case .excerptList(let id):
-            return "excerptList(\(id))"
+            let listName = excerpt.listOverview.lists.first(where: { $0.id == id })?.list.name
+            fields.append(("route", "excerptList"))
+            fields.append(("list_id", "\(id)"))
+            fields.append(("list", listName))
         }
+        return fields
     }
 
     func goBackInWorkbench() {
@@ -812,7 +824,13 @@ final class AppCoordinator: ObservableObject {
         }
 
         workbenchLayout.goBack()
-        prepareWorkbenchRoute(workbenchLayout.currentRoute)
+        let currentRoute = workbenchLayout.currentRoute
+        AppLogger.shared.info(
+            .app,
+            "Workbench route changed",
+            fields: logRouteFields(for: currentRoute, navigation: "back")
+        )
+        prepareWorkbenchRoute(currentRoute)
     }
 
     func goForwardInWorkbench() {
@@ -821,7 +839,13 @@ final class AppCoordinator: ObservableObject {
         }
 
         workbenchLayout.goForward()
-        prepareWorkbenchRoute(workbenchLayout.currentRoute)
+        let currentRoute = workbenchLayout.currentRoute
+        AppLogger.shared.info(
+            .app,
+            "Workbench route changed",
+            fields: logRouteFields(for: currentRoute, navigation: "forward")
+        )
+        prepareWorkbenchRoute(currentRoute)
     }
 
     /// The data a page needs that its own view does not load: the Excerpt

@@ -1,3 +1,4 @@
+import CueSeekerCore
 import Foundation
 import os
 
@@ -152,7 +153,19 @@ public enum ExcerptOpenPerformanceTracker {
     private static func emit(_ report: ExcerptOpenPerformanceReport) {
         lastReport = report
         lastReportsByListID[report.listID] = report
-        print(report.logMessage)
+        AppLogger.shared.info(
+            .excerpt,
+            "Excerpt list opened",
+            fields: [
+                ("list_id", "\(report.listID)"),
+                ("title", report.title),
+                ("count", "\(report.count)"),
+                ("total_ms", String(format: "%.1f", report.totalDuration)),
+                ("data_ms", String(format: "%.1f", report.dataReadyDuration)),
+                ("render_ms", String(format: "%.1f", report.viewRenderDuration)),
+                ("cache_hit", "\(report.cacheHit)")
+            ]
+        )
         logger.notice("\(report.logMessage, privacy: .public)")
         onReportEmitted?(report)
     }

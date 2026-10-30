@@ -112,6 +112,11 @@ extension AppCoordinator {
             return false
         }
         playback.releaseSubtitleFocusSession(session)
+        AppLogger.shared.info(
+            .playback,
+            "Subtitle focus overlay closed",
+            fields: [("resumed", "\(shouldResume)")]
+        )
 
         if shouldResume {
             resumePlayback()
@@ -259,6 +264,15 @@ extension AppCoordinator {
         else {
             return false
         }
+
+        AppLogger.shared.info(
+            .playback,
+            "Subtitle focus action executed",
+            fields: [
+                ("action", "\(execution.action)"),
+                ("cue_id", execution.target.cueID.map(String.init))
+            ]
+        )
 
         switch execution.action {
         case .excerpt:
@@ -496,6 +510,15 @@ extension AppCoordinator {
                     )
                     return
                 }
+                AppLogger.shared.info(
+                    .playback,
+                    "Subtitle focus overlay opened",
+                    fields: [
+                        ("video", URL.fromMediaPath(session.openSnapshot.source.videoPath).lastPathComponent),
+                        ("total_cues", "\(snapshot.totalCount)"),
+                        ("selected_ordinal", "\(snapshot.selectedOrdinal)")
+                    ]
+                )
                 self.startPlaybackSubtitleFocusCompleteLoadIfNeeded(
                     for: session,
                     loader: completeCueBatchLoader

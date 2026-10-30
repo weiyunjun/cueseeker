@@ -50,7 +50,11 @@ extension AppCoordinator {
             AppLogger.shared.info(
                 .system,
                 "URL scheme command received",
-                details: "kind=search play_first=\(settings.urlSchemePlayFirstSearchResultEnabled ? 1 : 0)"
+                fields: [
+                    ("kind", "search"),
+                    ("query", keyword),
+                    ("play_first", "\(settings.urlSchemePlayFirstSearchResultEnabled ? 1 : 0)")
+                ]
             )
             search.updateSearchFacetFilter(settings.searchFacetFilter)
             search.updateSearchSortOrder(settings.searchSortOrder)

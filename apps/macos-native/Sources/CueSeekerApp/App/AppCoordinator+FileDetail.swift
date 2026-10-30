@@ -8,6 +8,11 @@ extension AppCoordinator {
             ? folder.mediaPath
             : MediaFolderPathMatching.normalizedFolderPath(folder.path)
         let name = IndexingStore.displayName(for: folder)
+        AppLogger.shared.info(
+            .library,
+            "File detail opened",
+            fields: [("kind", "root_folder"), ("name", name)]
+        )
         if let libraryDatabase,
            let info = try? libraryDatabase.fileDetailFolderInfo(
                for: folderPath,
@@ -40,6 +45,11 @@ extension AppCoordinator {
         let name = folderPath.isRemoteMediaPath
             ? URL.fromMediaPath(standardizedPath).lastPathComponent
             : (standardizedPath as NSString).lastPathComponent
+        AppLogger.shared.info(
+            .library,
+            "File detail opened",
+            fields: [("kind", "subfolder"), ("name", name)]
+        )
         if let libraryDatabase,
            let info = try? libraryDatabase.fileDetailFolderInfo(
                for: standardizedPath,
@@ -66,6 +76,11 @@ extension AppCoordinator {
     }
 
     func requestVideoDetail(for videoPath: String) {
+        AppLogger.shared.info(
+            .library,
+            "File detail opened",
+            fields: [("kind", "video"), ("file", URL.fromMediaPath(videoPath).lastPathComponent)]
+        )
         if let libraryDatabase,
            let items = try? libraryDatabase.fileDetailPairedItems(forVideoPath: videoPath),
            !items.isEmpty {
@@ -98,6 +113,11 @@ extension AppCoordinator {
     }
 
     func requestSubtitleDetail(for subtitlePath: String) {
+        AppLogger.shared.info(
+            .library,
+            "File detail opened",
+            fields: [("kind", "subtitle"), ("file", URL.fromMediaPath(subtitlePath).lastPathComponent)]
+        )
         if let libraryDatabase,
            let items = try? libraryDatabase.fileDetailPairedItems(forSubtitlePath: subtitlePath),
            !items.isEmpty {

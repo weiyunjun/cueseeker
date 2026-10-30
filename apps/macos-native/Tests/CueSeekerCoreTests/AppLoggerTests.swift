@@ -98,6 +98,9 @@ struct AppLoggerTests {
             isEnabled: true
         )
         debugLogger.debug(.playback, "Player seek requested", details: "target_ms=1000")
+        debugLogger.info(.search, "Search completed", details: "query=\"hello\" results=12")
+        debugLogger.info(.excerpt, "Cue saved to excerpt", details: "list=\"Favorites\"")
+        debugLogger.info(.library, "Library overview loaded", details: "folders=5")
         debugLogger.info(.task, "Task completed", details: "type=add_folder")
         debugLogger.warn(.network, "WebDAV redirect warning", details: "host=nas.local")
         debugLogger.error(.export, "Anki export failed", details: "reason=io")
@@ -107,12 +110,15 @@ struct AppLoggerTests {
         let debugLines = try String(contentsOf: debugLogger.logFileURL(), encoding: .utf8)
             .split(separator: "\n")
             .map(String.init)
-        #expect(debugLines.count == 5)
+        #expect(debugLines.count == 8)
         #expect(debugLines[0].contains("[DEBUG] [Playback] Player seek requested"))
-        #expect(debugLines[1].contains("[INFO] [Task] Task completed"))
-        #expect(debugLines[2].contains("[WARN] [Network] WebDAV redirect warning"))
-        #expect(debugLines[3].contains("[ERROR] [Export] Anki export failed"))
-        #expect(debugLines[4].contains("[INFO] [System] Controller connected"))
+        #expect(debugLines[1].contains("[INFO] [Search] Search completed | query=\"hello\" results=12"))
+        #expect(debugLines[2].contains("[INFO] [Excerpt] Cue saved to excerpt | list=\"Favorites\""))
+        #expect(debugLines[3].contains("[INFO] [Library] Library overview loaded | folders=5"))
+        #expect(debugLines[4].contains("[INFO] [Task] Task completed"))
+        #expect(debugLines[5].contains("[WARN] [Network] WebDAV redirect warning"))
+        #expect(debugLines[6].contains("[ERROR] [Export] Anki export failed"))
+        #expect(debugLines[7].contains("[INFO] [System] Controller connected"))
     }
 
     @Test

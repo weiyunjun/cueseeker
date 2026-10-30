@@ -118,6 +118,11 @@ extension LibraryStore {
                     return
                 }
                 self.applyLibraryUserCoverSave(result, target: session.target)
+                AppLogger.shared.info(
+                    .library,
+                    "Library custom cover saved",
+                    fields: [("target", session.target.invalidationDescription)]
+                )
                 session.isSaving = false
                 self.coverEditingSession = nil
             } catch {
@@ -501,6 +506,7 @@ extension LibraryStore {
         }
 
         completeLibraryStatus = .loading
+        let startedAt = DispatchTime.now().uptimeNanoseconds
         completeLibraryTask = Task { [weak self] in
             do {
                 let snapshot = try await Task.detached(priority: .userInitiated) {
@@ -509,6 +515,15 @@ extension LibraryStore {
 
                 guard !Task.isCancelled else { return }
 
+                let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
+                AppLogger.shared.info(
+                    .library,
+                    "Library overview loaded",
+                    fields: [
+                        ("folders", "\(snapshot.count)"),
+                        ("elapsed_ms", String(format: "%.1f", elapsedMs))
+                    ]
+                )
                 self?.applyCompleteLibrary(snapshot)
                 self?.completeLibraryStatus = .completed
             } catch {
@@ -651,6 +666,16 @@ extension LibraryStore {
                 self.completeLibraryFolderDetailsByPath[folderPath] = detail
                 self.completeLibraryFolderDetailStatusesByPath[folderPath]
                     = .completed
+                if !preservesExistingSnapshot {
+                    AppLogger.shared.info(
+                        .library,
+                        "Library folder episodes loaded",
+                        fields: [
+                            ("folder", URL.fromMediaPath(folderPath).lastPathComponent),
+                            ("videos", "\(detail.videos.count)")
+                        ]
+                    )
+                }
             } catch is CancellationError {
                 return
             } catch {
@@ -739,6 +764,15 @@ extension LibraryStore {
         guard !snapshots.isEmpty else {
             return
         }
+        AppLogger.shared.info(
+            .library,
+            "Library watch state updated",
+            fields: [
+                ("videos", "\(videos.count)"),
+                ("state", "\(state)"),
+                ("first", videos.first.map { URL.fromMediaPath($0.videoPath).lastPathComponent })
+            ]
+        )
 
         let writer = libraryPlaybackHistoryWriter
         let affectedVideoPaths = Set(snapshots.map(\.videoPath))

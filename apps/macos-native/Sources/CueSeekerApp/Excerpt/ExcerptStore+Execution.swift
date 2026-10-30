@@ -326,6 +326,28 @@ extension ExcerptStore {
                 }
                 session.isSaving = false
                 self.listEditorSession = nil
+                switch mode {
+                case .newList:
+                    AppLogger.shared.info(
+                        .excerpt,
+                        "Excerpt list created",
+                        fields: [
+                            ("list_id", "\(savedList.id)"),
+                            ("name", savedList.name),
+                            ("has_cover", "\(savedList.coverPath != nil)")
+                        ]
+                    )
+                case .edit:
+                    AppLogger.shared.info(
+                        .excerpt,
+                        "Excerpt list updated",
+                        fields: [
+                            ("list_id", "\(savedList.id)"),
+                            ("name", savedList.name),
+                            ("has_cover", "\(savedList.coverPath != nil)")
+                        ]
+                    )
+                }
                 if !self.upsertListSummary(savedList) {
                     self.reloadListOverview()
                 }
@@ -399,9 +421,19 @@ extension ExcerptStore {
             }
         }
         let currentUniqueCount = listOverview.uniqueCueCount
-        let removedCueCount = listOverview.lists.first(where: { $0.id == id })?.cueCount ?? 0
+        let deletedSummary = listOverview.lists.first(where: { $0.id == id })
+        let removedCueCount = deletedSummary?.cueCount ?? 0
         let estimatedUniqueCount = max(0, currentUniqueCount - removedCueCount)
         removeListSummary(id: id, uniqueCueCount: estimatedUniqueCount)
+        AppLogger.shared.info(
+            .excerpt,
+            "Excerpt list deleted",
+            fields: [
+                ("list_id", "\(id)"),
+                ("name", deletedSummary?.list.name),
+                ("cues", "\(removedCueCount)")
+            ]
+        )
 
         listSaveTask?.cancel()
         listSaveTask = Task { @MainActor [weak self] in
@@ -689,6 +721,14 @@ extension ExcerptStore {
         else {
             return
         }
+        AppLogger.shared.info(
+            .excerpt,
+            "Excerpt filter updated",
+            fields: [
+                ("list_id", "\(listID)"),
+                ("filtered", "\(!filter.isEmpty)")
+            ]
+        )
         settings.setExcerptFacetFilter(filter, forListID: listID)
         if needsReloadAfterIndexedContentMutation {
             refreshOnReappearanceIfNeeded(
@@ -736,6 +776,14 @@ extension ExcerptStore {
         else {
             return
         }
+        AppLogger.shared.info(
+            .excerpt,
+            "Excerpt sort order updated",
+            fields: [
+                ("list_id", "\(listID)"),
+                ("sort", sortOrder.rawValue)
+            ]
+        )
         settings.setExcerptSortOrder(sortOrder, forListID: listID)
         if needsReloadAfterIndexedContentMutation {
             refreshOnReappearanceIfNeeded(
@@ -930,6 +978,19 @@ extension ExcerptStore {
             sortOrder: sortOrder,
             normalizeFacetFilter: normalizeFacetFilter
         ).relations
+        let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedSearchText.isEmpty {
+            AppLogger.shared.info(
+                .excerpt,
+                "Excerpt search applied",
+                fields: [
+                    ("list_id", "\(listID)"),
+                    ("query", trimmedSearchText),
+                    ("results", "\(relations.count)"),
+                    ("total", "\(residentRelations.count)")
+                ]
+            )
+        }
         installTableResultExcerptIDs(relations.map(\.id))
         markTableRowsLoaded(
             totalSavedRowCount: residentRelations.count
@@ -1029,6 +1090,15 @@ extension ExcerptStore {
             setRecentSaveListID(destinationListID)
             onReportToast(
                 ExcerptToastRequest.saveSucceeded(listName: destination.name)
+            )
+            AppLogger.shared.info(
+                .excerpt,
+                "Excerpt saved to list",
+                fields: [
+                    ("cue_id", "\(cueID)"),
+                    ("list_id", "\(destinationListID)"),
+                    ("list", destination.name)
+                ]
             )
 
             mutationTask?.cancel()
@@ -1141,6 +1211,16 @@ extension ExcerptStore {
             reloadListOverview()
         }
         onToast(ExcerptToastRequest.moveSucceeded(listName: destination.name))
+        AppLogger.shared.info(
+            .excerpt,
+            "Excerpt moved to list",
+            fields: [
+                ("excerpt_id", "\(item.id)"),
+                ("from_list_id", sourceListID.map { "\($0)" }),
+                ("to_list_id", "\(destinationListID)"),
+                ("to_list", destination.name)
+            ]
+        )
 
         let itemID = item.id
         let destinationName = destination.name
@@ -1237,6 +1317,15 @@ extension ExcerptStore {
             reloadListOverview()
         }
         onToast(ExcerptToastRequest.duplicateSucceeded(listName: destination.name))
+        AppLogger.shared.info(
+            .excerpt,
+            "Excerpt duplicated to list",
+            fields: [
+                ("excerpt_id", "\(item.id)"),
+                ("to_list_id", "\(destinationListID)"),
+                ("to_list", destination.name)
+            ]
+        )
 
         let itemID = item.id
         let destinationName = destination.name
@@ -1301,6 +1390,14 @@ extension ExcerptStore {
             reloadListOverview()
         }
         onFeedback(.removed)
+        AppLogger.shared.info(
+            .excerpt,
+            "Excerpt removed from list",
+            fields: [
+                ("excerpt_id", "\(item.id)"),
+                ("list_id", sourceListID.map { "\($0)" })
+            ]
+        )
 
         let itemID = item.id
         mutationTask?.cancel()
