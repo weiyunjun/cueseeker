@@ -79,8 +79,13 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
             updateOpenParent(nil)
         }
         highlightedParent = action
-        if let parentHighlight, let position = parentHighlight.highlightedPosition {
-            parentHighlight.setPinnedPosition(position)
+        if let parentHighlight {
+            let position = parentHighlight.activeTriggerPosition
+            parentHighlight.clearAccessibility()
+            if let position {
+                parentHighlight.selectPosition(position)
+                parentHighlight.setPinnedPosition(position)
+            }
         }
         updateOpenParent(action)
         waitsForPointerMove = true
@@ -227,6 +232,7 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
             parentHighlight?.setPinnedPosition(nil)
             updateOpenParent(nil)
         }
+        item.highlight?.clearAccessibility()
         item.highlight?.setPinnedPosition(item.position)
         updateOpenParent(trigger)
     }

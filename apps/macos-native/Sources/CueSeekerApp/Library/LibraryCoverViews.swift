@@ -31,6 +31,7 @@ struct LibraryCoverMoreButton: View {
     @Environment(\.libraryCardContextMenuAnchorUpdate) private var updateAnchor
     let isVisible: Bool
     let isOpen: Bool
+    var isFocused: Bool = false
     let anchor: MenuAnchorHandle
     var onHoverChange: (Bool) -> Void = { _ in }
     let action: () -> Void
@@ -42,6 +43,7 @@ struct LibraryCoverMoreButton: View {
             icon: .dotsThree,
             iconWeight: .fill,
             isOpen: isOpen,
+            isFocused: isFocused,
             defaultBackground: WorkbenchRedesignColors.libraryCoverActionBg,
             hoverBackground: WorkbenchRedesignColors.libraryCoverActionBgHover,
             pressedBackground: WorkbenchRedesignColors.libraryCoverActionBgPressed,
@@ -98,6 +100,7 @@ struct LibraryCoverWithProgress: View {
     let duration: Double?
     var showsMoreButton: Bool = false
     var isMoreMenuOpen: Bool = false
+    var isMoreButtonFocused: Bool = false
     var moreMenuAnchor: MenuAnchorHandle? = nil
     var onMoreHoverChange: (Bool) -> Void = { _ in }
     var onToggleMoreMenu: (() -> Void)? = nil
@@ -130,6 +133,7 @@ struct LibraryCoverWithProgress: View {
                     LibraryCoverMoreButton(
                         isVisible: showsMoreButton,
                         isOpen: isMoreMenuOpen,
+                        isFocused: isMoreButtonFocused,
                         anchor: moreMenuAnchor,
                         onHoverChange: onMoreHoverChange,
                         action: onToggleMoreMenu
@@ -254,6 +258,7 @@ struct LibraryCoverWithBadge: View {
     let badgeText: String
     var showsMoreButton: Bool = false
     var isMoreMenuOpen: Bool = false
+    var isMoreButtonFocused: Bool = false
     var moreMenuAnchor: MenuAnchorHandle? = nil
     var onMoreHoverChange: (Bool) -> Void = { _ in }
     var onToggleMoreMenu: (() -> Void)? = nil
@@ -273,6 +278,7 @@ struct LibraryCoverWithBadge: View {
                     LibraryCoverMoreButton(
                         isVisible: showsMoreButton,
                         isOpen: isMoreMenuOpen,
+                        isFocused: isMoreButtonFocused,
                         anchor: moreMenuAnchor,
                         onHoverChange: onMoreHoverChange,
                         action: onToggleMoreMenu

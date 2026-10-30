@@ -157,4 +157,10 @@ struct SubtitleTableRowActionMenuModel: Equatable, Sendable {
             )
         }
     }
+
+    /// All non-divider action positions (including disabled items) for
+    /// accessibility traversal.
+    var allActionPositions: [Int] {
+        elements.indices.filter { action(at: $0) != nil }
+    }
 }

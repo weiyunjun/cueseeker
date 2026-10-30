@@ -488,31 +488,28 @@ struct PlaybackCueFooter: View {
         let saveToExcerptKeyCode = appState.settings.playbackShortcuts.keymap
             .effectiveKey(for: .saveToExcerpt)?
             .keyCode
-        if keyCode == 53 || keyCode == saveToExcerptKeyCode {
+        if keyCode == saveToExcerptKeyCode {
             if !isRepeat {
                 playback.closeExcerptDestinationMenu()
             }
             return true
         }
-        switch keyCode {
-        case 126:
-            playback.excerptDestinationMenuHighlight.moveHighlight(by: -1)
-            return true
-        case 125:
-            playback.excerptDestinationMenuHighlight.moveHighlight(by: 1)
-            return true
-        case 123, 124:
-            return true
-        case 36, 76:
-            if !isRepeat,
-               let position = playback.excerptDestinationMenuHighlight
-                   .highlightedPosition {
+        return playback.excerptDestinationMenuHighlight.handleStandardMenuKey(
+            keyCode: keyCode,
+            onActivate: {
+                guard !isRepeat,
+                      let position = playback.excerptDestinationMenuHighlight.activeTriggerPosition
+                else {
+                    return
+                }
                 activateDestination(at: position, menu: menu)
+            },
+            onDismiss: {
+                if !isRepeat {
+                    playback.closeExcerptDestinationMenu()
+                }
             }
-            return true
-        default:
-            return false
-        }
+        )
     }
 
     private func activateDestination(

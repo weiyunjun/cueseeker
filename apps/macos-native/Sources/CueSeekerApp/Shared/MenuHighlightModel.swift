@@ -67,14 +67,31 @@ final class MenuHighlightModel: ObservableObject {
         }
     }
 
-    @Published private(set) var highlightedPosition: Int?
-
-    var selectedPosition: Int? {
-        highlightedPosition
+    static func broadcastMouseDown() {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            _ = box.value?.clearAccessibility()
+        }
     }
 
-    var hoveredPosition: Int? {
-        highlightedPosition
+    @Published private(set) var selectedPosition: Int?
+    @Published private(set) var hoveredPosition: Int?
+    @Published private(set) var accessibilityPosition: Int?
+
+    var highlightedPosition: Int? {
+        selectedPosition
+    }
+
+    var activeTriggerPosition: Int? {
+        selectedPosition ?? accessibilityPosition
+    }
+
+    var revealPosition: Int? {
+        accessibilityPosition ?? selectedPosition
+    }
+
+    var isAccessibilityActive: Bool {
+        accessibilityPosition != nil
     }
 
     /// Bumped by every keyboard / controller move so a scrolling menu can bring
@@ -82,6 +99,7 @@ final class MenuHighlightModel: ObservableObject {
     @Published private(set) var keyboardMoveCount = 0
 
     private(set) var selectablePositions: [Int] = []
+    private(set) var allPositions: [Int] = []
     private(set) var isOpen = false
     private(set) var isScrolling = false
     private(set) var isSuppressedByKeyboard = false
@@ -94,46 +112,60 @@ final class MenuHighlightModel: ObservableObject {
     }
 
     func isSelected(_ position: Int) -> Bool {
-        highlightedPosition == position
+        selectedPosition == position
     }
 
     func isHovered(_ position: Int) -> Bool {
-        highlightedPosition == position
+        hoveredPosition == position && selectedPosition != position
     }
 
-    /// Opens the surface with no item highlighted by default (`highlightedPosition == nil`).
+    func isAccessibilityFocused(_ position: Int) -> Bool {
+        accessibilityPosition == position
+    }
+
+    /// Opens the surface with no item highlighted by default (`selectedPosition == nil`,
+    /// `hoveredPosition == nil`, `accessibilityPosition == nil`).
     /// The `defaultPosition` parameter is retained for call-site compatibility and ignored.
-    func open(selectablePositions: [Int], defaultPosition: Int? = nil) {
+    func open(
+        selectablePositions: [Int],
+        allPositions: [Int]? = nil,
+        defaultPosition: Int? = nil
+    ) {
         _ = defaultPosition
         self.selectablePositions = selectablePositions
+        self.allPositions = allPositions ?? selectablePositions
         isOpen = true
         isScrolling = false
         isSuppressedByKeyboard = false
         pinnedPosition = nil
         rawHoveredPosition = nil
-        highlightedPosition = nil
+        selectedPosition = nil
+        hoveredPosition = nil
+        accessibilityPosition = nil
     }
 
     func close() {
         isOpen = false
         selectablePositions = []
-        highlightedPosition = nil
+        allPositions = []
+        selectedPosition = nil
+        hoveredPosition = nil
+        accessibilityPosition = nil
         pinnedPosition = nil
         rawHoveredPosition = nil
         isScrolling = false
         isSuppressedByKeyboard = false
     }
 
-    /// Moves `highlightedPosition` by `offset` and reports whether the surface
-    /// consumed the key. When `highlightedPosition` is `nil`, moving up
-    /// (`offset < 0`) highlights the last selectable item and moving down
-    /// (`offset > 0`) highlights the first selectable item. When an item is
-    /// already highlighted, movement stops at the first and last selectable
-    /// positions instead of wrapping.
+    /// Moves `selectedPosition` by `offset` and reports whether the surface
+    /// consumed the key. When `selectedPosition` is `nil`, moving up
+    /// (`offset < 0`) selects the last selectable item and moving down
+    /// (`offset > 0`) selects the first selectable item. When an item is
+    /// already selected, movement stops at the first and last selectable
+    /// positions instead of wrapping. If accessibility is currently active,
+    /// `accessibilityPosition` follows the new `selectedPosition`.
     @discardableResult
     func moveHighlight(by offset: Int) -> Bool {
-        PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
-        isSuppressedByKeyboard = true
         guard !selectablePositions.isEmpty else {
             return false
         }
@@ -141,61 +173,146 @@ final class MenuHighlightModel: ObservableObject {
             return true
         }
         let targetIndex: Int
-        if let current = highlightedPosition
+        if let current = selectedPosition
             .flatMap({ selectablePositions.firstIndex(of: $0) }) {
             targetIndex = min(
                 max(0, current + offset),
                 selectablePositions.count - 1
             )
+        } else if let accPos = accessibilityPosition {
+            if offset > 0 {
+                targetIndex = selectablePositions.firstIndex(where: { $0 > accPos })
+                    ?? (selectablePositions.count - 1)
+            } else {
+                targetIndex = selectablePositions.lastIndex(where: { $0 < accPos })
+                    ?? 0
+            }
         } else {
             targetIndex = offset < 0 ? (selectablePositions.count - 1) : 0
         }
-        highlightedPosition = selectablePositions[targetIndex]
+        let nextPosition = selectablePositions[targetIndex]
+        selectedPosition = nextPosition
+        if accessibilityPosition != nil {
+            accessibilityPosition = nextPosition
+        }
         keyboardMoveCount += 1
         return true
+    }
+
+    /// Moves accessibility focus (`accessibilityPosition`) forward (`Tab` / `R1`)
+    /// or backward (`Shift + Tab` / `L1`) across `allPositions` (which includes
+    /// disabled menu items and skips dividers), wrapping around at both ends.
+    /// Enabled items also receive `selectedPosition`; disabled items clear
+    /// `selectedPosition` so they only show the outer focus ring.
+    @discardableResult
+    func moveAccessibility(forward: Bool) -> Bool {
+        let positions = allPositions.isEmpty ? selectablePositions : allPositions
+        guard !positions.isEmpty else {
+            return false
+        }
+        let targetIndex: Int
+        if let current = accessibilityPosition,
+           let currentIndex = positions.firstIndex(of: current) {
+            if forward {
+                targetIndex = (currentIndex + 1) % positions.count
+            } else {
+                targetIndex = (currentIndex - 1 + positions.count) % positions.count
+            }
+        } else {
+            targetIndex = forward ? 0 : (positions.count - 1)
+        }
+        let nextPosition = positions[targetIndex]
+        accessibilityPosition = nextPosition
+        if selectablePositions.contains(nextPosition) {
+            selectedPosition = nextPosition
+        } else {
+            selectedPosition = nil
+        }
+        keyboardMoveCount += 1
+        return true
+    }
+
+    /// Exits accessibility mode on this menu surface, keeping `selectedPosition`
+    /// unchanged. Returns `true` if accessibility was active and cleared.
+    @discardableResult
+    func clearAccessibility() -> Bool {
+        guard accessibilityPosition != nil else {
+            return false
+        }
+        accessibilityPosition = nil
+        return true
+    }
+
+    /// Standard keyboard/controller handler for a single-level menu.
+    func handleStandardMenuKey(
+        keyCode: UInt16,
+        onActivate: () -> Void,
+        onDismiss: () -> Void
+    ) -> Bool {
+        switch keyCode {
+        case MenuGate.tabKeyCode:
+            _ = moveAccessibility(forward: true)
+            return true
+        case MenuGate.shiftTabKeyCode:
+            _ = moveAccessibility(forward: false)
+            return true
+        case 53:
+            if clearAccessibility() {
+                return true
+            }
+            onDismiss()
+            return true
+        case 126:
+            _ = moveHighlight(by: -1)
+            return true
+        case 125:
+            _ = moveHighlight(by: 1)
+            return true
+        case 123, 124:
+            return true
+        case 36, 76, 49:
+            onActivate()
+            return true
+        default:
+            return false
+        }
     }
 
     func selectPosition(_ position: Int) {
         guard selectablePositions.contains(position) else {
             return
         }
-        if highlightedPosition != position {
-            highlightedPosition = position
+        if selectedPosition != position {
+            selectedPosition = position
         }
     }
 
-    /// Pins the highlighted item on the parent menu while a submenu triggered
-    /// by `position` is open.
+    /// Pins the pointer-hovered item on the parent menu while a submenu triggered
+    /// by `position` is open from pointer hover.
     func setPinnedPosition(_ position: Int?) {
         let validated = position.flatMap { selectablePositions.contains($0) ? $0 : nil }
         guard pinnedPosition != validated else {
             return
         }
         pinnedPosition = validated
-        if let validated {
-            if highlightedPosition != validated {
-                highlightedPosition = validated
-            }
-        } else if !isScrolling, !isSuppressedByKeyboard {
-            syncHoveredPosition()
-        }
+        syncHoveredPosition()
     }
 
     /// Unpins the parent trigger when its submenu is closed by keyboard,
-    /// preserving the trigger item's highlight until the pointer moves.
+    /// preserving the trigger item's `Select` highlight.
     func unpinKeepingHighlight() {
-        guard let pinned = pinnedPosition else {
-            return
-        }
+        let pinned = pinnedPosition
         pinnedPosition = nil
-        isSuppressedByKeyboard = true
-        if highlightedPosition != pinned {
-            highlightedPosition = pinned
+        accessibilityPosition = nil
+        if let pinned {
+            selectedPosition = pinned
         }
+        syncHoveredPosition()
     }
 
     func noteSelectionMovedByKeyboardOrController() {
-        isSuppressedByKeyboard = true
+        // Hover and Select in popup menus are independent; keyboard/controller
+        // movement does not clear or suppress menu pointer hover.
     }
 
     func noteScrolled() {
@@ -263,15 +380,15 @@ final class MenuHighlightModel: ObservableObject {
     func noteWindowDidResignFocus() {
         rawHoveredPosition = nil
         isScrolling = false
-        if !isSuppressedByKeyboard, pinnedPosition == nil, highlightedPosition != nil {
-            highlightedPosition = nil
+        if pinnedPosition == nil, hoveredPosition != nil {
+            hoveredPosition = nil
         }
     }
 
     private func noteCursorHiddenChanged(_ isHidden: Bool) {
         if isHidden {
-            if !isSuppressedByKeyboard, pinnedPosition == nil, highlightedPosition != nil {
-                highlightedPosition = nil
+            if pinnedPosition == nil, hoveredPosition != nil {
+                hoveredPosition = nil
             }
         } else if !isScrolling, !isSuppressedByKeyboard {
             syncHoveredPosition()
@@ -280,8 +397,14 @@ final class MenuHighlightModel: ObservableObject {
 
     private func syncHoveredPosition() {
         if let pinnedPosition {
-            if highlightedPosition != pinnedPosition {
-                highlightedPosition = pinnedPosition
+            if hoveredPosition != pinnedPosition {
+                hoveredPosition = pinnedPosition
+            }
+            return
+        }
+        if isSuppressedByKeyboard {
+            if hoveredPosition != nil {
+                hoveredPosition = nil
             }
             return
         }
@@ -293,8 +416,8 @@ final class MenuHighlightModel: ObservableObject {
         } else {
             next = nil
         }
-        if highlightedPosition != next {
-            highlightedPosition = next
+        if hoveredPosition != next {
+            hoveredPosition = next
         }
     }
 }

@@ -447,8 +447,12 @@ func openSpeedMenuSpendsEveryKeyItDoesNotTake() throws {
         ))
         #expect(app.playback.isSpeedMenuOpen)
 
-        // Escape closes the menu, and the same key opens the Command Panel
-        // once no menu is open.
+        // Escape clears the accessibility ring that Tab opened first, and the
+        // next Escape closes the menu; once no menu is open, K opens the Command Panel.
+        #expect(app.playback.speedMenuHighlight.isAccessibilityActive)
+        #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
+        #expect(!app.playback.speedMenuHighlight.isAccessibilityActive)
+        #expect(app.playback.isSpeedMenuOpen)
         #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
         #expect(!app.playback.isSpeedMenuOpen)
         speedMenuSession.close()

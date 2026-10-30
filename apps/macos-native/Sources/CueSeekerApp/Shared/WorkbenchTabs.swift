@@ -14,6 +14,7 @@ struct WorkbenchTabs<Value: Hashable>: View {
 
     let items: [Item]
     let selection: Value?
+    var focusedValue: Value? = nil
     /// Pulls the first label flush with the surrounding content instead of
     /// leaving it inset by the hit-area padding every tab carries.
     var isLeadingEdgeAligned = false
@@ -39,6 +40,10 @@ struct WorkbenchTabs<Value: Hashable>: View {
                             )
                     }
                     .padding(.horizontal, PlaybackOverlayMetrics.tabHorizontalPadding)
+                    .workbenchAccessibilityFocusRing(
+                        isFocused: focusedValue == item.value,
+                        cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                    )
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(StaticButtonStyle())

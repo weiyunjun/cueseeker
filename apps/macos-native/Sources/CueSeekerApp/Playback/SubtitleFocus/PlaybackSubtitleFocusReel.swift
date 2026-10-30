@@ -734,26 +734,15 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         guard selectedTextMenuHost != nil else {
             return false
         }
-        // Every arrow and Enter belongs to the open menu; the reel and the
-        // page under it must not respond to any of them.
-        switch keyCode {
-        case 53:
-            dismissSelectedTextActions()
-            return true
-        case 126:
-            _ = selectedTextMenuHighlight.moveHighlight(by: -1)
-            return true
-        case 125:
-            _ = selectedTextMenuHighlight.moveHighlight(by: 1)
-            return true
-        case 123, 124:
-            return true
-        case 36, 76:
-            _ = activateHighlightedSelectedTextAction()
-            return true
-        default:
-            return false
-        }
+        return selectedTextMenuHighlight.handleStandardMenuKey(
+            keyCode: keyCode,
+            onActivate: {
+                _ = activateHighlightedSelectedTextAction()
+            },
+            onDismiss: {
+                dismissSelectedTextActions()
+            }
+        )
     }
 
     private func activateSelectedTextAction(at position: Int) {
@@ -766,7 +755,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     /// Enter runs whatever the highlight currently sits on, so the keyboard and
     /// the pointer commit through one path.
     private func activateHighlightedSelectedTextAction() -> Bool {
-        guard let position = selectedTextMenuHighlight.highlightedPosition
+        guard let position = selectedTextMenuHighlight.activeTriggerPosition
         else {
             return false
         }

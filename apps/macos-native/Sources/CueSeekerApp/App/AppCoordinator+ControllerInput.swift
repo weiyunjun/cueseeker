@@ -31,6 +31,9 @@ extension AppCoordinator {
         guard isPlaybackPageVisible || playbackFullscreenManager.isFullscreen else {
             return false
         }
+        if interfaceLayers.hasUncoveredOpenMenu {
+            return routeControllerInputToMenuGate(input, menuGate: interfaceLayers.menuGate)
+        }
         let resolvedTextInputState = textInputState
             ?? PlaybackKeyboardTextInputState(
                 isEditableFocused: Self.isEditableTextInputFocused(),

@@ -188,29 +188,21 @@ final class PlaybackStore: ObservableObject {
         guard isSpeedMenuOpen else {
             return false
         }
-        switch keyCode {
-        case 53:
-            closeSpeedMenu()
-            return true
-        case 126:
-            speedMenuHighlight.moveHighlight(by: -1)
-            return true
-        case 125:
-            speedMenuHighlight.moveHighlight(by: 1)
-            return true
-        case 36, 76:
-            if !isRepeat {
+        return speedMenuHighlight.handleStandardMenuKey(
+            keyCode: keyCode,
+            onActivate: {
+                guard !isRepeat else { return }
                 let presets = PlaybackViewModel.speedPresets
-                if let position = speedMenuHighlight.highlightedPosition,
+                if let position = speedMenuHighlight.activeTriggerPosition,
                    presets.indices.contains(position) {
                     playbackViewModel?.setSpeed(presets[position])
                     closeSpeedMenu()
                 }
+            },
+            onDismiss: {
+                closeSpeedMenu()
             }
-            return true
-        default:
-            return false
-        }
+        )
     }
     /// The open `Save to Excerpt` destination menu, and which footer it hangs
     /// off. It lives beside the speed menu for the same reason: the App's single
@@ -271,27 +263,22 @@ final class PlaybackStore: ObservableObject {
         guard let subtitleMenu else {
             return false
         }
-        switch keyCode {
-        case 53:
-            closeSubtitleMenu()
-            return true
-        case 126:
-            subtitleMenuHighlight.moveHighlight(by: -1)
-            return true
-        case 125:
-            subtitleMenuHighlight.moveHighlight(by: 1)
-            return true
-        case 36, 76:
-            if !isRepeat,
-               let position = subtitleMenuHighlight.highlightedPosition,
-               subtitleMenu.selectablePositions.contains(position) {
+        return subtitleMenuHighlight.handleStandardMenuKey(
+            keyCode: keyCode,
+            onActivate: {
+                guard !isRepeat,
+                      let position = subtitleMenuHighlight.activeTriggerPosition,
+                      subtitleMenu.selectablePositions.contains(position)
+                else {
+                    return
+                }
                 onSelect(position)
                 closeSubtitleMenu()
+            },
+            onDismiss: {
+                closeSubtitleMenu()
             }
-            return true
-        default:
-            return false
-        }
+        )
     }
 
     /// The open More menu and what it lists; nil while closed. Its keys arrive
@@ -335,8 +322,14 @@ final class PlaybackStore: ObservableObject {
         let openSubmenu = moreSubmenuState.openParent
         let highlight = openSubmenu == nil ? moreMenuHighlight : moreSubmenuHighlight
         switch keyCode {
+        case MenuGate.tabKeyCode:
+            highlight.moveAccessibility(forward: true)
+        case MenuGate.shiftTabKeyCode:
+            highlight.moveAccessibility(forward: false)
         case 53:
-            closeMoreMenu()
+            if !highlight.clearAccessibility() {
+                closeMoreMenu()
+            }
         case 126:
             highlight.moveHighlight(by: -1)
         case 125:
@@ -345,12 +338,13 @@ final class PlaybackStore: ObservableObject {
             openHighlightedMoreSubmenu()
         case 123:
             moreSubmenuState.closeSubmenu()
-        case 36, 76:
+        case 36, 76, 49:
             guard !isRepeat else {
                 break
             }
             if openSubmenu != nil {
-                if let index = moreSubmenuHighlight.highlightedPosition {
+                if let index = moreSubmenuHighlight.activeTriggerPosition,
+                   moreSubmenuHighlight.selectablePositions.contains(index) {
                     onSelect(index)
                     closeMoreMenu()
                 }
@@ -365,7 +359,8 @@ final class PlaybackStore: ObservableObject {
 
     private func openHighlightedMoreSubmenu() {
         guard moreSubmenuState.openParent == nil,
-              let position = moreMenuHighlight.highlightedPosition,
+              let position = moreMenuHighlight.activeTriggerPosition,
+              moreMenuHighlight.selectablePositions.contains(position),
               let submenu = PlaybackMoreSubmenu(rawValue: position)
         else {
             return
@@ -391,8 +386,11 @@ final class PlaybackStore: ObservableObject {
             }
             if submenu != nil {
                 if !moreSubmenuHighlight.isOpen, let moreMenu {
+                    let selectable = Array(moreMenu.audioTracks.names.indices)
+                    let all = selectable.isEmpty ? [0] : selectable
                     moreSubmenuHighlight.open(
-                        selectablePositions: Array(moreMenu.audioTracks.names.indices)
+                        selectablePositions: selectable,
+                        allPositions: all
                     )
                 }
             } else {

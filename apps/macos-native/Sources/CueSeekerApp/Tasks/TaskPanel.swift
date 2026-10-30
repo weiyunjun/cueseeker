@@ -56,24 +56,11 @@ struct TaskPanel: View {
                                 menuFrame: menuFrame,
                                 anchorFrame: activeMenu.anchorFrame,
                                 handleKey: { keyCode, _ in
-                                    switch keyCode {
-                                    case 53:
-                                        dismissMenu()
-                                        return true
-                                    case 126:
-                                        _ = menuHighlight.moveHighlight(by: -1)
-                                        return true
-                                    case 125:
-                                        _ = menuHighlight.moveHighlight(by: 1)
-                                        return true
-                                    case 123, 124:
-                                        return true
-                                    case 36, 76:
-                                        _ = activateHighlightedItem(in: activeMenu)
-                                        return true
-                                    default:
-                                        return false
-                                    }
+                                    menuHighlight.handleStandardMenuKey(
+                                        keyCode: keyCode,
+                                        onActivate: { _ = activateHighlightedItem(in: activeMenu) },
+                                        onDismiss: { dismissMenu() }
+                                    )
                                 },
                                 dismiss: { _ in
                                     dismissMenu(openedAs: activeMenu.id)
@@ -378,7 +365,8 @@ struct TaskPanel: View {
             items: items
         )
         menuHighlight.open(
-            selectablePositions: items.indices.filter { items[$0].isEnabled }
+            selectablePositions: items.indices.filter { items[$0].isEnabled },
+            allPositions: Array(items.indices)
         )
     }
 
@@ -403,7 +391,8 @@ struct TaskPanel: View {
             items: items
         )
         menuHighlight.open(
-            selectablePositions: items.indices.filter { items[$0].isEnabled }
+            selectablePositions: items.indices.filter { items[$0].isEnabled },
+            allPositions: Array(items.indices)
         )
     }
 
@@ -416,7 +405,7 @@ struct TaskPanel: View {
     }
 
     private func activateHighlightedItem(in menu: WorkbenchCardMenuState) -> Bool {
-        guard let position = menuHighlight.highlightedPosition,
+        guard let position = menuHighlight.activeTriggerPosition,
               menu.items.indices.contains(position),
               menu.items[position].isEnabled
         else {

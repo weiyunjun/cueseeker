@@ -167,30 +167,23 @@ struct SettingsLanguageCategory: View {
     }
 
     private func handleLanguageMenuKey(_ keyCode: UInt16, isRepeat: Bool) -> Bool {
-        switch keyCode {
-        case 53:
-            if !isRepeat {
-                closeLanguageMenu()
-            }
-            return true
-        case 126:
-            _ = languageHighlight.moveHighlight(by: -1)
-            return true
-        case 125:
-            _ = languageHighlight.moveHighlight(by: 1)
-            return true
-        case 123, 124:
-            return true
-        case 36, 76:
-            if !isRepeat,
-               let position = languageHighlight.highlightedPosition,
-               AppLanguage.allCases.indices.contains(position) {
+        languageHighlight.handleStandardMenuKey(
+            keyCode: keyCode,
+            onActivate: {
+                guard !isRepeat,
+                      let position = languageHighlight.activeTriggerPosition,
+                      AppLanguage.allCases.indices.contains(position)
+                else {
+                    return
+                }
                 selectLanguage(AppLanguage.allCases[position])
+            },
+            onDismiss: {
+                if !isRepeat {
+                    closeLanguageMenu()
+                }
             }
-            return true
-        default:
-            return false
-        }
+        )
     }
 }
 
@@ -237,6 +230,7 @@ struct SettingsLanguageMenu: View {
                         isSelected: selectedLanguage == language,
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
+                        isAccessibilityFocused: highlight.isAccessibilityFocused(position),
                         showsCheckmarkSlot: true,
                         action: {
                             onSelect(language)

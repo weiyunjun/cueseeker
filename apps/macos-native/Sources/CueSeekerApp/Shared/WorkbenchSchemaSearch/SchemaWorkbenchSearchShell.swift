@@ -394,6 +394,7 @@ enum SchemaWorkbenchStyle {
 
 struct SchemaWorkbenchSearchToolbar: View {
     @Environment(\.interfaceLayerContext) private var layerContext
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
 
     let placeholder: String
     @Binding var searchDraft: String
@@ -417,13 +418,31 @@ struct SchemaWorkbenchSearchToolbar: View {
     @State private var hasConsumedInitialAutofocus = false
 
     var body: some View {
-        VStack(spacing: SchemaWorkbenchStyle.toolbarRowSpacing) {
-            if isSelectionMode {
-                selectionSummaryRow
-                selectionActionsRow
-            } else {
-                topInputAndActionsRow
-                defaultResultCountRow
+        WorkbenchAccessibilityReader { accessibility in
+            VStack(spacing: SchemaWorkbenchStyle.toolbarRowSpacing) {
+                if isSelectionMode {
+                    selectionSummaryRow(accessibility: accessibility)
+                    selectionActionsRow(accessibility: accessibility)
+                } else {
+                    topInputAndActionsRow(accessibility: accessibility)
+                    defaultResultCountRow
+                }
+            }
+            .onAppear {
+                syncAccessibilityCallbacks(accessibility)
+            }
+            .onChange(of: isSelectionMode) { inSelectionMode in
+                if inSelectionMode {
+                    hasConsumedInitialAutofocus = true
+                }
+                syncAccessibilityCallbacks(accessibility)
+            }
+            .onDisappear {
+                accessibility?.isTableInSelectionMode = false
+                accessibility?.onOpenToolbarFilterDialog = nil
+                accessibility?.onToggleToolbarSortMenu = nil
+                accessibility?.onExitTableSelectionMode = nil
+                accessibility?.onPerformSelectionAction = nil
             }
         }
         .background {
@@ -431,26 +450,36 @@ struct SchemaWorkbenchSearchToolbar: View {
                 WindowKeyDownMonitor(handle: handleSelectionShortcut)
             }
         }
-        .onChange(of: isSelectionMode) { inSelectionMode in
-            if inSelectionMode {
-                hasConsumedInitialAutofocus = true
-            }
+    }
+
+    private func syncAccessibilityCallbacks(_ accessibility: WorkbenchAccessibilityCoordinator?) {
+        accessibility?.isTableInSelectionMode = isSelectionMode
+        accessibility?.onOpenToolbarFilterDialog = onFilter
+        accessibility?.onToggleToolbarSortMenu = onSort
+        accessibility?.onExitTableSelectionMode = onToggleSelectionMode
+        accessibility?.onPerformSelectionAction = { actionID in
+            selectionActions.first(where: { $0.id == actionID.rawValue })?.perform()
         }
     }
 
-    private var searchField: some View {
+    private func searchField(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         WorkbenchSearchField(
             placeholder: placeholder,
             text: $searchDraft,
             autofocus: autofocusSearchOnAppear && !hasConsumedInitialAutofocus && !isSelectionMode,
             trailingStatusText: nil,
-            onSubmit: onSubmit
+            isSearchAccessibilityFocused: accessibility?.isFocused(.toolbarSearchField) == true,
+            isClearAccessibilityFocused: accessibility?.isFocused(.toolbarSearchClearButton) == true,
+            onSubmit: onSubmit,
+            onBindAccessibilityTextField: { field in
+                accessibility?.activeSearchTextField = field
+            }
         )
     }
 
-    private var topInputAndActionsRow: some View {
+    private func topInputAndActionsRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            searchField
+            searchField(accessibility: accessibility)
                 .frame(minWidth: 0, maxWidth: .infinity)
 
             SchemaWorkbenchFilterAndSortControls(
@@ -458,6 +487,8 @@ struct SchemaWorkbenchSearchToolbar: View {
                 isFilterDialogOpen: isFilterDialogOpen,
                 sortTitle: sortTitle,
                 isSortMenuOpen: isSortMenuOpen,
+                isFilterFocused: accessibility?.isFocused(.toolbarFilterButton) == true,
+                isSortFocused: accessibility?.isFocused(.toolbarSortButton) == true,
                 sortButtonAnchor: sortButtonAnchor,
                 onFilter: onFilter,
                 onSort: onSort
@@ -480,7 +511,7 @@ struct SchemaWorkbenchSearchToolbar: View {
         .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 
-    private var selectionSummaryRow: some View {
+    private func selectionSummaryRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         let bannerHint = L("table.batch_selection_banner_hint")
         return HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             if let selectedCountText, !selectedCountText.isEmpty {
@@ -511,6 +542,7 @@ struct SchemaWorkbenchSearchToolbar: View {
             WorkbenchDestructiveButton(
                 title: L("table.exit_select"),
                 icon: .signOut,
+                isFocused: accessibility?.isFocused(.toolbarExitSelectButton) == true,
                 action: onToggleSelectionMode
             )
             .workbenchTooltip(
@@ -525,10 +557,16 @@ struct SchemaWorkbenchSearchToolbar: View {
         .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 
-    private var selectionActionsRow: some View {
+    private func selectionActionsRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             ForEach(selectionActions) { action in
-                SchemaWorkbenchSelectionActionButton(action: action)
+                let isActionFocused = SchemaWorkbenchSelectionActionID(rawValue: action.id).map {
+                    accessibility?.isFocused(.toolbarSelectionAction($0)) == true
+                } ?? false
+                SchemaWorkbenchSelectionActionButton(
+                    action: action,
+                    isFocused: isActionFocused
+                )
             }
 
             Spacer(minLength: 0)
@@ -549,6 +587,9 @@ struct SchemaWorkbenchSearchToolbar: View {
             return false
         }
         if event.keyCode == 53 {
+            guard workbenchAccessibility?.isActive != true else {
+                return false
+            }
             if !event.isARepeat {
                 onToggleSelectionMode()
             }
@@ -572,6 +613,8 @@ struct SchemaWorkbenchFilterAndSortControls: View {
     let isFilterDialogOpen: Bool
     let sortTitle: String
     let isSortMenuOpen: Bool
+    var isFilterFocused: Bool = false
+    var isSortFocused: Bool = false
     var sortButtonAnchor: MenuAnchorHandle? = nil
     let onFilter: () -> Void
     let onSort: () -> Void
@@ -583,6 +626,7 @@ struct SchemaWorkbenchFilterAndSortControls: View {
                 icon: .funnel,
                 count: filterSelectionCount,
                 isOpen: isFilterDialogOpen,
+                isFocused: isFilterFocused,
                 action: onFilter
             )
             .layoutPriority(1)
@@ -592,6 +636,7 @@ struct SchemaWorkbenchFilterAndSortControls: View {
                 title: sortTitle,
                 icon: .funnelSimple,
                 isOpen: isSortMenuOpen,
+                isFocused: isSortFocused,
                 action: onSort
             )
             .background {
@@ -664,24 +709,11 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
                         menuFrame: menuFrame,
                         anchorFrame: activeSortMenu.anchorFrame,
                         handleKey: { keyCode, _ in
-                            switch keyCode {
-                            case 53:
-                                dismissSortMenu()
-                                return true
-                            case 126:
-                                _ = sortMenuHighlight.moveHighlight(by: -1)
-                                return true
-                            case 125:
-                                _ = sortMenuHighlight.moveHighlight(by: 1)
-                                return true
-                            case 123, 124:
-                                return true
-                            case 36, 76:
-                                activateHighlightedSortItem()
-                                return true
-                            default:
-                                return false
-                            }
+                            sortMenuHighlight.handleStandardMenuKey(
+                                keyCode: keyCode,
+                                onActivate: { activateHighlightedSortItem() },
+                                onDismiss: { dismissSortMenu() }
+                            )
                         },
                         dismiss: { _ in
                             dismissSortMenu()
@@ -797,7 +829,7 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
     }
 
     private func activateHighlightedSortItem() {
-        guard let position = sortMenuHighlight.highlightedPosition,
+        guard let position = sortMenuHighlight.activeTriggerPosition,
               sortOptions.indices.contains(position)
         else {
             return
@@ -866,6 +898,7 @@ struct SchemaWorkbenchSortMenuPopover: View {
                         isSelected: selectedOptionID == option.id,
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
+                        isAccessibilityFocused: highlight.isAccessibilityFocused(position),
                         showsCheckmarkSlot: true,
                         action: {
                             onDismiss()

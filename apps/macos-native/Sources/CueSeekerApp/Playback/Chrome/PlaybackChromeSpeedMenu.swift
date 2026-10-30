@@ -129,6 +129,7 @@ struct PlaybackChromeSpeedMenu: View {
                         PlaybackChromeMenuButtonStyle(
                             isHighlighted: highlight.isSelected(position),
                             isHovered: highlight.isHovered(position),
+                            isAccessibilityFocused: highlight.isAccessibilityFocused(position),
                             suppressesInteraction: suppressesInteraction,
                             onHoverChange: { isHovered in
                                 highlight.noteHover(isHovered, at: position)
@@ -146,6 +147,7 @@ struct PlaybackChromeSpeedMenu: View {
 struct PlaybackChromeMenuButtonStyle: ButtonStyle {
     let isHighlighted: Bool
     var isHovered: Bool = false
+    var isAccessibilityFocused: Bool = false
     let suppressesInteraction: Bool
     let onHoverChange: (Bool) -> Void
 
@@ -157,6 +159,23 @@ struct PlaybackChromeMenuButtonStyle: ButtonStyle {
                     style: .continuous
                 )
                 .fill(backgroundColor)
+            )
+            .overlay(
+                Group {
+                    if isAccessibilityFocused {
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius
+                                + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
+                            style: .continuous
+                        )
+                        .stroke(
+                            PlaybackTheme.focusRing,
+                            lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
+                        )
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
+                        .allowsHitTesting(false)
+                    }
+                }
             )
             .onHover { isHovered in
                 onHoverChange(suppressesInteraction ? false : isHovered)
@@ -172,7 +191,10 @@ struct PlaybackChromeMenuButtonStyle: ButtonStyle {
         guard !suppressesInteraction else {
             return .clear
         }
-        if isHighlighted || isHovered {
+        if isHighlighted {
+            return PlaybackTheme.menuItemSelectedBackground
+        }
+        if isHovered {
             return PlaybackTheme.menuItemHoverBackground
         }
         return .clear

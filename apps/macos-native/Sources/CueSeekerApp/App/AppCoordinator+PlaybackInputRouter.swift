@@ -168,6 +168,8 @@ extension AppCoordinator {
         }
         if !modifierFlags.contains(.shift) {
             _ = interfaceLayers.menuGate.routeKey(keyCode, isRepeat: isRepeat)
+        } else if keyCode == MenuGate.tabKeyCode {
+            _ = interfaceLayers.menuGate.routeKey(MenuGate.shiftTabKeyCode, isRepeat: isRepeat)
         }
         return true
     }

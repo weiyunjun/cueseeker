@@ -10,6 +10,7 @@ struct WorkbenchStatusIndicator: View {
     var textColor: Color = WorkbenchRedesignColors.textSecondary
     var iconColor: Color = WorkbenchRedesignColors.textSecondary
     var iconCustomView: AnyView? = nil
+    var isTextFocused: Bool = false
     var onTapText: (() -> Void)? = nil
     @State private var isTextHovered = false
 
@@ -18,6 +19,7 @@ struct WorkbenchStatusIndicator: View {
         icon: AppIcon? = nil,
         textColor: Color = WorkbenchRedesignColors.textSecondary,
         iconColor: Color = WorkbenchRedesignColors.textSecondary,
+        isTextFocused: Bool = false,
         onTapText: (() -> Void)? = nil
     ) {
         self.text = text
@@ -25,6 +27,7 @@ struct WorkbenchStatusIndicator: View {
         self.textColor = textColor
         self.iconColor = iconColor
         self.iconCustomView = nil
+        self.isTextFocused = isTextFocused
         self.onTapText = onTapText
     }
 
@@ -32,6 +35,7 @@ struct WorkbenchStatusIndicator: View {
         _ text: String,
         iconCustomView: AnyView,
         textColor: Color = WorkbenchRedesignColors.textSecondary,
+        isTextFocused: Bool = false,
         onTapText: (() -> Void)? = nil
     ) {
         self.text = text
@@ -39,6 +43,7 @@ struct WorkbenchStatusIndicator: View {
         self.textColor = textColor
         self.iconColor = textColor
         self.iconCustomView = iconCustomView
+        self.isTextFocused = isTextFocused
         self.onTapText = onTapText
     }
 
@@ -48,6 +53,7 @@ struct WorkbenchStatusIndicator: View {
         textColor: Color = WorkbenchRedesignColors.textSecondary,
         iconColor: Color = WorkbenchRedesignColors.textSecondary,
         iconCustomView: AnyView? = nil,
+        isTextFocused: Bool = false,
         onTapText: (() -> Void)? = nil
     ) {
         self.text = text
@@ -55,6 +61,7 @@ struct WorkbenchStatusIndicator: View {
         self.textColor = textColor
         self.iconColor = iconColor
         self.iconCustomView = iconCustomView
+        self.isTextFocused = isTextFocused
         self.onTapText = onTapText
     }
 
@@ -70,6 +77,10 @@ struct WorkbenchStatusIndicator: View {
             if let onTapText {
                 Button(action: onTapText) {
                     textLabel(showsUnderline: isTextHovered)
+                        .workbenchAccessibilityFocusRing(
+                            isFocused: isTextFocused,
+                            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                        )
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(StaticButtonStyle())
@@ -82,6 +93,10 @@ struct WorkbenchStatusIndicator: View {
                 }
             } else {
                 textLabel(showsUnderline: false)
+                    .workbenchAccessibilityFocusRing(
+                        isFocused: isTextFocused,
+                        cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                    )
                     .onAppear {
                         isTextHovered = false
                     }

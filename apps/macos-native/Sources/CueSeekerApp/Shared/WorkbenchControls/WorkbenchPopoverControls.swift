@@ -6,6 +6,7 @@ struct WorkbenchPopoverRow: View {
     var isSelected = false
     var isHighlighted = false
     var isRowHovered = false
+    var isAccessibilityFocused = false
     var icon: AppIcon?
     var iconWeight: AppIconWeight?
     var showsCheckmarkSlot = true
@@ -89,6 +90,23 @@ struct WorkbenchPopoverRow: View {
             )
             .fill(rowBackground)
         )
+        .overlay(
+            Group {
+                if isAccessibilityFocused {
+                    RoundedRectangle(
+                        cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius
+                            + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
+                        style: .continuous
+                    )
+                    .stroke(
+                        WorkbenchRedesignColors.focusRing,
+                        lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
+                    )
+                    .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
+                    .allowsHitTesting(false)
+                }
+            }
+        )
         .contentShape(Rectangle())
         .onHover { inside in
             onHoverChange?(inside)
@@ -106,7 +124,12 @@ struct WorkbenchPopoverRow: View {
 
     private var rowBackground: Color {
         guard isEnabled else { return .clear }
-        if isHighlighted || isRowHovered {
+        if isHighlighted {
+            return isDestructive
+                ? WorkbenchRedesignColors.dangerBgSelected
+                : WorkbenchRedesignColors.menuItemSelectedBg
+        }
+        if isRowHovered {
             return isDestructive
                 ? WorkbenchRedesignColors.dangerBgHover
                 : WorkbenchRedesignColors.bgHover
@@ -258,7 +281,7 @@ struct WorkbenchPopoverPanel<Content: View>: View {
     /// animating: the menu is already open and the item has to be there now.
     private func revealHighlight(_ proxy: ScrollViewProxy) {
         guard contentHeight > floor(maximumHeight),
-              let position = highlight.highlightedPosition
+              let position = highlight.revealPosition
         else {
             return
         }
@@ -423,6 +446,7 @@ struct WorkbenchCardMenuPopover: View {
                         title: item.title,
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
+                        isAccessibilityFocused: highlight.isAccessibilityFocused(position),
                         icon: item.icon,
                         showsCheckmarkSlot: false,
                         isEnabled: item.isEnabled,

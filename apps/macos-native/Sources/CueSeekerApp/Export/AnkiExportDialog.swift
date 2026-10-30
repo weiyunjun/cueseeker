@@ -296,24 +296,11 @@ struct AnkiExportDialog: View {
                         menuFrame: menuFrame,
                         anchorFrame: activeMenu.anchorFrame,
                         handleKey: { keyCode, _ in
-                            switch keyCode {
-                            case 53:
-                                dismissMenu()
-                                return true
-                            case 126:
-                                _ = menuHighlight.moveHighlight(by: -1)
-                                return true
-                            case 125:
-                                _ = menuHighlight.moveHighlight(by: 1)
-                                return true
-                            case 123, 124:
-                                return true
-                            case 36, 76:
-                                _ = activateHighlightedItem(in: activeMenu)
-                                return true
-                            default:
-                                return false
-                            }
+                            menuHighlight.handleStandardMenuKey(
+                                keyCode: keyCode,
+                                onActivate: { _ = activateHighlightedItem(in: activeMenu) },
+                                onDismiss: { dismissMenu() }
+                            )
                         },
                         dismiss: { _ in
                             dismissMenu()
@@ -609,7 +596,7 @@ struct AnkiExportDialog: View {
     }
 
     private func activateHighlightedItem(in menu: AnkiAddMenuState) -> Bool {
-        guard let position = menuHighlight.highlightedPosition,
+        guard let position = menuHighlight.activeTriggerPosition,
               menu.items.indices.contains(position)
         else {
             return false
@@ -736,6 +723,7 @@ private struct AnkiCardItemMenuPopover: View {
                         title: item.title,
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
+                        isAccessibilityFocused: highlight.isAccessibilityFocused(position),
                         showsCheckmarkSlot: false,
                         action: {
                             onSelect(item)

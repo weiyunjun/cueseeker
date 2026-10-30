@@ -8,6 +8,7 @@ struct SubtitleTableView: NSViewRepresentable {
     @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var interfaceLayerContext
     @Environment(\.subtitleTableExternalTextSelectionSession) private var externalTextSelectionSession
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     var tableName: String
     var probeSurface: SubtitleTableProbeSurface = .search
     var probeScope: String?
@@ -115,6 +116,10 @@ struct SubtitleTableView: NSViewRepresentable {
         context.coordinator.isCoveredByHigherLayer = isWorkbenchPageCovered
         context.coordinator.interfaceLayers = interfaceLayers
         context.coordinator.interfaceLayerContext = interfaceLayerContext
+        context.coordinator.workbenchAccessibility = workbenchAccessibility
+        if !isWorkbenchPageCovered {
+            workbenchAccessibility?.activeSubtitleTableCoordinator = context.coordinator
+        }
         let container = SubtitleTableContainerView()
 
         let header = SubtitleVirtualTableHeaderView()
@@ -240,6 +245,10 @@ struct SubtitleTableView: NSViewRepresentable {
         context.coordinator.isCoveredByHigherLayer = isWorkbenchPageCovered
         context.coordinator.interfaceLayers = interfaceLayers
         context.coordinator.interfaceLayerContext = interfaceLayerContext
+        context.coordinator.workbenchAccessibility = workbenchAccessibility
+        if !isWorkbenchPageCovered {
+            workbenchAccessibility?.activeSubtitleTableCoordinator = context.coordinator
+        }
         context.coordinator.updatePageChrome(pageChrome)
         context.coordinator.bindExternalTextSelectionSession(externalTextSelectionSession)
         context.coordinator.update(
@@ -291,6 +300,9 @@ struct SubtitleTableView: NSViewRepresentable {
         _ nsView: SubtitleTableContainerView,
         coordinator: Coordinator
     ) {
+        if coordinator.workbenchAccessibility?.activeSubtitleTableCoordinator === coordinator {
+            coordinator.workbenchAccessibility?.activeSubtitleTableCoordinator = nil
+        }
         coordinator.unbindExternalTextSelectionSession()
         coordinator.bindPageScrollbar(nil)
         coordinator.cancelPendingTextInteraction()
@@ -490,6 +502,8 @@ struct SubtitleTableView: NSViewRepresentable {
         var hoveredRowActionRow: Int?
         var pressedRowActionRow: Int?
         var focusedCheckboxRow: Int?
+        weak var workbenchAccessibility: WorkbenchAccessibilityCoordinator?
+        var accessibilityFocusedTarget: WorkbenchAccessibilityTarget?
         var cueStateTooltipTargetID = UUID()
         var lastNotifiedVisibleRows: Range<Int>?
         var lastHeaderHorizontalOffset: CGFloat?
@@ -817,7 +831,8 @@ struct SubtitleTableView: NSViewRepresentable {
             let scrollableRootView = InterfaceLayerHosting.bridgedRootView(
                 pageChrome.scrollableHeader,
                 layers: interfaceLayers,
-                context: interfaceLayerContext
+                context: interfaceLayerContext,
+                workbenchAccessibility: workbenchAccessibility
             )
             if let scrollablePageChromeHost {
                 scrollablePageChromeHost.coordinator = self
@@ -835,7 +850,8 @@ struct SubtitleTableView: NSViewRepresentable {
             let pinnedRootView = InterfaceLayerHosting.bridgedRootView(
                 pageChrome.pinnedHeader,
                 layers: interfaceLayers,
-                context: interfaceLayerContext
+                context: interfaceLayerContext,
+                workbenchAccessibility: workbenchAccessibility
             )
             if let pinnedPageChromeHost {
                 pinnedPageChromeHost.coordinator = self
@@ -1579,6 +1595,140 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func scheduleResizeAfterDrawing() {
             resizeDocument()
+        }
+
+        // MARK: - Workbench Accessibility
+
+        var isHeaderCheckboxAccessibilityFocused: Bool {
+            accessibilityFocusedTarget == .tableHeaderCheckbox
+        }
+
+        func syncWorkbenchAccessibilityFocus(_ target: WorkbenchAccessibilityTarget?) {
+            let oldTarget = accessibilityFocusedTarget
+            guard oldTarget != target else { return }
+            accessibilityFocusedTarget = target
+
+            if oldTarget == .tableHeaderCheckbox || target == .tableHeaderCheckbox {
+                headerView?.refreshHeaderHosts()
+                headerView?.needsDisplay = true
+            }
+            invalidateRows([oldTarget?.tableRowIndex, target?.tableRowIndex])
+
+            switch target {
+            case .coverSummaryPrimaryButton, .coverSummaryEditCoverButton, .coverSummaryMoreButton:
+                if pageChrome != nil {
+                    scrollToTop()
+                }
+            case .tableRowCheckbox(let row), .tableRowCueText(let row), .tableRowActionButton(let row):
+                revealRowForAccessibility(row)
+            default:
+                break
+            }
+        }
+
+        func revealRowForAccessibility(_ row: Int) {
+            guard let scrollView,
+                  let documentView,
+                  row >= 0,
+                  row < rowCount
+            else {
+                return
+            }
+            reflowVisibleRows(explicitTargetRow: row)
+            let rowRect = rectForRow(row, width: documentView.bounds.width)
+            let visibleRect = currentTableBodyVisibleRect
+            guard visibleRect.height > 0 else { return }
+            var origin = scrollView.contentView.bounds.origin
+            let maxY = max(0, documentView.bounds.height - scrollView.contentView.bounds.height)
+            if rowRect.minY < visibleRect.minY {
+                let delta = visibleRect.minY - rowRect.minY
+                origin.y = min(max(0, origin.y - delta), maxY)
+            } else if rowRect.maxY > visibleRect.maxY {
+                let delta = rowRect.maxY - visibleRect.maxY
+                origin.y = min(max(0, origin.y + delta), maxY)
+            } else {
+                return
+            }
+            scrollView.contentView.scroll(to: origin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            layoutPageChrome()
+            documentView.setNeedsDisplay(documentView.visibleRect)
+            pageScrollbar?.setNeedsDisplay()
+            notifyVisibleRowsChanged(force: true)
+        }
+
+        func accessibilityTargets() -> [WorkbenchAccessibilityTarget] {
+            guard isEnabled, showsHeader, rowCount > 0 else {
+                return []
+            }
+            var targets: [WorkbenchAccessibilityTarget] = []
+            if canToggleSelectionForRendering() {
+                targets.append(.tableHeaderCheckbox)
+            }
+            if isSelectionMode {
+                for row in 0..<rowCount {
+                    if rowProvider(row)?.cueState.isUnavailable != true {
+                        targets.append(.tableRowCheckbox(row))
+                    }
+                }
+            } else {
+                for row in 0..<rowCount {
+                    if rowProvider(row)?.cueState.isUnavailable == true {
+                        targets.append(.tableRowActionButton(row))
+                    } else {
+                        targets.append(.tableRowCheckbox(row))
+                        targets.append(.tableRowCueText(row))
+                        targets.append(.tableRowActionButton(row))
+                    }
+                }
+            }
+            return targets
+        }
+
+        @discardableResult
+        func activateAccessibilityTarget(_ target: WorkbenchAccessibilityTarget) -> Bool {
+            guard isEnabled, !isCoveredByHigherLayer else { return false }
+            switch target {
+            case .tableHeaderCheckbox:
+                guard canToggleSelectionForRendering() else { return false }
+                toggleAllRowSelection()
+                return true
+            case .tableRowCheckbox(let row):
+                return toggleRowCheckboxFromMouse(row: row)
+            case .tableRowCueText(let row):
+                guard !isSelectionMode,
+                      row >= 0,
+                      row < rowCount,
+                      let model = rowProvider(row),
+                      !model.cueState.isUnavailable
+                else {
+                    return false
+                }
+                playRow(row)
+                return true
+            case .tableRowActionButton(let row):
+                guard !isSelectionMode,
+                      row >= 0,
+                      row < rowCount,
+                      rowProvider(row) != nil
+                else {
+                    return false
+                }
+                revealRowForAccessibility(row)
+                guard let buttonFrame = rowActionButtonFrameInContainer(for: row) else {
+                    return false
+                }
+                showMenu(
+                    for: row,
+                    columnID: "cues",
+                    buttonFrame: buttonFrame,
+                    clickPointInDocument: nil,
+                    usesActionButtonAnchor: true
+                )
+                return true
+            default:
+                return false
+            }
         }
     }
 }

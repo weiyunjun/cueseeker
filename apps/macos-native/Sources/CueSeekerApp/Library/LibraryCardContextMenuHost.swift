@@ -224,27 +224,11 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                             menuFrame: menuFrame,
                             anchorFrame: activeMenu.anchorFrame,
                             handleKey: { keyCode, _ in
-                                // Every arrow and Enter belongs to the open
-                                // menu; the card grid and the page under it
-                                // must not respond to any of them.
-                                switch keyCode {
-                                case 53:
-                                    dismissContextMenu()
-                                    return true
-                                case 126:
-                                    _ = highlight.moveHighlight(by: -1)
-                                    return true
-                                case 125:
-                                    _ = highlight.moveHighlight(by: 1)
-                                    return true
-                                case 123, 124:
-                                    return true
-                                case 36, 76:
-                                    _ = activateHighlightedItem()
-                                    return true
-                                default:
-                                    return false
-                                }
+                                highlight.handleStandardMenuKey(
+                                    keyCode: keyCode,
+                                    onActivate: { _ = activateHighlightedItem() },
+                                    onDismiss: { dismissContextMenu() }
+                                )
                             },
                             dismiss: { _ in
                                 dismissContextMenu(openedAs: activeMenu.id)
@@ -347,7 +331,8 @@ struct LibraryCardContextMenuHost<Content: View>: View {
             placementOffset: MenuPlacement.offset(from: anchor, to: openingFrame)
         )
         highlight.open(
-            selectablePositions: items.indices.filter { items[$0].isEnabled }
+            selectablePositions: items.indices.filter { items[$0].isEnabled },
+            allPositions: Array(items.indices)
         )
     }
 
@@ -396,7 +381,7 @@ struct LibraryCardContextMenuHost<Content: View>: View {
     /// pointer commit through one path.
     @discardableResult
     private func activateHighlightedItem() -> Bool {
-        guard let position = highlight.highlightedPosition,
+        guard let position = highlight.activeTriggerPosition,
               let items = activeMenu?.items,
               items.indices.contains(position),
               items[position].isEnabled
@@ -437,6 +422,7 @@ private struct LibraryCardContextMenu: View {
                         title: item.title,
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
+                        isAccessibilityFocused: highlight.isAccessibilityFocused(position),
                         icon: item.icon,
                         showsCheckmarkSlot: false,
                         isEnabled: item.isEnabled,

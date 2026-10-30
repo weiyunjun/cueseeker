@@ -690,7 +690,8 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     private var showsSelectionHeaderCheckbox: Bool {
         coordinator?.isSelectionModeForRendering() == true
-            || (isHeaderHovered && coordinator?.canToggleSelectionForRendering() == true)
+            || ((isHeaderHovered || coordinator?.isHeaderCheckboxAccessibilityFocused == true)
+                && coordinator?.canToggleSelectionForRendering() == true)
     }
 
     func selectionHeaderIsVisibleForTesting() -> Bool {
@@ -807,6 +808,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         let checkboxView = WorkbenchCheckboxButton(
             state: coordinator.selectionHeaderStateForRendering(),
             isEnabled: coordinator.canToggleSelectionForRendering(),
+            isFocused: coordinator.isHeaderCheckboxAccessibilityFocused,
             action: { [weak self] in
                 self?.coordinator?.toggleAllRowSelection()
             }
@@ -814,7 +816,8 @@ final class SubtitleVirtualTableHeaderView: NSView {
         let anyView = InterfaceLayerHosting.bridgedRootView(
             AnyView(checkboxView),
             layers: coordinator.interfaceLayers,
-            context: coordinator.interfaceLayerContext
+            context: coordinator.interfaceLayerContext,
+            workbenchAccessibility: coordinator.workbenchAccessibility
         )
 
         if let host = hostVar as? SubtitleTablePageChromeHostingView {

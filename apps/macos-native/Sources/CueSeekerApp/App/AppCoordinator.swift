@@ -40,6 +40,8 @@ final class AppCoordinator: ObservableObject {
     let filterDialog = CueFacetFilterDialogCenter()
     let tasks: TaskQueueStore
     let interfaceLayers = InterfaceLayerRegistry()
+    let settingsInterfaceLayers = InterfaceLayerRegistry()
+    let workbenchAccessibility = WorkbenchAccessibilityCoordinator()
     var settingsCancellables: Set<AnyCancellable> = []
     private var interfaceLayerCancellables: Set<AnyCancellable> = []
 
@@ -631,6 +633,24 @@ final class AppCoordinator: ObservableObject {
                 AppWindowControls.setCloseEnabled(isClosable)
             }
             .store(in: &interfaceLayerCancellables)
+
+        Publishers.MergeMany(
+            interfaceLayers.objectWillChange.eraseToAnyPublisher(),
+            workbenchLayout.objectWillChange.eraseToAnyPublisher(),
+            workbenchLayout.route.objectWillChange.eraseToAnyPublisher(),
+            search.objectWillChange.eraseToAnyPublisher(),
+            library.objectWillChange.eraseToAnyPublisher(),
+            excerpt.objectWillChange.eraseToAnyPublisher(),
+            indexing.objectWillChange.eraseToAnyPublisher(),
+            tasks.objectWillChange.eraseToAnyPublisher(),
+            playback.objectWillChange.eraseToAnyPublisher()
+        )
+        .sink { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.reconcileWorkbenchAccessibilityFocus()
+            }
+        }
+        .store(in: &interfaceLayerCancellables)
     }
 
     func setupSettingsObservers() {

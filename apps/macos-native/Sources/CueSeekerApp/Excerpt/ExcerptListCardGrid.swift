@@ -124,6 +124,7 @@ struct ExcerptListCardGrid: View {
 }
 
 private struct ExcerptListCard: View {
+    @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
     @Environment(\.libraryCardContextMenuAnchorOwner) private var anchorMenuOwnerID
     let summary: ExcerptListSummary
@@ -151,36 +152,55 @@ private struct ExcerptListCard: View {
     }
 
     var body: some View {
-        LibraryOverviewCardSurface(
-            isSelected: isSelected,
-            isHovered: isHovered,
-            animatesHover: highlight.animatesHoverBackground,
-            action: {
-                highlight.notePress(id: cardID)
-                onOpen()
-            }
-        ) {
-            LibraryOverviewCardContent(
-                title: summary.list.name,
-                description: summary.list.description
+        WorkbenchAccessibilityReader { accessibility in
+            let isWorkbench = layerContext.layer == .workbenchPage
+            let isCardFocused = isWorkbench && accessibility?.isFocused(.mediaCard(cardID)) == true
+            let isActionFocused = isWorkbench && accessibility?.isFocused(.mediaCardActionButton(cardID)) == true
+            let isEffectiveSelected = isSelected || (isWorkbench && accessibility?.focusedCardID == cardID)
+
+            LibraryOverviewCardSurface(
+                isSelected: isEffectiveSelected,
+                isHovered: isHovered,
+                isFocused: isCardFocused,
+                animatesHover: highlight.animatesHoverBackground,
+                action: {
+                    highlight.notePress(id: cardID)
+                    onOpen()
+                }
             ) {
-                cover
+                LibraryOverviewCardContent(
+                    title: summary.list.name,
+                    description: summary.list.description
+                ) {
+                    cover(isActionFocused: isActionFocused)
+                }
             }
+            .onHover { highlight.noteHover($0, id: cardID) }
+            .libraryCardContextMenuTrigger(
+                isEnabled: true,
+                ownerID: cardID,
+                items: contextMenuItems,
+                openContextMenu: { items, point, ownerID in
+                    highlight.notePress(id: cardID)
+                    openContextMenu(items, point, ownerID)
+                }
+            )
+            .onAppear {
+                guard isWorkbench else { return }
+                accessibility?.registerMediaCardAction(id: cardID) {
+                    highlight.notePress(id: cardID)
+                    toggleAnchorMenu?(contextMenuItems, moreMenuAnchor, cardID)
+                }
+            }
+            .onDisappear {
+                guard isWorkbench else { return }
+                accessibility?.unregisterMediaCardAction(id: cardID)
+            }
+            .accessibilityLabel(summary.list.name)
         }
-        .onHover { highlight.noteHover($0, id: cardID) }
-        .libraryCardContextMenuTrigger(
-            isEnabled: true,
-            ownerID: cardID,
-            items: contextMenuItems,
-            openContextMenu: { items, point, ownerID in
-                highlight.notePress(id: cardID)
-                openContextMenu(items, point, ownerID)
-            }
-        )
-        .accessibilityLabel(summary.list.name)
     }
 
-    private var cover: some View {
+    private func cover(isActionFocused: Bool) -> some View {
         LibraryCoverFrame {
             ZStack(alignment: .bottomLeading) {
                 ExcerptListCoverView(coverPath: summary.list.coverPath)
@@ -193,8 +213,9 @@ private struct ExcerptListCard: View {
                 )
 
                 LibraryCoverMoreButton(
-                    isVisible: isMoreButtonVisible,
+                    isVisible: isMoreButtonVisible || isActionFocused,
                     isOpen: isMoreMenuOpen,
+                    isFocused: isActionFocused,
                     anchor: moreMenuAnchor,
                     onHoverChange: { isButtonHovered in
                         highlight.noteActionButtonHover(isButtonHovered, id: cardID)

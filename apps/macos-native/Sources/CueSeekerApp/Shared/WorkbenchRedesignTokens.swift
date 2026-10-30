@@ -101,7 +101,7 @@ enum WorkbenchRedesignColors {
         static let bgCanvas = bgSurface
         static let bgHover = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.12)
         static let bgPressed = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.16)
-        static let menuItemSelectedBg = bgPressed
+        static let menuItemSelectedBg = NSColor.dynamic(lightHex: "#E2E8F0", darkHex: "#FFFFFF", darkAlpha: 0.16)
         static let bgDisabled = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.04)
         static let bgControl = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF", darkAlpha: 0.08)
         static let bgDialog = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
@@ -201,7 +201,8 @@ enum WorkbenchRedesignColors {
         static let dangerText = NSColor.dynamic(lightHex: "#B42318", darkHex: "#FCA5A5")
         static let dangerBgHover = NSColor.dynamic(lightHex: "#FEF3F2", darkHex: "#3A1717")
         static let dangerBgPressed = NSColor.dynamic(lightHex: "#FEE4E2", darkHex: "#4C1D1D")
-        static let dangerMenuItemSelectedBg = dangerBgPressed
+        static let dangerBgSelected = NSColor.dynamic(lightHex: "#FEE2E2", darkHex: "#4C1D1D")
+        static let dangerMenuItemSelectedBg = dangerBgSelected
 
         // Success
         static let successText = NSColor.dynamic(lightHex: "#047857", darkHex: "#6EE7B7")
@@ -435,6 +436,7 @@ enum WorkbenchRedesignColors {
     static let dangerText = Color(nsColor: NS.dangerText)
     static let dangerBgHover = Color(nsColor: NS.dangerBgHover)
     static let dangerBgPressed = Color(nsColor: NS.dangerBgPressed)
+    static let dangerBgSelected = Color(nsColor: NS.dangerBgSelected)
     static let dangerMenuItemSelectedBg = Color(nsColor: NS.dangerMenuItemSelectedBg)
 
     // Success

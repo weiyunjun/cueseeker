@@ -629,6 +629,7 @@ private struct PlaybackMoreMenuTrigger: View {
             PlaybackChromeMenuButtonStyle(
                 isHighlighted: highlight.isSelected(submenu.rawValue),
                 isHovered: highlight.isHovered(submenu.rawValue),
+                isAccessibilityFocused: highlight.isAccessibilityFocused(submenu.rawValue),
                 suppressesInteraction: suppressesInteraction,
                 onHoverChange: { isHovered in
                     submenuState.noteItemHover(
@@ -684,6 +685,7 @@ private struct PlaybackChromeMenuItem: View {
                 PlaybackChromeMenuButtonStyle(
                     isHighlighted: highlight.isSelected(position),
                     isHovered: highlight.isHovered(position),
+                    isAccessibilityFocused: highlight.isAccessibilityFocused(position),
                     suppressesInteraction: suppressesInteraction,
                     onHoverChange: { isHovered in
                         highlight.noteHover(isHovered, at: position)
@@ -693,6 +695,23 @@ private struct PlaybackChromeMenuItem: View {
             .focusable(false)
         } else {
             rowContent
+                .overlay(
+                    Group {
+                        if highlight.isAccessibilityFocused(position) {
+                            RoundedRectangle(
+                                cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius
+                                    + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
+                                style: .continuous
+                            )
+                            .stroke(
+                                PlaybackTheme.focusRing,
+                                lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
+                            )
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
+                            .allowsHitTesting(false)
+                        }
+                    }
+                )
         }
     }
 

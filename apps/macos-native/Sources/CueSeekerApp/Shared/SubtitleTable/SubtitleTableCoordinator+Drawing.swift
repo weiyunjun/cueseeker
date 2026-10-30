@@ -161,14 +161,16 @@ extension SubtitleTableView.Coordinator {
                 extraCueLineCounts: []
             )
 
-        if !isUnavailable && (isSelectionMode || hoveredRow == row) {
+        let isRowCheckboxAccessibilityFocused = accessibilityFocusedTarget == .tableRowCheckbox(row)
+        if !isUnavailable && (isSelectionMode || hoveredRow == row || isRowCheckboxAccessibilityFocused) {
             let checkboxState: WorkbenchCheckboxState = isRowSelected(row) ? .checked : .unchecked
             let isCheckboxEnabled = isEnabled
             WorkbenchCheckboxDrawing.draw(
                 state: checkboxState,
                 isEnabled: isCheckboxEnabled,
                 in: checkboxRect(forRowRect: rowRect),
-                isFocused: isCheckboxEnabled && focusedCheckboxRow == row && documentView?.window?.firstResponder === documentView
+                isFocused: isRowCheckboxAccessibilityFocused
+                    || (isCheckboxEnabled && focusedCheckboxRow == row && documentView?.window?.firstResponder === documentView)
             )
         } else if !isUnavailable, let indexNumber = displayIndex(forRow: row, model: model) {
             drawIndex(indexNumber, in: rowColumnRect(layout.indexRect, rowRect: rowRect))
@@ -229,6 +231,27 @@ extension SubtitleTableView.Coordinator {
                 return selectedUTF16Range(row: row, columnID: "cues", text: text)
             } : nil
         )
+        if !isSelectionMode,
+           !isUnavailable,
+           accessibilityFocusedTarget == .tableRowCueText(row),
+           let model,
+           let cueHoverRect = cuesContentHoverRect(
+               model: model,
+               in: cuesRect,
+               measurement: measurement
+           )
+        {
+            let expansion = WorkbenchControlMetrics.redesignFocusRingPathExpansion
+            let focusRect = cueHoverRect.insetBy(dx: -expansion, dy: -expansion)
+            let focusPath = NSBezierPath(
+                roundedRect: focusRect,
+                xRadius: SubtitleTableMetrics.tableCellHoverRadius + expansion,
+                yRadius: SubtitleTableMetrics.tableCellHoverRadius + expansion
+            )
+            WorkbenchRedesignColors.NS.focusRing.setStroke()
+            focusPath.lineWidth = WorkbenchControlMetrics.redesignFocusRingWidth
+            focusPath.stroke()
+        }
         if let model {
             drawCueStateIndicator(
                 row: row,
@@ -467,7 +490,9 @@ extension SubtitleTableView.Coordinator {
         else {
             return false
         }
-        return hoveredRow == row || isRowActionMenuOpen(row: row)
+        return hoveredRow == row
+            || isRowActionMenuOpen(row: row)
+            || accessibilityFocusedTarget == .tableRowActionButton(row)
     }
 
     func rowActionButtonBackgroundColor(row: Int) -> NSColor? {
@@ -515,6 +540,18 @@ extension SubtitleTableView.Coordinator {
             height: iconSize
         )
         image.draw(in: iconRect)
+        if accessibilityFocusedTarget == .tableRowActionButton(row) {
+            let expansion = WorkbenchControlMetrics.redesignFocusRingPathExpansion
+            let focusRect = buttonRect.insetBy(dx: -expansion, dy: -expansion)
+            let focusPath = NSBezierPath(
+                roundedRect: focusRect,
+                xRadius: SubtitleTableMetrics.rowActionButtonCornerRadius + expansion,
+                yRadius: SubtitleTableMetrics.rowActionButtonCornerRadius + expansion
+            )
+            WorkbenchRedesignColors.NS.focusRing.setStroke()
+            focusPath.lineWidth = WorkbenchControlMetrics.redesignFocusRingWidth
+            focusPath.stroke()
+        }
     }
 
     func cueStateIndicatorRect(

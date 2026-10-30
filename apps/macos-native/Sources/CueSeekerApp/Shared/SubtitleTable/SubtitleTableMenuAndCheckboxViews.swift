@@ -100,6 +100,7 @@ struct RowActionMenu: View {
             title: action.title,
             isHighlighted: highlight.isSelected(position),
             isRowHovered: highlight.isHovered(position),
+            isAccessibilityFocused: highlight.isAccessibilityFocused(position),
             icon: action.icon,
             iconWeight: action.iconWeight,
             showsCheckmarkSlot: false,
@@ -213,7 +214,7 @@ enum WorkbenchCheckboxDrawing {
             in: rect
         )
 
-        guard isFocused, isEnabled else { return }
+        guard isFocused else { return }
         let focusRect = rect.insetBy(
             dx: -WorkbenchControlMetrics.redesignFocusRingPathExpansion,
             dy: -WorkbenchControlMetrics.redesignFocusRingPathExpansion
@@ -228,6 +229,7 @@ enum WorkbenchCheckboxDrawing {
 struct WorkbenchCheckboxButton: View {
     let state: WorkbenchCheckboxState
     var isEnabled: Bool = true
+    var isFocused: Bool = false
     var action: () -> Void
 
     var body: some View {
@@ -237,6 +239,17 @@ struct WorkbenchCheckboxButton: View {
                 isEnabled: isEnabled,
                 size: SubtitleTableMetrics.checkboxSize
             )
+            .overlay {
+                if isFocused {
+                    Circle()
+                        .stroke(
+                            WorkbenchRedesignColors.focusRing,
+                            lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
+                        )
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
+                        .allowsHitTesting(false)
+                }
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .contentShape(Rectangle())
         }

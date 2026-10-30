@@ -93,11 +93,18 @@ private struct ContentRootView: View {
 
                     TitlebarCommandBridge()
                         .frame(width: 0, height: 0)
+
+                    WindowKeyDownMonitor { event in
+                        appState.handleWorkbenchKeyDown(event)
+                    }
+                    .frame(width: 0, height: 0)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .modifier(
                     InterfaceLayerCoverageBridge(layers: appState.interfaceLayers)
                 )
+                .environment(\.workbenchAccessibility, appState.workbenchAccessibility)
+                .environmentObject(appState.workbenchAccessibility)
                 .environmentObject(settingsStore.playbackShortcuts)
                 .environment(\.isAppFullscreen, layoutState.isAppFullscreen)
                 .onAppear {
@@ -420,6 +427,7 @@ struct AppTopBar: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
+    @EnvironmentObject private var workbenchAccessibility: WorkbenchAccessibilityCoordinator
     @State private var isSidebarToggleHovered = false
     @State private var isSidebarTogglePressed = false
     // Observed so the labels below are re-read when the language changes.
@@ -453,7 +461,10 @@ struct AppTopBar: View {
                 }
             }
         } trailingContent: {
-            TopbarAppEntries()
+            TopbarAppEntries(
+                isTaskFocused: workbenchAccessibility.isFocused(.topbarTaskButton),
+                isSettingsFocused: workbenchAccessibility.isFocused(.topbarSettingsButton)
+            )
         } centerContent: {
             if routeState.currentRoute == .recent {
                 recentSegmentedControl
@@ -486,6 +497,15 @@ struct AppTopBar: View {
         }
     }
 
+    private var focusedRecentSegment: WorkbenchRecentSection? {
+        for section in WorkbenchRecentSection.allCases {
+            if workbenchAccessibility.isFocused(.topbarRecentSegment(section)) {
+                return section
+            }
+        }
+        return nil
+    }
+
     @ViewBuilder
     private var recentSegmentedControl: some View {
         WorkbenchTabs(
@@ -496,7 +516,8 @@ struct AppTopBar: View {
                     accessibilityIdentifier: "recent-segment-\($0.rawValue)"
                 )
             },
-            selection: routeState.selectedRecentSection
+            selection: routeState.selectedRecentSection,
+            focusedValue: focusedRecentSegment
         ) { section in
             appState.workbenchLayout.selectRecentSection(section)
         }
@@ -505,6 +526,7 @@ struct AppTopBar: View {
     private var backButton: some View {
         WorkbenchIconButton(
             icon: .caretLeft,
+            isFocused: workbenchAccessibility.isFocused(.topbarBackButton),
             isFrozen: layoutState.isVideoSizeTransitionInProgress
         ) {
             appState.performUserInitiatedAppCommand {
@@ -545,6 +567,7 @@ struct AppTopBar: View {
     private var forwardButton: some View {
         WorkbenchIconButton(
             icon: .caretRight,
+            isFocused: workbenchAccessibility.isFocused(.topbarForwardButton),
             isFrozen: layoutState.isVideoSizeTransitionInProgress
         ) {
             appState.performUserInitiatedAppCommand {
@@ -581,6 +604,10 @@ struct AppTopBar: View {
                                 ? WorkbenchRedesignColors.bgPressed
                                 : (isSidebarToggleHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
                         )
+                )
+                .workbenchAccessibilityFocusRing(
+                    isFocused: workbenchAccessibility.isFocused(.topbarSidebarToggle),
+                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
                 )
                 .contentShape(Rectangle())
         }
@@ -625,6 +652,7 @@ private struct AppSidebar: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
+    @EnvironmentObject private var workbenchAccessibility: WorkbenchAccessibilityCoordinator
     // Observed so the labels below are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
 
@@ -639,6 +667,7 @@ private struct AppSidebar: View {
             AppSidebarNavigationItem(
                 mode: .search,
                 isSelected: routeState.panelMode == .search,
+                isFocused: workbenchAccessibility.isFocused(.sidebarItem(.search)),
                 isEnabled: !layoutState.isVideoSizeTransitionInProgress
             ) {
                 appState.performUserInitiatedAppCommand {
@@ -649,6 +678,7 @@ private struct AppSidebar: View {
             AppSidebarNavigationItem(
                 mode: .recentWatching,
                 isSelected: routeState.panelMode == .recentWatching,
+                isFocused: workbenchAccessibility.isFocused(.sidebarItem(.recentWatching)),
                 isEnabled: !layoutState.isVideoSizeTransitionInProgress
             ) {
                 appState.performUserInitiatedAppCommand {
@@ -659,6 +689,7 @@ private struct AppSidebar: View {
             AppSidebarNavigationItem(
                 mode: .testLibrary,
                 isSelected: routeState.panelMode == .testLibrary,
+                isFocused: workbenchAccessibility.isFocused(.sidebarItem(.testLibrary)),
                 isEnabled: !layoutState.isVideoSizeTransitionInProgress
             ) {
                 appState.performUserInitiatedAppCommand {
@@ -669,6 +700,7 @@ private struct AppSidebar: View {
             AppSidebarNavigationItem(
                 mode: .file,
                 isSelected: routeState.panelMode == .file,
+                isFocused: workbenchAccessibility.isFocused(.sidebarItem(.file)),
                 isEnabled: !layoutState.isVideoSizeTransitionInProgress
             ) {
                 appState.performUserInitiatedAppCommand {
@@ -679,6 +711,7 @@ private struct AppSidebar: View {
             AppSidebarNavigationItem(
                 mode: .excerpt,
                 isSelected: routeState.panelMode == .excerpt,
+                isFocused: workbenchAccessibility.isFocused(.sidebarItem(.excerpt)),
                 isEnabled: !layoutState.isVideoSizeTransitionInProgress
             ) {
                 appState.performUserInitiatedAppCommand {
@@ -706,6 +739,7 @@ private struct AppSidebar: View {
 private struct AppSidebarNavigationItem: View {
     let mode: WorkbenchPanelMode
     let isSelected: Bool
+    var isFocused: Bool = false
     let isEnabled: Bool
     let onSelect: () -> Void
 
@@ -728,6 +762,10 @@ private struct AppSidebarNavigationItem: View {
                     ? WorkbenchRedesignColors.appSidebarItemSelectedBg
                     : Color.clear
             )
+        )
+        .workbenchAccessibilityFocusRing(
+            isFocused: isFocused,
+            cornerRadius: WorkbenchControlMetrics.redesignAppSidebarItemRadius
         )
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)

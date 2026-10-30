@@ -17,6 +17,9 @@ struct TopbarAppEntries: View {
     var openBackground: Color? = nil
     var countBackground: Color = WorkbenchRedesignColors.badgeNeutralBg
     var countTextColor: Color = WorkbenchRedesignColors.textSecondary
+    var isCommandPanelFocused: Bool = false
+    var isTaskFocused: Bool = false
+    var isSettingsFocused: Bool = false
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
@@ -27,7 +30,8 @@ struct TopbarAppEntries: View {
                     openIconColor: openIconColor,
                     hoverBackground: hoverBackground,
                     pressedBackground: pressedBackground,
-                    openBackground: openBackground
+                    openBackground: openBackground,
+                    isFocused: isCommandPanelFocused
                 ) {
                     appState.performUserInitiatedAppCommand {
                         _ = appState.presentPlaybackCommandPanel()
@@ -44,7 +48,8 @@ struct TopbarAppEntries: View {
                 pressedBackground: pressedBackground,
                 openBackground: openBackground,
                 countBackground: countBackground,
-                countTextColor: countTextColor
+                countTextColor: countTextColor,
+                isFocused: isTaskFocused
             ) {
                 appState.performUserInitiatedAppCommand {
                     appState.tasks.openPanel()
@@ -58,7 +63,8 @@ struct TopbarAppEntries: View {
                 openIconColor: openIconColor,
                 hoverBackground: hoverBackground,
                 pressedBackground: pressedBackground,
-                openBackground: openBackground
+                openBackground: openBackground,
+                isFocused: isSettingsFocused
             ) {
                 appState.performUserInitiatedAppCommand {
                     NotificationCenter.default.post(name: .cueSeekerShowSettings, object: nil)
@@ -76,12 +82,14 @@ struct CommandPanelEntryButton: View {
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
     var pressedBackground: Color = WorkbenchRedesignColors.bgPressed
     var openBackground: Color? = nil
+    var isFocused: Bool = false
     let onOpen: () -> Void
 
     var body: some View {
         WorkbenchIconButton(
             icon: .magnifyingGlass,
             isOpen: playback.commandPanelPresentation != nil,
+            isFocused: isFocused,
             hoverBackground: hoverBackground,
             pressedBackground: pressedBackground,
             openBackground: openBackground,
@@ -110,12 +118,14 @@ struct SettingsEntryButton: View {
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
     var pressedBackground: Color = WorkbenchRedesignColors.bgPressed
     var openBackground: Color? = nil
+    var isFocused: Bool = false
     let onOpen: () -> Void
 
     var body: some View {
         WorkbenchIconButton(
             icon: .gear,
             isOpen: layoutState.isSettingsWindowOpen,
+            isFocused: isFocused,
             hoverBackground: hoverBackground,
             pressedBackground: pressedBackground,
             openBackground: openBackground,

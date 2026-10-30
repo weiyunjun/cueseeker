@@ -278,7 +278,7 @@ struct PointerHoverGateTests {
         host.syncMouseHoverForWindowFocus()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
         #expect(menuHighlight.hoveredPosition == 0)
-        #expect(menuHighlight.selectedPosition == 0)
+        #expect(menuHighlight.selectedPosition == nil)
 
         func findScrollView(_ view: NSView) -> NSScrollView? {
             if let scrollView = view as? NSScrollView {
@@ -302,12 +302,13 @@ struct PointerHoverGateTests {
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
         #expect(menuHighlight.hoveredPosition == 0)
 
-        // Settling after the 300ms scroll debounce updates the unified menu highlight to row 3.
+        // Settling after the 300ms scroll debounce updates menu hover to row 3
+        // while keeping Select independent.
         PointerHoverScrollState.shared.settleScroll()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
         #expect(menuHighlight.hoveredPosition == 3)
-        #expect(menuHighlight.selectedPosition == 3)
-        #expect(menuHighlight.highlightedPosition == 3)
+        #expect(menuHighlight.selectedPosition == nil)
+        #expect(menuHighlight.highlightedPosition == nil)
     }
 
     @Test

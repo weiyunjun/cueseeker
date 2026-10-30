@@ -69,46 +69,94 @@ struct MenuHighlightModelTests {
     }
 
     @Test
-    func hoverAndSelectAreUnifiedAndKeyboardMovementSuppressesHoverUntilPointerMoves() {
+    func hoverAndSelectAreIndependentAndSelectTakesVisualPriorityOnSameItem() {
         AppCursorVisibility.resetForTesting()
         defer { AppCursorVisibility.resetForTesting() }
         let model = MenuHighlightModel()
         defer { model.close() }
         model.open(selectablePositions: [0, 1, 2])
 
-        // Hovering item 2 sets the unified highlight on 2.
+        // Hovering item 2 sets Hover on 2 without setting Select.
         model.noteHover(true, at: 2)
-        #expect(model.highlightedPosition == 2)
+        #expect(model.highlightedPosition == nil)
+        #expect(model.selectedPosition == nil)
+        #expect(model.hoveredPosition == 2)
+        #expect(!model.isSelected(2))
+        #expect(model.isHovered(2))
+
+        // Keyboard Down selects item 0 while keeping Hover on item 2.
+        model.moveHighlight(by: 1)
+        #expect(model.selectedPosition == 0)
+        #expect(model.hoveredPosition == 2)
+        #expect(model.isSelected(0))
+        #expect(model.isHovered(2))
+
+        // Moving Select onto item 2 makes Select win visually on item 2.
+        model.moveHighlight(by: 1)
+        model.moveHighlight(by: 1)
         #expect(model.selectedPosition == 2)
         #expect(model.hoveredPosition == 2)
         #expect(model.isSelected(2))
-        #expect(model.isHovered(2))
-
-        // Moving with the keyboard moves the unified highlight from 2 to 1 and
-        // immediately clears 2's highlight, suppressing pointer hover until the
-        // mouse actually moves.
-        model.moveHighlight(by: -1)
-        #expect(model.highlightedPosition == 1)
-        #expect(!model.isSelected(2))
         #expect(!model.isHovered(2))
-        #expect(PointerHoverScrollState.shared.isHoverSuppressed)
 
-        // Stationary hover reports while suppressed do not override the keyboard highlight.
+        // Moving the mouse to item 1 updates Hover without altering Select on 2.
         model.noteHover(false, at: 2)
-        model.noteHover(true, at: 0)
-        #expect(model.highlightedPosition == 1)
+        model.noteHover(true, at: 1)
+        #expect(model.selectedPosition == 2)
+        #expect(model.hoveredPosition == 1)
+        #expect(model.isSelected(2))
+        #expect(model.isHovered(1))
+    }
 
-        // Wheel scroll debounce settling while suppressed by keyboard still keeps
-        // the keyboard highlight until the pointer moves.
-        PointerHoverScrollState.shared.noteScrolled()
-        PointerHoverScrollState.shared.settleScroll()
-        #expect(PointerHoverScrollState.shared.isHoverSuppressed)
-        #expect(model.highlightedPosition == 1)
+    @Test
+    func accessibilityTabWrapsIncludesDisabledItemsAndSyncsSelectOnlyForEnabledItems() {
+        AppCursorVisibility.resetForTesting()
+        let model = MenuHighlightModel()
+        defer { model.close() }
+        // Position 1 is a disabled item; position 2 is a divider (not in allPositions).
+        model.open(selectablePositions: [0, 3], allPositions: [0, 1, 3])
+        #expect(!model.isAccessibilityActive)
 
-        // Once the pointer actually moves, hover resumes at the pointer's item.
-        PointerHoverScrollState.shared.notePointerMoved()
-        #expect(!PointerHoverScrollState.shared.isHoverSuppressed)
-        #expect(model.highlightedPosition == 0)
+        // First Tab enters accessibility on item 0 (enabled) and syncs Select.
+        #expect(model.moveAccessibility(forward: true))
+        #expect(model.accessibilityPosition == 0)
+        #expect(model.selectedPosition == 0)
+        #expect(model.isAccessibilityFocused(0))
+        #expect(model.isSelected(0))
+
+        // Next Tab lands on item 1 (disabled): focus ring only, no Select background.
+        #expect(model.moveAccessibility(forward: true))
+        #expect(model.accessibilityPosition == 1)
+        #expect(model.selectedPosition == nil)
+        #expect(model.isAccessibilityFocused(1))
+        #expect(!model.isSelected(1))
+
+        // Next Tab skips divider 2 and lands on item 3 (enabled), syncing Select.
+        #expect(model.moveAccessibility(forward: true))
+        #expect(model.accessibilityPosition == 3)
+        #expect(model.selectedPosition == 3)
+
+        // Next Tab wraps around to item 0.
+        #expect(model.moveAccessibility(forward: true))
+        #expect(model.accessibilityPosition == 0)
+        #expect(model.selectedPosition == 0)
+
+        // Shift+Tab wraps backward to item 3.
+        #expect(model.moveAccessibility(forward: false))
+        #expect(model.accessibilityPosition == 3)
+        #expect(model.selectedPosition == 3)
+
+        // Arrow Up while accessibility is active moves Select to item 0 and
+        // pulls the accessibility focus ring along with it.
+        #expect(model.moveHighlight(by: -1))
+        #expect(model.selectedPosition == 0)
+        #expect(model.accessibilityPosition == 0)
+
+        // First Esc clears accessibility while keeping Select on item 0.
+        #expect(model.clearAccessibility())
+        #expect(!model.isAccessibilityActive)
+        #expect(model.selectedPosition == 0)
+        #expect(!model.clearAccessibility())
     }
 
     @Test
@@ -249,9 +297,9 @@ struct MenuHighlightModelTests {
         defer { model.close() }
         model.open(selectablePositions: [0, 1, 2])
         model.noteHover(true, at: 2)
-        #expect(model.highlightedPosition == 2)
+        #expect(model.hoveredPosition == 2)
 
         model.noteWindowDidResignFocus()
-        #expect(model.highlightedPosition == nil)
+        #expect(model.hoveredPosition == nil)
     }
 }

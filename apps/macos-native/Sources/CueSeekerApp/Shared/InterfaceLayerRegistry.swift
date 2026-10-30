@@ -398,12 +398,14 @@ enum InterfaceLayerHosting {
     static func bridgedRootView(
         _ view: AnyView,
         layers: InterfaceLayerRegistry?,
-        context: InterfaceLayerContext
+        context: InterfaceLayerContext,
+        workbenchAccessibility: WorkbenchAccessibilityCoordinator? = nil
     ) -> AnyView {
         AnyView(
             view
                 .environment(\.interfaceLayers, layers)
                 .environment(\.interfaceLayerContext, context)
+                .environment(\.workbenchAccessibility, workbenchAccessibility)
         )
     }
 }

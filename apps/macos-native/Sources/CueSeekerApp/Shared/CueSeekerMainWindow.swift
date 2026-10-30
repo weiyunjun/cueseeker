@@ -7,6 +7,8 @@ class CueSeekerWindow: NSWindow {
     var isWindowFocusedOverrideForTesting: Bool?
     /// Set by the App once the interface layer registry exists.
     var isFocusLocked: () -> Bool = { false }
+    /// Clears any active keyboard/controller accessibility focus when the user clicks with the mouse.
+    var onMouseDownClearAccessibility: (() -> Void)?
 
     var isFocusedForHover: Bool {
         if let isWindowFocusedOverrideForTesting {
@@ -45,8 +47,10 @@ class CueSeekerWindow: NSWindow {
         }
         switch event.type {
         case .leftMouseDown:
+            onMouseDownClearAccessibility?()
             cancelFocusedTextInputIfOutside(at: event.locationInWindow)
         case .rightMouseDown:
+            onMouseDownClearAccessibility?()
             if isPointInsideFocusedTextInput(at: event.locationInWindow) {
                 return
             }
@@ -54,6 +58,8 @@ class CueSeekerWindow: NSWindow {
             if handleRightMouseDownOnUnfocusedTextInput(with: event) {
                 return
             }
+        case .otherMouseDown:
+            onMouseDownClearAccessibility?()
         default:
             break
         }

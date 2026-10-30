@@ -233,30 +233,45 @@ struct LibraryOverviewLayout<Content: View>: View {
                         alignment: .leading,
                         spacing: WorkbenchControlMetrics.redesignSpacing4
                     ) {
-                        WorkbenchOverviewActionBarLayout {
-                            WorkbenchSearchField(
-                                placeholder: searchPlaceholder,
-                                text: $searchText,
-                                autofocus: false
-                            )
-
-                            WorkbenchButton(
-                                title: sortMenu.sortTitle,
-                                icon: .funnelSimple,
-                                isOpen: sortMenu.isSortMenuOpen,
-                                action: sortMenu.toggleSortMenu
-                            )
-                            .background(MenuAnchorProbe(handle: sortMenu.sortButtonAnchor))
-
-                            if let actionTitle, let action {
-                                WorkbenchButton(
-                                    title: actionTitle,
-                                    icon: .plus,
-                                    action: action
+                        WorkbenchAccessibilityReader { accessibility in
+                            WorkbenchOverviewActionBarLayout {
+                                WorkbenchSearchField(
+                                    placeholder: searchPlaceholder,
+                                    text: $searchText,
+                                    autofocus: false,
+                                    isSearchAccessibilityFocused: accessibility?.isFocused(.toolbarSearchField) == true,
+                                    isClearAccessibilityFocused: accessibility?.isFocused(.toolbarSearchClearButton) == true,
+                                    onBindAccessibilityTextField: { field in
+                                        accessibility?.activeSearchTextField = field
+                                    }
                                 )
-                            }
 
-                            WorkbenchStatusIndicator(summaryText)
+                                WorkbenchButton(
+                                    title: sortMenu.sortTitle,
+                                    icon: .funnelSimple,
+                                    isOpen: sortMenu.isSortMenuOpen,
+                                    isFocused: accessibility?.isFocused(.toolbarSortButton) == true,
+                                    action: sortMenu.toggleSortMenu
+                                )
+                                .background(MenuAnchorProbe(handle: sortMenu.sortButtonAnchor))
+
+                                if let actionTitle, let action {
+                                    WorkbenchButton(
+                                        title: actionTitle,
+                                        icon: .plus,
+                                        isFocused: accessibility?.isFocused(.excerptNewListButton) == true,
+                                        action: action
+                                    )
+                                }
+
+                                WorkbenchStatusIndicator(summaryText)
+                            }
+                            .onAppear {
+                                accessibility?.onToggleToolbarSortMenu = sortMenu.toggleSortMenu
+                            }
+                            .onDisappear {
+                                accessibility?.onToggleToolbarSortMenu = nil
+                            }
                         }
                         .workbenchPageInlinePadding()
 
@@ -306,6 +321,7 @@ where Data.Element: Identifiable {
     @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.isWorkbenchSidebarVisible) private var isWorkbenchSidebarVisible
     @Environment(\.mediaCardGridContainerWidth) private var environmentContainerWidth
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     @State private var measuredContainerWidth: CGFloat = 0
     private let items: [Data.Element]
     private let content: (Data.Element) -> ItemContent
@@ -422,6 +438,16 @@ where Data.Element: Identifiable {
         }
         .environment(\.mediaCardCoverSize, coverSize)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear {
+            if layerContext.layer == .workbenchPage {
+                workbenchAccessibility?.cardGridColumnCount = max(1, resolvedColumnCount)
+            }
+        }
+        .onChange(of: resolvedColumnCount) { newCount in
+            if layerContext.layer == .workbenchPage {
+                workbenchAccessibility?.cardGridColumnCount = max(1, newCount)
+            }
+        }
         .background {
             if environmentContainerWidth == nil {
                 GeometryReader { proxy in
@@ -667,6 +693,7 @@ struct LibraryOverviewCardContent<Cover: View>: View {
 struct LibraryOverviewCardSurface<Content: View>: View {
     var isSelected = false
     var isHovered = false
+    var isFocused = false
     var isEnabled = true
     var animatesHover = true
     let action: () -> Void
@@ -675,6 +702,7 @@ struct LibraryOverviewCardSurface<Content: View>: View {
     init(
         isSelected: Bool = false,
         isHovered: Bool = false,
+        isFocused: Bool = false,
         isEnabled: Bool = true,
         animatesHover: Bool = true,
         action: @escaping () -> Void,
@@ -682,6 +710,7 @@ struct LibraryOverviewCardSurface<Content: View>: View {
     ) {
         self.isSelected = isSelected
         self.isHovered = isHovered
+        self.isFocused = isFocused
         self.isEnabled = isEnabled
         self.animatesHover = animatesHover
         self.action = action
@@ -740,6 +769,10 @@ struct LibraryOverviewCardSurface<Content: View>: View {
             // rounded background is appearance only and does not narrow it.
             .contentShape(Rectangle())
             .opacity(isEnabled ? 1 : 0.55)
+            .workbenchAccessibilityFocusRing(
+                isFocused: isFocused,
+                cornerRadius: WorkbenchControlMetrics.redesignLibraryMediaCardHoverRadius
+            )
             .animation(nil, value: isSelected)
             .animation(hoverAnimation, value: isHovered)
     }

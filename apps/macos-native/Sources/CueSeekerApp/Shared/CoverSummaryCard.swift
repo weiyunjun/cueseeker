@@ -135,6 +135,8 @@ struct CoverSummaryCard<Cover: View>: View {
     let onToggleMoreMenu: (() -> Void)?
     let cover: () -> Cover
 
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
+
     init(
         title: String,
         supportingContent: CoverSummarySupportingContent,
@@ -343,27 +345,47 @@ struct CoverSummaryCard<Cover: View>: View {
     }
 
     private func actionRow(for form: CoverSummaryCardForm) -> some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            primaryActionButton(for: form)
+        WorkbenchAccessibilityReader { accessibility in
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                primaryActionButton(
+                    for: form,
+                    isFocused: accessibility?.isFocused(.coverSummaryPrimaryButton) == true
+                )
 
-            if let secondaryAction {
-                secondaryActionButton(secondaryAction, for: form)
+                if let secondaryAction {
+                    secondaryActionButton(
+                        secondaryAction,
+                        for: form,
+                        isFocused: accessibility?.isFocused(.coverSummaryEditCoverButton) == true
+                    )
+                }
+
+                if let onToggleMoreMenu {
+                    moreMenuButton(
+                        action: onToggleMoreMenu,
+                        for: form,
+                        isFocused: accessibility?.isFocused(.coverSummaryMoreButton) == true
+                    )
+                }
             }
-
-            if let onToggleMoreMenu {
-                moreMenuButton(action: onToggleMoreMenu, for: form)
+            .onAppear {
+                accessibility?.onToggleCoverSummaryMoreMenu = onToggleMoreMenu
+            }
+            .onDisappear {
+                accessibility?.onToggleCoverSummaryMoreMenu = nil
             }
         }
     }
 
     @ViewBuilder
-    private func primaryActionButton(for form: CoverSummaryCardForm) -> some View {
+    private func primaryActionButton(for form: CoverSummaryCardForm, isFocused: Bool) -> some View {
         switch form {
         case .split:
             WorkbenchPrimaryButton(
                 title: actionKind.title,
                 icon: .play,
                 iconWeight: .fill,
+                isFocused: isFocused,
                 action: action
             )
             .disabled(!isActionEnabled)
@@ -377,6 +399,7 @@ struct CoverSummaryCard<Cover: View>: View {
                 title: actionKind.title,
                 icon: .play,
                 iconWeight: .fill,
+                isFocused: isFocused,
                 action: action
             )
             .disabled(!isActionEnabled)
@@ -391,13 +414,15 @@ struct CoverSummaryCard<Cover: View>: View {
     @ViewBuilder
     private func secondaryActionButton(
         _ secondaryAction: CoverSummarySecondaryAction,
-        for form: CoverSummaryCardForm
+        for form: CoverSummaryCardForm,
+        isFocused: Bool
     ) -> some View {
         switch form {
         case .split:
             WorkbenchButton(
                 title: secondaryAction.title,
                 icon: secondaryAction.icon,
+                isFocused: isFocused,
                 action: secondaryAction.action
             )
         case .backdrop:
@@ -405,6 +430,7 @@ struct CoverSummaryCard<Cover: View>: View {
                 title: secondaryAction.title,
                 icon: secondaryAction.icon,
                 iconWeight: nil,
+                isFocused: isFocused,
                 action: secondaryAction.action
             )
         }
@@ -412,7 +438,8 @@ struct CoverSummaryCard<Cover: View>: View {
 
     private func moreMenuButton(
         action: @escaping () -> Void,
-        for form: CoverSummaryCardForm
+        for form: CoverSummaryCardForm,
+        isFocused: Bool
     ) -> some View {
         ZStack {
             switch form {
@@ -420,6 +447,7 @@ struct CoverSummaryCard<Cover: View>: View {
                 WorkbenchButton(
                     icon: .dotsThree,
                     isOpen: isMoreMenuOpen,
+                    isFocused: isFocused,
                     action: action
                 )
             case .backdrop:
@@ -428,6 +456,7 @@ struct CoverSummaryCard<Cover: View>: View {
                     icon: .dotsThree,
                     iconWeight: nil,
                     isOpen: isMoreMenuOpen,
+                    isFocused: isFocused,
                     action: action
                 )
             }
@@ -544,6 +573,7 @@ private struct CoverSummaryActionButton: View {
     var icon: AppIcon = .play
     var iconWeight: AppIconWeight? = .fill
     var isOpen: Bool = false
+    var isFocused: Bool = false
     let action: () -> Void
 
     @Environment(\.isEnabled) private var isEnabled
@@ -606,6 +636,10 @@ private struct CoverSummaryActionButton: View {
                 isEnabled
                     ? 1
                     : WorkbenchControlMetrics.redesignCoverSummaryButtonDisabledOpacity
+            )
+            .workbenchAccessibilityFocusRing(
+                isFocused: isFocused,
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
             )
             .contentShape(Rectangle())
         }

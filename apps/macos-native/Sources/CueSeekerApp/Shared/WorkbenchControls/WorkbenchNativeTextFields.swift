@@ -211,6 +211,24 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         editor.setSelectedRange(NSRange(location: 0, length: length))
     }
 
+    func focusFromAccessibility() {
+        guard isEnabled && isEditable else {
+            return
+        }
+        didUserInteractSinceAutofocus = true
+        if !isCurrentlyFocused {
+            _ = window?.makeFirstResponder(self)
+        }
+        if let editor = currentEditor() as? NSTextView {
+            applyTextStyle(to: editor)
+            let length = (editor.string as NSString).length
+            let endRange = NSRange(location: length, length: 0)
+            editor.setSelectedRange(endRange)
+            editor.scrollRangeToVisible(endRange)
+        }
+        needsDisplay = true
+    }
+
     func clearTextAndFocus() {
         guard isEnabled && isEditable else {
             return

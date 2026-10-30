@@ -285,6 +285,7 @@ private struct WorkbenchExcerptTableContent: View {
                     imageVerticalAlignment: .center
                 )
             }
+            .environment(\.workbenchAccessibility, appState.workbenchAccessibility)
         )
     }
 
@@ -381,6 +382,7 @@ private struct WorkbenchExcerptTableContent: View {
                 .padding(.bottom, SchemaWorkbenchStyle.toolbarBottomGap)
             }
             .background(WorkbenchRedesignColors.bgSurface)
+            .environment(\.workbenchAccessibility, appState.workbenchAccessibility)
         )
 
         return SubtitleTablePageChrome(

@@ -1624,7 +1624,8 @@ extension SubtitleTableView.Coordinator {
     }
 
     func handleKeyboardFocusEvent(_ event: NSEvent) -> NSEvent? {
-        guard event.keyCode == 48,
+        guard workbenchAccessibility == nil,
+              event.keyCode == 48,
               let container,
               event.window === container.window,
               isEnabled,

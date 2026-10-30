@@ -18,7 +18,24 @@ extension SubtitleTableView.Coordinator {
         // Every arrow and Enter belongs to the open menu, whether or not
         // it has anywhere to move: nothing outside the menu may respond.
         switch keyCode {
+        case MenuGate.tabKeyCode:
+            _ = isSubmenuOpen
+                ? rowActionDestinationHighlight.moveAccessibility(forward: true)
+                : rowActionHighlight.moveAccessibility(forward: true)
+            return true
+        case MenuGate.shiftTabKeyCode:
+            _ = isSubmenuOpen
+                ? rowActionDestinationHighlight.moveAccessibility(forward: false)
+                : rowActionHighlight.moveAccessibility(forward: false)
+            return true
         case 53:
+            if isSubmenuOpen {
+                _ = rowActionSubmenuState.closeSubmenu()
+                return true
+            }
+            if rowActionHighlight.clearAccessibility() {
+                return true
+            }
             dismissMenu()
             return true
         case 126:
@@ -37,7 +54,7 @@ extension SubtitleTableView.Coordinator {
         case 123:
             _ = rowActionSubmenuState.closeSubmenu()
             return true
-        case 36, 76:
+        case 36, 76, 49:
             _ = isSubmenuOpen
                 ? activateHighlightedRowActionDestination()
                 : activateHighlightedRowAction()
@@ -191,6 +208,7 @@ extension SubtitleTableView.Coordinator {
             return
         }
         cancelPendingTextInteraction()
+        workbenchAccessibility?.clear()
         updateHoveredCueStateRow(nil)
         // The row the menu hangs off stays lit until the menu closes, so
         // it is said here rather than left to whatever the pointer happened
@@ -263,7 +281,8 @@ extension SubtitleTableView.Coordinator {
             selectablePositions: activeRowActionMenuModel.selectablePositions(
                 disabledActions: disabledActions,
                 canOpenFolder: canOpenFolder
-            )
+            ),
+            allPositions: activeRowActionMenuModel.allActionPositions
         )
         let menuView = { [rowActionHighlight, rowActionMenuStyle, showsCueGroup] (maximumHeight: CGFloat) in
             RowActionMenu(
@@ -330,7 +349,8 @@ extension SubtitleTableView.Coordinator {
     /// Runs whatever the parent highlight sits on. A submenu parent opens
     /// its submenu instead of acting, matching a click on the same row.
     func activateHighlightedRowAction() -> Bool {
-        guard let position = rowActionHighlight.highlightedPosition,
+        guard let position = rowActionHighlight.activeTriggerPosition,
+              rowActionHighlight.selectablePositions.contains(position),
               let action = activeRowActionMenuModel.action(at: position)
         else {
             return false
@@ -346,7 +366,8 @@ extension SubtitleTableView.Coordinator {
 
     func openHighlightedRowActionSubmenu() -> Bool {
         guard rowActionSubmenuState?.openParent == nil,
-              let position = rowActionHighlight.highlightedPosition,
+              let position = rowActionHighlight.activeTriggerPosition,
+              rowActionHighlight.selectablePositions.contains(position),
               let action = activeRowActionMenuModel.action(at: position),
               action.opensDestinationSubmenu
         else {
@@ -359,7 +380,7 @@ extension SubtitleTableView.Coordinator {
     func activateHighlightedRowActionDestination() -> Bool {
         guard let openParent = rowActionSubmenuState?.openParent,
               let position = rowActionDestinationHighlight
-                  .highlightedPosition
+                  .activeTriggerPosition
         else {
             return false
         }

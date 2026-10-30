@@ -213,6 +213,7 @@ private struct LibraryVideoCardContent {
 }
 
 private struct LibraryVideoCard: View {
+    @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
     @Environment(\.libraryCardContextMenuAnchorOwner) private var anchorMenuOwnerID
     let content: LibraryVideoCardContent
@@ -238,59 +239,79 @@ private struct LibraryVideoCard: View {
     }
 
     var body: some View {
-        LibraryOverviewCardSurface(
-            isSelected: isSelected,
-            isHovered: isHovered,
-            animatesHover: highlight.animatesHoverBackground,
-            action: {
-                highlight.notePress(id: cardID)
-                onOpen()
-            }
-        ) {
-            VStack(alignment: .leading, spacing: WorkbenchLibraryMetrics.recentCardGap) {
-                cover
+        WorkbenchAccessibilityReader { accessibility in
+            let isWorkbench = layerContext.layer == .workbenchPage
+            let isCardFocused = isWorkbench && accessibility?.isFocused(.mediaCard(cardID)) == true
+            let isActionFocused = isWorkbench && accessibility?.isFocused(.mediaCardActionButton(cardID)) == true
+            let isEffectiveSelected = isSelected || (isWorkbench && accessibility?.focusedCardID == cardID)
 
-                Text(content.folderTitle)
-                    .font(.system(size: WorkbenchLibraryMetrics.titleSize, weight: .semibold))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .allowsHitTesting(false)
-
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    Text(episodeLabel)
-                        .font(.system(size: WorkbenchLibraryMetrics.metaSize, weight: .medium))
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                        .monospacedDigit()
-
-                    WatchStatusBadge(status: content.watchStatus)
+            LibraryOverviewCardSurface(
+                isSelected: isEffectiveSelected,
+                isHovered: isHovered,
+                isFocused: isCardFocused,
+                animatesHover: highlight.animatesHoverBackground,
+                action: {
+                    highlight.notePress(id: cardID)
+                    onOpen()
                 }
-                .allowsHitTesting(false)
+            ) {
+                VStack(alignment: .leading, spacing: WorkbenchLibraryMetrics.recentCardGap) {
+                    cover(isActionFocused: isActionFocused)
+
+                    Text(content.folderTitle)
+                        .font(.system(size: WorkbenchLibraryMetrics.titleSize, weight: .semibold))
+                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .allowsHitTesting(false)
+
+                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                        Text(episodeLabel)
+                            .font(.system(size: WorkbenchLibraryMetrics.metaSize, weight: .medium))
+                            .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                            .monospacedDigit()
+
+                        WatchStatusBadge(status: content.watchStatus)
+                    }
+                    .allowsHitTesting(false)
+                }
             }
+            .onHover { highlight.noteHover($0, id: cardID, showsHand: true) }
+            .libraryCardContextMenuTrigger(
+                isEnabled: true,
+                ownerID: cardID,
+                items: contextMenuItems,
+                openContextMenu: { items, point, ownerID in
+                    highlight.notePress(id: cardID)
+                    openContextMenu(items, point, ownerID)
+                }
+            )
+            .onAppear {
+                guard isWorkbench else { return }
+                accessibility?.registerMediaCardAction(id: cardID) {
+                    highlight.notePress(id: cardID)
+                    toggleAnchorMenu?(contextMenuItems, moreMenuAnchor, cardID)
+                }
+            }
+            .onDisappear {
+                guard isWorkbench else { return }
+                accessibility?.unregisterMediaCardAction(id: cardID)
+            }
+            .accessibilityLabel(
+                "\(content.folderTitle), \(episodeLabel), \(content.watchStatus.title)"
+            )
         }
-        .onHover { highlight.noteHover($0, id: cardID, showsHand: true) }
-        .libraryCardContextMenuTrigger(
-            isEnabled: true,
-            ownerID: cardID,
-            items: contextMenuItems,
-            openContextMenu: { items, point, ownerID in
-                highlight.notePress(id: cardID)
-                openContextMenu(items, point, ownerID)
-            }
-        )
-        .accessibilityLabel(
-            "\(content.folderTitle), \(episodeLabel), \(content.watchStatus.title)"
-        )
     }
 
-    private var cover: some View {
+    private func cover(isActionFocused: Bool) -> some View {
         LibraryCoverWithProgress(
             coverPath: content.coverPath,
             coverRevision: content.coverRevision,
             positionMilliseconds: content.positionMilliseconds,
             duration: content.duration,
-            showsMoreButton: isMoreButtonVisible,
+            showsMoreButton: isMoreButtonVisible || isActionFocused,
             isMoreMenuOpen: isMoreMenuOpen,
+            isMoreButtonFocused: isActionFocused,
             moreMenuAnchor: moreMenuAnchor,
             onMoreHoverChange: { isButtonHovered in
                 highlight.noteActionButtonHover(isButtonHovered, id: cardID)
@@ -388,43 +409,61 @@ struct LibraryFolderCard: View {
     }
 
     var body: some View {
-        LibraryOverviewCardSurface(
-            isSelected: isSelected,
-            isHovered: isHovered,
-            isEnabled: isAvailable,
-            animatesHover: highlight.animatesHoverBackground,
-            action: {
-                guard isAvailable else {
-                    return
+        WorkbenchAccessibilityReader { accessibility in
+            let isCardFocused = accessibility?.isFocused(.mediaCard(cardID)) == true
+            let isActionFocused = accessibility?.isFocused(.mediaCardActionButton(cardID)) == true
+            let isEffectiveSelected = isSelected || accessibility?.focusedCardID == cardID
+
+            LibraryOverviewCardSurface(
+                isSelected: isEffectiveSelected,
+                isHovered: isHovered,
+                isFocused: isCardFocused,
+                isEnabled: isAvailable,
+                animatesHover: highlight.animatesHoverBackground,
+                action: {
+                    guard isAvailable else {
+                        return
+                    }
+                    highlight.notePress(id: cardID)
+                    onOpen()
                 }
-                highlight.notePress(id: cardID)
-                onOpen()
+            ) {
+                LibraryOverviewCardContent(title: folder.folderTitle) {
+                    cover(isActionFocused: isActionFocused)
+                }
             }
-        ) {
-            LibraryOverviewCardContent(title: folder.folderTitle) {
-                cover
+            .onHover { highlight.noteHover($0, id: cardID, showsHand: isAvailable) }
+            .libraryCardContextMenuTrigger(
+                isEnabled: isAvailable,
+                ownerID: cardID,
+                items: folderContextMenuItems,
+                openContextMenu: { items, point, ownerID in
+                    highlight.notePress(id: cardID)
+                    openContextMenu(items, point, ownerID)
+                }
+            )
+            .onAppear {
+                accessibility?.registerMediaCardAction(id: cardID) {
+                    guard isAvailable else { return }
+                    highlight.notePress(id: cardID)
+                    toggleAnchorMenu?(folderContextMenuItems, moreMenuAnchor, cardID)
+                }
             }
+            .onDisappear {
+                accessibility?.unregisterMediaCardAction(id: cardID)
+            }
+            .accessibilityLabel(folder.folderTitle)
         }
-        .onHover { highlight.noteHover($0, id: cardID, showsHand: isAvailable) }
-        .libraryCardContextMenuTrigger(
-            isEnabled: isAvailable,
-            ownerID: cardID,
-            items: folderContextMenuItems,
-            openContextMenu: { items, point, ownerID in
-                highlight.notePress(id: cardID)
-                openContextMenu(items, point, ownerID)
-            }
-        )
-        .accessibilityLabel(folder.folderTitle)
     }
 
-    private var cover: some View {
+    private func cover(isActionFocused: Bool) -> some View {
         LibraryCoverWithBadge(
             coverPath: folder.coverPath,
             coverRevision: folder.coverRevision,
             badgeText: episodeCountText,
-            showsMoreButton: isMoreButtonVisible,
+            showsMoreButton: isMoreButtonVisible || (isAvailable && isActionFocused),
             isMoreMenuOpen: isMoreMenuOpen,
+            isMoreButtonFocused: isActionFocused,
             moreMenuAnchor: moreMenuAnchor,
             onMoreHoverChange: { isButtonHovered in
                 highlight.noteActionButtonHover(isButtonHovered, id: cardID)

@@ -1415,6 +1415,7 @@ struct PlaybackSelectedTextMenu: View {
                         title: item.title,
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
+                        isAccessibilityFocused: highlight.isAccessibilityFocused(position),
                         icon: item.icon,
                         showsCheckmarkSlot: false,
                         action: { onActivate(position) },

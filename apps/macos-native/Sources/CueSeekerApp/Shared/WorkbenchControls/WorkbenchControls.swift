@@ -3,6 +3,7 @@ import AppKit
 
 struct WorkbenchInlineClearButton: View {
     var isEnabled: Bool = true
+    var isFocused: Bool = false
     var action: () -> Void
 
     @State private var isHovered = false
@@ -17,6 +18,10 @@ struct WorkbenchInlineClearButton: View {
                 .background(
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignInlineClearButtonRadius, style: .continuous)
                         .fill(backgroundColor)
+                )
+                .workbenchAccessibilityFocusRing(
+                    isFocused: isFocused,
+                    cornerRadius: WorkbenchControlMetrics.redesignInlineClearButtonRadius
                 )
         }
         .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
@@ -49,6 +54,9 @@ struct WorkbenchSearchField: View {
     @Binding var text: String
     var autofocus: Bool
     var trailingStatusText: String?
+    var isSearchAccessibilityFocused: Bool
+    var isClearAccessibilityFocused: Bool
+    var onBindAccessibilityTextField: ((WorkbenchNativeSingleLineTextField?) -> Void)?
     var onSubmit: (() -> Void)?
     var onMoveUp: (() -> Bool)?
     var onMoveDown: (() -> Bool)?
@@ -63,15 +71,21 @@ struct WorkbenchSearchField: View {
         text: Binding<String>,
         autofocus: Bool = false,
         trailingStatusText: String? = nil,
+        isSearchAccessibilityFocused: Bool = false,
+        isClearAccessibilityFocused: Bool = false,
         onSubmit: (() -> Void)? = nil,
         onMoveUp: (() -> Bool)? = nil,
         onMoveDown: (() -> Bool)? = nil,
-        onCancel: (() -> Bool)? = nil
+        onCancel: (() -> Bool)? = nil,
+        onBindAccessibilityTextField: ((WorkbenchNativeSingleLineTextField?) -> Void)? = nil
     ) {
         self.placeholder = placeholder
         _text = text
         self.autofocus = autofocus
         self.trailingStatusText = trailingStatusText
+        self.isSearchAccessibilityFocused = isSearchAccessibilityFocused
+        self.isClearAccessibilityFocused = isClearAccessibilityFocused
+        self.onBindAccessibilityTextField = onBindAccessibilityTextField
         self.onSubmit = onSubmit
         self.onMoveUp = onMoveUp
         self.onMoveDown = onMoveDown
@@ -107,11 +121,26 @@ struct WorkbenchSearchField: View {
                 focus: nil,
                 accessibilityLabel: placeholder,
                 onFocusChange: { isNativeFocused = $0 },
-                onBindTextField: { textFieldBox.field = $0 },
+                onBindTextField: { field in
+                    textFieldBox.field = field
+                    onBindAccessibilityTextField?(field)
+                    if isSearchAccessibilityFocused {
+                        field.focusFromAccessibility()
+                    }
+                },
                 onSubmit: onSubmit,
                 onMoveUp: onMoveUp,
                 onMoveDown: onMoveDown,
-                onCancel: onCancel
+                onCancel: {
+                    if let onCancel, onCancel() {
+                        return true
+                    }
+                    if !isSearchAccessibilityFocused, let field = textFieldBox.field, field.isCurrentlyFocused {
+                        _ = field.window?.makeFirstResponder(nil)
+                        return true
+                    }
+                    return false
+                }
             )
 
             if let trailingStatusText,
@@ -127,7 +156,10 @@ struct WorkbenchSearchField: View {
             }
 
             if !text.isEmpty {
-                WorkbenchInlineClearButton(isEnabled: isEnabled) {
+                WorkbenchInlineClearButton(
+                    isEnabled: isEnabled,
+                    isFocused: isClearAccessibilityFocused
+                ) {
                     textFieldBox.field?.clearTextAndFocus()
                     text = ""
                 }
@@ -152,6 +184,10 @@ struct WorkbenchSearchField: View {
                 )
                 .allowsHitTesting(false)
         )
+        .workbenchAccessibilityFocusRing(
+            isFocused: isSearchAccessibilityFocused,
+            cornerRadius: WorkbenchControlMetrics.redesignSearchRadius
+        )
         .overlay(
             WorkbenchSingleLineContainerOverlay(
                 isEnabled: isEnabled,
@@ -165,6 +201,14 @@ struct WorkbenchSearchField: View {
             )
         )
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
+        .onChange(of: isSearchAccessibilityFocused) { focused in
+            if focused {
+                textFieldBox.field?.focusFromAccessibility()
+            }
+        }
+        .onDisappear {
+            onBindAccessibilityTextField?(nil)
+        }
     }
 }
 
@@ -198,14 +242,9 @@ struct WorkbenchButton: View {
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
                         .strokeBorder(borderColor, lineWidth: 1)
                 )
-                .overlay(
-                    Group {
-                        if isFocused && isEnabled {
-                            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
-                                .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                                .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
-                        }
-                    }
+                .workbenchAccessibilityFocusRing(
+                    isFocused: isFocused,
+                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
                 )
                 .fixedSize(horizontal: true, vertical: false)
                 .contentShape(Rectangle())
@@ -326,6 +365,7 @@ struct WorkbenchPrimaryButton: View {
     /// A spinner in the icon's place, while the button waits for what its
     /// title needs.
     var showsSpinner: Bool = false
+    var isFocused: Bool = false
     var action: () -> Void
 
     @State private var isHovered = false
@@ -367,6 +407,10 @@ struct WorkbenchPrimaryButton: View {
                 )
                 .fill(backgroundColor)
             )
+            .workbenchAccessibilityFocusRing(
+                isFocused: isFocused,
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+            )
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
@@ -393,6 +437,7 @@ struct WorkbenchPrimaryButton: View {
 struct WorkbenchDestructiveButton: View {
     let title: String
     var icon: AppIcon? = nil
+    var isFocused: Bool = false
     var action: () -> Void
 
     @State private var isHovered = false
@@ -422,6 +467,10 @@ struct WorkbenchDestructiveButton: View {
             .overlay(
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
                     .strokeBorder(borderColor, lineWidth: 1)
+            )
+            .workbenchAccessibilityFocusRing(
+                isFocused: isFocused,
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
             )
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
@@ -480,6 +529,7 @@ struct WorkbenchIconButton: View {
     /// open, and for as long as the mode it switches on is on. Lit looks the
     /// same as hover, the way a shortcut button does.
     var isOpen: Bool = false
+    var isFocused: Bool = false
     /// Default resting background when not hovered, pressed, or open.
     var defaultBackground: Color = Color.clear
     /// Hover is read against the surface the button sits on, so a button drawn
@@ -568,6 +618,10 @@ struct WorkbenchIconButton: View {
         .background(
             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
                 .fill(redesignBackgroundColor)
+        )
+        .workbenchAccessibilityFocusRing(
+            isFocused: isFocused,
+            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
         )
         .contentShape(Rectangle())
     }

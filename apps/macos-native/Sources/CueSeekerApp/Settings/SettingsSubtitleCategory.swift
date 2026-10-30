@@ -461,34 +461,27 @@ struct SettingsSubtitleCategory: View {
         isRepeat: Bool,
         systemFontTitle: String
     ) -> Bool {
-        switch keyCode {
-        case 53:
-            if !isRepeat {
-                closeFontMenu()
-            }
-            return true
-        case 126:
-            _ = fontHighlight.moveHighlight(by: -1)
-            return true
-        case 125:
-            _ = fontHighlight.moveHighlight(by: 1)
-            return true
-        case 123, 124:
-            return true
-        case 36, 76:
-            if !isRepeat,
-               let position = fontHighlight.highlightedPosition,
-               let option = Self.option(
-                   at: position,
-                   availableFonts: availableFonts,
-                   systemFontTitle: systemFontTitle
-               ) {
+        fontHighlight.handleStandardMenuKey(
+            keyCode: keyCode,
+            onActivate: {
+                guard !isRepeat,
+                      let position = fontHighlight.activeTriggerPosition,
+                      let option = Self.option(
+                          at: position,
+                          availableFonts: availableFonts,
+                          systemFontTitle: systemFontTitle
+                      )
+                else {
+                    return
+                }
                 selectFontOption(option)
+            },
+            onDismiss: {
+                if !isRepeat {
+                    closeFontMenu()
+                }
             }
-            return true
-        default:
-            return false
-        }
+        )
     }
 
     private func closeAllPopovers() {
@@ -1008,6 +1001,7 @@ struct SettingsSubtitleFontMenu: View {
                             ),
                             isHighlighted: highlight.isSelected(0),
                             isRowHovered: highlight.isHovered(0),
+                            isAccessibilityFocused: highlight.isAccessibilityFocused(0),
                             showsCheckmarkSlot: true,
                             action: {
                                 onSelect(systemOption)
@@ -1038,6 +1032,7 @@ struct SettingsSubtitleFontMenu: View {
                                     ),
                                     isHighlighted: highlight.isSelected(position),
                                     isRowHovered: highlight.isHovered(position),
+                                    isAccessibilityFocused: highlight.isAccessibilityFocused(position),
                                     showsCheckmarkSlot: true,
                                     action: {
                                         onSelect(option)
@@ -1137,7 +1132,7 @@ struct SettingsSubtitleFontMenu: View {
 
     private func revealHighlightedPosition() {
         guard totalContentHeight > floor(maximumHeight),
-              let position = highlight.highlightedPosition
+              let position = highlight.revealPosition
         else {
             return
         }

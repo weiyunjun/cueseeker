@@ -18,6 +18,7 @@ struct WorkbenchFileView: View {
     /// Observed because any library task disables the folder controls and the
     /// rename menus.
     @ObservedObject var tasks: TaskQueueStore
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     @State private var isChoosingFolder = false
     @State private var activeMenu: FileCardMenuState?
     @State private var addFolderButtonAnchorFrame: CGRect = .zero
@@ -51,6 +52,7 @@ struct WorkbenchFileView: View {
         .onDisappear {
             dismissMenu()
             indexing.clearTransientNotice()
+            workbenchAccessibility?.onToggleFileAddFolderMenu = nil
         }
     }
 
@@ -114,24 +116,11 @@ struct WorkbenchFileView: View {
                             menuFrame: menuFrame,
                             anchorFrame: activeMenu.anchorFrame,
                             handleKey: { keyCode, _ in
-                                switch keyCode {
-                                case 53:
-                                    dismissMenu()
-                                    return true
-                                case 126:
-                                    _ = highlight.moveHighlight(by: -1)
-                                    return true
-                                case 125:
-                                    _ = highlight.moveHighlight(by: 1)
-                                    return true
-                                case 123, 124:
-                                    return true
-                                case 36, 76:
-                                    _ = activateHighlightedItem(in: activeMenu)
-                                    return true
-                                default:
-                                    return false
-                                }
+                                highlight.handleStandardMenuKey(
+                                    keyCode: keyCode,
+                                    onActivate: { _ = activateHighlightedItem(in: activeMenu) },
+                                    onDismiss: { dismissMenu() }
+                                )
                             },
                             dismiss: { _ in
                                 dismissMenu(openedAs: activeMenu.id)
@@ -191,7 +180,8 @@ struct WorkbenchFileView: View {
             items: items
         )
         highlight.open(
-            selectablePositions: items.indices.filter { items[$0].isEnabled }
+            selectablePositions: items.indices.filter { items[$0].isEnabled },
+            allPositions: Array(items.indices)
         )
     }
 
@@ -216,7 +206,8 @@ struct WorkbenchFileView: View {
             items: items
         )
         highlight.open(
-            selectablePositions: items.indices.filter { items[$0].isEnabled }
+            selectablePositions: items.indices.filter { items[$0].isEnabled },
+            allPositions: Array(items.indices)
         )
     }
 
@@ -229,7 +220,7 @@ struct WorkbenchFileView: View {
     }
 
     private func activateHighlightedItem(in menu: FileCardMenuState) -> Bool {
-        guard let position = highlight.highlightedPosition,
+        guard let position = highlight.activeTriggerPosition,
               menu.items.indices.contains(position),
               menu.items[position].isEnabled
         else {
@@ -332,7 +323,8 @@ struct WorkbenchFileView: View {
             WorkbenchButton(
                 title: L("settings.library.add_folder"),
                 icon: .folderPlus,
-                isOpen: activeMenu?.cardID == Self.addFolderMenuID
+                isOpen: activeMenu?.cardID == Self.addFolderMenuID,
+                isFocused: workbenchAccessibility?.isFocused(.fileAddFolderButton) == true
             ) {
                 toggleMenu(
                     for: Self.addFolderMenuID,
@@ -355,15 +347,34 @@ struct WorkbenchFileView: View {
                         )
                 }
             )
+            .onAppear {
+                workbenchAccessibility?.onToggleFileAddFolderMenu = {
+                    guard !(isFolderOperationBlocked || isChoosingFolder) else { return }
+                    toggleMenu(
+                        for: Self.addFolderMenuID,
+                        anchorFrame: addFolderButtonAnchorFrame,
+                        items: addFolderMenuItems
+                    )
+                }
+            }
             .onPreferenceChange(WorkbenchDropdownAnchorPreferenceKey.self) { anchors in
                 if let frame = anchors[Self.addFolderMenuID], frame != .zero {
                     addFolderButtonAnchorFrame = frame
+                    workbenchAccessibility?.onToggleFileAddFolderMenu = {
+                        guard !(isFolderOperationBlocked || isChoosingFolder) else { return }
+                        toggleMenu(
+                            for: Self.addFolderMenuID,
+                            anchorFrame: frame,
+                            items: addFolderMenuItems
+                        )
+                    }
                 }
             }
 
             WorkbenchButton(
                 title: L("settings.library.index_now"),
-                icon: .arrowClockwise
+                icon: .arrowClockwise,
+                isFocused: workbenchAccessibility?.isFocused(.fileIndexNowButton) == true
             ) {
                 appState.indexAllFolders()
             }
@@ -390,7 +401,7 @@ struct WorkbenchFileView: View {
             )
             .frame(minHeight: emptyMinHeight)
         } else {
-            LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            VStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 ForEach(folders, id: \.self) { folder in
                     let rootPath = folder.mediaPath
                     let title = IndexingStore.displayName(for: folder)
@@ -435,10 +446,13 @@ struct WorkbenchFileView: View {
                     ]
 
                     WorkbenchFileCard(
+                        cardID: rootPath,
                         icon: FileFolderGroupingResolver.folderIcon(for: folder),
                         title: title,
                         subtitle: subtitle,
                         showsChevron: true,
+                        isCardFocused: workbenchAccessibility?.isFocused(.fileCard(rootPath)) == true,
+                        isActionFocused: workbenchAccessibility?.isFocused(.fileCardActionButton(rootPath)) == true,
                         onTap: {
                             appState.loadFileSubfolders(rootPath: rootPath)
                             appState.workbenchLayout.navigate(
@@ -501,7 +515,7 @@ struct WorkbenchFileView: View {
             } else {
                 VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
                     if !partition.subfolders.isEmpty {
-                        LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                        VStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                             ForEach(partition.subfolders) { folder in
                                 let title = URL.fromMediaPath(folder.folderPath).lastPathComponent
                                 let items = [
@@ -526,10 +540,13 @@ struct WorkbenchFileView: View {
                                 ]
 
                                 WorkbenchFileCard(
+                                    cardID: folder.folderPath,
                                     icon: FileFolderGroupingResolver.folderIcon(forFolderPath: folder.folderPath),
                                     title: title,
                                     subtitle: FileFolderGroupingResolver.subfolderSubtitle(for: folder.folderPath),
                                     showsChevron: true,
+                                    isCardFocused: workbenchAccessibility?.isFocused(.fileCard(folder.folderPath)) == true,
+                                    isActionFocused: workbenchAccessibility?.isFocused(.fileCardActionButton(folder.folderPath)) == true,
                                     onTap: {
                                         appState.loadFileObjects(folderPath: folder.folderPath)
                                         appState.workbenchLayout.navigate(
@@ -607,7 +624,7 @@ struct WorkbenchFileView: View {
         objects: [IndexedContentObject],
         folderPath: String
     ) -> some View {
-        LazyVStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             ForEach(objects) { object in
                 VStack(alignment: .leading, spacing: 0) {
                     Text(object.displayTitle)
@@ -653,11 +670,14 @@ struct WorkbenchFileView: View {
                         ]
 
                         WorkbenchFileCard(
+                            cardID: object.videoPath,
                             icon: .video,
                             title: object.videoName,
                             subtitle: FileSizeFormatter.format(bytes: object.fileSize),
                             showsChevron: false,
                             showsCardChrome: false,
+                            isCardFocused: false,
+                            isActionFocused: workbenchAccessibility?.isFocused(.fileRowActionButton(object.videoPath)) == true,
                             onTap: nil,
                             menuItems: videoItems,
                             isCardMenuOpen: activeMenu?.cardID == object.videoPath,
@@ -700,11 +720,14 @@ struct WorkbenchFileView: View {
                         ]
 
                         WorkbenchFileCard(
+                            cardID: subtitle.path,
                             icon: .subtitles,
                             title: subtitle.name,
                             subtitle: FileSizeFormatter.format(bytes: subtitle.fileSize),
                             showsChevron: false,
                             showsCardChrome: false,
+                            isCardFocused: false,
+                            isActionFocused: workbenchAccessibility?.isFocused(.fileRowActionButton(subtitle.path)) == true,
                             onTap: nil,
                             menuItems: subtitleItems,
                             isCardMenuOpen: activeMenu?.cardID == subtitle.path,
@@ -833,7 +856,10 @@ struct WorkbenchFileView: View {
                 }
 
                 if let destination = node.destination {
-                    BreadcrumbLink(title: node.title) {
+                    BreadcrumbLink(
+                        title: node.title,
+                        isFocused: workbenchAccessibility?.isFocused(.fileBreadcrumb(node.id)) == true
+                    ) {
                         appState.workbenchLayout.navigate(to: destination)
                     }
                 } else {
@@ -907,6 +933,7 @@ struct WorkbenchFileView: View {
             textColor: textColor,
             iconColor: iconColor,
             iconCustomView: iconCustomView,
+            isTextFocused: workbenchAccessibility?.isFocused(.fileStatusIndicatorText) == true,
             onTapText: statusTapAction
         )
     }
@@ -925,6 +952,7 @@ struct WorkbenchFileView: View {
 
 struct BreadcrumbLink: View {
     let title: String
+    var isFocused: Bool = false
     let action: () -> Void
     @State private var isHovered = false
 
@@ -942,6 +970,10 @@ struct BreadcrumbLink: View {
                 )
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .workbenchAccessibilityFocusRing(
+                    isFocused: isFocused,
+                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                )
                 .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
@@ -956,11 +988,14 @@ typealias FileCardMenuPopover = WorkbenchCardMenuPopover
 
 
 private struct WorkbenchFileCard: View {
+    var cardID: String = ""
     let icon: AppIcon
     let title: String
     let subtitle: String
     let showsChevron: Bool
     var showsCardChrome: Bool = true
+    var isCardFocused: Bool = false
+    var isActionFocused: Bool = false
     let onTap: (() -> Void)?
     let menuItems: [FileCardMenuItem]
     let isCardMenuOpen: Bool
@@ -970,6 +1005,7 @@ private struct WorkbenchFileCard: View {
 
     @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     @State private var isHovered = false
     @State private var isPressed = false
 
@@ -1024,6 +1060,7 @@ private struct WorkbenchFileCard: View {
                     WorkbenchIconButton(
                         icon: .dotsThree,
                         isOpen: isButtonMenuOpen,
+                        isFocused: isActionFocused,
                         hoverBackground: (isCardMenuOpen && !isButtonMenuOpen)
                             ? Color.clear
                             : WorkbenchRedesignColors.rowSelected,
@@ -1033,13 +1070,24 @@ private struct WorkbenchFileCard: View {
                             onOpenButtonMenu(frame)
                         }
                     )
+                    .onAppear {
+                        guard !cardID.isEmpty else { return }
+                        workbenchAccessibility?.registerFileCardAction(id: cardID) {
+                            let frame = buttonProxy.frame(in: .named(WorkbenchFileView.fileCardCoordinateSpaceName))
+                            onOpenButtonMenu(frame)
+                        }
+                    }
+                    .onDisappear {
+                        guard !cardID.isEmpty else { return }
+                        workbenchAccessibility?.unregisterFileCardAction(id: cardID)
+                    }
                 }
                 .frame(
                     width: WorkbenchControlMetrics.redesignIconButtonSize,
                     height: WorkbenchControlMetrics.redesignIconButtonSize
                 )
-                .opacity(isHovered || isCardMenuOpen ? 1 : 0)
-                .allowsHitTesting(isHovered || isCardMenuOpen)
+                .opacity(isHovered || isCardMenuOpen || isActionFocused ? 1 : 0)
+                .allowsHitTesting(isHovered || isCardMenuOpen || isActionFocused)
 
                 if showsChevron {
                     AppIconImage(
@@ -1069,6 +1117,8 @@ private struct WorkbenchFileCard: View {
             )
             ZStack {
                 shape.fill(cardBackgroundColor)
+
+                WorkbenchAccessibilityScrollRevealProbe(isActive: isCardFocused || isActionFocused)
 
                 if let onTap {
                     Button(action: onTap) {
@@ -1105,6 +1155,10 @@ private struct WorkbenchFileCard: View {
                 lineWidth: showsCardChrome ? WorkbenchControlMetrics.redesignControlBorderWidth : 0
             )
             .allowsHitTesting(false)
+        )
+        .workbenchAccessibilityFocusRing(
+            isFocused: isCardFocused,
+            cornerRadius: rowCornerRadius
         )
         .contentShape(RoundedRectangle(
             cornerRadius: rowCornerRadius,

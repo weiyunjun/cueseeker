@@ -306,26 +306,15 @@ struct WorkbenchFileDetailDialog: View {
     @discardableResult
     func handleMenuKey(keyCode: UInt16) -> Bool {
         guard isMenuOpen else { return false }
-        switch keyCode {
-        case 53:
-            dismissMenu()
-            return true
-        case 126:
-            _ = menuHighlight.moveHighlight(by: -1)
-            return true
-        case 125:
-            _ = menuHighlight.moveHighlight(by: 1)
-            return true
-        case 123, 124:
-            return true
-        case 36, 76:
-            if let highlighted = menuHighlight.highlightedPosition {
-                selectPairedItem(at: highlighted)
-            }
-            return true
-        default:
-            return false
-        }
+        return menuHighlight.handleStandardMenuKey(
+            keyCode: keyCode,
+            onActivate: {
+                if let highlighted = menuHighlight.activeTriggerPosition {
+                    selectPairedItem(at: highlighted)
+                }
+            },
+            onDismiss: { dismissMenu() }
+        )
     }
 
     // MARK: - Folder Content
@@ -689,6 +678,7 @@ struct FileDetailPairedSwitcherMenuPopover: View {
                                     icon: item.isVideo ? .video : .subtitles,
                                     isHighlighted: highlight.isSelected(position),
                                     isRowHovered: highlight.isHovered(position),
+                                    isAccessibilityFocused: highlight.isAccessibilityFocused(position),
                                     action: {
                                         onSelect(position)
                                     },
@@ -745,7 +735,7 @@ struct FileDetailPairedSwitcherMenuPopover: View {
             )
             .onChange(of: highlight.keyboardMoveCount) { _ in
                 guard contentHeight + 2 * MenuMetrics.padding > floor(maximumHeight),
-                      let position = highlight.highlightedPosition
+                      let position = highlight.revealPosition
                 else {
                     return
                 }
@@ -760,6 +750,7 @@ struct FileDetailPairedMenuItemRow: View {
     let icon: AppIcon
     var isHighlighted = false
     var isRowHovered = false
+    var isAccessibilityFocused = false
     let action: () -> Void
     var onHoverChange: ((Bool) -> Void)?
 
@@ -806,7 +797,28 @@ struct FileDetailPairedMenuItemRow: View {
                     cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius,
                     style: .continuous
                 )
-                .fill(isHighlighted || isRowHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
+                .fill(
+                    isHighlighted
+                        ? WorkbenchRedesignColors.menuItemSelectedBg
+                        : (isRowHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
+                )
+            )
+            .overlay(
+                Group {
+                    if isAccessibilityFocused {
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius
+                                + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
+                            style: .continuous
+                        )
+                        .stroke(
+                            WorkbenchRedesignColors.focusRing,
+                            lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
+                        )
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
+                        .allowsHitTesting(false)
+                    }
+                }
             )
             .contentShape(Rectangle())
             .onHover { inside in

@@ -17,6 +17,9 @@ import SwiftUI
 /// separate `NSEvent` monitors had, collapsed into one implementation.
 @MainActor
 final class MenuGate {
+    static let tabKeyCode: UInt16 = 48
+    static let shiftTabKeyCode: UInt16 = 0xFE30
+
     /// The menus the design names, and the only things it lets them differ in:
     /// whether the playback key owner also offers it keys, whether its surface
     /// scrolls, and whether it keeps the text selection. A caller states which
@@ -199,6 +202,10 @@ final class MenuGate {
         }
     }
 
+    var hasOpenUncoveredMenu: Bool {
+        bansScrolling
+    }
+
     /// Keys the playback key owner offers the open menus before seeking,
     /// volume, cue navigation and Command Panel navigation see them. Returns
     /// whether a menu spent the key.
@@ -207,6 +214,20 @@ final class MenuGate {
             guard client.kind.receivesKeysFromRouter,
                   !interfaceLayers.isMenuCovered(ownedBy: client.owner)
             else {
+                continue
+            }
+            if client.handleKey(keyCode, isRepeat) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Routes game controller inputs to any uncovered open menu (including
+    /// Workbench table row menus).
+    func routeControllerKey(_ keyCode: UInt16, isRepeat: Bool) -> Bool {
+        for (_, client) in clients {
+            guard !interfaceLayers.isMenuCovered(ownedBy: client.owner) else {
                 continue
             }
             if client.handleKey(keyCode, isRepeat) {
@@ -297,8 +318,17 @@ final class MenuGate {
 
         switch event.type {
         case .keyDown:
+            let effectiveKeyCode: UInt16
+            if event.keyCode == Self.tabKeyCode,
+               event.modifierFlags
+                   .intersection(.deviceIndependentFlagsMask)
+                   .contains(.shift) {
+                effectiveKeyCode = Self.shiftTabKeyCode
+            } else {
+                effectiveKeyCode = event.keyCode
+            }
             if !isFromAnotherWindow,
-               client.handleKey(event.keyCode, event.isARepeat) {
+               client.handleKey(effectiveKeyCode, event.isARepeat) {
                 return nil
             }
             return MenuInputBarrier.passesKey(
@@ -322,6 +352,9 @@ final class MenuGate {
             return nil
 
         case .leftMouseDown, .rightMouseDown:
+            if !isFromAnotherWindow {
+                MenuHighlightModel.broadcastMouseDown()
+            }
             switch MenuOutsidePress.decide(
                 event,
                 menuWindow: menuWindow,

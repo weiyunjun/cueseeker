@@ -198,6 +198,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.search)
             .environmentObject(appState.playback)
             .environmentObject(appState.filterDialog)
+            .environmentObject(appState.workbenchAccessibility)
 
         let window = CueSeekerMainWindow(
             contentRect: NSRect(x: 0, y: 0, width: AppShellLayout.defaultWindowWidth, height: 720),
@@ -205,6 +206,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
+        window.onMouseDownClearAccessibility = { [appState] in
+            MainActor.assumeIsolated {
+                _ = appState.workbenchAccessibility.clear()
+                MenuHighlightModel.broadcastMouseDown()
+            }
+        }
         // While a menu owns input nothing under it may take the keyboard back.
         window.isFocusLocked = { [appState] in
             MainActor.assumeIsolated {
@@ -308,20 +315,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let monitor = GameControllerInputMonitor(
             inputEligibility: { [weak self] in
                 guard let self,
-                      NSApplication.shared.isActive,
-                      self.window?.isKeyWindow == true,
-                      !self.appState.interfaceLayers.isOpen(.dialog)
+                      NSApplication.shared.isActive
                 else {
                     return false
                 }
-                return self.appState.isPlaybackPageVisible
-                    || self.appState.playbackFullscreenManager.isFullscreen
+                return self.window?.isKeyWindow == true
+                    || self.settingsWindow?.isKeyWindow == true
             }
         ) { [weak self] input in
             guard let self else {
                 return false
             }
-            return self.appState.handlePlaybackControllerInput(input)
+            return self.appState.handleGlobalControllerInput(
+                input,
+                isMainWindowKey: self.window?.isKeyWindow == true,
+                isSettingsWindowKey: self.settingsWindow?.isKeyWindow == true
+            )
         }
         controllerInputMonitor = monitor
         monitor.start()
@@ -378,7 +387,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        let settingsInterfaceLayers = InterfaceLayerRegistry()
+        let settingsInterfaceLayers = appState.settingsInterfaceLayers
         let contentView = SettingsView()
             .modifier(InterfaceLayerCoverageBridge(layers: settingsInterfaceLayers))
             .environmentObject(appState)
@@ -404,6 +413,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
+        settingsWindow.onMouseDownClearAccessibility = {
+            MainActor.assumeIsolated {
+                MenuHighlightModel.broadcastMouseDown()
+            }
+        }
         settingsWindow.isFocusLocked = { [settingsInterfaceLayers] in
             MainActor.assumeIsolated {
                 settingsInterfaceLayers.hasUncoveredOpenMenu

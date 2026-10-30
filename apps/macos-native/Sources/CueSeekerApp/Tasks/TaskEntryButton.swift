@@ -17,12 +17,14 @@ struct TaskEntryButton: View {
     var openBackground: Color? = nil
     var countBackground: Color = WorkbenchRedesignColors.badgeNeutralBg
     var countTextColor: Color = WorkbenchRedesignColors.textSecondary
+    var isFocused: Bool = false
     let onOpen: () -> Void
 
     var body: some View {
         WorkbenchIconButton(
             icon: .tray,
             isOpen: tasks.isPanelOpen,
+            isFocused: isFocused,
             hoverBackground: hoverBackground,
             pressedBackground: pressedBackground,
             openBackground: openBackground,

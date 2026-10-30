@@ -44,6 +44,7 @@ struct ExcerptDestinationMenu: View {
                         title: destination.title,
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
+                        isAccessibilityFocused: highlight.isAccessibilityFocused(position),
                         showsCheckmarkSlot: false,
                         action: {
                             onSelect(destination)
@@ -61,6 +62,7 @@ struct ExcerptDestinationMenu: View {
                     title: L("excerpt.new_list"),
                     isHighlighted: highlight.isSelected(destinations.count),
                     isRowHovered: highlight.isHovered(destinations.count),
+                    isAccessibilityFocused: highlight.isAccessibilityFocused(destinations.count),
                     showsCheckmarkSlot: false,
                     action: onCreateList,
                     onHoverChange: { isHovered in

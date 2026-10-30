@@ -221,7 +221,12 @@ public enum PlaybackTheme {
 
     /// --color-player-menu-item-selected-bg
     public static var menuItemSelectedBackground: Color {
-        Color.white.opacity(0.20)
+        Color.white.opacity(0.16)
+    }
+
+    /// --color-focus-ring (Player Chrome fixed Dark variant Alpha 0.30)
+    public static var focusRing: Color {
+        Color.accentColor.opacity(0.30)
     }
 
     /// --color-player-cue-control-bar-border
