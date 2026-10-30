@@ -1,5 +1,5 @@
 # 说明
-1. 手柄适配当前只适用于视频内的场景，包括视频播放，Playback Overlay，Command Panel，Collage界面。
+1. 本文档定义视频内场景（包括视频播放、Playback Overlay、Command Panel、Collage 界面）的专属手柄键位逻辑；全应用通用的手柄无障碍交互（`L1` / `R1` / `✕` / `◯` / 十字键 / 左摇杆）以及工作台、设置窗口、弹窗与弹出菜单的手柄控制规则详见 [`../ui/UI Accessibility Rules.md`](../ui/UI%20Accessibility%20Rules.md)。
 
 # DS5手柄
 
