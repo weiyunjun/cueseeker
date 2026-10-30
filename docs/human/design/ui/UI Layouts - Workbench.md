@@ -35,7 +35,7 @@
 
 - Expanded
   - Docked：窗口宽度 ≥ `--min-width-workbench-page-content` + `--width-app-sidebar` 时与页面并排布局。
-  - Overlay：窗口宽度 < `--min-width-workbench-page-content` + `--width-app-sidebar` 时全高浮于顶栏与页面之上（右侧 1px `--color-border-muted` 分隔线，阴影 `--shadow-popover`），以 `--duration-sidebar-motion` 透明度淡入淡出；指针向右移出 Sidebar 宽度范围或点击 Sidebar Toggle 时收起。
+  - Overlay：窗口宽度 < `--min-width-workbench-page-content` + `--width-app-sidebar` 时全高浮于顶栏与页面之上（右侧 1px `--color-border-muted` 分隔线，阴影 `--shadow-popover`），以 `--duration-sidebar-motion` 透明度淡入淡出；点击 Sidebar Toggle 时收起。
 - Collapsed
   - Auto Collapse：窗口宽度 < `--min-width-workbench-page-content` + `--width-app-sidebar` 时自动收起，收起后不自动展开。只在 Workbench 可见时判定，从播放页返回时判定一次。
 
@@ -247,7 +247,9 @@
 - Switch
 - Color Well
 - Segmented Control
+- Menu / Dropdown Menu
 - Button
+- Confirmation Dialog
 
 #### Spacing
 
@@ -263,10 +265,10 @@
 
 #### Layout
 
-- Language 下拉框宽度：`--width-settings-popup`
+- Language：宽度 `--width-settings-popup` 的下拉触发器，展开 Menu / Dropdown Menu（菜单项为 Radio Menu Item，菜单宽度 `--width-settings-popup`）
 - Number Field 宽度：`--width-settings-number-field`
 - Maintenance 状态颜色：正常 `--color-text-secondary`；建议压缩 `--color-warning-text`；完成 `--color-success-text`；失败 `--color-danger-text`
-- Maintenance 的 Refresh、Compact Database 与 Developer 的 Refresh：Button / Neutral，位于所在行右侧
+- Maintenance 的 Refresh、Compact Database 与 Developer 的 Refresh：Button / Neutral，位于所在行右侧；点击 Compact Database 弹出 Confirmation Dialog
 - Maintenance 数据库路径：`--font-size-caption`，`--color-text-muted`，单行，中间省略
 
 ### L-02.4 Settings Shortcuts Layout

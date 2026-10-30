@@ -21,6 +21,7 @@
 - Applies To：Text Field, Search Field, Number Field
 - Line Breaks：Disallowed；pasted line breaks are replaced with spaces
 - Return Key：Does not insert line breaks, select all text, or trigger dialog confirmation（Command Panel Search Field keeps its action execution）
+- Escape Key：存在输入法未上屏候选文本时优先关闭输入法候选区并保留输入框聚焦；无未上屏候选文本时再由所在界面响应关闭或返回
 
 #### Pointer
 
