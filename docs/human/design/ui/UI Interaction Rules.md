@@ -138,7 +138,7 @@ Toast、Tooltip、播放反馈与播放页报错条只有视觉，不接受输�
 
 ## 11.2 规则
 1. 鼠标未隐藏且未处于 Hover 抑制态时，指针形状与 Hover 同步，实时由当前指针所在位置的最上层可交互界面元素决定（键盘/手柄导航改变 Select 清除卡片 Hover 时，指针同步退回默认箭头，直至鼠标实际移动）：
-   - **Grab 样式**：表格（Search、Excerpt 二级）非批量选择模式下的有效字幕文字内容；各界面（Library 一/二级、Recent、Excerpt 一级、Playback Overlay Playlist、Command Panel）的封面卡片组件（封面右下角 `dots-three` 按钮除外）。
+   - **Grab 样式**：表格（Search、Excerpt 二级）非批量选择模式下的有效字幕文字内容；File 界面除 `Last Updated: --` 外的状态指示器文字（左侧图标除外）；各界面（Library 一/二级、Recent、Excerpt 一级、Playback Overlay Playlist、Command Panel）的封面卡片组件（封面右下角 `dots-three` 按钮除外）。
    - **I-beam 样式**：可按下左键拖选文字且不属于 Grab 样式的区域；可输入文本的区域（搜索框、编辑列表名称与描述等）。
    - **默认箭头样式**：其余所有区域。
 2. 弹出菜单或对话框打开期间，菜单与对话框之外的下层区域冻结，指针在非 I-beam 区域恢复为默认箭头样式；关闭后立即按当前指针位置重新判定。

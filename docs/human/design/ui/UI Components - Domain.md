@@ -153,6 +153,7 @@
 ##### States
 
 - Default
+- Hover（仅 File 可点击状态文字：文字颜色不变，显示与文字同色的下划线，Pointer 为 Grab）
 - Disabled
 
 #### Variants

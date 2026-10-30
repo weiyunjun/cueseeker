@@ -72,7 +72,7 @@
 | `folder-smb` | Regular | SMB 文件夹 | File Page / Add Folder 菜单 / SMB Folder；File Page / SMB 文件夹卡片 |
 | `folder-ftp` | Regular | FTP 文件夹 | File Page / Add Folder 菜单 / FTP Folder；File Page / FTP 文件夹卡片 |
 | `folder-nfs` | Regular | NFS 文件夹 | File Page / Add Folder 菜单 / NFS Folder；File Page / NFS 文件夹卡片 |
-| `arrow-clockwise` | Regular | 重新索引、刷新 | File Page / Index All、Root Folder Card 菜单 / Index This Folder、闲置状态；Settings / Maintenance、Developer 刷新 |
+| `arrow-clockwise` | Regular | 重新索引、刷新 | File Page / Index All、Root Folder Card 菜单 / Index This Folder；Settings / Maintenance、Developer 刷新 |
 | `minus-circle` | Regular | 移除 | Task Card 菜单 / Remove Task |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |
 | `stack` | Regular | 剧集 | Library File Tree / Display Title |

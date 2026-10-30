@@ -458,3 +458,14 @@
 - 出现位置：App Center
 - 动画：Default
 - 说明：在 Task 卡片弹出菜单打开期间，若任务状态已改变（如进行中转为已结束），用户点击移除任务时触发拦截报错。
+
+### 41. 任务记录已不存在
+- 英文：Task record no longer exists
+- 简体中文：任务记录已不存在
+- 繁体中文：任務記錄已不存在
+- 图标：warning
+- 持续时间：3秒
+- Scenario ID：task.detail.record_not_found
+- 出现位置：App Center
+- 动画：Default
+- 说明：在 File 界面点击状态文字查看任务详情时，若对应任务记录已在任务面板中删除，触发拦截提示。

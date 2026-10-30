@@ -586,7 +586,8 @@
   - 已完成（Completed）：`check-circle`（18px 1.30px `--color-success-text`）+ `--color-success-text`（`Indexed [Folder]`、`Indexed All Folders`、`Removed [Folder]`）
   - 进行中（In Progress）：`Spinner` + `--color-text-secondary`（`Indexing [Folder]`、`Indexing All Folders`、`Removing [Folder]`）
   - 失败（Failed）：`warning`（18px 1.30px `--color-danger-text`）+ `--color-danger-text`（`Index Failed: [Folder]`、`Removal Failed: [Folder]`）
-  - 闲置（Idle）：`arrow-clockwise`（18px 1.30px `--color-text-secondary`）+ `--color-text-secondary`（`Last Updated: yy-MM-dd HH:mm` / `Last Updated: --`）。层级切换或重新进入时若无进行中操作则恢复闲置状态。
+  - 闲置（Idle）：无左侧图标，`--color-text-secondary`（`Last Updated: yy-MM-dd HH:mm` / `Last Updated: --`）。层级切换或重新进入时若无进行中操作则恢复闲置状态。
+- 点击交互：从未索引（`Last Updated: --`）时为静态文本；其余状态下仅状态文字可点击（Hover 显示与当前文字同色下划线，Pointer 为 Grab），点击直接打开对应任务（`Index All`、`Index`、`Add Folder`、`Remove Folder`）的 `Task Info` 详情弹窗（若该任务记录已被删除则弹出 Toast 提示）。
 
 ### L-04.6 File Card Layout
 
@@ -609,9 +610,9 @@
   - Wrapping：所有文本完整展示，字符折行，不截断
 - Trailing Actions：
   - 文件夹卡片最右侧常驻不可点击的 `caret-right` 指示箭头（`--size-card-chevron` 16px，`--color-text-muted`），`dots-three` 按钮位于其左侧（间距 `--spacing-2`）；文件卡片无 `caret-right` 箭头，最右侧仅保留 `dots-three` 按钮。
-  - `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px）默认隐藏，仅在卡片 Hover 或该卡片菜单打开时显示；Hover 按钮自身及菜单打开时底色为 `--color-row-selected`，Pressed 底色为 `--color-row-action-bg-pressed`（按住该按钮时卡片自身维持 Hover 背景色）。
+  - `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px）默认隐藏，仅在卡片 Hover 或该卡片菜单打开时显示；Hover 按钮自身及通过该按钮打开菜单时底色为 `--color-row-selected`，Pressed 底色为 `--color-row-action-bg-pressed`（按住该按钮时卡片自身维持 Hover 背景色）。
   - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDAV Folder`（`folder-webdav`）+ `SMB Folder`（`folder-smb`）+ `FTP Folder`（`folder-ftp`）+ `NFS Folder`（`folder-nfs`）
-  - 卡片弹出菜单：
+  - 卡片弹出菜单（支持左键点击 `dots-three` 按钮或在卡片任意区域右键弹出，单集分组顶部标题栏除外；右键打开菜单期间卡片保持 Hover 背景，`dots-three` 按钮不进入 `Open` 状态）：
     - Root Folder Card：`Get Info`（Neutral）+ `Rename This Folder`（Neutral）+ `Index This Folder`（Neutral）+ `Remove This Folder`（Destructive 警告项）
     - Subfolder Card：`Get Info`（Neutral）+ `Rename This Folder`（Neutral）
     - Video / Subtitle File Card：`Get Info`（Neutral）+ `Rename Files`（Neutral）
@@ -1295,8 +1296,8 @@
 
 #### Trailing Actions
 
-- 统一使用 `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px），Hover 及菜单打开底色为 `--color-row-selected`，Pressed 底色为 `--color-row-action-bg-pressed`
-- 弹出菜单（菜单打开期间若任务状态变化离开当前标签页，菜单保持原位不消失，点击 `Get Info` 展示该任务最新状态）：
+- 统一使用 `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px），Hover 及通过该按钮打开菜单时底色为 `--color-row-selected`，Pressed 底色为 `--color-row-action-bg-pressed`
+- 弹出菜单（支持左键点击 `dots-three` 按钮或在卡片任意区域右键弹出，右键打开菜单期间卡片保持 Hover 背景而 `dots-three` 按钮不进入 `Open` 状态；菜单打开期间若任务状态变化离开当前标签页，菜单保持原位不消失，点击 `Get Info` 展示该任务最新状态）：
   - Current：`Get Info`（Neutral，图标 `info`）、`Remove Task`（Destructive 警告项，图标 `minus-circle`）
   - History（Completed / Incomplete）：`Get Info`（Neutral，图标 `info`）、`Delete Record`（Destructive 警告项，图标 `trash`）
 
