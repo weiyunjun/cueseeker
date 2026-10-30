@@ -180,11 +180,24 @@ enum TaskToastRequest {
             duration: ToastDuration.alert
         )
     }
+
+    static var taskRecordNotFound: ToastRequest {
+        ToastRequest(
+            scenarioID: "task.detail.record_not_found",
+            message: L("toast.task_record_not_found"),
+            icon: .warning,
+            duration: ToastDuration.alert
+        )
+    }
 }
 
 extension ToastRequest {
     static var taskStatusChanged: ToastRequest {
         TaskToastRequest.taskStatusChanged
+    }
+
+    static var taskRecordNotFound: ToastRequest {
+        TaskToastRequest.taskRecordNotFound
     }
 }
 

@@ -15,6 +15,7 @@ final class IndexingStore: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
     private static let lastUpdatedTimestampKey = "lastUpdatedTimestamp"
     private static let legacyLastIndexedTimestampKey = "lastIndexedTimestamp"
+    private static let lastUpdatedTaskIDKey = "lastUpdatedTaskID"
 
     nonisolated static func displayName(for folder: URL) -> String {
         if folder.isWebDAVURL {
@@ -74,6 +75,10 @@ final class IndexingStore: ObservableObject {
         }
     }
     @Published var lastUpdatedDate: Date?
+    @Published private(set) var lastUpdatedTaskID: Int64?
+    var hasPersistedLastUpdatedTaskID: Bool {
+        userDefaults.object(forKey: Self.lastUpdatedTaskIDKey) != nil
+    }
     var lastIndexedDate: Date? {
         lastUpdatedDate
     }
@@ -112,6 +117,9 @@ final class IndexingStore: ObservableObject {
             let legacyTimestamp = userDefaults.double(forKey: Self.legacyLastIndexedTimestampKey)
             self.lastUpdatedDate = legacyTimestamp > 0 ? Date(timeIntervalSince1970: legacyTimestamp) : nil
         }
+        if let storedTaskID = userDefaults.object(forKey: Self.lastUpdatedTaskIDKey) as? NSNumber {
+            self.lastUpdatedTaskID = storedTaskID.int64Value
+        }
 
         settings.$searchFTSVocabularyDiagnosticsEnabled
             .dropFirst()
@@ -126,10 +134,18 @@ final class IndexingStore: ObservableObject {
             .store(in: &settingsCancellables)
     }
 
-    func recordLastUpdatedDate(_ date: Date) {
+    func recordLastUpdatedDate(_ date: Date, taskID: Int64? = nil) {
         lastUpdatedDate = date
         userDefaults.set(date.timeIntervalSince1970, forKey: Self.lastUpdatedTimestampKey)
         userDefaults.set(date.timeIntervalSince1970, forKey: Self.legacyLastIndexedTimestampKey)
+        if let taskID {
+            recordLastUpdatedTaskID(taskID)
+        }
+    }
+
+    func recordLastUpdatedTaskID(_ taskID: Int64) {
+        lastUpdatedTaskID = taskID
+        userDefaults.set(taskID, forKey: Self.lastUpdatedTaskIDKey)
     }
 
     func recordLastIndexedDate(_ date: Date) {

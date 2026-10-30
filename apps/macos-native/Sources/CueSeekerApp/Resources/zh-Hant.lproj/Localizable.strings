@@ -592,6 +592,7 @@
 "task.menu.remove" = "移除任務";
 "task.menu.delete" = "刪除記錄";
 "toast.task_status_changed" = "任務狀態已經改變";
+"toast.task_record_not_found" = "任務記錄已不存在";
 "index.stage.scanning" = "正在掃描檔案";
 "index.stage.subtitles" = "正在解析字幕";
 "index.stage.video_info" = "正在讀取影片資訊";

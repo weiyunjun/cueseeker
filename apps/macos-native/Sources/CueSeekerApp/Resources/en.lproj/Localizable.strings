@@ -592,6 +592,7 @@
 "task.menu.remove" = "Remove Task";
 "task.menu.delete" = "Delete Record";
 "toast.task_status_changed" = "Task status has changed";
+"toast.task_record_not_found" = "Task record no longer exists";
 "index.stage.scanning" = "Scanning files";
 "index.stage.subtitles" = "Indexing subtitles";
 "index.stage.video_info" = "Reading video info";

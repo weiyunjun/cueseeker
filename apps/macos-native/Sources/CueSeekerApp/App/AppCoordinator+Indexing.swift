@@ -358,6 +358,39 @@ extension AppCoordinator {
                 WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
             }
         }
+        tasks.onCompleteFileStatusTask = { [weak self] taskID in
+            self?.indexing.recordLastUpdatedTaskID(taskID)
+        }
+    }
+
+    func fileStatusTargetTaskID(for statusInfo: FileStatusInfo) -> Int64? {
+        switch statusInfo {
+        case .inProgress:
+            return tasks.activeFileStatusTaskID
+                ?? tasks.current.first(where: { $0.record.kind.isFileStatusTask })?.id
+        case .completed, .failed:
+            return tasks.lastFileStatusNoticeTaskID
+                ?? tasks.activeFileStatusTaskID
+        case .idle:
+            guard indexing.lastUpdatedDate != nil else {
+                return nil
+            }
+            return indexing.lastUpdatedTaskID
+                ?? tasks.lastCompletedFileStatusTaskID
+        }
+    }
+
+    func openFileStatusTaskDetail(for statusInfo: FileStatusInfo) {
+        if case .idle = statusInfo, indexing.lastUpdatedDate == nil {
+            return
+        }
+        guard let taskID = fileStatusTargetTaskID(for: statusInfo),
+              tasks.taskDetailSnapshot(for: taskID) != nil
+        else {
+            toast.show(TaskToastRequest.taskRecordNotFound)
+            return
+        }
+        tasks.openTaskDetail(id: taskID)
     }
 
     /// A Debug build waits the seconds in `CUESEEKER_DEBUG_TASK_DELAY_SECONDS`

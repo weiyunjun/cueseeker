@@ -134,7 +134,7 @@ struct WorkbenchFileView: View {
                                 }
                             },
                             dismiss: { _ in
-                                dismissMenu()
+                                dismissMenu(openedAs: activeMenu.id)
                             }
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -147,6 +147,7 @@ struct WorkbenchFileView: View {
                         )
                         .offset(x: menuFrame.minX, y: menuFrame.minY)
                     }
+                    .id(activeMenu.id)
                     .zIndex(1000)
                 }
             }
@@ -154,14 +155,14 @@ struct WorkbenchFileView: View {
     }
 
     private func toggleMenu(for cardID: String, anchorFrame: CGRect, items: [FileCardMenuItem]) {
-        if activeMenu?.cardID == cardID {
+        if activeMenu?.cardID == cardID, activeMenu?.isButtonAnchored == true {
             dismissMenu()
         } else {
-            openMenu(for: cardID, anchorFrame: anchorFrame, items: items)
+            openButtonMenu(for: cardID, anchorFrame: anchorFrame, items: items)
         }
     }
 
-    private func openMenu(for cardID: String, anchorFrame: CGRect, items: [FileCardMenuItem]) {
+    private func openButtonMenu(for cardID: String, anchorFrame: CGRect, items: [FileCardMenuItem]) {
         let naturalSize = measuredMenuSize(for: items)
         let container = CGRect(origin: .zero, size: viewportSize)
         let anchorForPlacement = cardID == Self.addFolderMenuID
@@ -179,6 +180,10 @@ struct WorkbenchFileView: View {
             gap: WorkbenchControlMetrics.redesignSpacing1,
             shrinksToFit: false
         )
+        PointerHoverSession.resyncHoverForMenuRelay(
+            on: .workbenchPage,
+            in: appState.interfaceLayers
+        )
         activeMenu = FileCardMenuState(
             cardID: cardID,
             anchorFrame: anchorFrame,
@@ -190,7 +195,35 @@ struct WorkbenchFileView: View {
         )
     }
 
-    private func dismissMenu() {
+    private func openContextMenu(for cardID: String, at point: CGPoint, items: [FileCardMenuItem]) {
+        let naturalSize = measuredMenuSize(for: items)
+        let container = CGRect(origin: .zero, size: viewportSize)
+        let openingFrame = MenuPlacement.openingFrame(
+            anchor: CGRect(origin: point, size: .zero),
+            menuSize: naturalSize,
+            in: container,
+            gap: WorkbenchControlMetrics.redesignSpacing1,
+            shrinksToFit: false
+        )
+        PointerHoverSession.resyncHoverForMenuRelay(
+            on: .workbenchPage,
+            in: appState.interfaceLayers
+        )
+        activeMenu = FileCardMenuState(
+            cardID: cardID,
+            anchorFrame: nil,
+            menuFrame: openingFrame,
+            items: items
+        )
+        highlight.open(
+            selectablePositions: items.indices.filter { items[$0].isEnabled }
+        )
+    }
+
+    private func dismissMenu(openedAs id: UUID? = nil) {
+        if let id, activeMenu?.id != id {
+            return
+        }
         activeMenu = nil
         highlight.close()
     }
@@ -413,9 +446,13 @@ struct WorkbenchFileView: View {
                             )
                         },
                         menuItems: items,
-                        isMenuOpen: activeMenu?.cardID == rootPath,
-                        onOpenMenu: { anchorFrame in
+                        isCardMenuOpen: activeMenu?.cardID == rootPath,
+                        isButtonMenuOpen: activeMenu?.cardID == rootPath && activeMenu?.isButtonAnchored == true,
+                        onOpenButtonMenu: { anchorFrame in
                             toggleMenu(for: rootPath, anchorFrame: anchorFrame, items: items)
+                        },
+                        onOpenContextMenu: { point in
+                            openContextMenu(for: rootPath, at: point, items: items)
                         }
                     )
                 }
@@ -500,9 +537,13 @@ struct WorkbenchFileView: View {
                                         )
                                     },
                                     menuItems: items,
-                                    isMenuOpen: activeMenu?.cardID == folder.folderPath,
-                                    onOpenMenu: { anchorFrame in
+                                    isCardMenuOpen: activeMenu?.cardID == folder.folderPath,
+                                    isButtonMenuOpen: activeMenu?.cardID == folder.folderPath && activeMenu?.isButtonAnchored == true,
+                                    onOpenButtonMenu: { anchorFrame in
                                         toggleMenu(for: folder.folderPath, anchorFrame: anchorFrame, items: items)
+                                    },
+                                    onOpenContextMenu: { point in
+                                        openContextMenu(for: folder.folderPath, at: point, items: items)
                                     }
                                 )
                             }
@@ -619,9 +660,13 @@ struct WorkbenchFileView: View {
                             showsCardChrome: false,
                             onTap: nil,
                             menuItems: videoItems,
-                            isMenuOpen: activeMenu?.cardID == object.videoPath,
-                            onOpenMenu: { anchorFrame in
+                            isCardMenuOpen: activeMenu?.cardID == object.videoPath,
+                            isButtonMenuOpen: activeMenu?.cardID == object.videoPath && activeMenu?.isButtonAnchored == true,
+                            onOpenButtonMenu: { anchorFrame in
                                 toggleMenu(for: object.videoPath, anchorFrame: anchorFrame, items: videoItems)
+                            },
+                            onOpenContextMenu: { point in
+                                openContextMenu(for: object.videoPath, at: point, items: videoItems)
                             }
                         )
                     }
@@ -662,9 +707,13 @@ struct WorkbenchFileView: View {
                             showsCardChrome: false,
                             onTap: nil,
                             menuItems: subtitleItems,
-                            isMenuOpen: activeMenu?.cardID == subtitle.path,
-                            onOpenMenu: { anchorFrame in
+                            isCardMenuOpen: activeMenu?.cardID == subtitle.path,
+                            isButtonMenuOpen: activeMenu?.cardID == subtitle.path && activeMenu?.isButtonAnchored == true,
+                            onOpenButtonMenu: { anchorFrame in
                                 toggleMenu(for: subtitle.path, anchorFrame: anchorFrame, items: subtitleItems)
+                            },
+                            onOpenContextMenu: { point in
+                                openContextMenu(for: subtitle.path, at: point, items: subtitleItems)
                             }
                         )
                     }
@@ -812,39 +861,54 @@ struct WorkbenchFileView: View {
         )
     }
 
-    @ViewBuilder
-    private var statusIndicator: some View {
-        switch currentStatusInfo {
-        case .completed(let text):
-            WorkbenchStatusIndicator(
-                text,
-                icon: .checkCircle,
-                textColor: WorkbenchRedesignColors.successText,
-                iconColor: WorkbenchRedesignColors.successText
-            )
-        case .inProgress(let text):
-            WorkbenchStatusIndicator(
-                text,
-                iconCustomView: AnyView(
-                    WorkbenchSpinner()
-                ),
-                textColor: WorkbenchRedesignColors.textSecondary
-            )
-        case .failed(let text):
-            WorkbenchStatusIndicator(
-                text,
-                icon: .warning,
-                textColor: WorkbenchRedesignColors.dangerText,
-                iconColor: WorkbenchRedesignColors.dangerText
-            )
-        case .idle(let text):
-            WorkbenchStatusIndicator(
-                text,
-                icon: .arrowClockwise,
-                textColor: WorkbenchRedesignColors.textSecondary,
-                iconColor: WorkbenchRedesignColors.textSecondary
-            )
+    private var statusTapAction: (() -> Void)? {
+        if case .idle = currentStatusInfo, indexing.lastUpdatedDate == nil {
+            return nil
         }
+        let statusInfo = currentStatusInfo
+        return {
+            appState.openFileStatusTaskDetail(for: statusInfo)
+        }
+    }
+
+    private var statusIndicator: some View {
+        let info = currentStatusInfo
+        let text: String
+        var icon: AppIcon?
+        var iconCustomView: AnyView?
+        let textColor: Color
+        let iconColor: Color
+
+        switch info {
+        case .completed(let value):
+            text = value
+            icon = .checkCircle
+            textColor = WorkbenchRedesignColors.successText
+            iconColor = WorkbenchRedesignColors.successText
+        case .inProgress(let value):
+            text = value
+            iconCustomView = AnyView(WorkbenchSpinner())
+            textColor = WorkbenchRedesignColors.textSecondary
+            iconColor = WorkbenchRedesignColors.textSecondary
+        case .failed(let value):
+            text = value
+            icon = .warning
+            textColor = WorkbenchRedesignColors.dangerText
+            iconColor = WorkbenchRedesignColors.dangerText
+        case .idle(let value):
+            text = value
+            textColor = WorkbenchRedesignColors.textSecondary
+            iconColor = WorkbenchRedesignColors.textSecondary
+        }
+
+        return WorkbenchStatusIndicator(
+            text: text,
+            icon: icon,
+            textColor: textColor,
+            iconColor: iconColor,
+            iconCustomView: iconCustomView,
+            onTapText: statusTapAction
+        )
     }
 
     private var statusAndActionRow: some View {
@@ -899,11 +963,19 @@ private struct WorkbenchFileCard: View {
     var showsCardChrome: Bool = true
     let onTap: (() -> Void)?
     let menuItems: [FileCardMenuItem]
-    let isMenuOpen: Bool
-    let onOpenMenu: (CGRect) -> Void
+    let isCardMenuOpen: Bool
+    let isButtonMenuOpen: Bool
+    let onOpenButtonMenu: (CGRect) -> Void
+    let onOpenContextMenu: (CGPoint) -> Void
 
+    @Environment(\.interfaceLayers) private var interfaceLayers
+    @Environment(\.interfaceLayerContext) private var layerContext
     @State private var isHovered = false
     @State private var isPressed = false
+
+    private var isLayerCovered: Bool {
+        interfaceLayers?.isCovered(layerContext.layer) ?? layerContext.isCovered
+    }
 
     private var rowCornerRadius: CGFloat {
         showsCardChrome ? WorkbenchControlMetrics.redesignCornerRadius : 0
@@ -913,7 +985,7 @@ private struct WorkbenchFileCard: View {
         if onTap != nil && isPressed {
             return WorkbenchRedesignColors.fileFolderCardBgPressed
         }
-        if isHovered {
+        if isHovered || isCardMenuOpen {
             return WorkbenchRedesignColors.rowHover
         }
         return showsCardChrome ? WorkbenchRedesignColors.tableBg : Color.clear
@@ -951,12 +1023,14 @@ private struct WorkbenchFileCard: View {
                 GeometryReader { buttonProxy in
                     WorkbenchIconButton(
                         icon: .dotsThree,
-                        isOpen: isMenuOpen,
-                        hoverBackground: WorkbenchRedesignColors.rowSelected,
+                        isOpen: isButtonMenuOpen,
+                        hoverBackground: (isCardMenuOpen && !isButtonMenuOpen)
+                            ? Color.clear
+                            : WorkbenchRedesignColors.rowSelected,
                         pressedBackground: WorkbenchRedesignColors.rowActionBgPressed,
                         action: {
                             let frame = buttonProxy.frame(in: .named(WorkbenchFileView.fileCardCoordinateSpaceName))
-                            onOpenMenu(frame)
+                            onOpenButtonMenu(frame)
                         }
                     )
                 }
@@ -964,8 +1038,8 @@ private struct WorkbenchFileCard: View {
                     width: WorkbenchControlMetrics.redesignIconButtonSize,
                     height: WorkbenchControlMetrics.redesignIconButtonSize
                 )
-                .opacity(isHovered || isMenuOpen ? 1 : 0)
-                .allowsHitTesting(isHovered || isMenuOpen)
+                .opacity(isHovered || isCardMenuOpen ? 1 : 0)
+                .allowsHitTesting(isHovered || isCardMenuOpen)
 
                 if showsChevron {
                     AppIconImage(
@@ -1003,6 +1077,21 @@ private struct WorkbenchFileCard: View {
                     }
                     .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
                     .focusable(false)
+                }
+
+                GeometryReader { cardProxy in
+                    WorkbenchCardRightClickMonitor(
+                        isEnabled: !isLayerCovered,
+                        menuGate: interfaceLayers?.menuGate
+                    ) { localPoint in
+                        let frame = cardProxy.frame(in: .named(WorkbenchFileView.fileCardCoordinateSpaceName))
+                        onOpenContextMenu(
+                            CGPoint(
+                                x: frame.minX + localPoint.x,
+                                y: frame.minY + localPoint.y
+                            )
+                        )
+                    }
                 }
             }
         }

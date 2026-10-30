@@ -1,6 +1,7 @@
 import AppKit
 import CueSeekerCore
 import Foundation
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -468,6 +469,103 @@ struct FileRouteNavigationTests {
         #expect(store.fileObjects(for: folderPath).isEmpty)
         #expect(store.fileSubfolderStatus(for: rootPath) == .idle)
         #expect(store.fileObjectStatus(for: folderPath) == .idle)
+    }
+
+    @Test
+    func fileStatusTaskDetailTargetMappingAndDeletedRecordToast() async throws {
+        defer { AppLocalization.apply(.english) }
+        AppLocalization.apply(.english)
+
+        let suiteName = "FileStatusTaskDetailTests-\(UUID().uuidString)"
+        let defaults = UserDefaults.temporary(suiteName: suiteName)!
+        let databaseURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CueSeekerFileStatusTaskDetailTests-\(UUID().uuidString)")
+            .appendingPathExtension("sqlite")
+        defer {
+            defaults.removePersistentDomainAndPlist(forName: suiteName)
+            try? FileManager.default.removeItem(at: databaseURL)
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: databaseURL.path + "-wal"))
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: databaseURL.path + "-shm"))
+        }
+
+        let app = AppCoordinator(userDefaults: defaults, databaseURL: databaseURL)
+
+        // 1. TaskRecordKind.isFileStatusTask classification (4 library tasks vs Rename/Export)
+        #expect(TaskRecordKind.index.isFileStatusTask == true)
+        #expect(TaskRecordKind.addFolder.isFileStatusTask == true)
+        #expect(TaskRecordKind.removeFolder.isFileStatusTask == true)
+        #expect(TaskRecordKind.ankiExport.isFileStatusTask == false)
+        #expect(TaskRecordKind.renameFolder.isFileStatusTask == false)
+        #expect(TaskRecordKind.renameFiles.isFileStatusTask == false)
+
+        // 2. Never indexed state (Last Updated: --) is non-interactive: no task target, no dialog, no toast
+        #expect(app.indexing.lastUpdatedDate == nil)
+        #expect(app.fileStatusTargetTaskID(for: .idle("Last Updated: --")) == nil)
+        app.openFileStatusTaskDetail(for: .idle("Last Updated: --"))
+        #expect(app.tasks.detailTaskID == nil)
+        #expect(app.toast.visibleItems.isEmpty)
+
+        // 3. In Progress state opens the currently running File status task without opening TaskPanel
+        app.tasks.runIndexFolder = { _, _ in
+            try await Task.sleep(nanoseconds: 3_600_000_000_000)
+            return 0
+        }
+        _ = app.tasks.enqueueIndexFolder(URL(fileURLWithPath: "/Volumes/Media/Anime"))
+        let runningEntry = try #require(app.tasks.current.first)
+        #expect(app.tasks.activeFileStatusTaskID == runningEntry.id)
+        #expect(app.fileStatusTargetTaskID(for: .inProgress("Indexing Anime...")) == runningEntry.id)
+
+        app.openFileStatusTaskDetail(for: .inProgress("Indexing Anime..."))
+        #expect(app.tasks.detailTaskID == runningEntry.id)
+        #expect(app.tasks.isPanelOpen == false)
+
+        app.tasks.removeCurrentTask(id: runningEntry.id)
+        await app.tasks.waitUntilIdle()
+        app.tasks.closeTaskDetail()
+
+        // 4. Completed task updates both lastFileStatusNoticeTaskID and indexing.lastUpdatedTaskID
+        app.tasks.runIndexFolder = { _, _ in 5 }
+        app.indexing.recordLastUpdatedDate(Date(timeIntervalSince1970: 1_727_856_000))
+        _ = app.tasks.enqueueIndexFolder(URL(fileURLWithPath: "/Volumes/Media/Anime"))
+        await app.tasks.waitUntilIdle()
+        let completedRecord = try #require(app.tasks.completed.first)
+        #expect(app.tasks.lastFileStatusNoticeTaskID == completedRecord.id)
+        #expect(app.indexing.lastUpdatedTaskID == completedRecord.id)
+
+        app.openFileStatusTaskDetail(for: .completed("Indexed Anime"))
+        #expect(app.tasks.detailTaskID == completedRecord.id)
+        app.tasks.closeTaskDetail()
+
+        // 5. Subsequent failed task becomes the Failed notice target, while Idle still targets the completed task
+        struct TestFailure: LocalizedError {
+            var errorDescription: String? { "disk error" }
+        }
+        app.tasks.runRemoveFolder = { _ in
+            throw TestFailure()
+        }
+        app.tasks.enqueueRemoveFolder(URL(fileURLWithPath: "/Volumes/Media/Movies"))
+        await app.tasks.waitUntilIdle()
+        let failedRecord = try #require(app.tasks.incomplete.first(where: { $0.id != runningEntry.id }))
+        #expect(app.tasks.lastFileStatusNoticeTaskID == failedRecord.id)
+        #expect(app.indexing.lastUpdatedTaskID == completedRecord.id)
+
+        app.openFileStatusTaskDetail(for: .failed("Failed to remove Movies"))
+        #expect(app.tasks.detailTaskID == failedRecord.id)
+
+        app.tasks.closeTaskDetail()
+        app.openFileStatusTaskDetail(for: .idle("Last Updated: 24-10-02 16:00"))
+        #expect(app.tasks.detailTaskID == completedRecord.id)
+
+        // 6. Deleting the task record and clicking the status text shows warning toast instead of opening Task Info
+        app.tasks.closeTaskDetail()
+        app.tasks.deleteRecord(id: completedRecord.id)
+        app.openFileStatusTaskDetail(for: .idle("Last Updated: 24-10-02 16:00"))
+        #expect(app.tasks.detailTaskID == nil)
+        let toastRequest = try #require(app.toast.visibleItems.last?.request)
+        #expect(toastRequest.scenarioID == "task.detail.record_not_found")
+        #expect(toastRequest.icon == .warning)
+        #expect(toastRequest.duration == ToastDuration.alert)
+        #expect(toastRequest.message == "Task record no longer exists")
     }
 }
 

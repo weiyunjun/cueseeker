@@ -556,6 +556,52 @@ struct PointerHoverGateTests {
         #expect(hoveredPlayerButtons.isEmpty)
         #expect(hoveredWorkbenchButtons.isEmpty)
     }
+
+    @MainActor
+    @Test
+    func statusIndicatorInteractiveTextHoverSetsGrabCursorOnlyWhenClickable() {
+        AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+        defer { PointerHoverScrollState.shared.resetForTesting() }
+
+        let view = VStack(alignment: .leading, spacing: 10) {
+            WorkbenchStatusIndicator(
+                "Last Updated: 26-10-30 10:00",
+                onTapText: {}
+            )
+            WorkbenchStatusIndicator(
+                "Last Updated: --",
+                onTapText: nil
+            )
+        }
+        .frame(width: 260, height: 80, alignment: .topLeading)
+
+        let window = CueSeekerWindow(
+            contentRect: NSRect(x: -5_000, y: -5_000, width: 260, height: 80),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isWindowFocusedOverrideForTesting = true
+        let host = CueSeekerHostingView(rootView: view)
+        window.contentView = host
+        AppPointerShape.attach(to: window, isMenuOpen: { false })
+        window.orderFrontRegardless()
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+
+        // Hover interactive status text near top row (y = 66 in bottom-left window coords)
+        host.mouseLocationOverrideForTesting = CGPoint(x: 60, y: 66)
+        host.syncMouseHoverForWindowFocus()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(AppPointerShape.model.shape == .grab)
+
+        // Hover non-interactive "Last Updated: --" row (y = 28 in bottom-left window coords)
+        host.mouseLocationOverrideForTesting = CGPoint(x: 60, y: 28)
+        host.syncMouseHoverForWindowFocus()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(AppPointerShape.model.shape == .arrow)
+    }
 }
 
 private struct NestedCueSeekerHostingViewRepresentable<Content: View>: NSViewRepresentable {

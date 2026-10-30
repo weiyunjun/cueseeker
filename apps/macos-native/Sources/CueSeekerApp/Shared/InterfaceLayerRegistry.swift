@@ -88,6 +88,7 @@ final class InterfaceLayerRegistry: ObservableObject {
                 topDialogSize = nil
             }
         }
+        AppPointerShape.reevaluateAfterInterfaceChange()
         CardHighlightModel.broadcastLayerFrozenChanged(isOpen, in: self) { candidate in
             self.isFrozen(candidate) == isOpen
         }
@@ -96,8 +97,8 @@ final class InterfaceLayerRegistry: ObservableObject {
         }
         if !isOpen {
             NotificationCenter.default.post(name: .cueSeekerScrollDebounceSettled, object: nil)
+            AppPointerShape.reevaluate()
         }
-        AppPointerShape.reevaluateAfterInterfaceChange()
         TooltipCenter.shared.dismissFromUserInteraction()
     }
 

@@ -76,7 +76,7 @@ struct TaskPanel: View {
                                     }
                                 },
                                 dismiss: { _ in
-                                    dismissMenu()
+                                    dismissMenu(openedAs: activeMenu.id)
                                 }
                             )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -89,6 +89,7 @@ struct TaskPanel: View {
                             )
                             .offset(x: menuFrame.minX, y: menuFrame.minY)
                         }
+                        .id(activeMenu.id)
                         .zIndex(1000)
                     }
                 }
@@ -161,16 +162,23 @@ struct TaskPanel: View {
 
     @ViewBuilder
     private var tabContent: some View {
+        let isRightClickEnabled = confirmation.session == nil && tasks.detailTaskID == nil
         switch tasks.selectedTab {
         case .current:
             cardList(isEmpty: tasks.current.isEmpty, emptyMessage: L("task.empty.current")) {
                 ForEach(tasks.current) { entry in
+                    let cardID = "current-\(entry.id)"
                     let items = currentMenuItems(for: entry)
                     TaskCurrentCard(
                         entry: entry,
-                        isMenuOpen: activeMenu?.cardID == "current-\(entry.id)",
-                        onOpenMenu: { anchorFrame in
-                            toggleMenu(for: "current-\(entry.id)", anchorFrame: anchorFrame, items: items)
+                        isCardMenuOpen: activeMenu?.cardID == cardID,
+                        isButtonMenuOpen: activeMenu?.cardID == cardID && activeMenu?.isButtonAnchored == true,
+                        isRightClickEnabled: isRightClickEnabled,
+                        onOpenButtonMenu: { anchorFrame in
+                            toggleMenu(for: cardID, anchorFrame: anchorFrame, items: items)
+                        },
+                        onOpenContextMenu: { point in
+                            openContextMenu(for: cardID, at: point, items: items)
                         }
                     )
                 }
@@ -178,12 +186,18 @@ struct TaskPanel: View {
         case .completed:
             cardList(isEmpty: tasks.completed.isEmpty, emptyMessage: L("task.empty.completed")) {
                 ForEach(tasks.completed) { record in
+                    let cardID = "history-\(record.id)"
                     let items = historyMenuItems(for: record)
                     TaskHistoryCard(
                         record: record,
-                        isMenuOpen: activeMenu?.cardID == "history-\(record.id)",
-                        onOpenMenu: { anchorFrame in
-                            toggleMenu(for: "history-\(record.id)", anchorFrame: anchorFrame, items: items)
+                        isCardMenuOpen: activeMenu?.cardID == cardID,
+                        isButtonMenuOpen: activeMenu?.cardID == cardID && activeMenu?.isButtonAnchored == true,
+                        isRightClickEnabled: isRightClickEnabled,
+                        onOpenButtonMenu: { anchorFrame in
+                            toggleMenu(for: cardID, anchorFrame: anchorFrame, items: items)
+                        },
+                        onOpenContextMenu: { point in
+                            openContextMenu(for: cardID, at: point, items: items)
                         }
                     )
                 }
@@ -191,12 +205,18 @@ struct TaskPanel: View {
         case .incomplete:
             cardList(isEmpty: tasks.incomplete.isEmpty, emptyMessage: L("task.empty.incomplete")) {
                 ForEach(tasks.incomplete) { record in
+                    let cardID = "history-\(record.id)"
                     let items = historyMenuItems(for: record)
                     TaskHistoryCard(
                         record: record,
-                        isMenuOpen: activeMenu?.cardID == "history-\(record.id)",
-                        onOpenMenu: { anchorFrame in
-                            toggleMenu(for: "history-\(record.id)", anchorFrame: anchorFrame, items: items)
+                        isCardMenuOpen: activeMenu?.cardID == cardID,
+                        isButtonMenuOpen: activeMenu?.cardID == cardID && activeMenu?.isButtonAnchored == true,
+                        isRightClickEnabled: isRightClickEnabled,
+                        onOpenButtonMenu: { anchorFrame in
+                            toggleMenu(for: cardID, anchorFrame: anchorFrame, items: items)
+                        },
+                        onOpenContextMenu: { point in
+                            openContextMenu(for: cardID, at: point, items: items)
                         }
                     )
                 }
@@ -324,14 +344,14 @@ struct TaskPanel: View {
     }
 
     private func toggleMenu(for cardID: String, anchorFrame: CGRect, items: [WorkbenchCardMenuItem]) {
-        if activeMenu?.cardID == cardID {
+        if activeMenu?.cardID == cardID, activeMenu?.isButtonAnchored == true {
             dismissMenu()
         } else {
-            openMenu(for: cardID, anchorFrame: anchorFrame, items: items)
+            openButtonMenu(for: cardID, anchorFrame: anchorFrame, items: items)
         }
     }
 
-    private func openMenu(for cardID: String, anchorFrame: CGRect, items: [WorkbenchCardMenuItem]) {
+    private func openButtonMenu(for cardID: String, anchorFrame: CGRect, items: [WorkbenchCardMenuItem]) {
         let naturalSize = measuredMenuSize(for: items)
         let container = CGRect(origin: .zero, size: viewportSize)
         let anchorForPlacement = CGRect(
@@ -347,6 +367,10 @@ struct TaskPanel: View {
             gap: WorkbenchControlMetrics.redesignSpacing1,
             shrinksToFit: false
         )
+        PointerHoverSession.resyncHoverForMenuRelay(
+            on: .dialog,
+            in: appState.interfaceLayers
+        )
         activeMenu = WorkbenchCardMenuState(
             cardID: cardID,
             anchorFrame: anchorFrame,
@@ -358,7 +382,35 @@ struct TaskPanel: View {
         )
     }
 
-    private func dismissMenu() {
+    private func openContextMenu(for cardID: String, at point: CGPoint, items: [WorkbenchCardMenuItem]) {
+        let naturalSize = measuredMenuSize(for: items)
+        let container = CGRect(origin: .zero, size: viewportSize)
+        let openingFrame = MenuPlacement.openingFrame(
+            anchor: CGRect(origin: point, size: .zero),
+            menuSize: naturalSize,
+            in: container,
+            gap: WorkbenchControlMetrics.redesignSpacing1,
+            shrinksToFit: false
+        )
+        PointerHoverSession.resyncHoverForMenuRelay(
+            on: .dialog,
+            in: appState.interfaceLayers
+        )
+        activeMenu = WorkbenchCardMenuState(
+            cardID: cardID,
+            anchorFrame: nil,
+            menuFrame: openingFrame,
+            items: items
+        )
+        menuHighlight.open(
+            selectablePositions: items.indices.filter { items[$0].isEnabled }
+        )
+    }
+
+    private func dismissMenu(openedAs id: UUID? = nil) {
+        if let id, activeMenu?.id != id {
+            return
+        }
         activeMenu = nil
         menuHighlight.close()
     }
@@ -412,11 +464,18 @@ struct TaskPanel: View {
 
 private struct TaskCurrentCard: View {
     let entry: TaskQueueEntry
-    let isMenuOpen: Bool
-    let onOpenMenu: (CGRect) -> Void
+    let isCardMenuOpen: Bool
+    let isButtonMenuOpen: Bool
+    let isRightClickEnabled: Bool
+    let onOpenButtonMenu: (CGRect) -> Void
+    let onOpenContextMenu: (CGPoint) -> Void
 
     var body: some View {
-        TaskCardContainer {
+        TaskCardContainer(
+            isCardMenuOpen: isCardMenuOpen,
+            isRightClickEnabled: isRightClickEnabled,
+            onOpenContextMenu: onOpenContextMenu
+        ) {
             WorkbenchCardIcon(icon: entry.record.icon)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
@@ -435,12 +494,14 @@ private struct TaskCurrentCard: View {
             GeometryReader { buttonProxy in
                 WorkbenchIconButton(
                     icon: .dotsThree,
-                    isOpen: isMenuOpen,
-                    hoverBackground: WorkbenchRedesignColors.rowSelected,
+                    isOpen: isButtonMenuOpen,
+                    hoverBackground: (isCardMenuOpen && !isButtonMenuOpen)
+                        ? Color.clear
+                        : WorkbenchRedesignColors.rowSelected,
                     pressedBackground: WorkbenchRedesignColors.rowActionBgPressed,
                     action: {
                         let frame = buttonProxy.frame(in: .named(TaskPanel.taskCardCoordinateSpaceName))
-                        onOpenMenu(frame)
+                        onOpenButtonMenu(frame)
                     }
                 )
             }
@@ -555,11 +616,18 @@ private struct TaskProgressBarRow: View {
 
 private struct TaskHistoryCard: View {
     let record: TaskRecord
-    let isMenuOpen: Bool
-    let onOpenMenu: (CGRect) -> Void
+    let isCardMenuOpen: Bool
+    let isButtonMenuOpen: Bool
+    let isRightClickEnabled: Bool
+    let onOpenButtonMenu: (CGRect) -> Void
+    let onOpenContextMenu: (CGPoint) -> Void
 
     var body: some View {
-        TaskCardContainer {
+        TaskCardContainer(
+            isCardMenuOpen: isCardMenuOpen,
+            isRightClickEnabled: isRightClickEnabled,
+            onOpenContextMenu: onOpenContextMenu
+        ) {
             WorkbenchCardIcon(icon: record.icon)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
@@ -587,12 +655,14 @@ private struct TaskHistoryCard: View {
             GeometryReader { buttonProxy in
                 WorkbenchIconButton(
                     icon: .dotsThree,
-                    isOpen: isMenuOpen,
-                    hoverBackground: WorkbenchRedesignColors.rowSelected,
+                    isOpen: isButtonMenuOpen,
+                    hoverBackground: (isCardMenuOpen && !isButtonMenuOpen)
+                        ? Color.clear
+                        : WorkbenchRedesignColors.rowSelected,
                     pressedBackground: WorkbenchRedesignColors.rowActionBgPressed,
                     action: {
                         let frame = buttonProxy.frame(in: .named(TaskPanel.taskCardCoordinateSpaceName))
-                        onOpenMenu(frame)
+                        onOpenButtonMenu(frame)
                     }
                 )
             }
@@ -633,8 +703,12 @@ private struct TaskHistoryCard: View {
  }
 
 private struct TaskCardContainer<Content: View>: View {
+    let isCardMenuOpen: Bool
+    let isRightClickEnabled: Bool
+    let onOpenContextMenu: (CGPoint) -> Void
     @ViewBuilder let content: () -> Content
 
+    @Environment(\.interfaceLayers) private var interfaceLayers
     @State private var isHovered = false
 
     var body: some View {
@@ -647,13 +721,30 @@ private struct TaskCardContainer<Content: View>: View {
             minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
             alignment: .topLeading
         )
-        .background(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                style: .continuous
-            )
-            .fill(isHovered ? WorkbenchRedesignColors.rowHover : WorkbenchRedesignColors.tableBg)
-        )
+        .background {
+            ZStack {
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                    style: .continuous
+                )
+                .fill((isHovered || isCardMenuOpen) ? WorkbenchRedesignColors.rowHover : WorkbenchRedesignColors.tableBg)
+
+                GeometryReader { cardProxy in
+                    WorkbenchCardRightClickMonitor(
+                        isEnabled: isRightClickEnabled,
+                        menuGate: interfaceLayers?.menuGate
+                    ) { localPoint in
+                        let frame = cardProxy.frame(in: .named(TaskPanel.taskCardCoordinateSpaceName))
+                        onOpenContextMenu(
+                            CGPoint(
+                                x: frame.minX + localPoint.x,
+                                y: frame.minY + localPoint.y
+                            )
+                        )
+                    }
+                }
+            }
+        }
         .overlay(
             RoundedRectangle(
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,

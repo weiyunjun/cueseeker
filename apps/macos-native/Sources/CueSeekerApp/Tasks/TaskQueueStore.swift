@@ -220,6 +220,20 @@ enum AnkiExportRefusal: Error {
     case renameRunning
 }
 
+extension TaskRecordKind {
+    /// The four library operations that drive the File page status indicator
+    /// (`Index All`, `Index`, `Add Folder`, `Remove Folder`). Rename and Anki
+    /// Export do not affect the File page status indicator.
+    var isFileStatusTask: Bool {
+        switch self {
+        case .index, .addFolder, .removeFolder:
+            true
+        case .ankiExport, .renameFolder, .renameFiles:
+            false
+        }
+    }
+}
+
 /// One task in the Current tab: the durable record, the work it is holding,
 /// and — while it runs — how far it has got.
 struct TaskQueueEntry: Identifiable {
@@ -276,6 +290,12 @@ final class TaskQueueStore: ObservableObject {
     @Published private(set) var detailTaskID: Int64?
     /// The open Export to Anki dialog, whose Export queues its task here.
     @Published var ankiExportSession: AnkiExportSession?
+    /// The currently running library task that drives the File page status indicator.
+    @Published private(set) var activeFileStatusTaskID: Int64?
+    /// The most recently finished library task that produced a temporary File page notice.
+    @Published private(set) var lastFileStatusNoticeTaskID: Int64?
+    /// The most recently completed library task that produced a File page update timestamp.
+    @Published private(set) var lastCompletedFileStatusTaskID: Int64?
 
     /// Running plus queued — what the entry button's badge counts.
     var remainingTaskCount: Int { current.count }
@@ -296,6 +316,7 @@ final class TaskQueueStore: ObservableObject {
     var runAddFolder: TaskIndexRunner
     var runRemoveFolder: TaskRemoveFolderRunner
     var onCancelQueuedAddFolder: ((URL) -> Void)?
+    var onCompleteFileStatusTask: ((Int64) -> Void)?
     /// The running tasks by record id, at most one per category.
     private var runningTasks: [Int64: Task<Void, Never>] = [:]
     /// Tasks the reader removed while they were running. The running task ends
@@ -363,6 +384,9 @@ final class TaskQueueStore: ObservableObject {
             let records = try database.records()
             completed = records.filter { $0.state == .completed }
             incomplete = records.filter { $0.state == .incomplete }
+            if lastCompletedFileStatusTaskID == nil {
+                lastCompletedFileStatusTaskID = completed.first(where: { $0.kind.isFileStatusTask })?.id
+            }
             return unfinishedFolderAdditions
         } catch {
             print("Failed to read task records: \(error)")
@@ -660,6 +684,9 @@ final class TaskQueueStore: ObservableObject {
 
         let entry = current[index]
         setState(.running, at: index)
+        if entry.record.kind.isFileStatusTask {
+            activeFileStatusTaskID = entry.id
+        }
 
         switch entry.work {
         case .ankiExport(let items, let options, let destinationURL):
@@ -756,6 +783,10 @@ final class TaskQueueStore: ObservableObject {
 
     private func finishRunningTask(id: Int64, failure: String?, itemCount: Int? = nil) {
         defer { runningTasks[id] = nil }
+        let isFileStatusTask = current.first(where: { $0.id == id })?.record.kind.isFileStatusTask == true
+        if activeFileStatusTaskID == id {
+            activeFileStatusTaskID = nil
+        }
 
         if let itemCount, let index = current.firstIndex(where: { $0.id == id }) {
             current[index].record = current[index].record.withItemCount(itemCount)
@@ -778,8 +809,16 @@ final class TaskQueueStore: ObservableObject {
                 errorMessage: L("task.error.cancelled")
             )
         } else if let failure {
+            if isFileStatusTask {
+                lastFileStatusNoticeTaskID = id
+            }
             moveToHistory(id: id, state: .incomplete, errorMessage: failure)
         } else {
+            if isFileStatusTask {
+                lastFileStatusNoticeTaskID = id
+                lastCompletedFileStatusTaskID = id
+                onCompleteFileStatusTask?(id)
+            }
             moveToHistory(id: id, state: .completed, errorMessage: nil)
         }
 

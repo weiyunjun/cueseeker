@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct WorkbenchPopoverRow: View {
@@ -302,9 +303,108 @@ struct WorkbenchCardMenuItem: Identifiable, Sendable {
 struct WorkbenchCardMenuState: Identifiable {
     let id = UUID()
     let cardID: String
-    let anchorFrame: CGRect
+    let anchorFrame: CGRect?
     let menuFrame: CGRect
     let items: [WorkbenchCardMenuItem]
+
+    var isButtonAnchored: Bool {
+        anchorFrame != nil
+    }
+}
+
+struct WorkbenchCardRightClickMonitor: NSViewRepresentable {
+    let isEnabled: Bool
+    let menuGate: MenuGate?
+    let onRightClick: (CGPoint) -> Void
+
+    func makeNSView(context _: Context) -> MonitoringView {
+        MonitoringView()
+    }
+
+    func updateNSView(_ nsView: MonitoringView, context _: Context) {
+        nsView.update(
+            isEnabled: isEnabled,
+            menuGate: menuGate,
+            onRightClick: onRightClick
+        )
+    }
+
+    final class MonitoringView: NSView {
+        nonisolated(unsafe) private var monitor: Any?
+        private var isEnabled = false
+        private weak var menuGate: MenuGate?
+        private var onRightClick: ((CGPoint) -> Void)?
+
+        override var isFlipped: Bool {
+            true
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            nil
+        }
+
+        func update(
+            isEnabled: Bool,
+            menuGate: MenuGate?,
+            onRightClick: @escaping (CGPoint) -> Void
+        ) {
+            self.isEnabled = isEnabled
+            self.menuGate = menuGate
+            self.onRightClick = onRightClick
+            updateMonitor()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            updateMonitor()
+        }
+
+        deinit {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+        }
+
+        private func updateMonitor() {
+            guard isEnabled, window != nil else {
+                removeMonitor()
+                return
+            }
+            guard monitor == nil else {
+                return
+            }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self] event in
+                guard let self else {
+                    return event
+                }
+                guard event.window === self.window else {
+                    return event
+                }
+
+                let localPoint = self.convert(event.locationInWindow, from: nil)
+                guard self.bounds.intersection(self.visibleRect).contains(localPoint) else {
+                    return event
+                }
+
+                if let menuGate = self.menuGate {
+                    guard menuGate.route(event) != nil else {
+                        return nil
+                    }
+                }
+
+                self.onRightClick?(localPoint)
+                return nil
+            }
+        }
+
+        private func removeMonitor() {
+            guard let monitor else {
+                return
+            }
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+    }
 }
 
 struct WorkbenchCardMenuPopover: View {

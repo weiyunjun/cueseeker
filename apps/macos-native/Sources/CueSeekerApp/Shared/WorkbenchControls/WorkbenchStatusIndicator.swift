@@ -10,30 +10,52 @@ struct WorkbenchStatusIndicator: View {
     var textColor: Color = WorkbenchRedesignColors.textSecondary
     var iconColor: Color = WorkbenchRedesignColors.textSecondary
     var iconCustomView: AnyView? = nil
+    var onTapText: (() -> Void)? = nil
+    @State private var isTextHovered = false
 
     init(
         _ text: String,
         icon: AppIcon? = nil,
         textColor: Color = WorkbenchRedesignColors.textSecondary,
-        iconColor: Color = WorkbenchRedesignColors.textSecondary
+        iconColor: Color = WorkbenchRedesignColors.textSecondary,
+        onTapText: (() -> Void)? = nil
     ) {
         self.text = text
         self.icon = icon
         self.textColor = textColor
         self.iconColor = iconColor
         self.iconCustomView = nil
+        self.onTapText = onTapText
     }
 
     init(
         _ text: String,
         iconCustomView: AnyView,
-        textColor: Color = WorkbenchRedesignColors.textSecondary
+        textColor: Color = WorkbenchRedesignColors.textSecondary,
+        onTapText: (() -> Void)? = nil
     ) {
         self.text = text
         self.icon = nil
         self.textColor = textColor
         self.iconColor = textColor
         self.iconCustomView = iconCustomView
+        self.onTapText = onTapText
+    }
+
+    init(
+        text: String,
+        icon: AppIcon? = nil,
+        textColor: Color = WorkbenchRedesignColors.textSecondary,
+        iconColor: Color = WorkbenchRedesignColors.textSecondary,
+        iconCustomView: AnyView? = nil,
+        onTapText: (() -> Void)? = nil
+    ) {
+        self.text = text
+        self.icon = icon
+        self.textColor = textColor
+        self.iconColor = iconColor
+        self.iconCustomView = iconCustomView
+        self.onTapText = onTapText
     }
 
     var body: some View {
@@ -45,14 +67,47 @@ struct WorkbenchStatusIndicator: View {
                     .foregroundStyle(iconColor)
             }
 
-            Text(text)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: WorkbenchControlMetrics.redesignFontWeightControl
-                ))
-                .foregroundStyle(textColor)
-                .lineLimit(1)
+            if let onTapText {
+                Button(action: onTapText) {
+                    textLabel(showsUnderline: isTextHovered)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(StaticButtonStyle())
+                .focusable(false)
+                .onPointerHover(showsHand: true) { isHovered in
+                    isTextHovered = isHovered
+                }
+                .onDisappear {
+                    isTextHovered = false
+                }
+            } else {
+                textLabel(showsUnderline: false)
+                    .onAppear {
+                        isTextHovered = false
+                    }
+            }
         }
         .frame(height: WorkbenchControlMetrics.redesignHeight)
+    }
+
+    private func textLabel(showsUnderline: Bool) -> some View {
+        Text(text)
+            .font(.system(
+                size: WorkbenchControlMetrics.redesignFontSizeBody,
+                weight: WorkbenchControlMetrics.redesignFontWeightControl
+            ))
+            .foregroundStyle(textColor)
+            .lineLimit(1)
+            .overlay(alignment: Alignment(horizontal: .leading, vertical: .firstTextBaseline)) {
+                if showsUnderline {
+                    Rectangle()
+                        .fill(textColor)
+                        .frame(height: WorkbenchControlMetrics.redesignInteractiveTextUnderlineThickness)
+                        .alignmentGuide(.firstTextBaseline) { _ in
+                            -WorkbenchControlMetrics.redesignInteractiveTextUnderlineOffset
+                        }
+                        .allowsHitTesting(false)
+                }
+            }
     }
 }

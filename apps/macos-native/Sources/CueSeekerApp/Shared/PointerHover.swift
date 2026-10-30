@@ -145,8 +145,11 @@ final class PointerHoverScrollState: ObservableObject {
 /// Hover for a visual effect, reported only while the surface's layer owns
 /// input, the cursor is visible, and scroll debounce is not active.
 extension View {
-    func onPointerHover(_ action: @escaping (Bool) -> Void) -> some View {
-        modifier(PointerHoverModifier(action: action))
+    func onPointerHover(
+        showsHand: Bool = false,
+        _ action: @escaping (Bool) -> Void
+    ) -> some View {
+        modifier(PointerHoverModifier(showsHand: showsHand, action: action))
     }
 
     func onPointerHoverLocation(_ action: @escaping (CGPoint?) -> Void) -> some View {
@@ -333,6 +336,26 @@ final class PointerHoverSession: ObservableObject {
         }
     }
 
+    static func resyncHoverForMenuRelay(
+        on layer: InterfaceLayer,
+        in registry: InterfaceLayerRegistry? = nil
+    ) {
+        registeredSessions = registeredSessions.filter { $0.value.value != nil }
+        for box in registeredSessions.values {
+            guard let session = box.value,
+                  (registry == nil || session.registry == nil || session.registry === registry),
+                  session.layer == layer
+            else {
+                continue
+            }
+            let remainedFrozen = session.isFrozen
+            session.setFrozen(false)
+            if remainedFrozen {
+                session.setFrozen(true)
+            }
+        }
+    }
+
     static func notifyMouseMoved(in window: NSWindow, locationInWindow: CGPoint) {
         registeredSessions = registeredSessions.filter { $0.value.value != nil }
         for box in registeredSessions.values {
@@ -363,7 +386,7 @@ final class PointerHoverSession: ObservableObject {
         registeredSessions = registeredSessions.filter { $0.value.value != nil }
         for box in registeredSessions.values {
             guard let session = box.value,
-                  session.tracksLocation,
+                  (session.tracksLocation || session.showsHand),
                   session.probeView?.window === window
             else {
                 continue
@@ -379,6 +402,7 @@ final class PointerHoverSession: ObservableObject {
     var layer: InterfaceLayer = .workbenchPage
     var isFrozen = false
     var tracksLocation = false
+    var showsHand = false
     var action: ((Bool) -> Void)?
     var locationAction: ((CGPoint?) -> Void)?
     weak var probeView: NSView?
@@ -391,18 +415,66 @@ final class PointerHoverSession: ObservableObject {
 
     deinit {
         let id = self.id
+        let showsHand = self.showsHand
         let key = ObjectIdentifier(self)
         if Thread.isMainThread {
             MainActor.assumeIsolated {
                 Self.registeredSessions.removeValue(forKey: key)
                 PointerHoverScrollState.shared.setActiveHoverListener(id: id, listener: nil)
+                if showsHand {
+                    AppPointerShape.noteCardHover(
+                        false,
+                        id: id.uuidString,
+                        showsHand: true,
+                        followsPointer: false
+                    )
+                }
             }
         } else {
             Task { @MainActor in
                 Self.registeredSessions.removeValue(forKey: key)
                 PointerHoverScrollState.shared.setActiveHoverListener(id: id, listener: nil)
+                if showsHand {
+                    AppPointerShape.noteCardHover(
+                        false,
+                        id: id.uuidString,
+                        showsHand: true,
+                        followsPointer: false
+                    )
+                }
             }
         }
+    }
+
+    private func syncPointerHandShape(_ isHovered: Bool, followsPointer: Bool) {
+        guard showsHand else {
+            return
+        }
+        AppPointerShape.noteCardHover(
+            isHovered,
+            id: id.uuidString,
+            showsHand: true,
+            followsPointer: followsPointer
+        )
+    }
+
+    func clearPointerHandShape() {
+        guard showsHand else {
+            return
+        }
+        AppPointerShape.noteCardHover(
+            false,
+            id: id.uuidString,
+            showsHand: true,
+            followsPointer: false
+        )
+    }
+
+    func handleProbeBoundsChanged() {
+        guard gate.hasActiveHover else {
+            return
+        }
+        handleStateChanged()
     }
 
     func initializeIfNeeded(isFrozen: Bool) {
@@ -417,6 +489,9 @@ final class PointerHoverSession: ObservableObject {
         let wasFrozen = self.isFrozen
         hasInitializedFreeze = true
         self.isFrozen = isFrozen
+        if isFrozen {
+            clearPointerHandShape()
+        }
         if tracksLocation {
             if !isFrozen {
                 let hadActiveHover = locationGate.hasActiveHover
@@ -469,11 +544,18 @@ final class PointerHoverSession: ObservableObject {
         if !isFrozen, (wasFrozen || gate.hasActiveHover), let pointerInside = currentPointerInsideView() {
             let hadActiveHover = gate.hasActiveHover
             let scrollState = PointerHoverScrollState.shared
+            let isCursorHidden = AppCursorVisibility.isCursorHidden
+            let canFollowPointer = !scrollState.isScrolling
+                && !scrollState.isSuppressedByKeyboardOrController
+                && !isCursorHidden
+            if !scrollState.isSuppressedByKeyboardOrController {
+                syncPointerHandShape(pointerInside, followsPointer: canFollowPointer)
+            }
             let delivered = gate.report(
                 pointerInside,
                 isFrozen: false,
                 isScrolling: scrollState.isScrolling,
-                isCursorHidden: AppCursorVisibility.isCursorHidden,
+                isCursorHidden: isCursorHidden,
                 isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
             )
             syncScrollListener()
@@ -492,11 +574,19 @@ final class PointerHoverSession: ObservableObject {
 
     func report(_ isHovered: Bool) {
         let scrollState = PointerHoverScrollState.shared
+        let isCursorHidden = AppCursorVisibility.isCursorHidden
+        let followsPointer = !isFrozen
+            && !scrollState.isScrolling
+            && !scrollState.isSuppressedByKeyboardOrController
+            && !isCursorHidden
+        if !isFrozen, !scrollState.isSuppressedByKeyboardOrController {
+            syncPointerHandShape(isHovered, followsPointer: followsPointer)
+        }
         let delivered = gate.report(
             isHovered,
             isFrozen: isFrozen,
             isScrolling: scrollState.isScrolling,
-            isCursorHidden: AppCursorVisibility.isCursorHidden,
+            isCursorHidden: isCursorHidden,
             isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
         )
         syncScrollListener()
@@ -606,6 +696,7 @@ final class PointerHoverSession: ObservableObject {
            !scrollState.isSuppressedByKeyboardOrController,
            gate.hasActiveHover,
            let pointerInside = currentPointerInsideView() {
+            syncPointerHandShape(pointerInside, followsPointer: true)
             let delivered = gate.report(
                 pointerInside,
                 isFrozen: false,
@@ -625,6 +716,11 @@ final class PointerHoverSession: ObservableObject {
             isCursorHidden: isCursorHidden,
             isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
         )
+        if isFrozen || scrollState.isSuppressedByKeyboardOrController || isCursorHidden {
+            syncPointerHandShape(false, followsPointer: !isFrozen && !isCursorHidden)
+        } else if let delivered, !scrollState.isScrolling {
+            syncPointerHandShape(delivered, followsPointer: true)
+        }
         syncScrollListener()
         if let delivered {
             action?(delivered)
@@ -632,6 +728,7 @@ final class PointerHoverSession: ObservableObject {
     }
 
     func unregisterScrollListener() {
+        clearPointerHandShape()
         guard isListeningToScrollState else {
             return
         }
@@ -737,6 +834,14 @@ private final class PointerHoverProbeView: NSView {
         nil
     }
 
+    override func setFrameSize(_ newSize: NSSize) {
+        let oldSize = frame.size
+        super.setFrameSize(newSize)
+        if oldSize != newSize, session?.showsHand == true {
+            session?.handleProbeBoundsChanged()
+        }
+    }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach(removeTrackingArea)
@@ -795,6 +900,7 @@ private struct PointerHoverProbe: NSViewRepresentable {
 }
 
 private struct PointerHoverModifier: ViewModifier {
+    var showsHand = false
     let action: (Bool) -> Void
     @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
@@ -807,6 +913,7 @@ private struct PointerHoverModifier: ViewModifier {
     func body(content: Content) -> some View {
         let isFrozen = effectiveIsFrozen
         let _ = {
+            session.showsHand = showsHand
             session.action = action
             session.registry = interfaceLayers
             session.layer = layerContext.layer
@@ -815,6 +922,7 @@ private struct PointerHoverModifier: ViewModifier {
         content
             .background(PointerHoverProbe(session: session))
             .onAppear {
+                session.showsHand = showsHand
                 session.action = action
                 session.registry = interfaceLayers
                 session.layer = layerContext.layer
@@ -822,6 +930,7 @@ private struct PointerHoverModifier: ViewModifier {
                 session.syncScrollListener()
             }
             .onHover { isHovered in
+                session.showsHand = showsHand
                 session.action = action
                 session.registry = interfaceLayers
                 session.layer = layerContext.layer
@@ -829,10 +938,22 @@ private struct PointerHoverModifier: ViewModifier {
                 session.report(isHovered)
             }
             .onChange(of: layerContext.isFrozen) { isFrozen in
+                session.showsHand = showsHand
                 session.action = action
                 session.registry = interfaceLayers
                 session.layer = layerContext.layer
                 session.setFrozen(interfaceLayers?.isFrozen(layerContext.layer) ?? isFrozen)
+            }
+            .onChange(of: showsHand) { newShowsHand in
+                session.showsHand = newShowsHand
+                if !newShowsHand {
+                    AppPointerShape.noteCardHover(
+                        false,
+                        id: session.id.uuidString,
+                        showsHand: true,
+                        followsPointer: false
+                    )
+                }
             }
             .onDisappear {
                 session.unregisterScrollListener()

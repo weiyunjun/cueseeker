@@ -466,6 +466,56 @@ struct TaskCardMenuTests {
             #expect(fittingSize.height > 100)
         }
     }
+
+    @Test
+    func taskRecordNotFoundToastAndLocalizationAcrossAllLanguages() {
+        defer { AppLocalization.apply(.english) }
+
+        AppLocalization.apply(.english)
+        let toast = TaskToastRequest.taskRecordNotFound
+        #expect(toast.scenarioID == "task.detail.record_not_found")
+        #expect(toast.icon == .warning)
+        #expect(toast.duration == ToastDuration.alert)
+        #expect(toast.message == "Task record no longer exists")
+        #expect(L("toast.task_record_not_found") == "Task record no longer exists")
+
+        AppLocalization.apply(.simplifiedChinese)
+        #expect(L("toast.task_record_not_found") == "任务记录已不存在")
+        #expect(TaskToastRequest.taskRecordNotFound.message == "任务记录已不存在")
+
+        AppLocalization.apply(.traditionalChinese)
+        #expect(L("toast.task_record_not_found") == "任務記錄已不存在")
+        #expect(TaskToastRequest.taskRecordNotFound.message == "任務記錄已不存在")
+    }
+
+    @Test
+    func cardMenuAnchorDistinguishesButtonOpenFromRightClickContextMenu() {
+        let buttonState = WorkbenchCardMenuState(
+            cardID: "card-1",
+            anchorFrame: CGRect(x: 100, y: 20, width: 32, height: 32),
+            menuFrame: CGRect(x: 100, y: 56, width: 160, height: 40),
+            items: []
+        )
+        #expect(buttonState.isButtonAnchored == true)
+
+        let rightClickState = WorkbenchCardMenuState(
+            cardID: "card-1",
+            anchorFrame: nil,
+            menuFrame: CGRect(x: 40, y: 30, width: 160, height: 40),
+            items: []
+        )
+        #expect(rightClickState.isButtonAnchored == false)
+
+        // When menu is opened via "..." button, both card hover retention and button Open state are active.
+        var openMenuState: WorkbenchCardMenuState? = buttonState
+        #expect((openMenuState?.cardID == "card-1") == true)
+        #expect((openMenuState?.cardID == "card-1" && openMenuState?.isButtonAnchored == true) == true)
+
+        // When menu is opened via right-click on card, card stays highlighted while "..." button does NOT enter Open state.
+        openMenuState = rightClickState
+        #expect((openMenuState?.cardID == "card-1") == true)
+        #expect((openMenuState?.cardID == "card-1" && openMenuState?.isButtonAnchored == true) == false)
+    }
 }
 
 private func hexString(_ color: NSColor, appearance: NSAppearance.Name = .aqua) -> String {

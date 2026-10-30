@@ -592,6 +592,11 @@ final class AppCoordinator: ObservableObject {
         }
         excerpt.setRecentSaveListID(settings.recentExcerptSaveListID)
         discardUnfinishedFolderAdditions(tasks.loadPersistedRecords())
+        if indexing.lastUpdatedDate != nil,
+           !indexing.hasPersistedLastUpdatedTaskID,
+           let latestCompletedTaskID = tasks.lastCompletedFileStatusTaskID {
+            indexing.recordLastUpdatedTaskID(latestCompletedTaskID)
+        }
         setupSettingsObservers()
         setupInterfaceLayerObservers()
     }
