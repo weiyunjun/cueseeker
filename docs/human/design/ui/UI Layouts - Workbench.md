@@ -413,6 +413,7 @@
 
 #### Components
 
+- Search Field
 - Status Indicator / Workbench Status Indicator
 - Button / Neutral
 - Menu
@@ -424,14 +425,18 @@
 
 - Page Layout：Workbench Titled Page Layout
 - Action Bar 保持 `--spacing-8` 边距，文件夹网格使用 `--padding-workbench-media-card-grid-inline`。
-- Action Bar：左对齐，从左到右依次为排序按钮（图标为 `funnel-simple`，文字为当前选中的排序方式）、文件夹数量（`xx folders`，样式同 Workbench Status Indicator）。
+- Action Bar：左对齐，从左到右依次为搜索框（占位提示 `Search folders...`，进入页面不自动聚焦，输入内容在 App 运行期间保留、清除或重启后清空，实时匹配文件夹名称）、排序按钮（图标为 `funnel-simple`，文字为当前选中的排序方式）、文件夹数量（`xx folders`，样式同 Workbench Status Indicator，随搜索结果实时变化）。
+- 搜索框宽度与换行规则：搜索框常规宽度固定为 `--width-overview-search-field`，最小宽度为 `--min-width-overview-search-field`。当单行可用宽度不足以在保持搜索框 `--width-overview-search-field` 的前提下容纳右侧统计文本时，统计文本自动换至第二行靠左显示（行间距 `--spacing-2`）；仅在统计文本已换行后第一行仍放不下搜索框与按钮时，搜索框才向 `--min-width-overview-search-field` 收缩。
 - 排序菜单：Radio Menu，与排序按钮左边缘对齐，选项为默认排序、最晚入库、最早入库。
 - 排序规则：默认按文件夹名称升序；最晚入库/最早入库按首次入库时间（最早被索引文件的时间）排序，相同时间按文件夹名称升序。排序选择持久化保存。
+- 空状态：媒体库无文件夹时隐藏 Action Bar 并居中显示 Empty State（图标 `video`）；有文件夹但搜索无匹配结果时保留 Action Bar，下方居中显示 Empty State（图标 `search-no-results`）。
 
 #### Sizes
 
+- Search Field Width：`--width-overview-search-field`（Minimum Width：`--min-width-overview-search-field`）
 - Action Bar to Grid Gap：`--spacing-4`
 - Action Bar Item Gap：`--spacing-4`
+- Action Bar Row Gap：`--spacing-2`
 - Card Minimum Width：`--width-library-recent-card-min`
 - Maximum Columns：有 Sidebar `--grid-max-columns-library-with-sidebar`；无 Sidebar `--grid-max-columns-library-without-sidebar`
 - Grid Gap：`--gap-library-recent-grid`
@@ -617,29 +622,37 @@
 
 #### Structure
 
-1. Summary Row
+1. Action Bar
 2. Adaptive Excerpt List Card Grid
 
 #### Components
 
+- Search Field
 - Status Indicator / Workbench Status Indicator
 - Button / Neutral
+- Menu
 - Excerpt List Card Layout
+- Empty State
 
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- Summary 行保持 `--spacing-8` 边距，左对齐，从左到右依次为新建按钮（Neutral，带 `plus` 图标）、Summary 文本（`xx lists  yy cues`，样式同 Workbench Status Indicator，其中 `yy cues` 与卡片封面徽章仅统计有效字幕）；卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面左边缘与新建按钮左边缘齐平。
+- Action Bar 保持 `--spacing-8` 边距，左对齐，从左到右依次为搜索框（占位提示 `Search excerpt lists...`，进入页面不自动聚焦，输入内容在 App 运行期间保留、清除或重启后清空，仅实时匹配摘录集名称）、排序按钮（图标为 `funnel-simple`，文字为当前选中的排序方式）、新建按钮（Neutral，带 `plus` 图标）、统计文本（`xx lists  yy cues`，样式同 Workbench Status Indicator，随搜索结果实时变化并跨匹配摘录集去重，其中 `yy cues` 与卡片封面徽章仅统计有效字幕）；卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面左边缘与搜索框左边缘齐平。
+- 搜索框宽度与统计文本换行规则同 `L-04.1 Library Overview Layout`。
+- 搜索无匹配结果时保留 Action Bar，下方居中显示 Empty State（图标 `search-no-results`）。
 
 #### Ordering
 
-- 按列表创建时间正序排列，最新创建的列表在最后
+- 排序菜单：Radio Menu，与排序按钮左边缘对齐，选项为最早创建（`Oldest Created`）、最晚创建（`Latest Created`）。
+- 排序规则：默认按列表创建时间正序（最早创建在前）；最晚创建按列表创建时间倒序。排序选择持久化保存。
 
 #### Sizes
 
-- Summary to Grid Gap：`--spacing-4`
-- Summary Height：`--height-control`
-- Summary Item Gap：`--spacing-4`
+- Search Field Width：`--width-overview-search-field`（Minimum Width：`--min-width-overview-search-field`）
+- Action Bar to Grid Gap：`--spacing-4`
+- Action Bar Height：`--height-control`
+- Action Bar Item Gap：`--spacing-4`
+- Action Bar Row Gap：`--spacing-2`
 - Card Minimum Width：`--width-library-recent-card-min`
 - Maximum Columns：有 Sidebar `--grid-max-columns-library-with-sidebar`；无 Sidebar `--grid-max-columns-library-without-sidebar`
 - Grid Gap：`--gap-library-recent-grid`
@@ -669,7 +682,7 @@
 1. `Edit List`
 2. `Delete List`
 
-只有一个 Excerpt List 时 `Delete List` 为 Disabled。
+全局只有一个 Excerpt List 时 `Delete List` 为 Disabled（不受搜索过滤结果数量影响）。
 
 #### States
 

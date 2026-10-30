@@ -378,6 +378,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-library-list-cover`: `204px`
 - `--width-library-folder-cover`: `120px`
 - `--min-height-library-folder-card`: `96px`
+- `--width-overview-search-field`: `240px`
+- `--min-width-overview-search-field`: `180px`
 - `--width-window-default`: `1000px`
 - `--min-width-window`: `600px`
 - `--min-height-window`: `560px`

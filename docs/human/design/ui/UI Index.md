@@ -22,7 +22,7 @@
 | [`UI Layouts - Workbench.md`](UI%20Layouts%20-%20Workbench.md) | **工作台与弹窗布局（`L-01` ~ `L-06`）**：App 壳层、设置窗口、Recent、Library 与 File、Search 与 Excerpt、全部模态对话框与任务面板。 |
 | [`UI Layouts - Playback.md`](UI%20Layouts%20-%20Playback.md) | **播放相关布局（`L-07` ~ `L-09`）**：播放器顶底栏与反馈层、Playback Overlay（Current / Playlist / Collage Editor）、Command Panel。 |
 | [`Icon Registry.md`](Icon%20Registry.md) | **图标名录**：Phosphor 图标制作规格、尺寸与线宽映射表、全量图标使用位置。 |
-| [`Empty State Icon Registry.md`](Empty%20State%20Icon%20Registry.md) | **空状态图标名录**：`C-09.2 Empty State` 双色调图标制作规格、配色层次与全界面 22 处使用位置。 |
+| [`Empty State Icon Registry.md`](Empty%20State%20Icon%20Registry.md) | **空状态图标名录**：`C-09.2 Empty State` 双色调图标制作规格、配色层次与全界面 24 处使用位置。 |
 | [`Toast Usage Registry.md`](Toast%20Usage%20Registry.md) | **Toast 与 HUD 注册表**：全场景提示文案（英/简/繁）、图标、持续时间与 Scenario ID。 |
 | [`Tooltip Usage Registry.md`](Tooltip%20Usage%20Registry.md) | **Tooltip 注册表**：全场景悬停提示文案（英/简/繁）、快捷键跟随规则、触发延迟与 Scenario ID。 |
 
@@ -121,13 +121,13 @@
 | | `L-02.5` | Settings Subtitle Layout | 字幕样式设置页与条件显隐规则 |
 | **3.3 Recent** | `L-03.1` | Recent Layout | Recent 页面（顶栏 Tabs + 视频/摘录卡片网格） |
 | | `L-03.2` | Recent Watching Card Layout | 最近观看视频卡片结构（封面、进度、时长、文件夹名、集数与状态徽章） |
-| **3.4 Library and File** | `L-04.1` | Library Overview Layout | 媒体库一级总览页（统计与排序栏 + 文件夹卡片网格） |
+| **3.4 Library and File** | `L-04.1` | Library Overview Layout | 媒体库一级总览页（搜索排序与统计栏 + 文件夹卡片网格） |
 | | `L-04.2` | Library Folder Card Layout | 媒体库一级文件夹卡片 |
 | | `L-04.3` | Library Folder Detail Layout | 媒体库二级详情页（Cover Summary + 剧集网格） |
 | | `L-04.4` | Library Episode Grid Layout | 剧集卡片自适应网格 |
 | | `L-04.5` | File Page Layout | File 三级页面（状态操作栏、面包屑、文件夹列表、单集容器） |
 | | `L-04.6` | File Card Layout | File 页面文件夹/视频/字幕列表卡片与右侧 `dots-three` 操作区 |
-| **3.5 Search and Excerpt** | `L-05.1` | Excerpt List Overview Layout | Excerpt 一级总览页（汇总行 + 新建按钮 + 摘录集网格） |
+| **3.5 Search and Excerpt** | `L-05.1` | Excerpt List Overview Layout | Excerpt 一级总览页（搜索排序新建与统计栏 + 摘录集网格） |
 | | `L-05.2` | Excerpt List Card Layout | Excerpt 一级卡片与右键菜单 |
 | | `L-05.3` | Excerpt List Detail Layout | Excerpt 二级详情页（可滚动 Cover Summary + 吸顶工具栏/表头 + 表格） |
 | | `L-05.4` | Search / Excerpt Toolbar Layout | Default 下为搜索筛选排序行 + 结果统计行；Select Mode 下切换为已选统计/提示/退出行 + 批量操作按钮行 |

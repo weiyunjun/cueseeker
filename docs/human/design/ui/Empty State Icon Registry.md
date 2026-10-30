@@ -45,7 +45,7 @@
 | 图标 | 造型结构 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `search-hint` | 强调色圆角卡片底板（`search-card`）+ 5 段水平文本线（`search-line`）+ 右下镂空放大镜（镜面 `magnifier-fill`，外圈与手柄 `accent-foreground`） | 搜索提示（未输入搜索词） | Search Page（未输入搜索词） |
-| `search-no-results` | 圆角卡片底板（`base`）+ 左上圆头 `✕` 号（`foreground`）+ 右下镂空放大镜（镜面 `badge-fill`，外圈与手柄 `foreground`） | 搜索或筛选无结果 | Search Page（搜索或筛选无结果）；Excerpt List Detail（搜索或筛选无结果）；Command Panel Secondary / Search Results（搜索或筛选无结果） |
+| `search-no-results` | 圆角卡片底板（`base`）+ 左上圆头 `✕` 号（`foreground`）+ 右下镂空放大镜（镜面 `badge-fill`，外圈与手柄 `foreground`） | 搜索或筛选无结果 | Search Page（搜索或筛选无结果）；Library Overview（搜索无结果）；Excerpt List Overview（搜索无结果）；Excerpt List Detail（搜索或筛选无结果）；Command Panel Secondary / Search Results（搜索或筛选无结果） |
 | `video` | 圆角矩形视频框底板（`base`）+ 居中实心圆角播放三角（`foreground`） | 暂无视频内容 | Recent Page / Videos（为空）；Library Overview（为空）；Library Folder Detail（文件夹内无剧集）；Command Panel Secondary / Recent Videos（为空） |
 | `excerpt` | 单层圆角燕尾书签底板（`mid`） | 暂无摘录内容 | Recent Page / Excerpts（为空）；Excerpt List Detail（列表无有效摘录）；Command Panel Secondary / Recent Excerpt Lists（为空） |
 | `folder` | 左上后盖顶签（`mid`）+ 圆角矩形前盖主体（`base`） | 暂无文件夹或目录为空 | File Page / Level 1（无根文件夹）；File Page / Level 2（根文件夹内无已入库内容）；WebDAV / SMB / FTP / NFS Folder Dialog Step 2（子目录为空） |
