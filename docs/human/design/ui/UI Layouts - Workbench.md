@@ -355,7 +355,6 @@
 - Recent Watching Card Layout
 - Excerpt List Card Layout
 - Empty State
-- Spinner
 
 #### Layout
 
@@ -421,7 +420,6 @@
 - Menu
 - Library Folder Card Layout
 - Empty State
-- Spinner
 
 #### Layout
 

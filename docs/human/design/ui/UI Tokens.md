@@ -155,8 +155,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-library-time-badge-bg`: Light `rgba(15,23,42,0.72)`; Dark `rgba(15,23,42,0.72)`
 - `--color-library-time-badge-text`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-library-cover-placeholder-bg`: Light `#E5E7EB`; Dark `#2E2E33`
-- `--color-skeleton-base`: Same as `--color-library-cover-placeholder-bg`
-- `--color-skeleton-highlight`: Light `rgba(255,255,255,0.65)`; Dark `rgba(255,255,255,0.08)`
 - `--color-library-cover-crop-accent`: macOS accent color
 - `--color-library-cover-crop-mask`: macOS shadow color with Alpha `0.55`
 - `--color-library-cover-edit-overlay`: Same as `--color-library-cover-crop-mask`
@@ -586,13 +584,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--duration-spinner-motion`: `1s`
 - `--easing-spinner-motion`: `linear`
 - `--delay-playback-loading-feedback`: `300ms`
-
-### Shimmer Motion
-
-- `--duration-shimmer-motion`: `1.5s`
-- `--easing-shimmer-motion`: `linear`
-- `--delay-cover-anti-flicker`: `120ms`
-- `--duration-cover-crossfade`: `0.20s`
 
 ### Subtitle Focus Motion
 

@@ -21,7 +21,7 @@
 - **允许拥有选中态的组件白名单**：
   1. **选择控件**：`C-02.1 Checkbox`（`Checked` / `Indeterminate`）、`C-02.2 Switch`、`C-02.4 Segmented Control`、`C-02.5 Filter Chip`。
   2. **导航与菜单项**：`C-04.3 Menu Item`（仅 Command Panel 首页选项的键盘/默认选中态，以及 `Radio Menu Item` 的勾选项；所有弹出菜单与二级菜单项将 Hover 与 Select 合并为统一的 Hover 样式）、`C-05.3 Sidebar Item`、`C-05.5 Tab`、`C-05.6 Breadcrumb`（仅当前所在层级末节点为激活样式，前置祖先节点无选中态）。
-  3. **列表、卡片与台词流**：`C-06.3 Table Row`（批量选择勾选行）、`C-11.5 Media Card`（Playback 界面卡片网格中的常驻选中项，以及 Workbench 界面卡片网格在无障碍光圈位于网格内时的联动选中项）、`C-13.1 Playback Cue Metadata`、`C-13.2 Subtitle Focus Cue`、`C-13.3 Playback Cue Result`。
+  3. **列表、卡片与台词流**：`C-06.3 Table Row`（批量选择勾选行）、`C-11.5 Media Card`（Playback 界面卡片网格中的常驻选中项，以及 Workbench 界面卡片网格在无障碍光圈位于网格内时的联动选中项）、`C-13.1 Playback Cue Metadata`、`C-13.2 Subtitle Focus Cue`、`C-13.3 Playback Cue Result`。`
 - **非白名单组件禁令**：除上述白名单外，其余动作触发型组件（如 `C-03.1 Button`、`C-03.2 Icon Button`、`C-03.3 Shortcut Action Button` 等）**严禁定义或渲染 `Selected` 态**；当按钮所挂靠的菜单、弹窗或所控模式处于打开状态时，统一使用 `Open` 状态（外观等同于对应表面的 `Hover` 态）；当所挂靠的菜单、弹窗关闭或所控模式退出时，按钮立即退出 `Open` 状态，其高亮底色同步消失并退回 `Default`（仅在当前层未被冻结且指针仍停留在该按钮上时进入 `Hover`）。
 
 ## 1.3 输入框聚焦与报错预留约束
@@ -96,7 +96,7 @@
 
 # 5. 封面加载与防闪烁规则（Cover Loading & Anti-Flicker）
 
-1. **120ms 防闪烁阈值**：封面图在异步加载或解码耗时超过 `120ms`（`--delay-cover-anti-flicker`）时才展示微光骨架屏（Shimmer）；在 `120ms` 内完成加载（如内存缓存命中）直接展示图片，不展示骨架屏以避免视觉频闪。
-2. **平滑淡入**：触发骨架屏后，图片就绪时以 `0.20s`（`--duration-cover-crossfade`）平滑淡入真实封面。
-3. **默认封面直出**：未设置自定义封面的项（如默认 Excerpt 列表）直接呈现静态默认封面（占位底色 `--color-library-cover-placeholder-bg` 与默认图标），不触发骨架屏。
+1. **封面页面整页就绪上屏**：切换到包含封面卡片网格的界面（Workbench 的 `Recent`、`Library`、`Excerpt`，Playback Overlay 的 `Video Playlist`，以及 Command Panel 的 `Recent Videos`、`Recent Excerpt Lists`）时，待列表数据与首屏封面就绪后一次性完整上屏，不展示瞬时 `Spinner`、未就绪空状态或 `0` 计数过渡态。
+2. **单卡封面图层同步显现**：封面加载期间区域保持透明空白（不展示深灰色占位块或骨架屏），左下角角标与底部进度条暂不显示；待封面就绪后，底图、角标与进度条同步直出显现。
+3. **默认封面兜底**：无自定义封面或封面加载失败的项，直接呈现静态默认封面（占位底色 `--color-library-cover-placeholder-bg` 与默认图标），并与角标、进度条同步显示。
 4. **严禁破坏原图比例**：封面统一采用原比例 `Aspect Fill` 与 `Center Crop`，严禁拉伸、补边、扩图、镜像、重绘或修改封面源文件。

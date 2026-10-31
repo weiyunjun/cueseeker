@@ -683,8 +683,8 @@
 
 - No Cover
 - Default Cover
-- Loading：Skeleton Shimmer (anti-flicker delay `--delay-cover-anti-flicker`)
-- Loaded：Crossfade (`--duration-cover-crossfade`)
+- Loading：透明空白（隐藏 Badge Slot 与 Progress Slot）
+- Loaded：底图、Badge Slot 与 Progress Slot 同步显示
 - Disabled
 
 ### C-11.2 Cover Summary
