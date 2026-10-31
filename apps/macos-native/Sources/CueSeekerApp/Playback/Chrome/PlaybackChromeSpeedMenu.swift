@@ -191,10 +191,7 @@ struct PlaybackChromeMenuButtonStyle: ButtonStyle {
         guard !suppressesInteraction else {
             return .clear
         }
-        if isHighlighted {
-            return PlaybackTheme.menuItemSelectedBackground
-        }
-        if isHovered {
+        if isHighlighted || isHovered {
             return PlaybackTheme.menuItemHoverBackground
         }
         return .clear

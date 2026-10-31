@@ -378,7 +378,6 @@ func subtitleTableKeyboardOpenedSubmenuWaitsForThePointerToMove() {
     // open its submenu.
     state.noteItemHover(true, at: 0, trigger: nil, highlight: highlight)
     highlight.moveHighlight(by: 1)
-    highlight.moveHighlight(by: 1)
     state.open(.moveToList)
 
     // The submenu appearing makes Play report its hover again. The pointer
@@ -397,7 +396,7 @@ func subtitleTableKeyboardOpenedSubmenuWaitsForThePointerToMove() {
         submenuFrame: f.submenu
     )
     #expect(state.openParent == nil)
-    #expect(highlight.highlightedPosition == 8)
+    #expect(highlight.highlightedPosition == 0)
     #expect(highlight.hoveredPosition == 0)
 }
 
@@ -448,7 +447,7 @@ func subtitleTableSubmenuSafeAreaEndsWhenThePointerTurnsAway() {
     )
     #expect(!state.isPointerInSafeArea)
     #expect(state.openParent == .duplicateToList)
-    #expect(highlight.highlightedPosition == 8)
+    #expect(highlight.highlightedPosition == 9)
     #expect(highlight.hoveredPosition == 9)
     highlight.close()
 

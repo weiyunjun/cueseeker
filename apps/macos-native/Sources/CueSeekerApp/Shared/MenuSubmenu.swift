@@ -80,7 +80,7 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         }
         highlightedParent = action
         if let parentHighlight {
-            let position = parentHighlight.activeTriggerPosition
+            let position = parentHighlight.activeTriggerPosition ?? parentHighlight.highlightedPosition
             parentHighlight.clearAccessibility()
             if let position {
                 parentHighlight.selectPosition(position)

@@ -797,11 +797,7 @@ struct FileDetailPairedMenuItemRow: View {
                     cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius,
                     style: .continuous
                 )
-                .fill(
-                    isHighlighted
-                        ? WorkbenchRedesignColors.menuItemSelectedBg
-                        : (isRowHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
-                )
+                .fill(isHighlighted || isRowHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
             )
             .overlay(
                 Group {
