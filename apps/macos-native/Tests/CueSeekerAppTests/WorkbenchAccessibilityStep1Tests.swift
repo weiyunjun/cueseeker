@@ -557,4 +557,126 @@ struct WorkbenchAccessibilityStep1Tests {
             .mediaCardActionButton(episodeVideo.id),
         ])
     }
+
+    @Test
+    func schemaWorkbenchSearchToolbarSyncsSelectionModeAndRestoresNormalToolbarTargetsOnExit() {
+        let (app, suiteName, userDefaults) = makeTestCoordinator()
+        defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+
+        app.activateWorkbenchPanelMode(.search)
+
+        final class ToolbarStateBox: ObservableObject {
+            @Published var isSelectionMode = false
+            @Published var query = ""
+            var openedFilterCount = 0
+            var toggledSortCount = 0
+            var exitedSelectionCount = 0
+            var triggeredSelectionActionIDs: [String] = []
+        }
+
+        struct TestToolbarHost: View {
+            @ObservedObject var box: ToolbarStateBox
+
+            var body: some View {
+                SchemaWorkbenchSearchToolbar(
+                    placeholder: "Search",
+                    searchDraft: $box.query,
+                    searchResultCountText: "10 results",
+                    selectedCountText: "1 selected",
+                    selectionActions: [
+                        SchemaWorkbenchSelectionAction(
+                            id: "anki",
+                            title: "Export to Anki",
+                            icon: .copy,
+                            keyLabel: "E",
+                            keyCode: 14,
+                            perform: { box.triggeredSelectionActionIDs.append("anki") }
+                        ),
+                        SchemaWorkbenchSelectionAction(
+                            id: "copy-deep-links",
+                            title: "Copy Deep Links",
+                            icon: .copy,
+                            keyLabel: "D",
+                            keyCode: 2,
+                            perform: { box.triggeredSelectionActionIDs.append("copy-deep-links") }
+                        ),
+                        SchemaWorkbenchSelectionAction(
+                            id: "copy-table",
+                            title: "Copy Table",
+                            icon: .copy,
+                            keyLabel: "C",
+                            keyCode: 8,
+                            perform: { box.triggeredSelectionActionIDs.append("copy-table") }
+                        ),
+                    ],
+                    isSelectionMode: box.isSelectionMode,
+                    onFilter: {
+                        box.openedFilterCount += 1
+                    },
+                    onSort: {
+                        guard !box.isSelectionMode else { return }
+                        box.toggledSortCount += 1
+                    },
+                    onToggleSelectionMode: {
+                        box.exitedSelectionCount += 1
+                        box.isSelectionMode = false
+                    }
+                )
+            }
+        }
+
+        let box = ToolbarStateBox()
+        let host = NSHostingView(
+            rootView: TestToolbarHost(box: box)
+                .environment(\.workbenchAccessibility, app.workbenchAccessibility)
+        )
+        host.frame = NSRect(x: 0, y: 0, width: 900, height: 80)
+        host.layoutSubtreeIfNeeded()
+
+        #expect(!app.workbenchAccessibility.isTableInSelectionMode)
+        #expect(app.currentWorkbenchAccessibilityTargets().suffix(3) == [
+            .toolbarSearchField,
+            .toolbarFilterButton,
+            .toolbarSortButton,
+        ])
+
+        // Enter Selection Mode -> toolbar targets immediately switch to Selection Mode buttons
+        // and each button's action callback is wired.
+        box.isSelectionMode = true
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        host.layoutSubtreeIfNeeded()
+
+        #expect(app.workbenchAccessibility.isTableInSelectionMode)
+        #expect(app.currentWorkbenchAccessibilityTargets().suffix(4) == [
+            .toolbarExitSelectButton,
+            .toolbarSelectionAction(.exportToAnki),
+            .toolbarSelectionAction(.copyDeepLinks),
+            .toolbarSelectionAction(.copyTable),
+        ])
+
+        #expect(app.activateWorkbenchAccessibilityTarget(.toolbarSelectionAction(.exportToAnki)))
+        #expect(app.activateWorkbenchAccessibilityTarget(.toolbarSelectionAction(.copyDeepLinks)))
+        #expect(app.activateWorkbenchAccessibilityTarget(.toolbarSelectionAction(.copyTable)))
+        #expect(box.triggeredSelectionActionIDs == ["anki", "copy-deep-links", "copy-table"])
+
+        // Activate Exit Selection button -> exits Selection Mode and restores normal toolbar targets.
+        #expect(app.activateWorkbenchAccessibilityTarget(.toolbarExitSelectButton))
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        host.layoutSubtreeIfNeeded()
+
+        #expect(box.exitedSelectionCount == 1)
+        #expect(!box.isSelectionMode)
+        #expect(!app.workbenchAccessibility.isTableInSelectionMode)
+        #expect(app.currentWorkbenchAccessibilityTargets().suffix(3) == [
+            .toolbarSearchField,
+            .toolbarFilterButton,
+            .toolbarSortButton,
+        ])
+
+        // Normal Filter & Sort buttons remain responsive after exiting Selection Mode.
+        #expect(app.activateWorkbenchAccessibilityTarget(.toolbarFilterButton))
+        #expect(box.openedFilterCount == 1)
+        #expect(app.activateWorkbenchAccessibilityTarget(.toolbarSortButton))
+        #expect(box.toggledSortCount == 1)
+    }
 }

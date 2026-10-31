@@ -65,6 +65,7 @@ struct WorkbenchSearchField: View {
     @State private var isNativeFocused = false
     @State private var textFieldBox = WeakTextFieldBox()
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
 
     init(
         placeholder: String,
@@ -214,8 +215,14 @@ struct WorkbenchSearchField: View {
         }
         .onDisappear {
             WorkbenchAccessibilityDebugLog.log(
-                "WorkbenchSearchField.onDisappear hasField=\(textFieldBox.field != nil)"
+                "WorkbenchSearchField.onDisappear hasField=\(textFieldBox.field != nil) isCurrentActiveField=\(workbenchAccessibility?.activeSearchTextField === textFieldBox.field)"
             )
+            if let field = textFieldBox.field,
+               let workbenchAccessibility,
+               workbenchAccessibility.activeSearchTextField !== field
+            {
+                return
+            }
             onBindAccessibilityTextField?(nil)
         }
     }

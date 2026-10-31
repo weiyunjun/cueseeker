@@ -419,6 +419,7 @@ struct SchemaWorkbenchSearchToolbar: View {
 
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
+            let _ = syncAccessibilityCallbacks(accessibility)
             let _ = WorkbenchAccessibilityDebugLog.log(
                 "SchemaWorkbenchSearchToolbar.body isSelectionMode=\(isSelectionMode) a11yExists=\(accessibility != nil) focused=\(String(describing: accessibility?.focusedTarget)) selectionActions=\(selectionActions.map(\.id))"
             )
@@ -439,12 +440,12 @@ struct SchemaWorkbenchSearchToolbar: View {
             }
             .onChange(of: isSelectionMode) { inSelectionMode in
                 WorkbenchAccessibilityDebugLog.log(
-                    "SchemaWorkbenchSearchToolbar.onChange(isSelectionMode) -> \(inSelectionMode) a11yExists=\(accessibility != nil) selectionActions=\(selectionActions.map(\.id))"
+                    "SchemaWorkbenchSearchToolbar.onChange(isSelectionMode) -> \(inSelectionMode) a11yExists=\(accessibility != nil)"
                 )
                 if inSelectionMode {
                     hasConsumedInitialAutofocus = true
                 }
-                syncAccessibilityCallbacks(accessibility)
+                accessibility?.isTableInSelectionMode = inSelectionMode
             }
             .onDisappear {
                 WorkbenchAccessibilityDebugLog.log(

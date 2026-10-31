@@ -488,10 +488,7 @@ private struct WorkbenchExcerptTableContent: View {
     }
 
     private var selectedSummaryActions: [SchemaWorkbenchSelectionAction]? {
-        guard isSelectionMode else {
-            return nil
-        }
-        return SchemaWorkbenchSelectionAction.exportActions(
+        SchemaWorkbenchSelectionAction.exportActions(
             exportToAnki: exportSelectedRowsToAnki,
             copyDeepLinks: copySelectedRowsAsDeepLinks,
             copyTable: copySelectedRowsAsTable
@@ -921,6 +918,7 @@ private struct WorkbenchExcerptTableContent: View {
         } else if isSelectionMode, count == 0 {
             isSelectionMode = false
         }
+        appState.workbenchAccessibility.isTableInSelectionMode = isSelectionMode
         WorkbenchAccessibilityDebugLog.log(
             "WorkbenchExcerptTableView.toggleRowSelection(\(row)) count=\(count) isSelectionMode: \(oldMode) -> \(isSelectionMode) a11y.isTableInSelectionMode=\(appState.workbenchAccessibility.isTableInSelectionMode)"
         )
@@ -939,6 +937,7 @@ private struct WorkbenchExcerptTableContent: View {
         } else if isSelectionMode, count == 0 {
             isSelectionMode = false
         }
+        appState.workbenchAccessibility.isTableInSelectionMode = isSelectionMode
         persistSelection()
     }
 
@@ -954,6 +953,7 @@ private struct WorkbenchExcerptTableContent: View {
         } else if isSelectionMode, count == 0 {
             isSelectionMode = false
         }
+        appState.workbenchAccessibility.isTableInSelectionMode = isSelectionMode
         WorkbenchAccessibilityDebugLog.log(
             "WorkbenchExcerptTableView.toggleAllRowSelection count=\(count) isSelectionMode: \(oldMode) -> \(isSelectionMode) a11y.isTableInSelectionMode=\(appState.workbenchAccessibility.isTableInSelectionMode)"
         )
@@ -1017,6 +1017,7 @@ private struct WorkbenchExcerptTableContent: View {
         rowSelection.reset()
         persistSelection()
         isSelectionMode = true
+        appState.workbenchAccessibility.isTableInSelectionMode = true
     }
 
     private func exitSelectionMode() {
@@ -1027,6 +1028,7 @@ private struct WorkbenchExcerptTableContent: View {
             "WorkbenchExcerptTableView.exitSelectionMode isSelectionMode: \(isSelectionMode) -> false"
         )
         isSelectionMode = false
+        appState.workbenchAccessibility.isTableInSelectionMode = false
         rowSelection.reset()
         persistSelection()
     }
