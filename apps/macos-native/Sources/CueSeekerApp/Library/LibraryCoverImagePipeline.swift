@@ -96,6 +96,7 @@ final class LibraryCoverImageMemoryCache: @unchecked Sendable {
     private let lock = NSLock()
     private let configuration: LibraryCoverImagePipelineConfiguration
     private var cache: [LibraryCoverImageKey: CacheEntry] = [:]
+    private var failedKeys: Set<LibraryCoverImageKey> = []
     private var totalCostBytes = 0
     private var accessClock: UInt64 = 0
 
@@ -113,6 +114,33 @@ final class LibraryCoverImageMemoryCache: @unchecked Sendable {
         entry.lastAccess = accessClock
         cache[key] = entry
         return entry.decodedImage.image
+    }
+
+    func hasFailedDecode(for key: LibraryCoverImageKey) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return failedKeys.contains(key)
+    }
+
+    func isReadyForPresentation(for key: LibraryCoverImageKey) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if var entry = cache[key] {
+            accessClock &+= 1
+            entry.lastAccess = accessClock
+            cache[key] = entry
+            return true
+        }
+        return failedKeys.contains(key)
+    }
+
+    func recordFailedDecode(for key: LibraryCoverImageKey) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard cache[key] == nil else {
+            return
+        }
+        failedKeys.insert(key)
     }
 
     func cachedDecodedImage(for key: LibraryCoverImageKey) -> LibraryDecodedCoverImage? {
@@ -142,6 +170,7 @@ final class LibraryCoverImageMemoryCache: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
+        failedKeys.remove(key)
         if let existing = cache.removeValue(forKey: key) {
             totalCostBytes = max(0, totalCostBytes - existing.cost)
         }
@@ -172,6 +201,7 @@ final class LibraryCoverImageMemoryCache: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         cache.removeAll(keepingCapacity: false)
+        failedKeys.removeAll(keepingCapacity: false)
         totalCostBytes = 0
     }
 
@@ -184,6 +214,7 @@ final class LibraryCoverImageMemoryCache: @unchecked Sendable {
                 totalCostBytes = max(0, totalCostBytes - entry.cost)
             }
         }
+        failedKeys = failedKeys.filter { $0.path != path }
     }
 
     var diagnosticsData: (totalCostBytes: Int, cachedKeys: Set<LibraryCoverImageKey>) {
@@ -197,6 +228,7 @@ actor LibraryCoverImagePipeline {
     typealias Decoder = @Sendable (LibraryCoverImageKey) -> LibraryDecodedCoverImage?
 
     static let shared = LibraryCoverImagePipeline()
+    static let firstScreenPrewarmLimit = 20
 
     private struct InFlightRequest {
         struct Waiter {
@@ -229,6 +261,49 @@ actor LibraryCoverImagePipeline {
 
     nonisolated func cachedImage(for key: LibraryCoverImageKey) -> CGImage? {
         memoryCache.cachedImage(for: key)
+    }
+
+    nonisolated func hasFailedDecode(for key: LibraryCoverImageKey) -> Bool {
+        memoryCache.hasFailedDecode(for: key)
+    }
+
+    nonisolated func isReadyForPresentation(for key: LibraryCoverImageKey) -> Bool {
+        memoryCache.isReadyForPresentation(for: key)
+    }
+
+    nonisolated static func boundedUniqueKeys(
+        from keys: [LibraryCoverImageKey],
+        limit: Int = firstScreenPrewarmLimit
+    ) -> [LibraryCoverImageKey] {
+        guard limit > 0, !keys.isEmpty else {
+            return []
+        }
+        var seen: Set<LibraryCoverImageKey> = []
+        var result: [LibraryCoverImageKey] = []
+        result.reserveCapacity(min(limit, keys.count))
+        for key in keys where seen.insert(key).inserted {
+            result.append(key)
+            if result.count >= limit {
+                break
+            }
+        }
+        return result
+    }
+
+    func prewarm(keys: [LibraryCoverImageKey]) async {
+        let boundedKeys = Self.boundedUniqueKeys(from: keys)
+        let missingKeys = boundedKeys.filter { !memoryCache.isReadyForPresentation(for: $0) }
+        guard !missingKeys.isEmpty else {
+            return
+        }
+
+        await withTaskGroup(of: Void.self) { group in
+            for key in missingKeys {
+                group.addTask {
+                    _ = try? await self.image(for: key)
+                }
+            }
+        }
     }
 
     func image(for key: LibraryCoverImageKey) async throws -> CGImage? {
@@ -433,8 +508,12 @@ actor LibraryCoverImagePipeline {
         let cancelledWaiters = request.waiters.filter { $0.value.cancellation.isCancelled }
         if request.acceptsResult {
             inFlight.removeValue(forKey: key)
-            if let decodedImage, !liveWaiters.isEmpty {
-                insert(decodedImage, for: key)
+            if !liveWaiters.isEmpty {
+                if let decodedImage {
+                    insert(decodedImage, for: key)
+                } else {
+                    memoryCache.recordFailedDecode(for: key)
+                }
             }
             for waiter in liveWaiters.values {
                 waiter.continuation.resume(returning: decodedImage)

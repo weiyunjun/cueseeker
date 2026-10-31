@@ -689,7 +689,9 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     @discardableResult
     func clearSettingsDialog() -> Bool {
         let hadFocus = focusedSettingsDialogTarget != nil
-        focusedSettingsDialogTarget = nil
+        if hadFocus {
+            focusedSettingsDialogTarget = nil
+        }
         return hadFocus
     }
 
@@ -723,11 +725,13 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         keepColorPopoverOpen: Bool = true
     ) -> Bool {
         let hadFocus = focusedSettingsTarget != nil
-        focusedSettingsTarget = nil
+        if hadFocus {
+            focusedSettingsTarget = nil
+        }
         if !keepTextInputFocus {
             unfocusAllSettingsTextInputs()
         }
-        if !keepColorPopoverOpen {
+        if !keepColorPopoverOpen, activeSubtitleColorPopover != nil {
             activeSubtitleColorPopover = nil
         }
         return hadFocus
@@ -850,7 +854,9 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     @discardableResult
     func clearDialog(keepTextInputFocus: Bool = true) -> Bool {
         let hadFocus = focusedDialogTarget != nil
-        focusedDialogTarget = nil
+        if hadFocus {
+            focusedDialogTarget = nil
+        }
         if !keepTextInputFocus {
             unfocusAllDialogTextInputs()
         }
@@ -1109,7 +1115,9 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     @discardableResult
     func clearPlayback(keepTextInputFocus: Bool = true) -> Bool {
         let hadFocus = focusedPlaybackTarget != nil
-        focusedPlaybackTarget = nil
+        if hadFocus {
+            focusedPlaybackTarget = nil
+        }
         if !keepTextInputFocus,
            let field = activeCommandPanelSearchTextField,
            field.isCurrentlyFocused

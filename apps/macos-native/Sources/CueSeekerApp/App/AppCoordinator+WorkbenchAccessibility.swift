@@ -1202,15 +1202,23 @@ extension AppCoordinator {
         updateActiveDialogSessionSubscriptionIfNeeded()
 
         guard let currentDialogID = activeDialogAccessibilityID() else {
-            workbenchAccessibility.activeDialogID = nil
-            workbenchAccessibility.clearDialog(keepTextInputFocus: false)
+            if workbenchAccessibility.activeDialogID != nil {
+                workbenchAccessibility.activeDialogID = nil
+            }
+            if workbenchAccessibility.focusedDialogTarget != nil
+                || workbenchAccessibility.isAnyDialogTextInputFocused
+            {
+                workbenchAccessibility.clearDialog(keepTextInputFocus: false)
+            }
             return
         }
 
         workbenchAccessibility.clear()
 
         if interfaceLayers.hasUncoveredOpenMenu {
-            workbenchAccessibility.activeDialogID = currentDialogID
+            if workbenchAccessibility.activeDialogID != currentDialogID {
+                workbenchAccessibility.activeDialogID = currentDialogID
+            }
             workbenchAccessibility.clearDialog(keepTextInputFocus: false)
             return
         }

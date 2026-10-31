@@ -341,6 +341,43 @@ func libraryCoverImagePipelineDefaultDecoderRejectsMasterSizedImages() async thr
     #expect(oversizedImage == nil)
 }
 
+@Test
+func libraryCoverImagePipelinePrewarmPopulatesReadyStateAndTracksFailedKeys() async throws {
+    let validImage = try makeCoverPipelineTestImage()
+    let validKeyA = coverPipelineKey("prewarm-valid-a")
+    let validKeyB = coverPipelineKey("prewarm-valid-b")
+    let failedKey = coverPipelineKey("prewarm-failed")
+
+    let pipeline = LibraryCoverImagePipeline(
+        configuration: .production,
+        decoder: { key in
+            if key == failedKey {
+                return nil
+            }
+            return LibraryDecodedCoverImage(image: validImage, cost: 64)
+        }
+    )
+
+    #expect(!pipeline.isReadyForPresentation(for: validKeyA))
+    #expect(!pipeline.isReadyForPresentation(for: validKeyB))
+    #expect(!pipeline.isReadyForPresentation(for: failedKey))
+    #expect(!pipeline.hasFailedDecode(for: failedKey))
+
+    await pipeline.prewarm(keys: [validKeyA, validKeyB, failedKey, validKeyA])
+
+    #expect(pipeline.cachedImage(for: validKeyA) != nil)
+    #expect(pipeline.cachedImage(for: validKeyB) != nil)
+    #expect(pipeline.cachedImage(for: failedKey) == nil)
+    #expect(pipeline.hasFailedDecode(for: failedKey))
+    #expect(pipeline.isReadyForPresentation(for: validKeyA))
+    #expect(pipeline.isReadyForPresentation(for: validKeyB))
+    #expect(pipeline.isReadyForPresentation(for: failedKey))
+
+    await pipeline.remove(path: failedKey.path)
+    #expect(!pipeline.hasFailedDecode(for: failedKey))
+    #expect(!pipeline.isReadyForPresentation(for: failedKey))
+}
+
 private func coverPipelineKey(_ name: String) -> LibraryCoverImageKey {
     LibraryCoverImageKey(
         path: "/Covers/Display/v1/\(name).jpg",

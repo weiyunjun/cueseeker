@@ -15,43 +15,45 @@ struct ExcerptListOverviewView: View {
         let displayedListCount = displayedLists.count
         let displayedCueCount = excerptStore.displayedUniqueCueCount
 
-        LibraryCardContextMenuHost { _ in
-            LibraryOverviewLayout(
-                searchPlaceholder: L("excerpt.overview.search_placeholder"),
-                searchText: $excerptStore.overviewSearchDraft,
-                sortOptions: ExcerptOverviewSortOrder.workbenchSortOptions,
-                selectedSortOptionID: excerptStore.overviewSortOrder.rawValue,
-                onSelectSortOption: { optionID in
-                    if let order = ExcerptOverviewSortOrder(rawValue: optionID) {
-                        excerptStore.overviewSortOrder = order
+        Group {
+            if excerptStore.hasLoadedListOverview {
+                LibraryCardContextMenuHost { _ in
+                    LibraryOverviewLayout(
+                        searchPlaceholder: L("excerpt.overview.search_placeholder"),
+                        searchText: $excerptStore.overviewSearchDraft,
+                        sortOptions: ExcerptOverviewSortOrder.workbenchSortOptions,
+                        selectedSortOptionID: excerptStore.overviewSortOrder.rawValue,
+                        onSelectSortOption: { optionID in
+                            if let order = ExcerptOverviewSortOrder(rawValue: optionID) {
+                                excerptStore.overviewSortOrder = order
+                            }
+                        },
+                        summaryText: L(
+                            "excerpt.overview.summary",
+                            displayedListCount == 1
+                                ? L("excerpt.list_count.one")
+                                : L("excerpt.list_count.other", displayedListCount),
+                            displayedCueCount == 1
+                                ? L("excerpt.cue_count.one")
+                                : L("excerpt.cue_count.other", displayedCueCount)
+                        ),
+                        actionTitle: L("excerpt.new_list"),
+                        action: { appState.beginCreatingExcerptList() },
+                        emptySearchMessage: displayedLists.isEmpty
+                            ? L("excerpt.overview.search_no_results")
+                            : nil
+                    ) {
+                        ExcerptListCardGrid(
+                            summaries: displayedLists,
+                            highlight: highlight
+                        ) { summary in
+                            appState.openExcerptList(id: summary.id)
+                        }
                     }
-                },
-                summaryText: L(
-                    "excerpt.overview.summary",
-                    displayedListCount == 1
-                        ? L("excerpt.list_count.one")
-                        : L("excerpt.list_count.other", displayedListCount),
-                    displayedCueCount == 1
-                        ? L("excerpt.cue_count.one")
-                        : L("excerpt.cue_count.other", displayedCueCount)
-                ),
-                actionTitle: L("excerpt.new_list"),
-                action: { appState.beginCreatingExcerptList() },
-                emptySearchMessage: excerptStore.hasLoadedListOverview && displayedLists.isEmpty
-                    ? L("excerpt.overview.search_no_results")
-                    : nil
-            ) {
-                if excerptStore.hasLoadedListOverview {
-                    ExcerptListCardGrid(
-                        summaries: displayedLists,
-                        highlight: highlight
-                    ) { summary in
-                        appState.openExcerptList(id: summary.id)
-                    }
-                } else {
-                    WorkbenchSpinner()
-                        .frame(maxWidth: .infinity, minHeight: 220)
                 }
+            } else {
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .background(WorkbenchRedesignColors.bgSurface)

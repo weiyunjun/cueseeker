@@ -10,6 +10,8 @@ struct WorkbenchLibraryView: View {
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
+    private let presentedFolderPath: String?
+    private let usesPresentedFolderPath: Bool
     /// The folder list and one folder's detail are two interfaces sharing this
     /// view, so entering the detail starts with nothing lit.
     @StateObject private var highlight = CardHighlightModel(
@@ -18,9 +20,23 @@ struct WorkbenchLibraryView: View {
 
     @State private var folderSummaryMoreMenuAnchor = MenuAnchorHandle()
 
+    init() {
+        self.presentedFolderPath = nil
+        self.usesPresentedFolderPath = false
+    }
+
+    init(presentedFolderPath: String?) {
+        self.presentedFolderPath = presentedFolderPath
+        self.usesPresentedFolderPath = true
+    }
+
+    private var activeFolderPath: String? {
+        usesPresentedFolderPath ? presentedFolderPath : routeState.selectedLibraryFolderPath
+    }
+
     var body: some View {
         Group {
-            if let folderPath = routeState.selectedLibraryFolderPath {
+            if let folderPath = activeFolderPath {
                 LibraryCardContextMenuHost(
                     interfaceID: folderPath
                 ) { _, toggleAnchorMenu, activeMenuOwnerID in
@@ -63,7 +79,7 @@ struct WorkbenchLibraryView: View {
         }
         .background(WorkbenchRedesignColors.bgSurface)
         .cardHighlightFreeze(highlight)
-        .onChange(of: routeState.selectedLibraryFolderPath) { _ in
+        .onChange(of: activeFolderPath) { _ in
             highlight.reset()
         }
         .task {
@@ -85,25 +101,7 @@ struct WorkbenchLibraryView: View {
 
     @ViewBuilder
     private var completeLibraryOverview: some View {
-        if case .loading = library.completeLibraryStatus, library.completeLibraryFolderSummaries.isEmpty {
-            completeLibraryFullPageState { emptyMinHeight in
-                WorkbenchSpinner()
-                    .frame(maxWidth: .infinity, minHeight: emptyMinHeight, alignment: .center)
-                    .workbenchPageInlinePadding()
-            }
-        } else if case .failed(let message) = library.completeLibraryStatus {
-            completeLibraryFullPageState { emptyMinHeight in
-                WorkbenchEmptyHint(icon: .videoQuestion, message: message)
-                    .frame(minHeight: emptyMinHeight)
-                    .workbenchPageInlinePadding()
-            }
-        } else if library.completeLibraryFolderSummaries.isEmpty {
-            completeLibraryFullPageState { emptyMinHeight in
-                WorkbenchEmptyHint(icon: .video, message: L("library.empty"))
-                    .frame(minHeight: emptyMinHeight)
-                    .workbenchPageInlinePadding()
-            }
-        } else {
+        if !library.completeLibraryFolderSummaries.isEmpty {
             let displayedFolders = library.displayedCompleteLibraryFolderSummaries
             let folderCount = displayedFolders.count
             let countText = folderCount == 1
@@ -135,6 +133,21 @@ struct WorkbenchLibraryView: View {
                     }
                 )
             }
+        } else if case .failed(let message) = library.completeLibraryStatus {
+            completeLibraryFullPageState { emptyMinHeight in
+                WorkbenchEmptyHint(icon: .videoQuestion, message: message)
+                    .frame(minHeight: emptyMinHeight)
+                    .workbenchPageInlinePadding()
+            }
+        } else if library.completeLibraryStatus == .completed || indexing.selectedFolders.isEmpty {
+            completeLibraryFullPageState { emptyMinHeight in
+                WorkbenchEmptyHint(icon: .video, message: L("library.empty"))
+                    .frame(minHeight: emptyMinHeight)
+                    .workbenchPageInlinePadding()
+            }
+        } else {
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -201,9 +214,8 @@ struct WorkbenchLibraryView: View {
                 activeMenuOwnerID: activeMenuOwnerID
             )
         } else {
-            WorkbenchSpinner()
-                .frame(maxWidth: .infinity, minHeight: pageEmptyMinHeight, alignment: .center)
-                .workbenchPageInlinePadding()
+            Color.clear
+                .frame(maxWidth: .infinity, minHeight: pageEmptyMinHeight)
         }
     }
 
@@ -215,15 +227,7 @@ struct WorkbenchLibraryView: View {
         toggleAnchorMenu: @escaping ([LibraryCardContextMenuItem], MenuAnchorHandle, String) -> Void,
         activeMenuOwnerID: String?
     ) -> some View {
-        if case .loading = folderDetailStatus, folderDetail?.folderPath != folder.folderPath {
-            WorkbenchSpinner()
-                .frame(maxWidth: .infinity, minHeight: pageEmptyMinHeight, alignment: .center)
-                .workbenchPageInlinePadding()
-        } else if case .failed(let message) = folderDetailStatus {
-            WorkbenchEmptyHint(icon: .videoQuestion, message: message)
-                .frame(minHeight: pageEmptyMinHeight)
-                .workbenchPageInlinePadding()
-        } else if let folderDetail, folderDetail.folderPath == folder.folderPath {
+        if let folderDetail, folderDetail.folderPath == folder.folderPath {
             let contentWidth = max(
                 0,
                 viewportSize.width
@@ -263,10 +267,13 @@ struct WorkbenchLibraryView: View {
                 )
                 .workbenchMediaCardGridInlinePadding()
             }
-        } else {
-            WorkbenchSpinner()
-                .frame(maxWidth: .infinity, minHeight: pageEmptyMinHeight, alignment: .center)
+        } else if case .failed(let message) = folderDetailStatus {
+            WorkbenchEmptyHint(icon: .videoQuestion, message: message)
+                .frame(minHeight: pageEmptyMinHeight)
                 .workbenchPageInlinePadding()
+        } else {
+            Color.clear
+                .frame(maxWidth: .infinity, minHeight: pageEmptyMinHeight)
         }
     }
 
@@ -383,7 +390,7 @@ private extension WorkbenchLibraryView {
     /// The route names the folder by path; the summary is read live, so a
     /// re-index that changes the cover or the count shows without a reload.
     var selectedFolder: CompleteLibraryFolderSummaryPresentation? {
-        routeState.selectedLibraryFolderPath.flatMap { folderPath in
+        activeFolderPath.flatMap { folderPath in
             library.completeLibraryFolderSummaries.first {
                 $0.folderPath == folderPath
             }

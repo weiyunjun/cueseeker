@@ -8,16 +8,21 @@ struct WorkbenchRecentView: View {
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var excerpt: ExcerptStore
+    var presentedSection: WorkbenchRecentSection? = nil
     /// One highlight for the page: only one card may be lit at a time.
     @StateObject private var highlight = CardHighlightModel(
         keepsCurrentWhenPointerLeaves: false
     )
 
+    private var activeSection: WorkbenchRecentSection {
+        presentedSection ?? routeState.selectedRecentSection
+    }
+
     var body: some View {
         // The menu belongs to the page, not to one tab of it, so the page
         // hosts it.
         LibraryCardContextMenuHost(
-            interfaceID: routeState.selectedRecentSection.rawValue
+            interfaceID: activeSection.rawValue
         ) { _ in
         GeometryReader { geometry in
             WorkbenchScrollView {
@@ -28,7 +33,7 @@ struct WorkbenchRecentView: View {
                             - WorkbenchLibraryMetrics.pageTopPadding
                             - WorkbenchLibraryMetrics.pageBottomPadding
                     )
-                    switch routeState.selectedRecentSection {
+                    switch activeSection {
                     case .videos:
                         recentVideosContent(
                             status: library.testRecentWatchingStatus,
@@ -63,14 +68,14 @@ struct WorkbenchRecentView: View {
         }
         .background(WorkbenchRedesignColors.bgSurface)
         .cardHighlightFreeze(highlight)
-        .onChange(of: routeState.selectedRecentSection) { _ in
+        .onChange(of: activeSection) { _ in
             highlight.reset()
             appState.refreshExcerptOnReappearanceIfNeeded()
             appState.refreshRecentOnReappearanceIfNeeded()
         }
         .task {
             appState.hydrateTestRecentWatchingAsync()
-            appState.reloadExcerptListOverview()
+            appState.loadExcerptListOverviewIfNeeded()
         }
         .onAppear {
             appState.refreshRecentOnReappearanceIfNeeded()
@@ -89,22 +94,7 @@ struct WorkbenchRecentView: View {
         items: [RecentLibraryWatchingPresentation],
         emptyMinHeight: CGFloat
     ) -> some View {
-        if case .loading = status, items.isEmpty {
-            WorkbenchSpinner()
-                .frame(maxWidth: .infinity, minHeight: emptyMinHeight, alignment: .center)
-                .workbenchPageInlinePadding()
-        } else if case .failed(let message) = status {
-            WorkbenchEmptyHint(icon: .videoQuestion, message: message)
-                .frame(minHeight: emptyMinHeight)
-                .workbenchPageInlinePadding()
-        } else if items.isEmpty {
-            WorkbenchEmptyHint(
-                icon: .video,
-                message: L("library.recent_watching_empty")
-            )
-            .frame(minHeight: emptyMinHeight)
-            .workbenchPageInlinePadding()
-        } else {
+        if !items.isEmpty {
             RecentWatchingGrid(
                 items: items,
                 highlight: highlight,
@@ -115,6 +105,20 @@ struct WorkbenchRecentView: View {
                 }
             )
             .workbenchMediaCardGridInlinePadding()
+        } else if case .failed(let message) = status {
+            WorkbenchEmptyHint(icon: .videoQuestion, message: message)
+                .frame(minHeight: emptyMinHeight)
+                .workbenchPageInlinePadding()
+        } else if status == .completed || appState.indexing.selectedFolders.isEmpty {
+            WorkbenchEmptyHint(
+                icon: .video,
+                message: L("library.recent_watching_empty")
+            )
+            .frame(minHeight: emptyMinHeight)
+            .workbenchPageInlinePadding()
+        } else {
+            Color.clear
+                .frame(maxWidth: .infinity, minHeight: emptyMinHeight)
         }
     }
 
@@ -123,18 +127,7 @@ struct WorkbenchRecentView: View {
         _ summaries: [ExcerptListSummary],
         emptyMinHeight: CGFloat
     ) -> some View {
-        if !excerpt.hasLoadedListOverview, summaries.isEmpty {
-            WorkbenchSpinner()
-                .frame(maxWidth: .infinity, minHeight: emptyMinHeight, alignment: .center)
-                .workbenchPageInlinePadding()
-        } else if summaries.isEmpty {
-            WorkbenchEmptyHint(
-                icon: .excerpt,
-                message: L("library.recent_excerpts_empty")
-            )
-            .frame(minHeight: emptyMinHeight)
-            .workbenchPageInlinePadding()
-        } else {
+        if !summaries.isEmpty {
             ExcerptListCardGrid(
                 summaries: summaries,
                 highlight: highlight,
@@ -143,6 +136,16 @@ struct WorkbenchRecentView: View {
                 appState.openRecentExcerpt(summary)
             }
             .workbenchMediaCardGridInlinePadding()
+        } else if excerpt.hasLoadedListOverview {
+            WorkbenchEmptyHint(
+                icon: .excerpt,
+                message: L("library.recent_excerpts_empty")
+            )
+            .frame(minHeight: emptyMinHeight)
+            .workbenchPageInlinePadding()
+        } else {
+            Color.clear
+                .frame(maxWidth: .infinity, minHeight: emptyMinHeight)
         }
     }
 }

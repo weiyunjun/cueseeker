@@ -233,14 +233,14 @@ private struct ExcerptListCard: View {
     private func cover(isActionFocused: Bool) -> some View {
         LibraryCoverFrame {
             ZStack(alignment: .bottomLeading) {
-                ExcerptListCoverView(coverPath: summary.list.coverPath)
-                    .allowsHitTesting(false)
-
-                LibraryCoverBadge(
-                    text: summary.cueCount == 1
-                        ? L("excerpt.cue_count.one")
-                        : L("excerpt.cue_count.other", summary.cueCount)
-                )
+                ExcerptListCoverView(coverPath: summary.list.coverPath) {
+                    LibraryCoverBadge(
+                        text: summary.cueCount == 1
+                            ? L("excerpt.cue_count.one")
+                            : L("excerpt.cue_count.other", summary.cueCount)
+                    )
+                }
+                .allowsHitTesting(false)
 
                 LibraryCoverMoreButton(
                     isVisible: isMoreButtonVisible || isActionFocused,

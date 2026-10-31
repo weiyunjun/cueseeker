@@ -148,6 +148,27 @@ struct WorkbenchInvalidationTests {
             #expect(app.isWorkbenchRouteUnknown(.libraryFolder(folderPath: "/Media/Show")))
         }
     }
+
+    @MainActor
+    @Test
+    func workbenchSurfaceTransitionWaitsForStoreHydrationBeforeMarkingSurfaceReady() async throws {
+        try await withWorkbenchInvalidationTestApp { app in
+            app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media/Show")]
+
+            #expect(!app.isWorkbenchSurfaceReadyForPresentation(.recent(.videos)))
+            #expect(!app.isWorkbenchSurfaceReadyForPresentation(.libraryRoot))
+            #expect(!app.isWorkbenchSurfaceReadyForPresentation(.excerptOverview))
+
+            await app.prepareWorkbenchSurfaceForPresentation(.recent(.videos))
+            #expect(app.isWorkbenchSurfaceReadyForPresentation(.recent(.videos)))
+
+            await app.prepareWorkbenchSurfaceForPresentation(.libraryRoot)
+            #expect(app.isWorkbenchSurfaceReadyForPresentation(.libraryRoot))
+
+            await app.prepareWorkbenchSurfaceForPresentation(.excerptOverview)
+            #expect(app.isWorkbenchSurfaceReadyForPresentation(.excerptOverview))
+        }
+    }
 }
 
 @MainActor

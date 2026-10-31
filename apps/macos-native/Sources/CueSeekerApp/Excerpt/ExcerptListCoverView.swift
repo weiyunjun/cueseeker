@@ -1,9 +1,10 @@
 import CoreGraphics
 import SwiftUI
 
-struct ExcerptListCoverView: View {
+struct ExcerptListCoverView<Overlay: View>: View {
     let coverPath: String?
     var imageVerticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top
+    private let overlay: Overlay
     @State private var loadedImage: LoadedImage?
     @State private var activeRequestID: UUID?
     @State private var loadFailed = false
@@ -11,6 +12,25 @@ struct ExcerptListCoverView: View {
     private struct LoadedImage {
         let path: String
         let image: CGImage
+    }
+
+    init(
+        coverPath: String?,
+        imageVerticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top
+    ) where Overlay == EmptyView {
+        self.coverPath = coverPath
+        self.imageVerticalAlignment = imageVerticalAlignment
+        self.overlay = EmptyView()
+    }
+
+    init(
+        coverPath: String?,
+        imageVerticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top,
+        @ViewBuilder overlay: () -> Overlay
+    ) {
+        self.coverPath = coverPath
+        self.imageVerticalAlignment = imageVerticalAlignment
+        self.overlay = overlay()
     }
 
     private var hasValidPath: Bool {
@@ -35,18 +55,29 @@ struct ExcerptListCoverView: View {
         return nil
     }
 
+    private var isDecodeFailed: Bool {
+        if loadFailed {
+            return true
+        }
+        guard let key else {
+            return false
+        }
+        return LibraryCoverImagePipeline.shared.hasFailedDecode(for: key)
+    }
+
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottomLeading) {
             if let currentImage {
                 LibraryCoverFillImage(
                     image: currentImage,
                     verticalAlignment: imageVerticalAlignment
                 )
-            } else if hasValidPath && !loadFailed {
-                Rectangle()
-                    .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
+                overlay
+            } else if hasValidPath && !isDecodeFailed {
+                Color.clear
             } else {
                 defaultCover
+                overlay
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

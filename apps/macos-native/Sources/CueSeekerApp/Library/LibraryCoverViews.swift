@@ -119,15 +119,17 @@ struct LibraryCoverWithProgress: View {
     var body: some View {
         LibraryCoverFrame {
             ZStack(alignment: .bottomLeading) {
-                coverImage
-                    .allowsHitTesting(false)
+                LibraryCachedCoverImage(
+                    coverPath: coverPath,
+                    coverRevision: coverRevision
+                ) {
+                    if let progressFraction {
+                        progressTrack(progressFraction: progressFraction)
+                    }
 
-                if let progressFraction {
-                    progressTrack(progressFraction: progressFraction)
-                        .allowsHitTesting(false)
+                    LibraryCoverBadge(text: timeBadgeText)
                 }
-
-                LibraryCoverBadge(text: timeBadgeText)
+                .allowsHitTesting(false)
 
                 if let moreMenuAnchor, let onToggleMoreMenu {
                     LibraryCoverMoreButton(
@@ -141,13 +143,6 @@ struct LibraryCoverWithProgress: View {
                 }
             }
         }
-    }
-
-    private var coverImage: some View {
-        LibraryCachedCoverImage(
-            coverPath: coverPath,
-            coverRevision: coverRevision
-        )
     }
 
     @ViewBuilder
@@ -269,10 +264,10 @@ struct LibraryCoverWithBadge: View {
                 LibraryCachedCoverImage(
                     coverPath: coverPath,
                     coverRevision: coverRevision
-                )
+                ) {
+                    LibraryCoverBadge(text: badgeText)
+                }
                 .allowsHitTesting(false)
-
-                LibraryCoverBadge(text: badgeText)
 
                 if let moreMenuAnchor, let onToggleMoreMenu {
                     LibraryCoverMoreButton(
@@ -289,10 +284,11 @@ struct LibraryCoverWithBadge: View {
     }
 }
 
-struct LibraryCachedCoverImage: View {
+struct LibraryCachedCoverImage<Overlay: View>: View {
     let coverPath: String?
     let coverRevision: String?
     var imageVerticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top
+    private let overlay: Overlay
 
     @State private var loadedImage: LoadedImage?
     @State private var activeRequestID: UUID?
@@ -301,6 +297,29 @@ struct LibraryCachedCoverImage: View {
     private struct LoadedImage {
         let key: LibraryCoverImageKey
         let image: CGImage
+    }
+
+    init(
+        coverPath: String?,
+        coverRevision: String?,
+        imageVerticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top
+    ) where Overlay == EmptyView {
+        self.coverPath = coverPath
+        self.coverRevision = coverRevision
+        self.imageVerticalAlignment = imageVerticalAlignment
+        self.overlay = EmptyView()
+    }
+
+    init(
+        coverPath: String?,
+        coverRevision: String?,
+        imageVerticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top,
+        @ViewBuilder overlay: () -> Overlay
+    ) {
+        self.coverPath = coverPath
+        self.coverRevision = coverRevision
+        self.imageVerticalAlignment = imageVerticalAlignment
+        self.overlay = overlay()
     }
 
     private var key: LibraryCoverImageKey? {
@@ -317,18 +336,29 @@ struct LibraryCachedCoverImage: View {
         return nil
     }
 
+    private var isDecodeFailed: Bool {
+        if loadFailed {
+            return true
+        }
+        guard let key else {
+            return false
+        }
+        return LibraryCoverImagePipeline.shared.hasFailedDecode(for: key)
+    }
+
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottomLeading) {
             if let currentImage {
                 LibraryCoverFillImage(
                     image: currentImage,
                     verticalAlignment: imageVerticalAlignment
                 )
-            } else if key != nil && !loadFailed {
-                Rectangle()
-                    .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
+                overlay
+            } else if key != nil && !isDecodeFailed {
+                Color.clear
             } else {
                 defaultCover
+                overlay
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

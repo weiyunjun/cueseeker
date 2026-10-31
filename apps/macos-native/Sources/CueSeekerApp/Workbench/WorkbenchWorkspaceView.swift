@@ -3,6 +3,70 @@ import Foundation
 import SwiftUI
 import CueSeekerCore
 
+enum WorkbenchPresentedSurface: Equatable {
+    case search
+    case recent(WorkbenchRecentSection)
+    case libraryRoot
+    case libraryFolder(folderPath: String)
+    case file
+    case excerptOverview
+    case excerptList(id: Int64)
+
+    @MainActor
+    static func current(from routeState: WorkbenchRouteState) -> WorkbenchPresentedSurface {
+        switch routeState.panelMode {
+        case .search:
+            return .search
+        case .recentWatching:
+            return .recent(routeState.selectedRecentSection)
+        case .testLibrary:
+            if let folderPath = routeState.selectedLibraryFolderPath {
+                return .libraryFolder(folderPath: folderPath)
+            }
+            return .libraryRoot
+        case .file:
+            return .file
+        case .excerpt:
+            if let listID = routeState.selectedExcerptListID {
+                return .excerptList(id: listID)
+            }
+            return .excerptOverview
+        }
+    }
+
+    var recentSection: WorkbenchRecentSection {
+        if case .recent(let section) = self {
+            return section
+        }
+        return .videos
+    }
+
+    var libraryFolderPath: String? {
+        if case .libraryFolder(let folderPath) = self {
+            return folderPath
+        }
+        return nil
+    }
+
+    var excerptListID: Int64? {
+        if case .excerptList(let id) = self {
+            return id
+        }
+        return nil
+    }
+}
+
+private final class WorkbenchSurfaceTransitionTracker {
+    var lastTargetSurface: WorkbenchPresentedSurface?
+    var lastPresentedSurface: WorkbenchPresentedSurface?
+    var asyncPreparedSurface: WorkbenchPresentedSurface?
+    var preparationTask: Task<Void, Never>?
+
+    deinit {
+        preparationTask?.cancel()
+    }
+}
+
 struct WorkbenchWorkspaceView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var routeState: WorkbenchRouteState
@@ -11,6 +75,28 @@ struct WorkbenchWorkspaceView: View {
     @EnvironmentObject private var excerptStore: ExcerptStore
     @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
+    @State private var transitionTracker = WorkbenchSurfaceTransitionTracker()
+    @State private var asyncPreparedRevision: UInt64 = 0
+
+    private var targetSurface: WorkbenchPresentedSurface {
+        WorkbenchPresentedSurface.current(from: routeState)
+    }
+
+    private var activeSurface: WorkbenchPresentedSurface? {
+        _ = asyncPreparedRevision
+        let target = targetSurface
+        if transitionTracker.lastTargetSurface != target {
+            transitionTracker.lastTargetSurface = target
+            transitionTracker.asyncPreparedSurface = nil
+        }
+        if transitionTracker.asyncPreparedSurface == target
+            || appState.isWorkbenchSurfaceReadyForPresentation(target)
+        {
+            transitionTracker.lastPresentedSurface = target
+            return target
+        }
+        return transitionTracker.lastPresentedSurface
+    }
 
     var body: some View {
         AppPerformanceProbe.measure("WorkbenchWorkspaceView.body", thresholdMilliseconds: 4) {
@@ -50,15 +136,45 @@ struct WorkbenchWorkspaceView: View {
                 // This is where the playback page is routed over the whole
                 // workbench, so this is where that layer is registered.
                 .onAppear {
+                    scheduleSurfacePreparationIfNeeded(for: targetSurface)
                     appState.interfaceLayers.setOpen(
                         .playbackPage,
                         showsPlaybackRoute
                     )
                 }
+                .onChange(of: targetSurface) { newSurface in
+                    scheduleSurfacePreparationIfNeeded(for: newSurface)
+                }
+                .onDisappear {
+                    transitionTracker.preparationTask?.cancel()
+                    transitionTracker.preparationTask = nil
+                }
                 .onChange(of: showsPlaybackRoute) { isOpen in
                     appState.interfaceLayers.setOpen(.playbackPage, isOpen)
                 }
             }
+        }
+    }
+
+    private func scheduleSurfacePreparationIfNeeded(
+        for surface: WorkbenchPresentedSurface
+    ) {
+        transitionTracker.preparationTask?.cancel()
+        transitionTracker.preparationTask = nil
+        if appState.isWorkbenchSurfaceReadyForPresentation(surface) {
+            transitionTracker.lastPresentedSurface = surface
+            return
+        }
+        transitionTracker.preparationTask = Task { @MainActor in
+            await appState.prepareWorkbenchSurfaceForPresentation(surface)
+            guard !Task.isCancelled else {
+                return
+            }
+            transitionTracker.preparationTask = nil
+            transitionTracker.lastTargetSurface = surface
+            transitionTracker.asyncPreparedSurface = surface
+            transitionTracker.lastPresentedSurface = surface
+            asyncPreparedRevision &+= 1
         }
     }
 
@@ -72,17 +188,22 @@ struct WorkbenchWorkspaceView: View {
             )
 
             return Group {
-                switch routeState.panelMode {
-                case .excerpt:
-                    workbenchExcerptSurface
-                case .recentWatching:
-                    WorkbenchRecentView()
-                case .testLibrary:
-                    WorkbenchLibraryView()
-                case .file:
-                    WorkbenchFileView(tasks: appState.tasks)
-                case .search:
-                    workbenchSearchSurface
+                if let surface = activeSurface {
+                    switch surface {
+                    case .excerptOverview, .excerptList:
+                        workbenchExcerptSurface(selectedListID: surface.excerptListID)
+                    case .recent(let section):
+                        WorkbenchRecentView(presentedSection: section)
+                    case .libraryRoot, .libraryFolder:
+                        WorkbenchLibraryView(presentedFolderPath: surface.libraryFolderPath)
+                    case .file:
+                        WorkbenchFileView(tasks: appState.tasks)
+                    case .search:
+                        workbenchSearchSurface
+                    }
+                } else {
+                    WorkbenchRedesignColors.bgSurface
+                        .ignoresSafeArea()
                 }
             }
         }
@@ -109,12 +230,12 @@ struct WorkbenchWorkspaceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var workbenchExcerptSurface: some View {
+    private func workbenchExcerptSurface(selectedListID: Int64?) -> some View {
         ZStack {
             Color(nsColor: .textBackgroundColor)
                 .ignoresSafeArea()
 
-            if let listID = routeState.selectedExcerptListID {
+            if let listID = selectedListID {
                 if appState.isWorkbenchRouteUnknown(.excerptList(id: listID)) {
                     WorkbenchEmptyHint(
                         icon: .excerptQuestion,
@@ -132,4 +253,257 @@ struct WorkbenchWorkspaceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+}
+
+@MainActor
+extension AppCoordinator {
+    func isWorkbenchSurfaceReadyForPresentation(
+        _ surface: WorkbenchPresentedSurface
+    ) -> Bool {
+        switch surface {
+        case .search, .file, .excerptList:
+            return true
+        case .recent(let section):
+            guard !recentNeedsReloadAfterIndexedMutation else {
+                return false
+            }
+            switch section {
+            case .videos:
+                if indexing.selectedFolders.isEmpty {
+                    return library.testRecentWatchingStatus == .idle
+                        && library.testRecentWatchingItems.isEmpty
+                }
+                guard Self.isLibraryStatusResolved(library.testRecentWatchingStatus) else {
+                    return false
+                }
+                return Self.areFirstScreenCoversReady(firstScreenRecentVideoCoverKeys())
+            case .excerpts:
+                guard excerpt.hasLoadedListOverview,
+                      excerpt.listOverviewTask == nil,
+                      !excerptNeedsReloadAfterIndexedContentMutation
+                else {
+                    return false
+                }
+                return Self.areFirstScreenCoversReady(firstScreenRecentExcerptCoverKeys())
+            }
+        case .libraryRoot:
+            guard !libraryNeedsReloadAfterIndexedMutation else {
+                return false
+            }
+            if indexing.selectedFolders.isEmpty {
+                return library.completeLibraryStatus == .idle
+                    && library.completeLibraryFolderSummaries.isEmpty
+            }
+            guard Self.isLibraryStatusResolved(library.completeLibraryStatus) else {
+                return false
+            }
+            return Self.areFirstScreenCoversReady(firstScreenLibraryRootCoverKeys())
+        case .libraryFolder(let folderPath):
+            guard !libraryNeedsReloadAfterIndexedMutation else {
+                return false
+            }
+            if isWorkbenchRouteUnknown(.libraryFolder(folderPath: folderPath)) {
+                return true
+            }
+            guard Self.isLibraryStatusResolved(library.completeLibraryStatus) else {
+                return false
+            }
+            guard let folder = library.completeLibraryFolderSummaries.first(where: {
+                $0.folderPath == folderPath
+            }) else {
+                return Self.isLibraryStatusFailed(library.completeLibraryStatus)
+            }
+            let detailStatus = library.completeLibraryFolderDetailStatusesByPath[folderPath] ?? .idle
+            if Self.isLibraryStatusFailed(detailStatus) {
+                return true
+            }
+            guard library.completeLibraryFolderDetailTasks[folderPath] == nil,
+                  let detail = library.completeLibraryFolderDetailsByPath[folderPath],
+                  detail.folderPath == folderPath
+            else {
+                return false
+            }
+            return Self.areFirstScreenCoversReady(
+                firstScreenLibraryFolderCoverKeys(folder: folder, detail: detail)
+            )
+        case .excerptOverview:
+            guard excerpt.hasLoadedListOverview,
+                  excerpt.listOverviewTask == nil,
+                  !excerptNeedsReloadAfterIndexedContentMutation
+            else {
+                return false
+            }
+            return Self.areFirstScreenCoversReady(firstScreenExcerptOverviewCoverKeys())
+        }
+    }
+
+    func prepareWorkbenchSurfaceForPresentation(
+        _ surface: WorkbenchPresentedSurface
+    ) async {
+        switch surface {
+        case .search, .file, .excerptList:
+            return
+        case .recent(let section):
+            refreshExcerptOnReappearanceIfNeeded()
+            refreshRecentOnReappearanceIfNeeded()
+            switch section {
+            case .videos:
+                hydrateTestRecentWatchingAsync()
+                await testRecentWatchingTask?.value
+                guard !Task.isCancelled else { return }
+                await LibraryCoverImagePipeline.shared.prewarm(
+                    keys: firstScreenRecentVideoCoverKeys()
+                )
+            case .excerpts:
+                loadExcerptListOverviewIfNeeded()
+                await excerpt.listOverviewTask?.value
+                guard !Task.isCancelled else { return }
+                await LibraryCoverImagePipeline.shared.prewarm(
+                    keys: firstScreenRecentExcerptCoverKeys()
+                )
+            }
+        case .libraryRoot:
+            refreshLibraryOnReappearanceIfNeeded()
+            hydrateCompleteLibraryAsync()
+            hydrateTestRecentWatchingAsync()
+            await completeLibraryTask?.value
+            guard !Task.isCancelled else { return }
+            await LibraryCoverImagePipeline.shared.prewarm(
+                keys: firstScreenLibraryRootCoverKeys()
+            )
+        case .libraryFolder(let folderPath):
+            refreshLibraryOnReappearanceIfNeeded()
+            hydrateCompleteLibraryAsync()
+            hydrateTestRecentWatchingAsync()
+            await completeLibraryTask?.value
+            guard !Task.isCancelled else { return }
+            guard !isWorkbenchRouteUnknown(.libraryFolder(folderPath: folderPath)),
+                  library.completeLibraryFolderSummaries.contains(where: {
+                      $0.folderPath == folderPath
+                  })
+            else {
+                return
+            }
+            hydrateCompleteLibraryFolderDetailAsync(folderPath: folderPath)
+            await completeLibraryFolderDetailTasks[folderPath]?.value
+            guard !Task.isCancelled else { return }
+            guard let folder = library.completeLibraryFolderSummaries.first(where: {
+                $0.folderPath == folderPath
+            }),
+                  let detail = library.completeLibraryFolderDetailsByPath[folderPath]
+            else {
+                return
+            }
+            await LibraryCoverImagePipeline.shared.prewarm(
+                keys: firstScreenLibraryFolderCoverKeys(folder: folder, detail: detail)
+            )
+        case .excerptOverview:
+            refreshExcerptOnReappearanceIfNeeded()
+            loadExcerptListOverviewIfNeeded()
+            await excerpt.listOverviewTask?.value
+            guard !Task.isCancelled else { return }
+            await LibraryCoverImagePipeline.shared.prewarm(
+                keys: firstScreenExcerptOverviewCoverKeys()
+            )
+        }
+    }
+
+    private static func isLibraryStatusResolved(_ status: LibraryStatus) -> Bool {
+        switch status {
+        case .completed, .failed:
+            return true
+        case .idle, .loading:
+            return false
+        }
+    }
+
+    private static func isLibraryStatusFailed(_ status: LibraryStatus) -> Bool {
+        if case .failed = status {
+            return true
+        }
+        return false
+    }
+
+    private static func areFirstScreenCoversReady(
+        _ keys: [LibraryCoverImageKey]
+    ) -> Bool {
+        let boundedKeys = LibraryCoverImagePipeline.boundedUniqueKeys(from: keys)
+        return boundedKeys.allSatisfy {
+            LibraryCoverImagePipeline.shared.isReadyForPresentation(for: $0)
+        }
+    }
+
+    private func firstScreenRecentVideoCoverKeys() -> [LibraryCoverImageKey] {
+        let orderedItems = RecentTimeSection.group(
+            library.testRecentWatchingItems,
+            timestamp: \.updatedAt
+        ).flatMap(\.items)
+        return LibraryCoverImagePipeline.boundedUniqueKeys(
+            from: orderedItems.compactMap {
+                LibraryCoverImageKey.current(
+                    path: $0.coverPath,
+                    revision: $0.coverRevision
+                )
+            }
+        )
+    }
+
+    private func firstScreenRecentExcerptCoverKeys() -> [LibraryCoverImageKey] {
+        let orderedItems = RecentTimeSection.group(
+            excerpt.recentListSummaries,
+            timestamp: \.list.recentPlayedAt
+        ).flatMap(\.items)
+        return LibraryCoverImagePipeline.boundedUniqueKeys(
+            from: orderedItems.compactMap { summary in
+                guard let path = summary.list.coverPath, !path.isEmpty else {
+                    return nil
+                }
+                return LibraryCoverImageKey(path: path, revision: path)
+            }
+        )
+    }
+
+    private func firstScreenLibraryRootCoverKeys() -> [LibraryCoverImageKey] {
+        LibraryCoverImagePipeline.boundedUniqueKeys(
+            from: library.displayedCompleteLibraryFolderSummaries.compactMap {
+                LibraryCoverImageKey.current(
+                    path: $0.coverPath,
+                    revision: $0.coverRevision
+                )
+            }
+        )
+    }
+
+    private func firstScreenLibraryFolderCoverKeys(
+        folder: CompleteLibraryFolderSummaryPresentation,
+        detail: CompleteLibraryFolderDetailPresentation
+    ) -> [LibraryCoverImageKey] {
+        var keys: [LibraryCoverImageKey] = []
+        if let folderKey = LibraryCoverImageKey.current(
+            path: folder.coverPath,
+            revision: folder.coverRevision
+        ) {
+            keys.append(folderKey)
+        }
+        keys.append(
+            contentsOf: detail.videos.compactMap {
+                LibraryCoverImageKey.current(
+                    path: $0.coverPath,
+                    revision: $0.coverRevision
+                )
+            }
+        )
+        return LibraryCoverImagePipeline.boundedUniqueKeys(from: keys)
+    }
+
+    private func firstScreenExcerptOverviewCoverKeys() -> [LibraryCoverImageKey] {
+        LibraryCoverImagePipeline.boundedUniqueKeys(
+            from: excerpt.displayedListSummaries.compactMap { summary in
+                guard let path = summary.list.coverPath, !path.isEmpty else {
+                    return nil
+                }
+                return LibraryCoverImageKey(path: path, revision: path)
+            }
+        )
+    }
 }
