@@ -6,12 +6,14 @@ main
 
 - `docs/human/design/ui/UI Design Rules.md`
 - `docs/human/design/ui/UI Components - Domain.md`
+- `docs/human/design/ui/UI Layouts - Workbench.md`
+- `docs/human/design/ui/UI Layouts - Playback.md`
 - `docs/human/design/ui/UI Tokens.md`
 
 # 需求描述
 
 1. **封面页面切换的整页就绪上屏（Page Transition）**：
-   - 在切换到包含封面的 Workbench 界面（`Recent`、`Library` 一级列表、`Library` 二级文件夹详情、`Excerpt` 列表）时，取消毫秒级本地加载期间的瞬时加载转圈（Spinner）及未初始化的计数/空壳网格闪现。
+   - 在切换到包含封面卡片网格的界面——包括 Workbench（`Recent`、`Library` 一级列表、`Library` 二级文件夹详情、`Excerpt` 列表）、Playback Overlay（`Video Playlist` 剧集播放列表）以及 Command Panel（`Recent Videos`、`Recent Excerpt Lists` 二级页面）时，取消毫秒级本地加载期间的瞬时加载转圈（Spinner）、未就绪时的空状态提示及 `0` 计数空壳闪现。
    - 目标页面的列表数据与首屏可见卡片的封面图准备就绪后，在同一帧内将完整页面一次性渲染上屏，避免先展示无封面的半成品网格、随后封面分批蹦出的画面跳变。
 
 2. **单张卡片封面图层的原子化显现（Atomic Cover Layer）**：
@@ -24,7 +26,7 @@ main
 
 # 验收标准
 
-1. **冷启动与首次切换无闪烁**：应用启动后首次点击进入 `Recent`、`Library`、`Excerpt`，或首次在 `Library` 中点击进入任意剧集文件夹时，界面不出现一瞬即逝的加载转圈（Spinner）或 `0` 计数跳变，首屏卡片与封面完整同步呈现，无先闪灰框/空白再蹦出封面的现象。
-2. **未命中缓存加载平滑**：在多个剧集文件夹及不同 Workbench 页面间连续切换、触发缓存自然淘汰后再次进入页面或滚动浏览新卡片时，未缓存卡片不出现深灰色占位框闪烁，也不出现“黑色时长/集数角标与进度条先悬空出现、封面图随后塞入背后”的分层跳变。
+1. **冷启动与首次切换无闪烁**：应用启动后首次进入 Workbench 的 `Recent`、`Library`（一级与二级文件夹详情）、`Excerpt`，或在播放页中首次切换到 Playback Overlay 的 `Video Playlist`、首次从 Command Panel 进入 `Recent Videos` / `Recent Excerpt Lists` 时，界面不出现一瞬即逝的加载转圈（Spinner）、空状态闪现或 `0` 计数跳变，首屏卡片与封面完整同步呈现，无先闪灰框/空白再蹦出封面的现象。
+2. **未命中缓存加载平滑**：在多个剧集文件夹、Workbench 页面、Playback Overlay 及 Command Panel 间连续切换、触发缓存自然淘汰后再次进入页面或滚动浏览新卡片时，未缓存卡片不出现深灰色占位框闪烁，也不出现“黑色时长/集数角标与进度条先悬空出现、封面图随后塞入背后”的分层跳变。
 3. **异常兜底准确**：无封面或封面损坏的卡片准确展示静态默认封面与对应角标，不出现持续空白。
 4. **内存表现无回退**：按既有内存验收流程操作，稳定内存占用依然满足不超过 `75MB` 的标准。
