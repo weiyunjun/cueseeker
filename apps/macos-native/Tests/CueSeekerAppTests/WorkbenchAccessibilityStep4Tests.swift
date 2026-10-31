@@ -487,6 +487,91 @@ struct WorkbenchAccessibilityStep4Tests {
             }
         }
     }
+
+    @Test
+    func playbackCueFooterReRendersFocusRingAcrossOverlayAndCommandPanelActions() throws {
+        try withStep4TestApp { app in
+            defer {
+                PlaybackCueFooter.lastFocusedActionIDForTesting = nil
+            }
+            app.playback.isPlaybackSurfaceExpanded = true
+
+            let session = try #require(app.playback.beginSubtitleFocusSession(
+                openSnapshot: step4OpenSnapshot(),
+                availableModules: [.current, .playlist]
+            ))
+            #expect(session.publishInitialSnapshot(
+                step4CueSnapshot(),
+                token: session.token
+            ))
+            app.reconcilePlaybackAccessibilityFocus()
+
+            let overlayFooterView = PlaybackCueFooter(
+                surface: .playbackOverlay,
+                status: "5 cues",
+                actions: PlaybackCueFooterAction.cueActions(
+                    playTitle: "Play",
+                    request: { _ in }
+                )
+            )
+            .environment(\.workbenchAccessibility, app.workbenchAccessibility)
+            .environmentObject(app)
+            .environmentObject(app.playback)
+            .environmentObject(app.settings.localization)
+
+            let footerWindow = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 900, height: 60),
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            let overlayFooterHost = NSHostingView(rootView: overlayFooterView)
+            overlayFooterHost.frame = NSRect(x: 0, y: 0, width: 900, height: 60)
+            footerWindow.contentView = overlayFooterHost
+            overlayFooterHost.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+
+            for expectedActionID in ["excerpt", "copy-cue-text", "copy-deep-link", "play"] {
+                PlaybackCueFooter.lastFocusedActionIDForTesting = nil
+                app.applyPlaybackAccessibilityFocus(
+                    .overlayFooterAction(expectedActionID),
+                    surface: .playbackOverlay
+                )
+                overlayFooterHost.layoutSubtreeIfNeeded()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+                #expect(PlaybackCueFooter.lastFocusedActionIDForTesting == expectedActionID)
+            }
+
+            // Command Panel footer actions
+            #expect(app.presentPlaybackCommandPanel())
+            let commandPanelFooterView = PlaybackCueFooter(
+                surface: .commandPanel,
+                status: nil,
+                actions: [
+                    .primary(id: "open", title: "Open", perform: {}),
+                ]
+            )
+            .environment(\.workbenchAccessibility, app.workbenchAccessibility)
+            .environmentObject(app)
+            .environmentObject(app.playback)
+            .environmentObject(app.settings.localization)
+
+            let commandPanelFooterHost = NSHostingView(rootView: commandPanelFooterView)
+            commandPanelFooterHost.frame = NSRect(x: 0, y: 0, width: 900, height: 60)
+            footerWindow.contentView = commandPanelFooterHost
+            commandPanelFooterHost.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+
+            PlaybackCueFooter.lastFocusedActionIDForTesting = nil
+            app.applyPlaybackAccessibilityFocus(
+                .commandPanelFooterAction("open"),
+                surface: .commandPanel(.root)
+            )
+            commandPanelFooterHost.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+            #expect(PlaybackCueFooter.lastFocusedActionIDForTesting == "open")
+        }
+    }
 }
 
 @MainActor

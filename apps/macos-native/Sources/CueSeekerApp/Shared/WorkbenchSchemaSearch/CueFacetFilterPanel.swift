@@ -315,6 +315,10 @@ struct CueFacetFilterDialog: View {
             update: { change in change(&session.filter) }
         )
         WorkbenchAccessibilityReader { accessibility in
+            let focusedDialogTarget = accessibility?.activeDialogID == dialogID
+                ? accessibility?.focusedDialogTarget
+                : nil
+
             VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
                 WorkbenchDialogHeader(title: L("table.filter"))
                     .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
@@ -326,7 +330,7 @@ struct CueFacetFilterDialog: View {
                 WorkbenchScrollView {
                     VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
                         ForEach(sections) { section in
-                            sectionView(section, accessibility: accessibility)
+                            sectionView(section, focusedDialogTarget: focusedDialogTarget)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -350,7 +354,7 @@ struct CueFacetFilterDialog: View {
 
     private func sectionView(
         _ section: CueFacetSection,
-        accessibility: WorkbenchAccessibilityCoordinator?
+        focusedDialogTarget: WorkbenchDialogAccessibilityTarget?
     ) -> some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
@@ -381,10 +385,7 @@ struct CueFacetFilterDialog: View {
                 ForEach(section.options) { option in
                     CueFacetFilterChip(
                         option: option,
-                        isFocused: accessibility?.isDialogFocused(
-                            .filterChip(section.id, option.id),
-                            dialogID: dialogID
-                        ) == true
+                        isFocused: focusedDialogTarget == .filterChip(section.id, option.id)
                     )
                 }
             }

@@ -240,6 +240,8 @@ private struct PlaybackExcerptMenuAnchorKey: PreferenceKey {
 }
 
 struct PlaybackCueFooter: View {
+    static var lastFocusedActionIDForTesting: String?
+
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
@@ -267,31 +269,41 @@ struct PlaybackCueFooter: View {
                     .accessibilityIdentifier("playback-cue-footer-status")
             }
 
-            WrappingFlowLayout(
-                alignment: .trailing,
-                horizontalSpacing: WorkbenchControlMetrics.redesignSpacing2,
-                verticalSpacing: WorkbenchControlMetrics.redesignSpacing1
-            ) {
-                WorkbenchAccessibilityReader { accessibility in
-                    ForEach(actions) { action in
+            WorkbenchAccessibilityReader { accessibility in
+                let focusedActionID: String? = {
+                    guard let accessibility else { return nil }
+                    for action in actions {
                         let target: PlaybackAccessibilityTarget = switch surface {
                         case .playbackOverlay:
                             .overlayFooterAction(action.id)
                         case .commandPanel:
                             .commandPanelFooterAction(action.id)
                         }
+                        if accessibility.isPlaybackFocused(target) {
+                            return action.id
+                        }
+                    }
+                    return nil
+                }()
+
+                WrappingFlowLayout(
+                    alignment: .trailing,
+                    horizontalSpacing: WorkbenchControlMetrics.redesignSpacing2,
+                    verticalSpacing: WorkbenchControlMetrics.redesignSpacing1
+                ) {
+                    ForEach(actions) { action in
                         PlaybackCueFooterActionButton(
                             surface: surface,
                             action: action,
                             shortcuts: appState.settings.playbackShortcuts,
                             isOpen: action.opensExcerptDestinationMenu
                                 && openMenu != nil,
-                            isFocused: accessibility?.isPlaybackFocused(target) == true
+                            isFocused: focusedActionID == action.id
                         )
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .foregroundStyle(WorkbenchRedesignColors.textMuted)
         .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
@@ -586,6 +598,11 @@ private struct PlaybackCueFooterActionButton: View {
     }
 
     var body: some View {
+        let _ = {
+            if isFocused {
+                PlaybackCueFooter.lastFocusedActionIDForTesting = action.id
+            }
+        }()
         Button(action: action.perform) {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                 Text(action.title)

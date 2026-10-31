@@ -159,6 +159,9 @@ struct TaskPanel: View {
     @ViewBuilder
     private func tabContent(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         let isRightClickEnabled = confirmation.session == nil && tasks.detailTaskID == nil
+        let focusedDialogTarget = accessibility?.activeDialogID == dialogID
+            ? accessibility?.focusedDialogTarget
+            : nil
         switch tasks.selectedTab {
         case .current:
             cardList(isEmpty: tasks.current.isEmpty, emptyMessage: L("task.empty.current")) {
@@ -170,7 +173,7 @@ struct TaskPanel: View {
                         entry: entry,
                         isCardMenuOpen: activeMenu?.cardID == cardID,
                         isButtonMenuOpen: activeMenu?.cardID == cardID && activeMenu?.isButtonAnchored == true,
-                        isActionFocused: accessibility?.isDialogFocused(.taskCardActionButton(cardID), dialogID: dialogID) == true,
+                        isActionFocused: focusedDialogTarget == .taskCardActionButton(cardID),
                         isRightClickEnabled: isRightClickEnabled,
                         onOpenButtonMenu: { anchorFrame in
                             toggleMenu(for: cardID, anchorFrame: anchorFrame, items: items)
@@ -191,7 +194,7 @@ struct TaskPanel: View {
                         record: record,
                         isCardMenuOpen: activeMenu?.cardID == cardID,
                         isButtonMenuOpen: activeMenu?.cardID == cardID && activeMenu?.isButtonAnchored == true,
-                        isActionFocused: accessibility?.isDialogFocused(.taskCardActionButton(cardID), dialogID: dialogID) == true,
+                        isActionFocused: focusedDialogTarget == .taskCardActionButton(cardID),
                         isRightClickEnabled: isRightClickEnabled,
                         onOpenButtonMenu: { anchorFrame in
                             toggleMenu(for: cardID, anchorFrame: anchorFrame, items: items)
@@ -212,7 +215,7 @@ struct TaskPanel: View {
                         record: record,
                         isCardMenuOpen: activeMenu?.cardID == cardID,
                         isButtonMenuOpen: activeMenu?.cardID == cardID && activeMenu?.isButtonAnchored == true,
-                        isActionFocused: accessibility?.isDialogFocused(.taskCardActionButton(cardID), dialogID: dialogID) == true,
+                        isActionFocused: focusedDialogTarget == .taskCardActionButton(cardID),
                         isRightClickEnabled: isRightClickEnabled,
                         onOpenButtonMenu: { anchorFrame in
                             toggleMenu(for: cardID, anchorFrame: anchorFrame, items: items)

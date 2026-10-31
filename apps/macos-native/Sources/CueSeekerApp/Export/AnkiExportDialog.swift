@@ -453,13 +453,13 @@ struct AnkiExportDialog: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 } else {
+                    let focusedDialogTarget = accessibility?.activeDialogID == dialogID
+                        ? accessibility?.focusedDialogTarget
+                        : nil
                     VStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                             let isDragging = isDraggingRow(side: side, item: item)
-                            let isRemoveFocused = accessibility?.isDialogFocused(
-                                .ankiRemoveItem(side, item),
-                                dialogID: dialogID
-                            ) == true
+                            let isRemoveFocused = focusedDialogTarget == .ankiRemoveItem(side, item)
                             AnkiCardBadgeRow(
                                 item: item,
                                 isRemoveFocused: isRemoveFocused,
