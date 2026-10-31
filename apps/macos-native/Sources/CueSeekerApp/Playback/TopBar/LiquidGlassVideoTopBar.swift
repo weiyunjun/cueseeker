@@ -37,6 +37,11 @@ struct LiquidGlassVideoTopBar: View {
         }
         .overlay {
             WorkbenchAccessibilityReader { accessibility in
+                let isReturnFocused = accessibility?.isPlaybackFocused(.playerReturn) == true
+                let isCommandPanelFocused = accessibility?.isPlaybackFocused(.playerCommandPanel) == true
+                let isTaskFocused = accessibility?.isPlaybackFocused(.playerTask) == true
+                let isSettingsFocused = accessibility?.isPlaybackFocused(.playerSettings) == true
+
                 WorkbenchAdaptiveHeaderBar(
                     leadingInset: 0,
                     trailingInset: WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding,
@@ -48,7 +53,7 @@ struct LiquidGlassVideoTopBar: View {
                         iconColor: PlaybackTheme.textPrimary,
                         hoverBackground: PlaybackTheme.controlHoverBackground,
                         pressedBackground: PlaybackTheme.controlPressedBackground,
-                        isFocused: accessibility?.isPlaybackFocused(.playerReturn) == true,
+                        isFocused: isReturnFocused,
                         isPlayerChrome: true,
                         action: onReturn
                     )
@@ -80,9 +85,9 @@ struct LiquidGlassVideoTopBar: View {
                         pressedBackground: PlaybackTheme.controlPressedBackground,
                         countBackground: PlaybackTheme.controlHoverBackground,
                         countTextColor: PlaybackTheme.textSecondary,
-                        isCommandPanelFocused: accessibility?.isPlaybackFocused(.playerCommandPanel) == true,
-                        isTaskFocused: accessibility?.isPlaybackFocused(.playerTask) == true,
-                        isSettingsFocused: accessibility?.isPlaybackFocused(.playerSettings) == true,
+                        isCommandPanelFocused: isCommandPanelFocused,
+                        isTaskFocused: isTaskFocused,
+                        isSettingsFocused: isSettingsFocused,
                         isPlayerChrome: true
                     )
                 }

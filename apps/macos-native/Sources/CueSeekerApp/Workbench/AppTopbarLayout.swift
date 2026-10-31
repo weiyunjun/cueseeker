@@ -204,9 +204,29 @@ struct WorkbenchAdaptiveHeaderBar<
     var minimumGap: CGFloat = WorkbenchControlMetrics.redesignSpacing3
     var keepsCenterOnMidline: Bool = false
     var centerMaxWidthCap: CGFloat? = nil
-    @ViewBuilder let leading: () -> Leading
-    @ViewBuilder let center: () -> Center
-    @ViewBuilder let trailing: () -> Trailing
+    let leading: Leading
+    let center: Center
+    let trailing: Trailing
+
+    init(
+        leadingInset: CGFloat,
+        trailingInset: CGFloat,
+        minimumGap: CGFloat = WorkbenchControlMetrics.redesignSpacing3,
+        keepsCenterOnMidline: Bool = false,
+        centerMaxWidthCap: CGFloat? = nil,
+        @ViewBuilder leading: () -> Leading,
+        @ViewBuilder center: () -> Center,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
+        self.leadingInset = leadingInset
+        self.trailingInset = trailingInset
+        self.minimumGap = minimumGap
+        self.keepsCenterOnMidline = keepsCenterOnMidline
+        self.centerMaxWidthCap = centerMaxWidthCap
+        self.leading = leading()
+        self.center = center()
+        self.trailing = trailing()
+    }
 
     var body: some View {
         WorkbenchAdaptiveHeaderBarLayout(
@@ -217,13 +237,13 @@ struct WorkbenchAdaptiveHeaderBar<
             centerMaxWidthCap: centerMaxWidthCap
         ) {
             HStack(spacing: 0) {
-                leading()
+                leading
             }
             HStack(spacing: 0) {
-                center()
+                center
             }
             HStack(spacing: 0) {
-                trailing()
+                trailing
             }
         }
     }
@@ -240,34 +260,34 @@ struct AppTopbarLayout<
     let isOverlaySidebarVisible: Bool
     let isAppFullscreen: Bool
     let onDoubleClickZoom: (NSWindow) -> Bool
-    @ViewBuilder let content: () -> Content
+    let content: Content
     /// The trailing function region. It holds what belongs to the App rather
     /// than to the page below, so it is the same in every workbench page.
-    @ViewBuilder let trailingContent: () -> TrailingContent
-    @ViewBuilder let centerContent: () -> CenterContent
-    @ViewBuilder let sidebarToggle: () -> SidebarToggle
-    @ViewBuilder let overlaySidebar: () -> OverlaySidebarContent
+    let trailingContent: TrailingContent
+    let centerContent: CenterContent
+    let sidebarToggle: SidebarToggle
+    let overlaySidebar: OverlaySidebarContent
 
     init(
         isDockedSidebarVisible: Bool,
         isOverlaySidebarVisible: Bool = false,
         isAppFullscreen: Bool,
         onDoubleClickZoom: @escaping (NSWindow) -> Bool,
-        @ViewBuilder content: @escaping () -> Content,
-        @ViewBuilder trailingContent: @escaping () -> TrailingContent,
-        @ViewBuilder centerContent: @escaping () -> CenterContent,
-        @ViewBuilder sidebarToggle: @escaping () -> SidebarToggle,
-        @ViewBuilder overlaySidebar: @escaping () -> OverlaySidebarContent = { EmptyView() }
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder trailingContent: () -> TrailingContent,
+        @ViewBuilder centerContent: () -> CenterContent,
+        @ViewBuilder sidebarToggle: () -> SidebarToggle,
+        @ViewBuilder overlaySidebar: () -> OverlaySidebarContent = { EmptyView() }
     ) {
         self.isDockedSidebarVisible = isDockedSidebarVisible
         self.isOverlaySidebarVisible = isOverlaySidebarVisible
         self.isAppFullscreen = isAppFullscreen
         self.onDoubleClickZoom = onDoubleClickZoom
-        self.content = content
-        self.trailingContent = trailingContent
-        self.centerContent = centerContent
-        self.sidebarToggle = sidebarToggle
-        self.overlaySidebar = overlaySidebar
+        self.content = content()
+        self.trailingContent = trailingContent()
+        self.centerContent = centerContent()
+        self.sidebarToggle = sidebarToggle()
+        self.overlaySidebar = overlaySidebar()
     }
 
     var body: some View {
@@ -276,7 +296,7 @@ struct AppTopbarLayout<
 
             ZStack(alignment: .topLeading) {
                 if isOverlaySidebarVisible {
-                    overlaySidebar()
+                    overlaySidebar
                         .frame(width: AppShellLayout.sidebarWidth)
                         .frame(maxHeight: .infinity, alignment: .topLeading)
                         .transition(.opacity)
@@ -320,11 +340,14 @@ struct AppTopbarLayout<
             WorkbenchAdaptiveHeaderBar(
                 leadingInset: rowLeadingInset,
                 trailingInset: WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding,
-                minimumGap: WorkbenchControlMetrics.redesignSpacing3,
-                leading: content,
-                center: centerContent,
-                trailing: trailingContent
-            )
+                minimumGap: WorkbenchControlMetrics.redesignSpacing3
+            ) {
+                content
+            } center: {
+                centerContent
+            } trailing: {
+                trailingContent
+            }
             .frame(width: regionWidth, height: proxy.size.height, alignment: .leading)
             .clipped()
             .offset(x: regionLeadingEdge)
@@ -332,7 +355,7 @@ struct AppTopbarLayout<
     }
 
     private var leadingControls: some View {
-        sidebarToggle()
+        sidebarToggle
             .frame(
                 width: AppShellLayout.sidebarToggleSize,
                 height: AppShellLayout.sidebarToggleSize

@@ -347,6 +347,7 @@ struct PlaybackOverlayTopBar: View {
         )
         .overlay {
             WorkbenchAccessibilityReader { accessibility in
+                let isReturnFocused = accessibility?.isPlaybackFocused(.overlayReturn) == true
                 let focusedTab: PlaybackOverlayModule? = {
                     guard let target = accessibility?.focusedPlaybackTarget,
                           accessibility?.activePlaybackSurface == .playbackOverlay,
@@ -356,6 +357,10 @@ struct PlaybackOverlayTopBar: View {
                     }
                     return module
                 }()
+                let isCollageFocused = accessibility?.isPlaybackFocused(.overlayCollageButton) == true
+                let isCommandPanelFocused = accessibility?.isPlaybackFocused(.overlayCommandPanel) == true
+                let isTaskFocused = accessibility?.isPlaybackFocused(.overlayTask) == true
+                let isSettingsFocused = accessibility?.isPlaybackFocused(.overlaySettings) == true
 
                 WorkbenchAdaptiveHeaderBar(
                     leadingInset: 0,
@@ -369,7 +374,7 @@ struct PlaybackOverlayTopBar: View {
                         pressedBackground: WorkbenchRedesignColors
                             .overlaySurfaceShortcutButtonPressedBg,
                         scenarioID: "playback_overlay.topbar.return",
-                        isFocused: accessibility?.isPlaybackFocused(.overlayReturn) == true,
+                        isFocused: isReturnFocused,
                         action: onReturn
                     )
                 } center: {
@@ -405,7 +410,7 @@ struct PlaybackOverlayTopBar: View {
                             WorkbenchIconButton(
                                 icon: .imagesSquare,
                                 isOpen: isEditingCollage,
-                                isFocused: accessibility?.isPlaybackFocused(.overlayCollageButton) == true,
+                                isFocused: isCollageFocused,
                                 hoverBackground: WorkbenchRedesignColors
                                     .overlaySurfaceShortcutButtonHoverBg,
                                 pressedBackground: WorkbenchRedesignColors
@@ -438,9 +443,9 @@ struct PlaybackOverlayTopBar: View {
                                 .overlaySurfaceShortcutButtonHoverBg,
                             pressedBackground: WorkbenchRedesignColors
                                 .overlaySurfaceShortcutButtonPressedBg,
-                            isCommandPanelFocused: accessibility?.isPlaybackFocused(.overlayCommandPanel) == true,
-                            isTaskFocused: accessibility?.isPlaybackFocused(.overlayTask) == true,
-                            isSettingsFocused: accessibility?.isPlaybackFocused(.overlaySettings) == true
+                            isCommandPanelFocused: isCommandPanelFocused,
+                            isTaskFocused: isTaskFocused,
+                            isSettingsFocused: isSettingsFocused
                         )
                     }
                 }

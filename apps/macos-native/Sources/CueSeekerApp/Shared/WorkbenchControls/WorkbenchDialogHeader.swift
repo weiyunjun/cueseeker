@@ -72,10 +72,24 @@ struct WorkbenchDetailDialogContainer<Content: View>: View {
     let icon: AppIcon
     let headerTitle: String
     let onClose: () -> Void
-    @ViewBuilder let content: () -> Content
+    let content: Content
 
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
     @State private var languageRevision = 0
+
+    init(
+        dialogTitle: String,
+        icon: AppIcon,
+        headerTitle: String,
+        onClose: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.dialogTitle = dialogTitle
+        self.icon = icon
+        self.headerTitle = headerTitle
+        self.onClose = onClose
+        self.content = content()
+    }
 
     var body: some View {
         let _ = languageRevision
@@ -89,7 +103,7 @@ struct WorkbenchDetailDialogContainer<Content: View>: View {
             WorkbenchScrollView {
                 VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
                     WorkbenchDetailHeaderRow(icon: icon, title: headerTitle)
-                    content()
+                    content
                 }
                 .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
                 .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
@@ -140,18 +154,18 @@ struct WorkbenchDetailRow<Trailing: View>: View {
     let label: String
     let isIndex: Bool
     let alignment: VerticalAlignment
-    @ViewBuilder let trailing: () -> Trailing
+    let trailing: Trailing
 
     init(
         label: String,
         isIndex: Bool = false,
         alignment: VerticalAlignment = .top,
-        @ViewBuilder trailing: @escaping () -> Trailing
+        @ViewBuilder trailing: () -> Trailing
     ) {
         self.label = label
         self.isIndex = isIndex
         self.alignment = alignment
-        self.trailing = trailing
+        self.trailing = trailing()
     }
 
     var body: some View {
@@ -168,7 +182,7 @@ struct WorkbenchDetailRow<Trailing: View>: View {
 
             Spacer(minLength: WorkbenchControlMetrics.redesignSpacing4)
 
-            trailing()
+            trailing
         }
         .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
         .padding(.vertical, WorkbenchControlMetrics.redesignSettingsRowVerticalPadding)

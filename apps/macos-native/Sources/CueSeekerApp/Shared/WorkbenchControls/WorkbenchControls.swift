@@ -550,6 +550,8 @@ struct WorkbenchBadge: View {
 }
 
 struct WorkbenchIconButton: View {
+    static var lastFocusedIconForTesting: AppIcon?
+
     let icon: AppIcon
     var iconWeight: AppIconWeight? = nil
     /// The button stays lit for as long as the menu or panel it hangs off is
@@ -604,6 +606,11 @@ struct WorkbenchIconButton: View {
     @State private var isPressed = false
 
     var body: some View {
+        let _ = {
+            if isFocused {
+                Self.lastFocusedIconForTesting = icon
+            }
+        }()
         Group {
             if let action {
                 Button(action: action) {

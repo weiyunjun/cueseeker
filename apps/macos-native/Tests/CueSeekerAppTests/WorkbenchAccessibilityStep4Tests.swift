@@ -4,8 +4,10 @@ import Carbon.HIToolbox
 @testable import CueSeekerCore
 import CueSeekerPlayback
 import Foundation
+import SwiftUI
 import Testing
 
+@Suite(.serialized)
 @MainActor
 struct WorkbenchAccessibilityStep4Tests {
     @Test
@@ -379,6 +381,110 @@ struct WorkbenchAccessibilityStep4Tests {
                 .commandPanelFooterAction("copy-deep-link"),
                 .commandPanelFooterAction("play"),
             ])
+        }
+    }
+
+    @Test
+    func playerTopBarAndOverlayTopBarReRenderFocusRingAcrossAllButtons() throws {
+        try withStep4TestApp { app in
+            app.playback.isPlaybackSurfaceExpanded = true
+
+            // 1. Host LiquidGlassVideoTopBar and verify every button re-renders on Tab
+            let playerTopBarView = LiquidGlassVideoTopBar(
+                title: "Step4.mkv",
+                onReturn: {}
+            )
+            .environment(\.workbenchAccessibility, app.workbenchAccessibility)
+            .environmentObject(app)
+            .environmentObject(app.settings.localization)
+            .environmentObject(app.settings.playbackShortcuts)
+
+            let playerWindow = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 900, height: 60),
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            let playerHost = NSHostingView(rootView: playerTopBarView)
+            playerHost.frame = NSRect(x: 0, y: 0, width: 900, height: 60)
+            playerWindow.contentView = playerHost
+            playerHost.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+
+            let expectedPlayerTopBarSequence: [(PlaybackAccessibilityTarget, AppIcon)] = [
+                (.playerReturn, .caretLeft),
+                (.playerCommandPanel, .magnifyingGlass),
+                (.playerTask, .tray),
+                (.playerSettings, .gear),
+            ]
+            for (expectedTarget, expectedIcon) in expectedPlayerTopBarSequence {
+                WorkbenchIconButton.lastFocusedIconForTesting = nil
+                #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
+                #expect(app.workbenchAccessibility.focusedPlaybackTarget == expectedTarget)
+                playerHost.layoutSubtreeIfNeeded()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+                #expect(WorkbenchIconButton.lastFocusedIconForTesting == expectedIcon)
+            }
+
+            // 2. Host PlaybackOverlayTopBar and verify Return, Collage, Command Panel, Task, and Settings re-render on Tab
+            let session = try #require(app.playback.beginSubtitleFocusSession(
+                openSnapshot: step4OpenSnapshot(),
+                availableModules: [.current, .playlist]
+            ))
+            #expect(session.publishInitialSnapshot(
+                step4CueSnapshot(),
+                token: session.token
+            ))
+            app.reconcilePlaybackAccessibilityFocus()
+
+            let overlayTopBarView = PlaybackOverlayTopBar(
+                modules: session.availableModules,
+                selectedModule: session.selectedModule,
+                isEditingCollage: session.isEditingCollage,
+                onSelect: session.selectModule,
+                onToggleEditingCollage: session.toggleEditingCollage,
+                onReturn: {}
+            )
+            .environment(\.workbenchAccessibility, app.workbenchAccessibility)
+            .environmentObject(app)
+            .environmentObject(app.settings.localization)
+            .environmentObject(app.settings.playbackShortcuts)
+
+            let overlayHost = NSHostingView(rootView: overlayTopBarView)
+            overlayHost.frame = NSRect(x: 0, y: 0, width: 900, height: 60)
+            playerWindow.contentView = overlayHost
+            overlayHost.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+
+            // 1st Tab -> .overlayReturn (.caretLeft)
+            WorkbenchIconButton.lastFocusedIconForTesting = nil
+            #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
+            #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayReturn)
+            overlayHost.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+            #expect(WorkbenchIconButton.lastFocusedIconForTesting == .caretLeft)
+
+            // 2nd & 3rd Tab -> .overlayTab(.current), .overlayTab(.playlist)
+            #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
+            #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.current))
+            #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
+            #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.playlist))
+
+            // 4th..7th Tab -> .overlayCollageButton, .overlayCommandPanel, .overlayTask, .overlaySettings
+            let expectedOverlayTrailingSequence: [(PlaybackAccessibilityTarget, AppIcon)] = [
+                (.overlayCollageButton, .imagesSquare),
+                (.overlayCommandPanel, .magnifyingGlass),
+                (.overlayTask, .tray),
+                (.overlaySettings, .gear),
+            ]
+            for (expectedTarget, expectedIcon) in expectedOverlayTrailingSequence {
+                WorkbenchIconButton.lastFocusedIconForTesting = nil
+                #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
+                #expect(app.workbenchAccessibility.focusedPlaybackTarget == expectedTarget)
+                overlayHost.layoutSubtreeIfNeeded()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+                #expect(WorkbenchIconButton.lastFocusedIconForTesting == expectedIcon)
+            }
         }
     }
 }

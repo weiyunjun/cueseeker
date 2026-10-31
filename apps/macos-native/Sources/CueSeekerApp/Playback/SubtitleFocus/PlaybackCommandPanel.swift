@@ -533,7 +533,7 @@ private struct PlaybackCommandPanelSecondaryHeaderLayout: Layout {
 private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
     let title: String
     let onBack: () -> Bool
-    @ViewBuilder let trailing: () -> Trailing
+    let trailing: Trailing
 
     @State private var isBackHovered = false
     @State private var isBackPressed = false
@@ -541,11 +541,11 @@ private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
     init(
         title: String,
         onBack: @escaping () -> Bool,
-        @ViewBuilder trailing: @escaping () -> Trailing
+        @ViewBuilder trailing: () -> Trailing
     ) {
         self.title = title
         self.onBack = onBack
-        self.trailing = trailing
+        self.trailing = trailing()
     }
 
     var body: some View {
@@ -608,7 +608,7 @@ private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
 
-                trailing()
+                trailing
             }
             .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
             .frame(height: PlaybackCommandPanelMetrics.headerHeight)
