@@ -2,6 +2,17 @@ import AppKit
 import CueSeekerCore
 import SwiftUI
 
+private final class PlaybackCommandPanelTransitionTracker {
+    var lastTargetPage: PlaybackCommandPanelPage?
+    var lastPresentedPage: PlaybackCommandPanelPage?
+    var asyncPreparedPage: PlaybackCommandPanelPage?
+    var preparationTask: Task<Void, Never>?
+
+    deinit {
+        preparationTask?.cancel()
+    }
+}
+
 struct PlaybackCommandPanel: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
@@ -12,6 +23,26 @@ struct PlaybackCommandPanel: View {
     @ObservedObject var searchStore: SearchStore
     @ObservedObject var libraryStore: LibraryStore
     @ObservedObject var excerptStore: ExcerptStore
+    @State private var transitionTracker = PlaybackCommandPanelTransitionTracker()
+    @State private var asyncPreparedPageRevision: UInt64 = 0
+
+    private func activePage(
+        for presentation: PlaybackCommandPanelPresentation
+    ) -> PlaybackCommandPanelPage {
+        _ = asyncPreparedPageRevision
+        let target = presentation.page
+        if transitionTracker.lastTargetPage != target {
+            transitionTracker.lastTargetPage = target
+            transitionTracker.asyncPreparedPage = nil
+        }
+        if transitionTracker.asyncPreparedPage == target
+            || appState.isPlaybackCommandPanelPageReadyForPresentation(target)
+        {
+            transitionTracker.lastPresentedPage = target
+            return target
+        }
+        return transitionTracker.lastPresentedPage ?? .root
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -19,8 +50,9 @@ struct PlaybackCommandPanel: View {
                 WorkbenchRedesignColors.commandPanelScrim
 
                 if let presentation = playback.commandPanelPresentation {
+                    let presentedPage = activePage(for: presentation)
                     Group {
-                        switch presentation.page {
+                        switch presentedPage {
                         case .root:
                             PlaybackCommandPanelRoot(
                                 presentation: presentation,
@@ -88,6 +120,7 @@ struct PlaybackCommandPanel: View {
                                 presentation: presentation,
                                 scrollSequence: playback.commandPanelRecentCardScrollSequence,
                                 items: appState.playbackCommandPanelRecentVideos,
+                                isLoading: appState.isPlaybackCommandPanelRecentVideosLoading,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -117,6 +150,7 @@ struct PlaybackCommandPanel: View {
                                 presentation: presentation,
                                 scrollSequence: playback.commandPanelRecentCardScrollSequence,
                                 summaries: appState.playbackCommandPanelRecentExcerpts,
+                                isLoading: appState.isPlaybackCommandPanelRecentExcerptsLoading,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -190,6 +224,46 @@ struct PlaybackCommandPanel: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .contentShape(Rectangle())
+            .onAppear {
+                schedulePagePreparationIfNeeded(
+                    for: playback.commandPanelPresentation?.page
+                )
+            }
+            .onChange(of: playback.commandPanelPresentation?.page) { newPage in
+                schedulePagePreparationIfNeeded(for: newPage)
+            }
+            .onDisappear {
+                transitionTracker.preparationTask?.cancel()
+                transitionTracker.preparationTask = nil
+            }
+        }
+    }
+
+    private func schedulePagePreparationIfNeeded(
+        for page: PlaybackCommandPanelPage?
+    ) {
+        transitionTracker.preparationTask?.cancel()
+        transitionTracker.preparationTask = nil
+        guard let page else {
+            transitionTracker.lastTargetPage = nil
+            transitionTracker.lastPresentedPage = nil
+            transitionTracker.asyncPreparedPage = nil
+            return
+        }
+        if appState.isPlaybackCommandPanelPageReadyForPresentation(page) {
+            transitionTracker.lastPresentedPage = page
+            return
+        }
+        transitionTracker.preparationTask = Task { @MainActor in
+            await appState.preparePlaybackCommandPanelPageForPresentation(page)
+            guard !Task.isCancelled else {
+                return
+            }
+            transitionTracker.preparationTask = nil
+            transitionTracker.lastTargetPage = page
+            transitionTracker.asyncPreparedPage = page
+            transitionTracker.lastPresentedPage = page
+            asyncPreparedPageRevision &+= 1
         }
     }
 
@@ -882,9 +956,10 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
     /// name the same item.
     let itemIDs: [String]
     let sectionItemCounts: [Int]
+    let isLoading: Bool
     let emptyIcon: AppEmptyStateIcon
     let emptyMessage: String
-    let footerStatus: String
+    let footerStatus: String?
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onGridLayoutChange: (Int) -> Void
@@ -957,10 +1032,17 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
                 }()
 
                 if itemIDs.isEmpty {
-                    WorkbenchEmptyHint(
-                        icon: emptyIcon,
-                        message: emptyMessage
-                    )
+                    Group {
+                        if isLoading {
+                            Color.clear
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            WorkbenchEmptyHint(
+                                icon: emptyIcon,
+                                message: emptyMessage
+                            )
+                        }
+                    }
                     .onAppear {
                         onGridLayoutChange(columnCount)
                     }
@@ -1006,7 +1088,7 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
             }
 
             PlaybackCommandPanelFooter(
-                status: footerStatus,
+                status: isLoading && itemIDs.isEmpty ? nil : footerStatus,
                 onOpenSelectedItem: onOpenSelectedItem
             )
         }
@@ -1073,6 +1155,7 @@ private struct PlaybackCommandPanelRecentVideos: View {
     let presentation: PlaybackCommandPanelPresentation
     let scrollSequence: UInt64
     let items: [RecentLibraryWatchingPresentation]
+    let isLoading: Bool
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onGridLayoutChange: (Int) -> Void
@@ -1090,6 +1173,7 @@ private struct PlaybackCommandPanelRecentVideos: View {
                 items,
                 timestamp: \.updatedAt
             ).map(\.items.count),
+            isLoading: isLoading,
             emptyIcon: .video,
             emptyMessage: L("library.recent_watching_empty"),
             footerStatus: PlaybackCueFooterStatus.videos(totalCount: items.count),
@@ -1117,6 +1201,7 @@ private struct PlaybackCommandPanelRecentExcerpts: View {
     let presentation: PlaybackCommandPanelPresentation
     let scrollSequence: UInt64
     let summaries: [ExcerptListSummary]
+    let isLoading: Bool
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onGridLayoutChange: (Int) -> Void
@@ -1134,6 +1219,7 @@ private struct PlaybackCommandPanelRecentExcerpts: View {
                 summaries,
                 timestamp: \.list.recentPlayedAt
             ).map(\.items.count),
+            isLoading: isLoading,
             emptyIcon: .excerpt,
             emptyMessage: L("library.recent_excerpts_empty"),
             footerStatus: PlaybackCueFooterStatus.excerptLists(totalCount: summaries.count),

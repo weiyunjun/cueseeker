@@ -73,6 +73,17 @@ struct PlaybackSubtitleFocusLayer: View {
     }
 }
 
+private final class PlaybackOverlayModuleTransitionTracker {
+    var lastTargetModule: PlaybackOverlayModule?
+    var lastPresentedModule: PlaybackOverlayModule?
+    var asyncPreparedModule: PlaybackOverlayModule?
+    var preparationTask: Task<Void, Never>?
+
+    deinit {
+        preparationTask?.cancel()
+    }
+}
+
 struct PlaybackOverlay: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
@@ -88,6 +99,35 @@ struct PlaybackOverlay: View {
     let onSearchSelectedText: (String) -> Void
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
     let onReturn: () -> Void
+    @State private var moduleTransitionTracker = PlaybackOverlayModuleTransitionTracker()
+    @State private var asyncPreparedModuleRevision: UInt64 = 0
+
+    private func isModuleReadyForPresentation(
+        _ module: PlaybackOverlayModule?
+    ) -> Bool {
+        guard module == .playlist,
+              let libraryStore = session.libraryStore
+        else {
+            return true
+        }
+        return libraryStore.isReadyForPresentation
+    }
+
+    private var activeModule: PlaybackOverlayModule? {
+        _ = asyncPreparedModuleRevision
+        let target = session.selectedModule
+        if moduleTransitionTracker.lastTargetModule != target {
+            moduleTransitionTracker.lastTargetModule = target
+            moduleTransitionTracker.asyncPreparedModule = nil
+        }
+        if moduleTransitionTracker.asyncPreparedModule == target
+            || isModuleReadyForPresentation(target)
+        {
+            moduleTransitionTracker.lastPresentedModule = target
+            return target
+        }
+        return moduleTransitionTracker.lastPresentedModule
+    }
 
     var body: some View {
         ZStack {
@@ -110,11 +150,48 @@ struct PlaybackOverlay: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .onAppear {
+            scheduleModulePreparationIfNeeded(for: session.selectedModule)
+        }
+        .onChange(of: session.selectedModule) { newModule in
+            scheduleModulePreparationIfNeeded(for: newModule)
+        }
+        .onDisappear {
+            moduleTransitionTracker.preparationTask?.cancel()
+            moduleTransitionTracker.preparationTask = nil
+        }
+    }
+
+    private func scheduleModulePreparationIfNeeded(
+        for module: PlaybackOverlayModule?
+    ) {
+        moduleTransitionTracker.preparationTask?.cancel()
+        moduleTransitionTracker.preparationTask = nil
+        if isModuleReadyForPresentation(module) {
+            moduleTransitionTracker.lastPresentedModule = module
+            return
+        }
+        guard let libraryStore = session.libraryStore else {
+            moduleTransitionTracker.lastPresentedModule = module
+            return
+        }
+        moduleTransitionTracker.preparationTask = Task { @MainActor in
+            await libraryStore.prepareForPresentation()
+            guard !Task.isCancelled else {
+                return
+            }
+            moduleTransitionTracker.preparationTask = nil
+            moduleTransitionTracker.lastTargetModule = module
+            moduleTransitionTracker.asyncPreparedModule = module
+            moduleTransitionTracker.lastPresentedModule = module
+            asyncPreparedModuleRevision &+= 1
+        }
     }
 
     @ViewBuilder
     private var moduleContent: some View {
-        if session.selectedModule == .current {
+        let presentedModule = activeModule
+        if presentedModule == .current {
             if session.isEditingCollage,
                let previewStore = session.collagePreviewStore {
                 PlaybackCollageEditor(
@@ -133,7 +210,7 @@ struct PlaybackOverlay: View {
                 currentSubtitleOverlay
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-        } else if session.selectedModule == .playlist {
+        } else if presentedModule == .playlist {
             if let libraryStore = session.libraryStore {
                 PlaybackLibraryOverlay(
                     store: libraryStore,

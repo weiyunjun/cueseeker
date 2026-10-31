@@ -236,7 +236,8 @@ extension AppCoordinator {
         case .recentVideos:
             refreshTestRecentWatching()
         case .recentExcerpts:
-            reloadExcerptListOverview()
+            refreshExcerptOnReappearanceIfNeeded()
+            loadExcerptListOverviewIfNeeded()
         case .root, .searchResults:
             return false
         }
@@ -682,6 +683,164 @@ extension AppCoordinator {
             return summaries
         }
         return excerpt.recentListSummaries
+    }
+
+    var isPlaybackCommandPanelRecentVideosLoading: Bool {
+        if case .recentVideos = playback.commandPanelHeldPage {
+            return false
+        }
+        if library.testRecentWatchingStatus == .loading || recentNeedsReloadAfterIndexedMutation {
+            return true
+        }
+        if indexing.selectedFolders.isEmpty {
+            return false
+        }
+        return !Self.isCommandPanelLibraryStatusResolved(library.testRecentWatchingStatus)
+            && library.testRecentWatchingItems.isEmpty
+    }
+
+    var isPlaybackCommandPanelRecentExcerptsLoading: Bool {
+        if case .recentExcerpts = playback.commandPanelHeldPage {
+            return false
+        }
+        if excerpt.listOverviewTask != nil || excerptNeedsReloadAfterIndexedContentMutation {
+            return true
+        }
+        return !excerpt.hasLoadedListOverview && excerpt.recentListSummaries.isEmpty
+    }
+
+    func isPlaybackCommandPanelPageReadyForPresentation(
+        _ page: PlaybackCommandPanelPage
+    ) -> Bool {
+        switch page {
+        case .root, .searchResults:
+            return true
+        case .recentVideos:
+            if case .recentVideos(let heldItems) = playback.commandPanelHeldPage {
+                return Self.areCommandPanelCoversReady(
+                    firstScreenCommandPanelRecentVideoCoverKeys(from: heldItems)
+                )
+            }
+            guard !isPlaybackCommandPanelRecentVideosLoading else {
+                return false
+            }
+            return Self.areCommandPanelCoversReady(
+                firstScreenCommandPanelRecentVideoCoverKeys(
+                    from: playbackCommandPanelRecentVideos
+                )
+            )
+        case .recentExcerpts:
+            if case .recentExcerpts(let heldSummaries) = playback.commandPanelHeldPage {
+                return Self.areCommandPanelCoversReady(
+                    firstScreenCommandPanelRecentExcerptCoverKeys(from: heldSummaries)
+                )
+            }
+            guard !isPlaybackCommandPanelRecentExcerptsLoading else {
+                return false
+            }
+            return Self.areCommandPanelCoversReady(
+                firstScreenCommandPanelRecentExcerptCoverKeys(
+                    from: playbackCommandPanelRecentExcerpts
+                )
+            )
+        }
+    }
+
+    func preparePlaybackCommandPanelPageForPresentation(
+        _ page: PlaybackCommandPanelPage
+    ) async {
+        switch page {
+        case .root, .searchResults:
+            return
+        case .recentVideos:
+            if playback.commandPanelHeldPage == nil {
+                if library.testRecentWatchingStatus != .loading,
+                   isPlaybackCommandPanelRecentVideosLoading
+                {
+                    refreshRecentOnReappearanceIfNeeded()
+                    hydrateTestRecentWatchingAsync()
+                }
+                await testRecentWatchingTask?.value
+                guard !Task.isCancelled else { return }
+                if playback.commandPanelPresentation?.page == .recentVideos {
+                    synchronizePlaybackCommandPanelSelection()
+                }
+            }
+            await LibraryCoverImagePipeline.shared.prewarm(
+                keys: firstScreenCommandPanelRecentVideoCoverKeys(
+                    from: playbackCommandPanelRecentVideos
+                )
+            )
+        case .recentExcerpts:
+            if playback.commandPanelHeldPage == nil {
+                refreshExcerptOnReappearanceIfNeeded()
+                loadExcerptListOverviewIfNeeded()
+                await excerpt.listOverviewTask?.value
+                guard !Task.isCancelled else { return }
+                if playback.commandPanelPresentation?.page == .recentExcerpts {
+                    synchronizePlaybackCommandPanelSelection()
+                }
+            }
+            await LibraryCoverImagePipeline.shared.prewarm(
+                keys: firstScreenCommandPanelRecentExcerptCoverKeys(
+                    from: playbackCommandPanelRecentExcerpts
+                )
+            )
+        }
+    }
+
+    private static func isCommandPanelLibraryStatusResolved(
+        _ status: LibraryStatus
+    ) -> Bool {
+        switch status {
+        case .completed, .failed:
+            return true
+        case .idle, .loading:
+            return false
+        }
+    }
+
+    private static func areCommandPanelCoversReady(
+        _ keys: [LibraryCoverImageKey]
+    ) -> Bool {
+        let boundedKeys = LibraryCoverImagePipeline.boundedUniqueKeys(from: keys)
+        return boundedKeys.allSatisfy {
+            LibraryCoverImagePipeline.shared.isReadyForPresentation(for: $0)
+        }
+    }
+
+    private func firstScreenCommandPanelRecentVideoCoverKeys(
+        from items: [RecentLibraryWatchingPresentation]
+    ) -> [LibraryCoverImageKey] {
+        let orderedItems = RecentTimeSection.group(
+            items,
+            timestamp: \.updatedAt
+        ).flatMap(\.items)
+        return LibraryCoverImagePipeline.boundedUniqueKeys(
+            from: orderedItems.compactMap {
+                LibraryCoverImageKey.current(
+                    path: $0.coverPath,
+                    revision: $0.coverRevision
+                )
+            }
+        )
+    }
+
+    private func firstScreenCommandPanelRecentExcerptCoverKeys(
+        from summaries: [ExcerptListSummary]
+    ) -> [LibraryCoverImageKey] {
+        let orderedItems = RecentTimeSection.group(
+            summaries,
+            timestamp: \.list.recentPlayedAt
+        ).flatMap(\.items)
+        return LibraryCoverImagePipeline.boundedUniqueKeys(
+            from: orderedItems.compactMap { summary in
+                guard let path = summary.list.coverPath, !path.isEmpty else {
+                    return nil
+                }
+                return LibraryCoverImageKey(path: path, revision: path)
+            }
+        )
     }
 
     private func preparePlaybackCommandPanelPresentation() -> Bool {

@@ -59,6 +59,52 @@ final class PlaybackLibrarySessionStore: ObservableObject {
         heldDetail != nil
     }
 
+    var isDetailResolved: Bool {
+        if detail != nil {
+            return true
+        }
+        switch detailStatus {
+        case .completed, .failed:
+            return libraryStore.completeLibraryFolderDetailTasks[folderPath] == nil
+        case .idle, .loading:
+            return false
+        }
+    }
+
+    var firstScreenCoverKeys: [LibraryCoverImageKey] {
+        guard let detail else {
+            return []
+        }
+        return LibraryCoverImagePipeline.boundedUniqueKeys(
+            from: detail.videos.compactMap {
+                LibraryCoverImageKey.current(
+                    path: $0.coverPath,
+                    revision: $0.coverRevision
+                )
+            }
+        )
+    }
+
+    var isReadyForPresentation: Bool {
+        guard isDetailResolved else {
+            return false
+        }
+        return firstScreenCoverKeys.allSatisfy {
+            LibraryCoverImagePipeline.shared.isReadyForPresentation(for: $0)
+        }
+    }
+
+    func prepareForPresentation() async {
+        activate()
+        await libraryStore.completeLibraryFolderDetailTasks[folderPath]?.value
+        guard !Task.isCancelled else {
+            return
+        }
+        await LibraryCoverImagePipeline.shared.prewarm(
+            keys: firstScreenCoverKeys
+        )
+    }
+
     /// Keeps the folder as it is shown now: a database change must not move
     /// what the open Playback Overlay shows. A folder still loading has
     /// nothing shown to keep and goes on loading.

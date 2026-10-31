@@ -29,9 +29,11 @@ struct PlaybackLibraryOverlay: View {
 
             PlaybackCueFooter(
                 surface: .playbackOverlay,
-                status: PlaybackCueFooterStatus.videos(
-                    totalCount: store.detail?.videos.count ?? 0
-                ),
+                status: store.isDetailResolved
+                    ? PlaybackCueFooterStatus.videos(
+                        totalCount: store.detail?.videos.count ?? 0
+                    )
+                    : nil,
                 actions: [
                     .primary(id: "play", title: L("playback.play")) {
                         // The same path Return takes: resolve the selected
@@ -132,10 +134,7 @@ private struct PlaybackLibraryEpisodeList: View {
             0,
             viewportHeight - PlaybackSubtitleFocusMetrics.contentInset
         )
-        if case .loading = store.detailStatus, store.detail == nil {
-            WorkbenchSpinner()
-                .frame(maxWidth: .infinity, minHeight: emptyMinHeight, alignment: .center)
-        } else if let detail = store.detail, !detail.videos.isEmpty {
+        if let detail = store.detail, !detail.videos.isEmpty {
             CompleteLibraryEpisodeGrid(
                 folderTitle: detail.folderTitle,
                 videos: detail.videos,
@@ -165,13 +164,16 @@ private struct PlaybackLibraryEpisodeList: View {
                 )
                 .frame(width: 0, height: 0)
             }
-        } else {
+        } else if store.isDetailResolved {
             // The folder kept no video the library still holds.
             WorkbenchEmptyHint(
                 icon: .videoQuestion,
                 message: L("playback.playlist.left_library")
             )
             .frame(minHeight: emptyMinHeight)
+        } else {
+            Color.clear
+                .frame(maxWidth: .infinity, minHeight: emptyMinHeight)
         }
     }
 

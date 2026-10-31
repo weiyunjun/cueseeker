@@ -169,6 +169,35 @@ struct WorkbenchInvalidationTests {
             #expect(app.isWorkbenchSurfaceReadyForPresentation(.excerptOverview))
         }
     }
+
+    @Test("Playback overlay library playlist and command panel recent pages wait for readiness before presentation")
+    @MainActor
+    func playbackOverlayAndCommandPanelWaitForReadinessBeforePresentation() async throws {
+        try await withWorkbenchInvalidationTestApp { app in
+            let folderURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("PlaybackTransitionReady-\(UUID().uuidString)")
+            app.indexing.selectedFolders = [folderURL]
+
+            #expect(app.isPlaybackCommandPanelPageReadyForPresentation(.root))
+            #expect(app.isPlaybackCommandPanelPageReadyForPresentation(.searchResults))
+            #expect(!app.isPlaybackCommandPanelPageReadyForPresentation(.recentVideos))
+            #expect(!app.isPlaybackCommandPanelPageReadyForPresentation(.recentExcerpts))
+
+            await app.preparePlaybackCommandPanelPageForPresentation(.recentVideos)
+            #expect(app.isPlaybackCommandPanelPageReadyForPresentation(.recentVideos))
+
+            await app.preparePlaybackCommandPanelPageForPresentation(.recentExcerpts)
+            #expect(app.isPlaybackCommandPanelPageReadyForPresentation(.recentExcerpts))
+
+            let librarySession = app.makePlaybackLibrarySessionStore(
+                folderPath: folderURL.path,
+                initialVideoPath: folderURL.appendingPathComponent("Episode1.mkv").path
+            )
+            #expect(!librarySession.isReadyForPresentation)
+            await librarySession.prepareForPresentation()
+            #expect(librarySession.isReadyForPresentation)
+        }
+    }
 }
 
 @MainActor
