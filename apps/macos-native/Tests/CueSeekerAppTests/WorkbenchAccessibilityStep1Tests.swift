@@ -186,9 +186,20 @@ struct WorkbenchAccessibilityStep1Tests {
     }
 
     @Test
-    func workbenchCoverCardGridSyncsSelectAndSupportsDirectionalNavigationOnlyInsideGrid() {
+    func workbenchCoverCardGridSyncsSelectSuppressesHoverAndClearsSelectOnLeaveOrExit() {
+        AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+        defer {
+            AppCursorVisibility.resetForTesting()
+            PointerHoverScrollState.shared.resetForTesting()
+        }
+
         let (app, suiteName, userDefaults) = makeTestCoordinator()
         defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+
+        let workbenchHighlight = CardHighlightModel(keepsCurrentWhenPointerLeaves: false)
+        let playbackHighlight = CardHighlightModel(keepsCurrentWhenPointerLeaves: true)
+        playbackHighlight.setSelected("playback-ep1")
 
         app.activateWorkbenchPanelMode(.testLibrary)
         app.library.completeLibraryStatus = .idle
@@ -226,17 +237,86 @@ struct WorkbenchAccessibilityStep1Tests {
             .mediaCardActionButton(secondID),
         ])
 
-        // When focus is on a toolbar button outside the card grid, directional keys do nothing.
+        // 1. Before entering the card grid, mouse hovers the 1st card.
+        workbenchHighlight.noteHover(true, id: firstID, showsHand: true)
+        #expect(workbenchHighlight.selectedID == nil)
+        #expect(workbenchHighlight.hoveredID == firstID)
+        #expect(workbenchHighlight.isHovered(firstID))
+        #expect(workbenchHighlight.isPointerHovered(firstID))
+        #expect(AppPointerShape.model.shape == .grab)
+
+        // When focus is on a toolbar button outside the card grid, directional keys do nothing
+        // and card Hover is not suppressed because toolbar Sort button is not a Select area.
         app.workbenchAccessibility.setFocus(.toolbarSortButton)
         #expect(!app.handleWorkbenchControllerInput(.direction(.right, source: .directionalPad, isRepeat: false)))
         #expect(app.workbenchAccessibility.focusedTarget == .toolbarSortButton)
+        #expect(workbenchHighlight.selectedID == nil)
+        #expect(workbenchHighlight.hoveredID == firstID)
 
-        // When focus is on the 1st card's action button, that card still owns Select and
-        // pressing Right moves to the 2nd card's whole card.
+        // 2. Accessibility focus enters the 1st card (.mediaCard(firstID)):
+        // Select is set to firstID, existing Hover is immediately cancelled and suppressed,
+        // and pointer shape reverts from Grab to Arrow.
+        app.workbenchAccessibility.setFocus(.mediaCard(firstID))
+        #expect(workbenchHighlight.selectedID == firstID)
+        #expect(workbenchHighlight.isSelected(firstID))
+        #expect(!workbenchHighlight.isHovered(firstID))
+        #expect(!workbenchHighlight.isPointerHovered(firstID))
+        #expect(workbenchHighlight.isSuppressedByKeyboard)
+        #expect(PointerHoverScrollState.shared.isSuppressedByKeyboardOrController)
+        #expect(AppPointerShape.model.shape == .arrow)
+        #expect(playbackHighlight.selectedID == "playback-ep1")
+
+        // 3. Physical mouse movement onto the Selected card restores pointer hover
+        // without stacking Hover visual style over Select visual style.
+        PointerHoverScrollState.shared.notePointerMoved()
+        workbenchHighlight.noteHover(true, id: firstID, showsHand: true)
+        #expect(workbenchHighlight.isSelected(firstID))
+        #expect(!workbenchHighlight.isHovered(firstID))
+        #expect(workbenchHighlight.isPointerHovered(firstID))
+        #expect(AppPointerShape.model.shape == .grab)
+
+        // 4. Moving focus within the same card to its action button (.mediaCardActionButton(firstID))
+        // keeps Select on firstID and immediately cancels/suppresses mouse Hover again.
         app.workbenchAccessibility.setFocus(.mediaCardActionButton(firstID))
         #expect(app.workbenchAccessibility.focusedTarget?.mediaCardID == firstID)
+        #expect(workbenchHighlight.selectedID == firstID)
+        #expect(!workbenchHighlight.isPointerHovered(firstID))
+        #expect(workbenchHighlight.isSuppressedByKeyboard)
+        #expect(AppPointerShape.model.shape == .arrow)
+
+        // 5. Pressing Right from the 1st card's action button moves to the 2nd card's whole card
+        // and updates Select to secondID.
         #expect(app.handleWorkbenchControllerInput(.direction(.right, source: .directionalPad, isRepeat: false)))
         #expect(app.workbenchAccessibility.focusedTarget == .mediaCard(secondID))
+        #expect(workbenchHighlight.selectedID == secondID)
+        #expect(!workbenchHighlight.isSelected(firstID))
+        #expect(workbenchHighlight.isSelected(secondID))
+
+        // Pressing Right again at the right boundary still suppresses any restored mouse Hover.
+        PointerHoverScrollState.shared.notePointerMoved()
+        workbenchHighlight.noteHover(true, id: secondID, showsHand: true)
+        #expect(workbenchHighlight.isPointerHovered(secondID))
+        #expect(app.handleWorkbenchControllerInput(.direction(.right, source: .directionalPad, isRepeat: false)))
+        #expect(app.workbenchAccessibility.focusedTarget == .mediaCard(secondID))
+        #expect(workbenchHighlight.selectedID == secondID)
+        #expect(!workbenchHighlight.isPointerHovered(secondID))
+        #expect(workbenchHighlight.isSuppressedByKeyboard)
+
+        // 6. Moving accessibility focus out of the card grid immediately clears Workbench card Select,
+        // while Playback retains its mandatory persistent Select.
+        app.workbenchAccessibility.setFocus(.toolbarSortButton)
+        #expect(workbenchHighlight.selectedID == nil)
+        #expect(!workbenchHighlight.isSelected(secondID))
+        #expect(playbackHighlight.selectedID == "playback-ep1")
+
+        // 7. Re-entering the card grid and pressing Esc / Circle to exit accessibility
+        // also immediately clears Workbench card Select.
+        app.workbenchAccessibility.setFocus(.mediaCard(firstID))
+        #expect(workbenchHighlight.selectedID == firstID)
+        #expect(app.handleWorkbenchControllerInput(.button(.east, isRepeat: false)))
+        #expect(!app.workbenchAccessibility.isActive)
+        #expect(workbenchHighlight.selectedID == nil)
+        #expect(playbackHighlight.selectedID == "playback-ep1")
     }
 
     @Test

@@ -397,6 +397,8 @@ extension AppCoordinator {
             return false
         }
 
+        PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
+
         if let targetIndex = PlaybackMediaSelectionStore.targetIndex(
             from: currentIndex,
             direction: direction,

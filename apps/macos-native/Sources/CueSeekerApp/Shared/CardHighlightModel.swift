@@ -4,15 +4,24 @@ import SwiftUI
 /// Manages separate `Select` (`selectedID`) and `Hover` (`hoveredID`) states
 /// for a cover card grid, following
 /// `docs/human/requirements/20261021-UI-Separate Hover And Select States And
-/// Unify Pointer Rules.md`.
+/// Unify Pointer Rules.md` and
+/// `docs/human/requirements/20261031-UI-Keyboard And Controller Accessibility
+/// Across Workbench Dialogs Settings And Playback.md`.
 ///
-/// - `Select` (`selectedID`) only exists on Playback cover card grids (Playback
-///   Overlay Video Playlist, Command Panel Recent Videos / Recent Excerpt Lists)
-///   and is driven exclusively by default initialization and keyboard /
-///   controller navigation. Workbench cover card grids leave `selectedID` nil.
+/// - Playback cover card grids (`keepsCurrentWhenPointerLeaves == true`:
+///   Playback Overlay Video Playlist, Command Panel Recent Videos / Recent
+///   Excerpt Lists) maintain a mandatory persistent `Select` (`selectedID`),
+///   driven by default initialization and keyboard / controller navigation.
+/// - Workbench cover card grids (`keepsCurrentWhenPointerLeaves == false`:
+///   Recent, Library Level 1/2, Excerpt Level 1) do not have a mandatory
+///   persistent `Select`: `selectedID` is set only while the accessibility
+///   focus ring is inside the card grid (on the card whole or its `dots-three`
+///   action button) and clears to `nil` as soon as the focus ring leaves the
+///   card grid or accessibility exits.
 /// - `Hover` (`hoveredID`) reflects the card currently under the visible pointer
-///   whenever the layer is not frozen and scroll debounce (`300ms`) is not
-///   active.
+///   whenever the layer is not frozen, scroll debounce (`300ms`) is not active,
+///   and keyboard / controller `Select` linkage suppression
+///   (`isSuppressedByKeyboard`) is not active.
 /// - `Hover` and `Select` never stack visually: when a card is both `Select`ed
 ///   and `Hover`ed, `isSelected(_:)` is true and `isHovered(_:)` is false so
 ///   only the `Select` visual style is displayed.
@@ -38,6 +47,16 @@ final class CardHighlightModel: ObservableObject {
         instances.removeAll { $0.value == nil }
         for box in instances {
             box.value?.noteSelectionMovedByKeyboardOrController()
+        }
+    }
+
+    static func broadcastWorkbenchAccessibilitySelectedCardChanged(_ cardID: String?) {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            guard let model = box.value, !model.keepsCurrentWhenPointerLeaves else {
+                continue
+            }
+            model.setSelected(cardID)
         }
     }
 
@@ -105,7 +124,7 @@ final class CardHighlightModel: ObservableObject {
         !keepsCurrentWhenPointerLeaves
     }
 
-    private let keepsCurrentWhenPointerLeaves: Bool
+    let keepsCurrentWhenPointerLeaves: Bool
 
     /// Kept for API compatibility; pointer hover no longer mutates `Select`.
     var adopt: ((String?) -> Void)?

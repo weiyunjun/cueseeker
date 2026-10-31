@@ -153,14 +153,14 @@ private struct ExcerptListCard: View {
 
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
-            let isWorkbench = layerContext.layer == .workbenchPage
+            let isWorkbench = layerContext.layer == .workbenchPage && !highlight.keepsCurrentWhenPointerLeaves
+            let _ = isWorkbench ? highlight.syncSelectedDuringRender(accessibility?.focusedCardID) : ()
             let isCardFocused = isWorkbench && accessibility?.isFocused(.mediaCard(cardID)) == true
             let isActionFocused = isWorkbench && accessibility?.isFocused(.mediaCardActionButton(cardID)) == true
-            let isEffectiveSelected = isSelected || (isWorkbench && accessibility?.focusedCardID == cardID)
 
             LibraryOverviewCardSurface(
-                isSelected: isEffectiveSelected,
-                isHovered: isHovered,
+                isSelected: highlight.isSelected(cardID),
+                isHovered: highlight.isHovered(cardID),
                 isFocused: isCardFocused,
                 animatesHover: highlight.animatesHoverBackground,
                 action: {
@@ -188,7 +188,6 @@ private struct ExcerptListCard: View {
             .onAppear {
                 guard isWorkbench else { return }
                 accessibility?.registerMediaCardAction(id: cardID) {
-                    highlight.notePress(id: cardID)
                     toggleAnchorMenu?(contextMenuItems, moreMenuAnchor, cardID)
                 }
             }

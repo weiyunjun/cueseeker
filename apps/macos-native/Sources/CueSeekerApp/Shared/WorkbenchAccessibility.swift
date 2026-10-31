@@ -158,6 +158,10 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         if focusedTarget != target {
             focusedTarget = target
         }
+        if target?.mediaCardID != nil {
+            PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
+        }
+        CardHighlightModel.broadcastWorkbenchAccessibilitySelectedCardChanged(target?.mediaCardID)
         syncNativeSearchFieldFocus(from: previous, to: target)
         activeSubtitleTableCoordinator?.syncWorkbenchAccessibilityFocus(target)
     }
@@ -168,6 +172,7 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
             return false
         }
         focusedTarget = nil
+        CardHighlightModel.broadcastWorkbenchAccessibilitySelectedCardChanged(nil)
         activeSubtitleTableCoordinator?.syncWorkbenchAccessibilityFocus(nil)
         return true
     }

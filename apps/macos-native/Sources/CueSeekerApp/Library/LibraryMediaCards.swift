@@ -240,14 +240,14 @@ private struct LibraryVideoCard: View {
 
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
-            let isWorkbench = layerContext.layer == .workbenchPage
+            let isWorkbench = layerContext.layer == .workbenchPage && !highlight.keepsCurrentWhenPointerLeaves
+            let _ = isWorkbench ? highlight.syncSelectedDuringRender(accessibility?.focusedCardID) : ()
             let isCardFocused = isWorkbench && accessibility?.isFocused(.mediaCard(cardID)) == true
             let isActionFocused = isWorkbench && accessibility?.isFocused(.mediaCardActionButton(cardID)) == true
-            let isEffectiveSelected = isSelected || (isWorkbench && accessibility?.focusedCardID == cardID)
 
             LibraryOverviewCardSurface(
-                isSelected: isEffectiveSelected,
-                isHovered: isHovered,
+                isSelected: highlight.isSelected(cardID),
+                isHovered: highlight.isHovered(cardID),
                 isFocused: isCardFocused,
                 animatesHover: highlight.animatesHoverBackground,
                 action: {
@@ -289,7 +289,6 @@ private struct LibraryVideoCard: View {
             .onAppear {
                 guard isWorkbench else { return }
                 accessibility?.registerMediaCardAction(id: cardID) {
-                    highlight.notePress(id: cardID)
                     toggleAnchorMenu?(contextMenuItems, moreMenuAnchor, cardID)
                 }
             }
@@ -410,13 +409,15 @@ struct LibraryFolderCard: View {
 
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
+            let _ = !highlight.keepsCurrentWhenPointerLeaves
+                ? highlight.syncSelectedDuringRender(accessibility?.focusedCardID)
+                : ()
             let isCardFocused = accessibility?.isFocused(.mediaCard(cardID)) == true
             let isActionFocused = accessibility?.isFocused(.mediaCardActionButton(cardID)) == true
-            let isEffectiveSelected = isSelected || accessibility?.focusedCardID == cardID
 
             LibraryOverviewCardSurface(
-                isSelected: isEffectiveSelected,
-                isHovered: isHovered,
+                isSelected: highlight.isSelected(cardID),
+                isHovered: highlight.isHovered(cardID),
                 isFocused: isCardFocused,
                 isEnabled: isAvailable,
                 animatesHover: highlight.animatesHoverBackground,
@@ -445,7 +446,6 @@ struct LibraryFolderCard: View {
             .onAppear {
                 accessibility?.registerMediaCardAction(id: cardID) {
                     guard isAvailable else { return }
-                    highlight.notePress(id: cardID)
                     toggleAnchorMenu?(folderContextMenuItems, moreMenuAnchor, cardID)
                 }
             }
