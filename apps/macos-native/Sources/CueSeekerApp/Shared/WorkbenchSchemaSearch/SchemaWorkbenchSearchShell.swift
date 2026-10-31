@@ -588,15 +588,28 @@ struct SchemaWorkbenchSearchToolbar: View {
     }
 
     private func selectionActionsRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            ForEach(selectionActions) { action in
-                let isActionFocused = SchemaWorkbenchSelectionActionID(rawValue: action.id).map {
-                    accessibility?.isFocused(.toolbarSelectionAction($0)) == true
-                } ?? false
+        let focusedTarget = accessibility?.focusedTarget
+        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+            if let ankiAction = selectionAction(for: .exportToAnki) {
                 SchemaWorkbenchSelectionActionButton(
-                    action: action,
-                    isFocused: isActionFocused
+                    action: ankiAction,
+                    isFocused: focusedTarget == .toolbarSelectionAction(.exportToAnki)
                 )
+                .layoutPriority(1)
+            }
+            if let deepLinksAction = selectionAction(for: .copyDeepLinks) {
+                SchemaWorkbenchSelectionActionButton(
+                    action: deepLinksAction,
+                    isFocused: focusedTarget == .toolbarSelectionAction(.copyDeepLinks)
+                )
+                .layoutPriority(1)
+            }
+            if let copyTableAction = selectionAction(for: .copyTable) {
+                SchemaWorkbenchSelectionActionButton(
+                    action: copyTableAction,
+                    isFocused: focusedTarget == .toolbarSelectionAction(.copyTable)
+                )
+                .layoutPriority(1)
             }
 
             Spacer(minLength: 0)
@@ -604,6 +617,12 @@ struct SchemaWorkbenchSearchToolbar: View {
         .padding(.leading, SchemaWorkbenchStyle.selectionActionRowLeadingPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: WorkbenchControlMetrics.redesignHeight)
+    }
+
+    private func selectionAction(
+        for id: SchemaWorkbenchSelectionActionID
+    ) -> SchemaWorkbenchSelectionAction? {
+        selectionActions.first(where: { $0.id == id.rawValue })
     }
 
     private func handleSelectionShortcut(_ event: NSEvent) -> Bool {

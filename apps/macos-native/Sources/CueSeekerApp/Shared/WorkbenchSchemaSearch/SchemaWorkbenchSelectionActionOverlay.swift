@@ -52,10 +52,18 @@ struct SchemaWorkbenchSelectionAction: Identifiable {
 
 /// Standard Neutral button with a shortcut tooltip for a batch selection action.
 struct SchemaWorkbenchSelectionActionButton: View {
+    static var lastRenderedFocusedByID: [String: Bool] = [:]
+
     let action: SchemaWorkbenchSelectionAction
     var isFocused: Bool = false
 
     var body: some View {
+        let _ = {
+            Self.lastRenderedFocusedByID[action.id] = isFocused
+            WorkbenchAccessibilityDebugLog.log(
+                "SchemaWorkbenchSelectionActionButton.body id=\(action.id) isFocused=\(isFocused)"
+            )
+        }()
         WorkbenchButton(
             title: action.title,
             icon: action.icon,

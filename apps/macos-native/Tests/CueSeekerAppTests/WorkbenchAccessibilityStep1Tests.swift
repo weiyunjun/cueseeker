@@ -654,6 +654,19 @@ struct WorkbenchAccessibilityStep1Tests {
             .toolbarSelectionAction(.copyTable),
         ])
 
+        app.workbenchAccessibility.setFocus(.toolbarSelectionAction(.copyTable))
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        host.layoutSubtreeIfNeeded()
+        #expect(SchemaWorkbenchSelectionActionButton.lastRenderedFocusedByID["copy-table"] == true)
+        #expect(SchemaWorkbenchSelectionActionButton.lastRenderedFocusedByID["anki"] == false)
+
+        app.workbenchAccessibility.setFocus(.toolbarSelectionAction(.exportToAnki))
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        host.layoutSubtreeIfNeeded()
+        #expect(SchemaWorkbenchSelectionActionButton.lastRenderedFocusedByID["copy-table"] == false)
+        #expect(SchemaWorkbenchSelectionActionButton.lastRenderedFocusedByID["anki"] == true)
+        #expect(WorkbenchButton.lastFocusedButtonTitleForTesting == "Export to Anki")
+
         #expect(app.activateWorkbenchAccessibilityTarget(.toolbarSelectionAction(.exportToAnki)))
         #expect(app.activateWorkbenchAccessibilityTarget(.toolbarSelectionAction(.copyDeepLinks)))
         #expect(app.activateWorkbenchAccessibilityTarget(.toolbarSelectionAction(.copyTable)))

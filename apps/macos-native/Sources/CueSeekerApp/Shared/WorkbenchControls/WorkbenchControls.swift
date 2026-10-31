@@ -229,6 +229,8 @@ struct WorkbenchSearchField: View {
 }
 
 struct WorkbenchButton: View {
+    static var lastFocusedButtonTitleForTesting: String?
+
     var title: String? = nil
     var icon: AppIcon? = nil
     var count: Int = 0
@@ -246,6 +248,14 @@ struct WorkbenchButton: View {
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
+        let _ = {
+            if isFocused {
+                Self.lastFocusedButtonTitleForTesting = title
+                WorkbenchAccessibilityDebugLog.log(
+                    "WorkbenchButton.body isFocused=true title=\(title ?? "nil") isEnabled=\(isEnabled)"
+                )
+            }
+        }()
         Button(action: action) {
             content
                 .padding(.horizontal, horizontalPadding)
