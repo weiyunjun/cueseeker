@@ -22,7 +22,7 @@ struct SettingsDecodeCategory: View {
                         selection: $settingsStore.playbackDecodeMode,
                         title: Self.displayName(for:),
                         accessibilityLabel: { L("settings.decode.accessibility", Self.displayName(for: $0)) },
-                        isOptionFocused: { mode in
+                        focusedOption: PlaybackDecodeMode.allCases.first { mode in
                             accessibility?.isSettingsFocused(.decodeMode(mode)) == true
                         }
                     )

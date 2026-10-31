@@ -21,7 +21,7 @@ struct SettingsAppearanceCategory: View {
                         selection: $settingsStore.appAppearanceMode,
                         title: \.displayName,
                         accessibilityLabel: { L("settings.appearance.accessibility", $0.displayName) },
-                        isOptionFocused: { mode in
+                        focusedOption: AppAppearanceMode.allCases.first { mode in
                             accessibility?.isSettingsFocused(.appearanceMode(mode)) == true
                         }
                     )

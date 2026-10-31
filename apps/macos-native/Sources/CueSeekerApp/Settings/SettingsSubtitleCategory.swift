@@ -117,9 +117,12 @@ struct SettingsSubtitleCategory: View {
 
                 SettingsGroup(title: L("settings.subtitle.section.position")) {
                     row(L("settings.subtitle.horizontal"), isFirst: true) {
-                        segmentedControl(\.horizontalAlignment) { option in
-                            accessibility?.isSettingsFocused(.subtitleHorizontalAlignment(option)) == true
-                        }
+                        segmentedControl(
+                            \.horizontalAlignment,
+                            focusedOption: SRTSubtitleStyle.HorizontalAlignment.allCases.first { option in
+                                accessibility?.isSettingsFocused(.subtitleHorizontalAlignment(option)) == true
+                            }
+                        )
                     }
                     row(L("settings.subtitle.margin_x")) {
                         numberField(
@@ -130,9 +133,12 @@ struct SettingsSubtitleCategory: View {
                         )
                     }
                     row(L("settings.subtitle.vertical")) {
-                        segmentedControl(\.verticalAlignment) { option in
-                            accessibility?.isSettingsFocused(.subtitleVerticalAlignment(option)) == true
-                        }
+                        segmentedControl(
+                            \.verticalAlignment,
+                            focusedOption: SRTSubtitleStyle.VerticalAlignment.allCases.first { option in
+                                accessibility?.isSettingsFocused(.subtitleVerticalAlignment(option)) == true
+                            }
+                        )
                     }
                     row(L("settings.subtitle.margin_y")) {
                         numberField(
@@ -146,9 +152,12 @@ struct SettingsSubtitleCategory: View {
 
                 SettingsGroup(title: L("settings.subtitle.section.border")) {
                     row(L("settings.subtitle.border_type"), isFirst: true) {
-                        segmentedControl(\.borderType) { option in
-                            accessibility?.isSettingsFocused(.subtitleBorderType(option)) == true
-                        }
+                        segmentedControl(
+                            \.borderType,
+                            focusedOption: SRTSubtitleStyle.BorderType.allCases.first { option in
+                                accessibility?.isSettingsFocused(.subtitleBorderType(option)) == true
+                            }
+                        )
                     }
                     if style.borderType == .outline {
                         row(L("settings.subtitle.outline_color")) {
@@ -703,7 +712,7 @@ struct SettingsSubtitleCategory: View {
 
     private func segmentedControl<Option: SettingsSubtitleOption>(
         _ keyPath: WritableKeyPath<SRTSubtitleStyle, Option>,
-        isOptionFocused: ((Option) -> Bool)? = nil
+        focusedOption: Option? = nil
     ) -> some View {
         WorkbenchSegmentedControl(
             options: Array(Option.allCases),
@@ -713,7 +722,7 @@ struct SettingsSubtitleCategory: View {
             ),
             title: \.title,
             accessibilityLabel: \.title,
-            isOptionFocused: isOptionFocused
+            focusedOption: focusedOption
         )
     }
 
