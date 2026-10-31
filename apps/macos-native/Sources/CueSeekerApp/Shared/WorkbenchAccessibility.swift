@@ -163,9 +163,14 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         }
     }
 
+    private struct RegisteredCardMenuOpener {
+        let ownerToken: ObjectIdentifier?
+        let openMenu: () -> Void
+    }
+
     /// Closures registered by card grids (`Recent` Excerpt Lists, `Library` Overview,
     /// `Excerpt` Overview) to open the card's `dots-three` menu by card ID.
-    private var mediaCardMenuOpeners: [String: () -> Void] = [:]
+    private var mediaCardMenuOpeners: [String: RegisteredCardMenuOpener] = [:]
 
     /// Closure registered by the active `SchemaWorkbenchSortMenuHost` to toggle
     /// its sort menu when `.toolbarSortButton` is activated.
@@ -270,19 +275,47 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         return true
     }
 
-    func registerMediaCardAction(id: String, openMenu: @escaping () -> Void) {
-        mediaCardMenuOpeners[id] = openMenu
+    func registerMediaCardAction(
+        id: String,
+        ownerToken: ObjectIdentifier? = nil,
+        openMenu: @escaping () -> Void
+    ) {
+        mediaCardMenuOpeners[id] = RegisteredCardMenuOpener(
+            ownerToken: ownerToken,
+            openMenu: openMenu
+        )
     }
 
-    func unregisterMediaCardAction(id: String) {
+    func unregisterMediaCardAction(
+        id: String,
+        ownerToken: ObjectIdentifier? = nil
+    ) {
+        if let ownerToken,
+           let existing = mediaCardMenuOpeners[id],
+           let existingToken = existing.ownerToken,
+           existingToken != ownerToken {
+            WorkbenchAccessibilityDebugLog.log(
+                "Coordinator.unregisterMediaCardAction.ignoredStaleOwner",
+                "id=\(id) existingToken=\(existingToken) staleToken=\(ownerToken)"
+            )
+            return
+        }
         mediaCardMenuOpeners.removeValue(forKey: id)
     }
 
     func activateMediaCardAction(id: String) -> Bool {
-        guard let openMenu = mediaCardMenuOpeners[id] else {
+        guard let entry = mediaCardMenuOpeners[id] else {
+            WorkbenchAccessibilityDebugLog.log(
+                "Coordinator.activateMediaCardAction.failed",
+                "id=\(id) registeredCount=\(mediaCardMenuOpeners.count)"
+            )
             return false
         }
-        openMenu()
+        WorkbenchAccessibilityDebugLog.log(
+            "Coordinator.activateMediaCardAction.invoke",
+            "id=\(id)"
+        )
+        entry.openMenu()
         return true
     }
 

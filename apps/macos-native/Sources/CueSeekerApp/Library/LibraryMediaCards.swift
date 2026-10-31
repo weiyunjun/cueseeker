@@ -242,6 +242,7 @@ private struct LibraryVideoCard: View {
         WorkbenchAccessibilityReader { accessibility in
             let isWorkbench = layerContext.layer == .workbenchPage && !highlight.keepsCurrentWhenPointerLeaves
             let _ = isWorkbench ? highlight.syncSelectedDuringRender(accessibility?.focusedCardID) : ()
+            let _ = isWorkbench ? syncAccessibilityAction(accessibility) : ()
             let isCardFocused = isWorkbench && accessibility?.isFocused(.mediaCard(cardID)) == true
             let isActionFocused = isWorkbench && accessibility?.isFocused(.mediaCardActionButton(cardID)) == true
 
@@ -288,17 +289,31 @@ private struct LibraryVideoCard: View {
             )
             .onAppear {
                 guard isWorkbench else { return }
-                accessibility?.registerMediaCardAction(id: cardID) {
-                    toggleAnchorMenu?(contextMenuItems, moreMenuAnchor, cardID)
-                }
+                syncAccessibilityAction(accessibility)
             }
             .onDisappear {
                 guard isWorkbench else { return }
-                accessibility?.unregisterMediaCardAction(id: cardID)
+                accessibility?.unregisterMediaCardAction(
+                    id: cardID,
+                    ownerToken: ObjectIdentifier(moreMenuAnchor)
+                )
             }
             .accessibilityLabel(
                 "\(content.folderTitle), \(episodeLabel), \(content.watchStatus.title)"
             )
+        }
+    }
+
+    private func syncAccessibilityAction(_ accessibility: WorkbenchAccessibilityCoordinator?) {
+        let items = contextMenuItems
+        let anchor = moreMenuAnchor
+        let id = cardID
+        let toggle = toggleAnchorMenu
+        accessibility?.registerMediaCardAction(
+            id: id,
+            ownerToken: ObjectIdentifier(anchor)
+        ) {
+            toggle?(items, anchor, id)
         }
     }
 
@@ -412,6 +427,7 @@ struct LibraryFolderCard: View {
             let _ = !highlight.keepsCurrentWhenPointerLeaves
                 ? highlight.syncSelectedDuringRender(accessibility?.focusedCardID)
                 : ()
+            let _ = syncAccessibilityAction(accessibility)
             let isCardFocused = accessibility?.isFocused(.mediaCard(cardID)) == true
             let isActionFocused = accessibility?.isFocused(.mediaCardActionButton(cardID)) == true
 
@@ -444,15 +460,30 @@ struct LibraryFolderCard: View {
                 }
             )
             .onAppear {
-                accessibility?.registerMediaCardAction(id: cardID) {
-                    guard isAvailable else { return }
-                    toggleAnchorMenu?(folderContextMenuItems, moreMenuAnchor, cardID)
-                }
+                syncAccessibilityAction(accessibility)
             }
             .onDisappear {
-                accessibility?.unregisterMediaCardAction(id: cardID)
+                accessibility?.unregisterMediaCardAction(
+                    id: cardID,
+                    ownerToken: ObjectIdentifier(moreMenuAnchor)
+                )
             }
             .accessibilityLabel(folder.folderTitle)
+        }
+    }
+
+    private func syncAccessibilityAction(_ accessibility: WorkbenchAccessibilityCoordinator?) {
+        let available = isAvailable
+        let items = folderContextMenuItems
+        let anchor = moreMenuAnchor
+        let id = cardID
+        let toggle = toggleAnchorMenu
+        accessibility?.registerMediaCardAction(
+            id: id,
+            ownerToken: ObjectIdentifier(anchor)
+        ) {
+            guard available else { return }
+            toggle?(items, anchor, id)
         }
     }
 

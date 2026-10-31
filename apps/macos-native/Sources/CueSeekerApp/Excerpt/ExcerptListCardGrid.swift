@@ -155,6 +155,7 @@ private struct ExcerptListCard: View {
         WorkbenchAccessibilityReader { accessibility in
             let isWorkbench = layerContext.layer == .workbenchPage && !highlight.keepsCurrentWhenPointerLeaves
             let _ = isWorkbench ? highlight.syncSelectedDuringRender(accessibility?.focusedCardID) : ()
+            let _ = isWorkbench ? syncAccessibilityAction(accessibility) : ()
             let isCardFocused = isWorkbench && accessibility?.isFocused(.mediaCard(cardID)) == true
             let isActionFocused = isWorkbench && accessibility?.isFocused(.mediaCardActionButton(cardID)) == true
 
@@ -187,15 +188,29 @@ private struct ExcerptListCard: View {
             )
             .onAppear {
                 guard isWorkbench else { return }
-                accessibility?.registerMediaCardAction(id: cardID) {
-                    toggleAnchorMenu?(contextMenuItems, moreMenuAnchor, cardID)
-                }
+                syncAccessibilityAction(accessibility)
             }
             .onDisappear {
                 guard isWorkbench else { return }
-                accessibility?.unregisterMediaCardAction(id: cardID)
+                accessibility?.unregisterMediaCardAction(
+                    id: cardID,
+                    ownerToken: ObjectIdentifier(moreMenuAnchor)
+                )
             }
             .accessibilityLabel(summary.list.name)
+        }
+    }
+
+    private func syncAccessibilityAction(_ accessibility: WorkbenchAccessibilityCoordinator?) {
+        let items = contextMenuItems
+        let anchor = moreMenuAnchor
+        let id = cardID
+        let toggle = toggleAnchorMenu
+        accessibility?.registerMediaCardAction(
+            id: id,
+            ownerToken: ObjectIdentifier(anchor)
+        ) {
+            toggle?(items, anchor, id)
         }
     }
 

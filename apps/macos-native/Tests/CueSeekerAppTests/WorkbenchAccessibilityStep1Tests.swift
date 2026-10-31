@@ -692,4 +692,67 @@ struct WorkbenchAccessibilityStep1Tests {
         #expect(app.activateWorkbenchAccessibilityTarget(.toolbarSortButton))
         #expect(box.toggledSortCount == 1)
     }
+
+    @Test
+    func cardGridSortOrderChangePreservesMediaCardActionButtonActivationAcrossRows() {
+        let (app, suiteName, userDefaults) = makeTestCoordinator()
+        defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+
+        app.activateWorkbenchPanelMode(.testLibrary)
+
+        let folders = (1...6).map { index in
+            CompleteLibraryFolderSummaryPresentation(
+                folderPath: "/Media/Show-\(index)",
+                folderTitle: "Show \(index)",
+                coverPath: nil,
+                coverRevision: nil,
+                episodeCount: 1,
+                indexedAt: "2026-07-22T00:0\(index):00Z"
+            )
+        }
+
+        @MainActor
+        final class GridStateBox: ObservableObject {
+            @Published var displayedFolders: [CompleteLibraryFolderSummaryPresentation]
+            let highlight = CardHighlightModel()
+
+            init(folders: [CompleteLibraryFolderSummaryPresentation]) {
+                self.displayedFolders = folders
+            }
+        }
+
+        struct TestFolderGridHost: View {
+            @ObservedObject var box: GridStateBox
+
+            var body: some View {
+                CompleteLibraryFolderGrid(
+                    folders: box.displayedFolders,
+                    highlight: box.highlight,
+                    onOpen: { _ in }
+                )
+                .environment(\.mediaCardGridContainerWidth, 900)
+            }
+        }
+
+        let box = GridStateBox(folders: folders)
+        app.library.completeLibraryFolderSummaries = folders
+        let host = NSHostingView(
+            rootView: TestFolderGridHost(box: box)
+                .environmentObject(app)
+                .environment(\.workbenchAccessibility, app.workbenchAccessibility)
+        )
+        host.frame = NSRect(x: 0, y: 0, width: 900, height: 600)
+        host.layoutSubtreeIfNeeded()
+
+        let sixthCardID = folders[5].id
+        #expect(app.activateWorkbenchAccessibilityTarget(.mediaCardActionButton(sixthCardID)))
+
+        // Reverse sort order so "Show 6" moves from Row 1 to Row 0 while the old Row 1 card disappears.
+        box.displayedFolders = Array(folders.reversed())
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        host.layoutSubtreeIfNeeded()
+
+        #expect(app.activateWorkbenchAccessibilityTarget(.mediaCardActionButton(sixthCardID)))
+        #expect(app.activateWorkbenchAccessibilityTarget(.mediaCardActionButton(folders[0].id)))
+    }
 }
