@@ -42,7 +42,7 @@ struct WorkbenchTabs<Value: Hashable>: View {
                     .padding(.horizontal, PlaybackOverlayMetrics.tabHorizontalPadding)
                     .workbenchAccessibilityFocusRing(
                         isFocused: focusedValue == item.value,
-                        cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                        cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
                     )
                     .contentShape(Rectangle())
                 }

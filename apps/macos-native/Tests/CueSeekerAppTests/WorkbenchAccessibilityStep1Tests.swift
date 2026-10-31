@@ -1,5 +1,6 @@
 import AppKit
 import CueSeekerCore
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -317,5 +318,49 @@ struct WorkbenchAccessibilityStep1Tests {
             isSettingsWindowKey: false
         ))
         #expect(dismissed)
+    }
+
+    @Test
+    func filePageObservesAccessibilityFocusAndActivatesAddFolderAndCardMenus() {
+        let (app, suiteName, userDefaults) = makeTestCoordinator()
+        defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+
+        let rootURL = URL(fileURLWithPath: "/Media/Anime")
+        app.indexing.selectedFolders = [rootURL]
+        app.activateWorkbenchPanelMode(.file)
+
+        let rootView = WorkbenchFileView(tasks: app.tasks)
+            .environmentObject(app.settings.localization)
+            .environmentObject(app)
+            .environmentObject(app.indexing)
+            .environmentObject(app.workbenchLayout.route)
+            .environmentObject(app.library)
+            .environment(\.workbenchAccessibility, app.workbenchAccessibility)
+            .environment(\.interfaceLayers, app.interfaceLayers)
+        let host = NSHostingView(rootView: rootView)
+        host.frame = NSRect(x: 0, y: 0, width: 900, height: 600)
+        host.layoutSubtreeIfNeeded()
+
+        let targets = app.currentWorkbenchAccessibilityTargets()
+        let rootPath = rootURL.mediaPath
+        #expect(targets.suffix(5) == [
+            .fileAddFolderButton,
+            .fileIndexNowButton,
+            .fileStatusIndicatorText,
+            .fileCard(rootPath),
+            .fileCardActionButton(rootPath),
+        ])
+
+        app.workbenchAccessibility.setFocus(.fileAddFolderButton)
+        host.layoutSubtreeIfNeeded()
+        #expect(app.workbenchAccessibility.isFocused(.fileAddFolderButton))
+        #expect(app.workbenchAccessibility.onToggleFileAddFolderMenu != nil)
+
+        app.workbenchAccessibility.setFocus(.fileCardActionButton(rootPath))
+        host.layoutSubtreeIfNeeded()
+        #expect(app.workbenchAccessibility.isFocused(.fileCardActionButton(rootPath)))
+        #expect(app.workbenchAccessibility.activateFileCardAction(id: rootPath))
+        // Opening a card menu on the File page clears underlying accessibility focus.
+        #expect(app.workbenchAccessibility.focusedTarget == nil)
     }
 }

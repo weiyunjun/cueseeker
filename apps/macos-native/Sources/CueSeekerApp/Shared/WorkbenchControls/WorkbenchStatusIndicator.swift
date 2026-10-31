@@ -79,7 +79,7 @@ struct WorkbenchStatusIndicator: View {
                     textLabel(showsUnderline: isTextHovered)
                         .workbenchAccessibilityFocusRing(
                             isFocused: isTextFocused,
-                            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                            cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
                         )
                         .contentShape(Rectangle())
                 }
@@ -95,7 +95,7 @@ struct WorkbenchStatusIndicator: View {
                 textLabel(showsUnderline: false)
                     .workbenchAccessibilityFocusRing(
                         isFocused: isTextFocused,
-                        cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                        cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
                     )
                     .onAppear {
                         isTextHovered = false

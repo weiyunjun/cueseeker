@@ -19,10 +19,10 @@
    - Implemented `L-01` topbar (`Sidebar Toggle` -> `Back` -> `Forward` -> `Recent` segments -> `Task` -> `Settings`, including `Disabled` and `Selected` states), sidebar (`Search` -> `Recent` -> `Library` -> `File` -> `Excerpt` when expanded in `Docked` or `Overlay`), and `L-01.3` page content traversal.
    - Implemented `Search` and `Excerpt` Detail (`Normal Mode` and `Select Mode`) accessibility sequences, including `Search Field` + `Inline Clear` (`✕`) auto-exit on disappearance, `Filter`, `Sort`, header `#` `Checkbox`, available rows (`Checkbox` -> `8px` rounded `Cues` interactive text without underline -> `dots-three`), and unavailable rows (`dots-three` only in `Normal Mode`, skipped in `Select Mode`).
    - Implemented `Recent`, `Library` Overview & Detail, `Excerpt` Overview cover card grids with `Select` synchronization and directional navigation (`↑` `↓` `←` `→` / D-pad / Left Stick) active only when accessibility focus is inside the card grid.
-   - Implemented `File` Level 1/2/3 accessibility (`Add Folder` -> `Index All` -> `Status Indicator` in all states -> `Breadcrumb` parent links -> folder cards + `dots-three` -> episode container file rows `dots-three` only).
+   - Implemented `File` Level 1/2/3 accessibility (`Add Folder` -> `Index All` -> `Status Indicator` in all states -> `Breadcrumb` parent links -> folder cards + `dots-three` -> episode container file rows `dots-three` only), wrapped `WorkbenchFileView` in `WorkbenchAccessibilityReader` so focus ring changes immediately re-render File page controls/cards/menus, added top focus ring clearance in the File page scroll surface so the first folder card's top focus ring is not clipped, and aligned `WorkbenchTabs`, `BreadcrumbLink`, and `WorkbenchStatusIndicator` focus ring corner radius to `--radius-field` (`6px`).
 
 ## Verification
 - Updated `MenuHighlightModelTests.swift`, `PointerHoverGateTests.swift`, `SubtitleTableRowActionMenuTests.swift`, and `PlaybackNormalShortcutTests.swift`.
-- Added `WorkbenchAccessibilityStep1Tests.swift`.
-- Ran `swift test --package-path apps/macos-native --no-parallel --filter "MenuHighlightModelTests|PointerHoverGateTests|SubtitleTableRowActionMenuTests|PlaybackMoreMenuTests|PlaybackNormalShortcutTests|WorkbenchAccessibilityStep1Tests|CueGroupRefreshScopeIntegrationTests"`.
+- Added `WorkbenchAccessibilityStep1Tests.swift` (including `filePageObservesAccessibilityFocusAndActivatesAddFolderAndCardMenus`).
+- Ran `swift test --package-path apps/macos-native --filter WorkbenchAccessibilityStep1Tests`.
 - Outcome matched expectations.

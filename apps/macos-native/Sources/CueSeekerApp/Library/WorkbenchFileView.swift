@@ -26,19 +26,33 @@ struct WorkbenchFileView: View {
     @State private var viewportSize: CGSize = .zero
 
     var body: some View {
-        Group {
-            switch routeState.currentRoute {
-            case .fileFolder(let rootPath):
-                fileScrollSurface(id: rootPath) { emptyMinHeight in
-                    subfolderContent(rootPath: rootPath, emptyMinHeight: emptyMinHeight)
-                }
-            case .fileFiles(let rootPath, let folderPath):
-                fileScrollSurface(id: "\(rootPath)/\(folderPath)") { emptyMinHeight in
-                    filesContent(rootPath: rootPath, folderPath: folderPath, emptyMinHeight: emptyMinHeight)
-                }
-            default:
-                fileScrollSurface(id: "root") { emptyMinHeight in
-                    rootContent(emptyMinHeight: emptyMinHeight)
+        WorkbenchAccessibilityReader { accessibility in
+            Group {
+                switch routeState.currentRoute {
+                case .fileFolder(let rootPath):
+                    fileScrollSurface(id: rootPath, accessibility: accessibility) { emptyMinHeight in
+                        subfolderContent(
+                            rootPath: rootPath,
+                            emptyMinHeight: emptyMinHeight,
+                            accessibility: accessibility
+                        )
+                    }
+                case .fileFiles(let rootPath, let folderPath):
+                    fileScrollSurface(id: "\(rootPath)/\(folderPath)", accessibility: accessibility) { emptyMinHeight in
+                        filesContent(
+                            rootPath: rootPath,
+                            folderPath: folderPath,
+                            emptyMinHeight: emptyMinHeight,
+                            accessibility: accessibility
+                        )
+                    }
+                default:
+                    fileScrollSurface(id: "root", accessibility: accessibility) { emptyMinHeight in
+                        rootContent(
+                            emptyMinHeight: emptyMinHeight,
+                            accessibility: accessibility
+                        )
+                    }
                 }
             }
         }
@@ -58,20 +72,29 @@ struct WorkbenchFileView: View {
 
     private func fileScrollSurface<Content: View>(
         id: AnyHashable,
+        accessibility: WorkbenchAccessibilityCoordinator?,
         @ViewBuilder content: @escaping (CGFloat) -> Content
     ) -> some View {
-        GeometryReader { geometry in
+        let topFocusClearance = WorkbenchControlMetrics.redesignSpacing1
+        let hasSecondaryHeaderRow = !breadcrumbNodes.isEmpty || !indexing.selectedFolders.isEmpty
+
+        return GeometryReader { geometry in
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 0) {
-                    statusAndActionRow
-                        .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+                    statusAndActionRow(accessibility: accessibility)
+                        .padding(
+                            .bottom,
+                            hasSecondaryHeaderRow
+                                ? WorkbenchControlMetrics.redesignSpacing4
+                                : (WorkbenchControlMetrics.redesignSpacing4 - topFocusClearance)
+                        )
 
                     if !breadcrumbNodes.isEmpty {
-                        breadcrumbRow
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                        breadcrumbRow(accessibility: accessibility)
+                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3 - topFocusClearance)
                     } else if !indexing.selectedFolders.isEmpty {
                         rootFoldersHeaderRow
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3 - topFocusClearance)
                     }
                 }
                 .workbenchPageInlinePadding()
@@ -81,10 +104,12 @@ struct WorkbenchFileView: View {
                     let emptyMinHeight = max(
                         0,
                         scrollGeometry.size.height
+                            - topFocusClearance
                             - WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
                     )
                     WorkbenchScrollView([.vertical]) {
                         content(emptyMinHeight)
+                            .padding(.top, topFocusClearance)
                             .workbenchPageInlinePadding()
                             .padding(.bottom, WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)
                             .frame(width: scrollGeometry.size.width, alignment: .topLeading)
@@ -173,6 +198,7 @@ struct WorkbenchFileView: View {
             on: .workbenchPage,
             in: appState.interfaceLayers
         )
+        workbenchAccessibility?.clear()
         activeMenu = FileCardMenuState(
             cardID: cardID,
             anchorFrame: anchorFrame,
@@ -199,6 +225,7 @@ struct WorkbenchFileView: View {
             on: .workbenchPage,
             in: appState.interfaceLayers
         )
+        workbenchAccessibility?.clear()
         activeMenu = FileCardMenuState(
             cardID: cardID,
             anchorFrame: nil,
@@ -246,8 +273,11 @@ struct WorkbenchFileView: View {
 
     // MARK: - Level 1: Roots
 
-    private func rootContent(emptyMinHeight: CGFloat) -> some View {
-        folderRegion(emptyMinHeight: emptyMinHeight)
+    private func rootContent(
+        emptyMinHeight: CGFloat,
+        accessibility: WorkbenchAccessibilityCoordinator?
+    ) -> some View {
+        folderRegion(emptyMinHeight: emptyMinHeight, accessibility: accessibility)
             .onAppear {
                 if !indexing.isDatabaseOperationActive {
                     indexing.clearTransientNotice()
@@ -315,7 +345,7 @@ struct WorkbenchFileView: View {
         ]
     }
 
-    private var actionRow: some View {
+    private func actionRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         let isAddFolderDisabled = isFolderOperationBlocked || isChoosingFolder
         let isIndexNowDisabled = indexing.selectedFolders.isEmpty || isFolderOperationBlocked
 
@@ -324,7 +354,7 @@ struct WorkbenchFileView: View {
                 title: L("settings.library.add_folder"),
                 icon: .folderPlus,
                 isOpen: activeMenu?.cardID == Self.addFolderMenuID,
-                isFocused: workbenchAccessibility?.isFocused(.fileAddFolderButton) == true
+                isFocused: accessibility?.isFocused(.fileAddFolderButton) == true
             ) {
                 toggleMenu(
                     for: Self.addFolderMenuID,
@@ -348,7 +378,7 @@ struct WorkbenchFileView: View {
                 }
             )
             .onAppear {
-                workbenchAccessibility?.onToggleFileAddFolderMenu = {
+                accessibility?.onToggleFileAddFolderMenu = {
                     guard !(isFolderOperationBlocked || isChoosingFolder) else { return }
                     toggleMenu(
                         for: Self.addFolderMenuID,
@@ -360,7 +390,7 @@ struct WorkbenchFileView: View {
             .onPreferenceChange(WorkbenchDropdownAnchorPreferenceKey.self) { anchors in
                 if let frame = anchors[Self.addFolderMenuID], frame != .zero {
                     addFolderButtonAnchorFrame = frame
-                    workbenchAccessibility?.onToggleFileAddFolderMenu = {
+                    accessibility?.onToggleFileAddFolderMenu = {
                         guard !(isFolderOperationBlocked || isChoosingFolder) else { return }
                         toggleMenu(
                             for: Self.addFolderMenuID,
@@ -374,7 +404,7 @@ struct WorkbenchFileView: View {
             WorkbenchButton(
                 title: L("settings.library.index_now"),
                 icon: .arrowClockwise,
-                isFocused: workbenchAccessibility?.isFocused(.fileIndexNowButton) == true
+                isFocused: accessibility?.isFocused(.fileIndexNowButton) == true
             ) {
                 appState.indexAllFolders()
             }
@@ -390,7 +420,10 @@ struct WorkbenchFileView: View {
     }
 
     @ViewBuilder
-    private func folderRegion(emptyMinHeight: CGFloat) -> some View {
+    private func folderRegion(
+        emptyMinHeight: CGFloat,
+        accessibility: WorkbenchAccessibilityCoordinator?
+    ) -> some View {
         let folders = FileFolderGroupingResolver.rootFolders(for: indexing.selectedFolders)
 
         if folders.isEmpty {
@@ -451,8 +484,8 @@ struct WorkbenchFileView: View {
                         title: title,
                         subtitle: subtitle,
                         showsChevron: true,
-                        isCardFocused: workbenchAccessibility?.isFocused(.fileCard(rootPath)) == true,
-                        isActionFocused: workbenchAccessibility?.isFocused(.fileCardActionButton(rootPath)) == true,
+                        isCardFocused: accessibility?.isFocused(.fileCard(rootPath)) == true,
+                        isActionFocused: accessibility?.isFocused(.fileCardActionButton(rootPath)) == true,
                         onTap: {
                             appState.loadFileSubfolders(rootPath: rootPath)
                             appState.workbenchLayout.navigate(
@@ -478,7 +511,11 @@ struct WorkbenchFileView: View {
     // MARK: - Level 2: Subfolders & Direct Content
 
     @ViewBuilder
-    private func subfolderContent(rootPath: String, emptyMinHeight: CGFloat) -> some View {
+    private func subfolderContent(
+        rootPath: String,
+        emptyMinHeight: CGFloat,
+        accessibility: WorkbenchAccessibilityCoordinator?
+    ) -> some View {
         let allFolders = library.fileSubfolders(for: rootPath)
         let directObjects = library.fileObjects(for: rootPath)
         let partition = FileFolderGroupingResolver.level2Partition(
@@ -545,8 +582,8 @@ struct WorkbenchFileView: View {
                                     title: title,
                                     subtitle: FileFolderGroupingResolver.subfolderSubtitle(for: folder.folderPath),
                                     showsChevron: true,
-                                    isCardFocused: workbenchAccessibility?.isFocused(.fileCard(folder.folderPath)) == true,
-                                    isActionFocused: workbenchAccessibility?.isFocused(.fileCardActionButton(folder.folderPath)) == true,
+                                    isCardFocused: accessibility?.isFocused(.fileCard(folder.folderPath)) == true,
+                                    isActionFocused: accessibility?.isFocused(.fileCardActionButton(folder.folderPath)) == true,
                                     onTap: {
                                         appState.loadFileObjects(folderPath: folder.folderPath)
                                         appState.workbenchLayout.navigate(
@@ -571,7 +608,8 @@ struct WorkbenchFileView: View {
                     if !partition.directEpisodeGroups.isEmpty {
                         episodeGroupsList(
                             objects: partition.directEpisodeGroups,
-                            folderPath: rootPath
+                            folderPath: rootPath,
+                            accessibility: accessibility
                         )
                     }
                 }
@@ -586,7 +624,12 @@ struct WorkbenchFileView: View {
     // MARK: - Level 3: Files
 
     @ViewBuilder
-    private func filesContent(rootPath: String, folderPath: String, emptyMinHeight: CGFloat) -> some View {
+    private func filesContent(
+        rootPath: String,
+        folderPath: String,
+        emptyMinHeight: CGFloat,
+        accessibility: WorkbenchAccessibilityCoordinator?
+    ) -> some View {
         let objects = library.fileObjects(for: folderPath)
         let episodeGroups = FileFolderGroupingResolver.displayableEpisodeGroups(from: objects)
         let status = library.fileObjectStatus(for: folderPath)
@@ -610,7 +653,11 @@ struct WorkbenchFileView: View {
                     .frame(minHeight: emptyMinHeight)
                 }
             } else {
-                episodeGroupsList(objects: episodeGroups, folderPath: folderPath)
+                episodeGroupsList(
+                    objects: episodeGroups,
+                    folderPath: folderPath,
+                    accessibility: accessibility
+                )
             }
         }
         .task(id: "\(folderPath)|\(library.fileTreeRevision)") {
@@ -622,7 +669,8 @@ struct WorkbenchFileView: View {
 
     private func episodeGroupsList(
         objects: [IndexedContentObject],
-        folderPath: String
+        folderPath: String,
+        accessibility: WorkbenchAccessibilityCoordinator?
     ) -> some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             ForEach(objects) { object in
@@ -677,7 +725,7 @@ struct WorkbenchFileView: View {
                             showsChevron: false,
                             showsCardChrome: false,
                             isCardFocused: false,
-                            isActionFocused: workbenchAccessibility?.isFocused(.fileRowActionButton(object.videoPath)) == true,
+                            isActionFocused: accessibility?.isFocused(.fileRowActionButton(object.videoPath)) == true,
                             onTap: nil,
                             menuItems: videoItems,
                             isCardMenuOpen: activeMenu?.cardID == object.videoPath,
@@ -727,7 +775,7 @@ struct WorkbenchFileView: View {
                             showsChevron: false,
                             showsCardChrome: false,
                             isCardFocused: false,
-                            isActionFocused: workbenchAccessibility?.isFocused(.fileRowActionButton(subtitle.path)) == true,
+                            isActionFocused: accessibility?.isFocused(.fileRowActionButton(subtitle.path)) == true,
                             onTap: nil,
                             menuItems: subtitleItems,
                             isCardMenuOpen: activeMenu?.cardID == subtitle.path,
@@ -844,7 +892,7 @@ struct WorkbenchFileView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var breadcrumbRow: some View {
+    private func breadcrumbRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             ForEach(Array(breadcrumbNodes.enumerated()), id: \.element.id) { index, node in
                 if index > 0 {
@@ -858,7 +906,7 @@ struct WorkbenchFileView: View {
                 if let destination = node.destination {
                     BreadcrumbLink(
                         title: node.title,
-                        isFocused: workbenchAccessibility?.isFocused(.fileBreadcrumb(node.id)) == true
+                        isFocused: accessibility?.isFocused(.fileBreadcrumb(node.id)) == true
                     ) {
                         appState.workbenchLayout.navigate(to: destination)
                     }
@@ -897,7 +945,7 @@ struct WorkbenchFileView: View {
         }
     }
 
-    private var statusIndicator: some View {
+    private func statusIndicator(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         let info = currentStatusInfo
         let text: String
         var icon: AppIcon?
@@ -933,16 +981,16 @@ struct WorkbenchFileView: View {
             textColor: textColor,
             iconColor: iconColor,
             iconCustomView: iconCustomView,
-            isTextFocused: workbenchAccessibility?.isFocused(.fileStatusIndicatorText) == true,
+            isTextFocused: accessibility?.isFocused(.fileStatusIndicatorText) == true,
             onTapText: statusTapAction
         )
     }
 
-    private var statusAndActionRow: some View {
+    private func statusAndActionRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            actionRow
+            actionRow(accessibility: accessibility)
 
-            statusIndicator
+            statusIndicator(accessibility: accessibility)
 
             Spacer(minLength: 0)
         }
@@ -972,7 +1020,7 @@ struct BreadcrumbLink: View {
                 .truncationMode(.tail)
                 .workbenchAccessibilityFocusRing(
                     isFocused: isFocused,
-                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                    cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
                 )
                 .contentShape(Rectangle())
         }
