@@ -7,22 +7,28 @@ struct SettingsURLSchemeCategory: View {
     @EnvironmentObject private var settingsStore: SettingsStore
 
     var body: some View {
-        SettingsGroup(
-            title: "Deep Link",
-            description: L("settings.deep_link.description")
-        ) {
-            SettingsRow(
-                L("settings.deep_link.play_first"),
-                note: L("settings.deep_link.play_first_note")
+        WorkbenchAccessibilityReader { accessibility in
+            SettingsGroup(
+                title: "Deep Link",
+                description: L("settings.deep_link.description")
             ) {
-                Toggle(
+                SettingsRow(
                     L("settings.deep_link.play_first"),
-                    isOn: $settingsStore.urlSchemePlayFirstSearchResultEnabled
-                )
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .focusable(false)
-                .accessibilityIdentifier("settings.url-scheme.play-first-search-result")
+                    note: L("settings.deep_link.play_first_note")
+                ) {
+                    Toggle(
+                        L("settings.deep_link.play_first"),
+                        isOn: $settingsStore.urlSchemePlayFirstSearchResultEnabled
+                    )
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .focusable(false)
+                    .workbenchAccessibilityFocusRing(
+                        isFocused: accessibility?.isSettingsFocused(.deepLinkPlayFirstSearchResult) == true,
+                        isCapsule: true
+                    )
+                    .accessibilityIdentifier("settings.url-scheme.play-first-search-result")
+                }
             }
         }
     }

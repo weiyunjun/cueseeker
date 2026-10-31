@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-private enum SettingsCategory: String, CaseIterable, Identifiable {
+enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
     case general
     case play
     case shortcuts
@@ -52,12 +52,17 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
+    @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var settingsStore: SettingsStore
     // Observed so the category titles are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
+    @EnvironmentObject private var workbenchAccessibility: WorkbenchAccessibilityCoordinator
     @Environment(\.interfaceLayers) private var environmentInterfaceLayers
     @StateObject private var ownedInterfaceLayers = InterfaceLayerRegistry()
-    @State private var selectedCategory: SettingsCategory = .general
+
+    private var selectedCategory: SettingsCategory {
+        workbenchAccessibility.selectedSettingsCategory
+    }
 
     private var activeInterfaceLayers: InterfaceLayerRegistry {
         environmentInterfaceLayers ?? ownedInterfaceLayers
@@ -90,7 +95,13 @@ struct SettingsView: View {
                 .zIndex(400)
         }
         .environmentObject(settingsStore.playbackShortcuts)
+        .environment(\.workbenchAccessibility, workbenchAccessibility)
         .modifier(InterfaceLayerCoverageBridge(layers: activeInterfaceLayers))
+        .background(
+            WindowKeyDownMonitor { event in
+                appState.handleSettingsKeyDown(event)
+            }
+        )
         .ignoresSafeArea(.container, edges: .top)
         .frame(
             minWidth: WorkbenchControlMetrics.redesignSettingsWindowWidth,
@@ -105,10 +116,13 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
             ForEach(SettingsCategory.allCases) { category in
                 let isSelected = selectedCategory == category
+                let isAccessibilityFocused = workbenchAccessibility.isSettingsFocused(.sidebarCategory(category))
 
                 Button {
                     TooltipCenter.shared.dismissFromUserInteraction()
-                    selectedCategory = category
+                    workbenchAccessibility.selectedSettingsCategory = category
+                    workbenchAccessibility.activeSubtitleColorPopover = nil
+                    workbenchAccessibility.unfocusAllSettingsTextInputs()
                 } label: {
                     HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                         AppIconImage(
@@ -160,6 +174,10 @@ struct SettingsView: View {
                 }
                 .buttonStyle(StaticButtonStyle())
                 .focusable(false)
+                .workbenchAccessibilityFocusRing(
+                    isFocused: isAccessibilityFocused,
+                    cornerRadius: WorkbenchControlMetrics.redesignAppSidebarItemRadius
+                )
             }
 
             Spacer()
@@ -209,6 +227,7 @@ private struct SettingsDialogLayerHost: View {
                     session: session,
                     onClose: { confirmation.session = nil }
                 )
+                .environment(\.workbenchDialogID, .settingsConfirmation)
                 .workbenchDialog(level: 2)
             }
         }

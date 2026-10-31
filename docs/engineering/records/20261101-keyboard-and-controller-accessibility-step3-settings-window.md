@@ -1,0 +1,19 @@
+# 20261101 — Keyboard And Controller Accessibility Across Workbench Dialogs Settings And Playback (Step 3: Independent Settings Window)
+
+## Requirement Reference
+- `docs/human/requirements/20261031-UI-Keyboard And Controller Accessibility Across Workbench Dialogs Settings And Playback.md`
+  - Step 3: 独立设置窗口（`L-02 Settings` 全部 6 个分类页）
+
+## Summary of Changes
+1. **Settings Window Accessibility State & Focus Coordinator (`WorkbenchAccessibility.swift`, `AppCoordinator+WorkbenchAccessibility.swift`)**:
+   - Added `SettingsNumberFieldID`, `SettingsTextInputKind`, and `SettingsAccessibilityTarget` covering the 6 sidebar categories (`General`, `Play`, `Shortcuts`, `Subtitle`, `Maintenance`, `Developer`) and all interactive controls on each page.
+   - Added independent Settings window accessibility state on `WorkbenchAccessibilityCoordinator` (`selectedSettingsCategory`, `focusedSettingsTarget`, `focusedSettingsDialogTarget`, `activeSubtitleColorPopover`, `isShortcutRecording`, and Settings text input registrations) so the main window and the independent Settings window preserve their focus states independently when switching windows.
+   - Implemented `currentSettingsAccessibilityTargets()`, `isSettingsAccessibilityTargetEnabled(_:)`, `reconcileSettingsAccessibilityFocus()`, `moveSettingsAccessibilityFocus(forward:)`, and `activateSettingsAccessibilityTarget(_:)`.
+2. **Settings Sidebar & Category Views (`SettingsView.swift`, `SettingsAppearanceCategory.swift`, `SettingsSearchCategory.swift`, `SettingsLanguageCategory.swift`, `SettingsURLSchemeCategory.swift`, `SettingsPlayCategory.swift`, `SettingsDecodeCategory.swift`, `SettingsShortcutsCategory.swift`, `SettingsSubtitleCategory.swift`, `SettingsMaintenanceCategory.swift`, `SettingsDeveloperCategory.swift`)**:
+   - Wired `WindowKeyDownMonitor` and global controller routing (`isSettingsWindowKey`) for the Settings window.
+   - Added focus ring rendering (`WorkbenchControlMetrics.redesignAppSidebarItemRadius` on sidebar items, `WorkbenchControlMetrics.redesignSegmentedControlSegmentRadius` on `WorkbenchSegmentedControl` options, capsule focus ring on `Switch` toggles, circular focus ring on `Subtitle` `Bold`/`Italic` checkboxes, and `WorkbenchControlMetrics.redesignFieldRadius` on `Dropdown`, `Number Field`, and `Color Well` controls).
+   - `Shortcuts` page: excluded shortcut key fields from `Tab`/`Shift+Tab`/`R1`/`L1` traversal, included only visible `Restore Default` icon buttons, auto-cleared Settings accessibility state after restoring a shortcut to default, and blocked accessibility navigation while a shortcut is recording.
+   - `Subtitle` page `Color Well` (`C-02.3`): implemented whole-before-part entry in both forward (`Tab`/`R1`) and backward (`Shift+Tab`/`L1`) directions, automatic opening/closing of the `6×2` preset color popover, sequential traversal across all 12 preset swatches (`0...11`), and two-stage `Esc`/`◯` dismissal (first clearing only the outer accessibility focus ring while keeping text input focus and the preset popover open, second closing the popover and unfocusing the text input).
+   - `Maintenance` page `Confirmation Dialog` (`Compact Database`): isolated Settings confirmation dialog accessibility focus (`focusedSettingsDialogTarget`, `.settingsConfirmation`) with unfocused initial state, ignored unfocused `Return`, and two-stage `Esc`/`◯`.
+3. **Unit Tests (`WorkbenchAccessibilityStep3Tests.swift`)**:
+   - Added unit tests verifying focus traversal and activation across `General`, `Play`, `Shortcuts`, `Subtitle`, `Maintenance`, and `Developer`, whole-before-part `Color Well` forward/backward traversal and two-stage `Esc`/`◯`, shortcut recording lock and `Restore Default` auto-exit, Settings confirmation dialog accessibility, and independent focus preservation between the main window and Settings window.

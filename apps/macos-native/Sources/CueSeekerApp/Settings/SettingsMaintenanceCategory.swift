@@ -32,38 +32,42 @@ struct SettingsMaintenanceCategory: View {
                     storageStateView
                 }
             } trailing: {
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    let isRefreshDisabled =
-                        indexing.folderRemovalStatus.isRemoving
-                        || indexing.databaseMaintenanceStatus.isCompacting
+                WorkbenchAccessibilityReader { accessibility in
+                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                        let isRefreshDisabled =
+                            indexing.folderRemovalStatus.isRemoving
+                            || indexing.databaseMaintenanceStatus.isCompacting
 
-                    WorkbenchButton(
-                        title: L("settings.maintenance.refresh"),
-                        icon: .arrowClockwise
-                    ) {
-                        appState.refreshDatabaseStorageStats()
-                    }
-                    .disabled(isRefreshDisabled)
-                    .workbenchTooltip(
-                        scenarioID: "disabled.settings.maintenance.actions",
-                        surface: .settings,
-                        isActive: isRefreshDisabled,
-                        label: L("tooltip.disabled.settings.maintenance.actions")
-                    )
+                        WorkbenchButton(
+                            title: L("settings.maintenance.refresh"),
+                            icon: .arrowClockwise,
+                            isFocused: accessibility?.isSettingsFocused(.maintenanceRefresh) == true
+                        ) {
+                            appState.refreshDatabaseStorageStats()
+                        }
+                        .disabled(isRefreshDisabled)
+                        .workbenchTooltip(
+                            scenarioID: "disabled.settings.maintenance.actions",
+                            surface: .settings,
+                            isActive: isRefreshDisabled,
+                            label: L("tooltip.disabled.settings.maintenance.actions")
+                        )
 
-                    WorkbenchButton(
-                        title: L("settings.maintenance.compact"),
-                        icon: .fileArrowDown
-                    ) {
-                        appState.requestCompactDatabaseConfirmation()
+                        WorkbenchButton(
+                            title: L("settings.maintenance.compact"),
+                            icon: .fileArrowDown,
+                            isFocused: accessibility?.isSettingsFocused(.maintenanceCompactDatabase) == true
+                        ) {
+                            appState.requestCompactDatabaseConfirmation()
+                        }
+                        .disabled(!appState.canCompactDatabase)
+                        .workbenchTooltip(
+                            scenarioID: "disabled.settings.maintenance.actions",
+                            surface: .settings,
+                            isActive: !appState.canCompactDatabase,
+                            label: L("tooltip.disabled.settings.maintenance.actions")
+                        )
                     }
-                    .disabled(!appState.canCompactDatabase)
-                    .workbenchTooltip(
-                        scenarioID: "disabled.settings.maintenance.actions",
-                        surface: .settings,
-                        isActive: !appState.canCompactDatabase,
-                        label: L("tooltip.disabled.settings.maintenance.actions")
-                    )
                 }
             }
 

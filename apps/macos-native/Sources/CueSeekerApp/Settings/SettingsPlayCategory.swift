@@ -9,49 +9,60 @@ struct SettingsPlayCategory: View {
     @FocusState private var isGapFieldFocused: Bool
 
     var body: some View {
-        SettingsGroup(title: L("settings.category.play")) {
-            SettingsRow(L("settings.play.auto_pause")) {
-                Toggle("", isOn: $settingsStore.autoPauseAfterCueFinishesEnabled)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .focusable(false)
-            }
+        WorkbenchAccessibilityReader { accessibility in
+            SettingsGroup(title: L("settings.category.play")) {
+                SettingsRow(L("settings.play.auto_pause")) {
+                    Toggle("", isOn: $settingsStore.autoPauseAfterCueFinishesEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .focusable(false)
+                        .workbenchAccessibilityFocusRing(
+                            isFocused: accessibility?.isSettingsFocused(.playAutoPause) == true,
+                            isCapsule: true
+                        )
+                }
 
-            SettingsRowDivider()
+                SettingsRowDivider()
 
-            SettingsRow(L("settings.play.auto_switch")) {
-                Toggle("", isOn: $settingsStore.autoSwitchToNextCuesInPlaylistEnabled)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .focusable(false)
-                    .disabled(!settingsStore.autoPauseAfterCueFinishesEnabled)
-                    .workbenchTooltip(
-                        scenarioID: "disabled.settings.play.auto_switch",
-                        surface: .settings,
-                        isActive: !settingsStore.autoPauseAfterCueFinishesEnabled,
-                        label: L("tooltip.disabled.settings.play.auto_switch")
+                SettingsRow(L("settings.play.auto_switch")) {
+                    Toggle("", isOn: $settingsStore.autoSwitchToNextCuesInPlaylistEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .focusable(false)
+                        .disabled(!settingsStore.autoPauseAfterCueFinishesEnabled)
+                        .workbenchAccessibilityFocusRing(
+                            isFocused: accessibility?.isSettingsFocused(.playAutoSwitch) == true,
+                            isCapsule: true
+                        )
+                        .workbenchTooltip(
+                            scenarioID: "disabled.settings.play.auto_switch",
+                            surface: .settings,
+                            isActive: !settingsStore.autoPauseAfterCueFinishesEnabled,
+                            label: L("tooltip.disabled.settings.play.auto_switch")
+                        )
+                }
+
+                SettingsRowDivider()
+
+                SettingsRow(L("settings.play.auto_switch_gap")) {
+                    WorkbenchNumberField(
+                        placeholder: "\(SettingsStore.autoSwitchCueSequenceGapDefaultMilliseconds)",
+                        text: Binding(
+                            get: { gapDraft },
+                            set: { newValue in
+                                gapDraft = newValue
+                                applyGapDraftChange(newValue)
+                            }
+                        ),
+                        unit: "ms",
+                        focus: $isGapFieldFocused,
+                        normalizeDraft: Self.normalizeGapDraft,
+                        onEditingEnded: commitGapDraft,
+                        onSubmit: commitGapDraft,
+                        settingsInputKind: .numberField(.autoSwitchGap)
                     )
-            }
-
-            SettingsRowDivider()
-
-            SettingsRow(L("settings.play.auto_switch_gap")) {
-                WorkbenchNumberField(
-                    placeholder: "\(SettingsStore.autoSwitchCueSequenceGapDefaultMilliseconds)",
-                    text: Binding(
-                        get: { gapDraft },
-                        set: { newValue in
-                            gapDraft = newValue
-                            applyGapDraftChange(newValue)
-                        }
-                    ),
-                    unit: "ms",
-                    focus: $isGapFieldFocused,
-                    normalizeDraft: Self.normalizeGapDraft,
-                    onEditingEnded: commitGapDraft,
-                    onSubmit: commitGapDraft
-                )
-                .frame(width: WorkbenchControlMetrics.redesignSettingsNumberFieldWidth)
+                    .frame(width: WorkbenchControlMetrics.redesignSettingsNumberFieldWidth)
+                }
             }
         }
         .onAppear {

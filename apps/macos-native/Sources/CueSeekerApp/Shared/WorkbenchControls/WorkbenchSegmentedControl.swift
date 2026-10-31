@@ -7,6 +7,7 @@ struct WorkbenchSegmentedControl<Option: Hashable>: View {
     let title: (Option) -> String
     let accessibilityLabel: (Option) -> String
     var accessibilityIdentifier: ((Option) -> String)? = nil
+    var isOptionFocused: ((Option) -> Bool)? = nil
 
     var body: some View {
         WorkbenchSegmentedControlLayout(spacing: WorkbenchControlMetrics.redesignSegmentedControlGap) {
@@ -59,6 +60,10 @@ struct WorkbenchSegmentedControl<Option: Hashable>: View {
         }
         .buttonStyle(StaticButtonStyle())
         .focusable(false)
+        .workbenchAccessibilityFocusRing(
+            isFocused: isOptionFocused?(option) == true,
+            cornerRadius: WorkbenchControlMetrics.redesignSegmentedControlSegmentRadius
+        )
         .accessibilityLabel(accessibilityLabel(option))
         .accessibilityValue(isSelected ? L("facet.selected") : L("facet.not_selected"))
 

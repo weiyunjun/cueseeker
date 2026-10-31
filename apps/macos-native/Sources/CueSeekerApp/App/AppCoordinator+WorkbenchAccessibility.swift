@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import CueSeekerCore
+import CueSeekerPlayback
 import Foundation
 
 @MainActor
@@ -830,7 +831,7 @@ extension AppCoordinator {
         case .fileDetail:
             guard let session = library.fileDetailSession else { return nil }
             return (ObjectIdentifier(session), session.objectWillChange.map { _ in () }.eraseToAnyPublisher())
-        case .confirmation, .taskPanel, .taskDetail:
+        case .confirmation, .settingsConfirmation, .taskPanel, .taskDetail:
             return nil
         }
     }
@@ -955,6 +956,9 @@ extension AppCoordinator {
                 targets.append(.confirmationAction(action.id))
             }
             return targets
+
+        case .settingsConfirmation:
+            return currentSettingsDialogAccessibilityTargets()
 
         case .fileDetail:
             guard let session = library.fileDetailSession else { return [] }
@@ -1283,6 +1287,8 @@ extension AppCoordinator {
         case .confirmation:
             confirmation.session = nil
             return true
+        case .settingsConfirmation:
+            return closeSettingsDialogFromAccessibility()
         case .taskDetail:
             tasks.closeTaskDetail()
             return true
@@ -1928,7 +1934,7 @@ extension AppCoordinator {
             if settingsInterfaceLayers.hasUncoveredOpenMenu {
                 return routeControllerInputToMenuGate(input, menuGate: settingsInterfaceLayers.menuGate)
             }
-            return false
+            return handleSettingsControllerInput(input)
         }
 
         guard isMainWindowKey else {
@@ -2034,6 +2040,659 @@ extension AppCoordinator {
             case .right: selectionDirection = .right
             }
             return moveWorkbenchCardSelection(selectionDirection)
+        }
+    }
+
+    // MARK: - Settings Window Accessibility (Step 3)
+
+    func currentSettingsAccessibilityTargets() -> [SettingsAccessibilityTarget] {
+        var targets: [SettingsAccessibilityTarget] = SettingsCategory.allCases.map {
+            .sidebarCategory($0)
+        }
+
+        switch workbenchAccessibility.selectedSettingsCategory {
+        case .general:
+            for mode in AppAppearanceMode.allCases {
+                targets.append(.appearanceMode(mode))
+            }
+            targets.append(.searchShowCueGroup)
+            targets.append(.searchPrefillCommandPanel)
+            targets.append(.languageDropdown)
+            targets.append(.deepLinkPlayFirstSearchResult)
+
+        case .play:
+            targets.append(.playAutoPause)
+            targets.append(.playAutoSwitch)
+            targets.append(.numberField(.autoSwitchGap))
+            for mode in PlaybackDecodeMode.allCases {
+                targets.append(.decodeMode(mode))
+            }
+
+        case .shortcuts:
+            let keymap = settings.playbackShortcuts.keymap
+            for action in PlaybackShortcutAction.allCases where !keymap.isDefault(action) {
+                targets.append(.shortcutRestoreDefault(action))
+            }
+
+        case .subtitle:
+            let style = settings.srtSubtitleStyle
+            targets.append(.subtitleFontDropdown)
+            targets.append(.numberField(.subtitleSize))
+            targets.append(.subtitleBold)
+            targets.append(.subtitleItalic)
+            appendSubtitleColorWellTargets(.textColor, to: &targets)
+            targets.append(.numberField(.subtitleLetterSpacing))
+            targets.append(.numberField(.subtitleLineSpacing))
+
+            for alignment in SRTSubtitleStyle.HorizontalAlignment.allCases {
+                targets.append(.subtitleHorizontalAlignment(alignment))
+            }
+            targets.append(.numberField(.subtitleMarginX))
+            for alignment in SRTSubtitleStyle.VerticalAlignment.allCases {
+                targets.append(.subtitleVerticalAlignment(alignment))
+            }
+            targets.append(.numberField(.subtitleMarginY))
+
+            for borderType in SRTSubtitleStyle.BorderType.allCases {
+                targets.append(.subtitleBorderType(borderType))
+            }
+            if style.borderType == .outline {
+                appendSubtitleColorWellTargets(.outlineColor, to: &targets)
+                targets.append(.numberField(.subtitleOutlineWidth))
+            } else {
+                appendSubtitleColorWellTargets(.backgroundColor, to: &targets)
+                targets.append(.numberField(.subtitleBackgroundOpacity))
+            }
+            targets.append(.numberField(.subtitleBlur))
+
+            appendSubtitleColorWellTargets(.shadowColor, to: &targets)
+            targets.append(.numberField(.subtitleShadowOpacity))
+            targets.append(.numberField(.subtitleShadowOffset))
+
+            targets.append(.subtitleRestoreDefaults)
+
+        case .maintenance:
+            targets.append(.maintenanceRefresh)
+            targets.append(.maintenanceCompactDatabase)
+
+        case .developer:
+            targets.append(.developerEnableFTSDiagnostics)
+            targets.append(.developerRefresh)
+        }
+
+        return targets
+    }
+
+    private func appendSubtitleColorWellTargets(
+        _ id: SettingsSubtitleCategory.ColorFieldID,
+        to targets: inout [SettingsAccessibilityTarget]
+    ) {
+        targets.append(.subtitleColorField(id))
+        if workbenchAccessibility.activeSubtitleColorPopover == id,
+           workbenchAccessibility.focusedSettingsTarget?.colorWellID == id {
+            for index in SettingsSubtitleColorField.presetHexColors.indices {
+                targets.append(.subtitleColorPreset(id, index))
+            }
+        }
+    }
+
+    func isSettingsAccessibilityTargetEnabled(_ target: SettingsAccessibilityTarget) -> Bool {
+        switch target {
+        case .playAutoSwitch:
+            return settings.autoPauseAfterCueFinishesEnabled
+        case .shortcutRestoreDefault(let action):
+            return !settings.playbackShortcuts.keymap.isDefault(action)
+        case .subtitleRestoreDefaults:
+            return settings.srtSubtitleStyle != SRTSubtitleStyle()
+        case .maintenanceRefresh:
+            return !indexing.folderRemovalStatus.isRemoving
+                && !indexing.databaseMaintenanceStatus.isCompacting
+        case .maintenanceCompactDatabase:
+            return canCompactDatabase
+        case .developerRefresh:
+            return settings.searchFTSVocabularyDiagnosticsEnabled
+                && !indexing.searchFTSVocabularyDiagnosticsStatus.isLoading
+        default:
+            return true
+        }
+    }
+
+    func reconcileSettingsAccessibilityFocus() {
+        if settings.confirmation.session != nil
+            || settingsInterfaceLayers.hasUncoveredOpenMenu
+            || workbenchAccessibility.isShortcutRecording
+        {
+            _ = workbenchAccessibility.clearSettings(
+                keepTextInputFocus: false,
+                keepColorPopoverOpen: false
+            )
+            return
+        }
+
+        guard let focused = workbenchAccessibility.focusedSettingsTarget else {
+            return
+        }
+
+        let targets = currentSettingsAccessibilityTargets()
+        if !targets.contains(focused) {
+            _ = workbenchAccessibility.clearSettings(
+                keepTextInputFocus: false,
+                keepColorPopoverOpen: false
+            )
+            return
+        }
+
+        if let inputKind = focused.textInputKind,
+           !isSettingsAccessibilityTargetEnabled(focused) {
+            workbenchAccessibility.unfocusSettingsTextInput(inputKind)
+        }
+    }
+
+    @discardableResult
+    func moveSettingsAccessibilityFocus(forward: Bool) -> Bool {
+        let targets = currentSettingsAccessibilityTargets()
+        guard !targets.isEmpty else {
+            _ = workbenchAccessibility.clearSettings(
+                keepTextInputFocus: false,
+                keepColorPopoverOpen: false
+            )
+            return false
+        }
+
+        let nextTarget: SettingsAccessibilityTarget
+        if let current = workbenchAccessibility.focusedSettingsTarget,
+           let index = targets.firstIndex(of: current)
+        {
+            if forward {
+                nextTarget = targets[(index + 1) % targets.count]
+            } else {
+                nextTarget = targets[(index - 1 + targets.count) % targets.count]
+            }
+        } else {
+            nextTarget = forward ? targets[0] : targets[targets.count - 1]
+        }
+
+        let isEnabled = isSettingsAccessibilityTargetEnabled(nextTarget)
+        workbenchAccessibility.setSettingsFocus(nextTarget, isTargetEnabled: isEnabled)
+        return true
+    }
+
+    @discardableResult
+    func activateSettingsAccessibilityTarget(_ target: SettingsAccessibilityTarget) -> Bool {
+        guard isSettingsAccessibilityTargetEnabled(target) else {
+            return false
+        }
+
+        switch target {
+        case .sidebarCategory(let category):
+            guard workbenchAccessibility.selectedSettingsCategory != category else {
+                return true
+            }
+            TooltipCenter.shared.dismissFromUserInteraction()
+            workbenchAccessibility.selectedSettingsCategory = category
+            workbenchAccessibility.activeSubtitleColorPopover = nil
+            workbenchAccessibility.unfocusAllSettingsTextInputs()
+            return true
+
+        case .appearanceMode(let mode):
+            if settings.appAppearanceMode != mode {
+                settings.appAppearanceMode = mode
+            }
+            return true
+
+        case .searchShowCueGroup:
+            settings.cueGroupPresentation.setFromUser(!settings.cueGroupPresentation.isEnabled)
+            return true
+
+        case .searchPrefillCommandPanel:
+            settings.prefillCommandPanelWithFocusedCue.toggle()
+            return true
+
+        case .languageDropdown:
+            workbenchAccessibility.onToggleSettingsLanguageMenu?()
+            return true
+
+        case .deepLinkPlayFirstSearchResult:
+            settings.urlSchemePlayFirstSearchResultEnabled.toggle()
+            return true
+
+        case .playAutoPause:
+            settings.autoPauseAfterCueFinishesEnabled.toggle()
+            return true
+
+        case .playAutoSwitch:
+            settings.autoSwitchToNextCuesInPlaylistEnabled.toggle()
+            return true
+
+        case .decodeMode(let mode):
+            if settings.playbackDecodeMode != mode {
+                settings.playbackDecodeMode = mode
+            }
+            return true
+
+        case .shortcutRestoreDefault(let action):
+            settings.playbackShortcuts.reset(action)
+            _ = workbenchAccessibility.clearSettings(
+                keepTextInputFocus: false,
+                keepColorPopoverOpen: false
+            )
+            return true
+
+        case .subtitleFontDropdown:
+            workbenchAccessibility.onToggleSettingsSubtitleFontMenu?()
+            return true
+
+        case .subtitleBold:
+            settings.srtSubtitleStyle.isBold.toggle()
+            return true
+
+        case .subtitleItalic:
+            settings.srtSubtitleStyle.isItalic.toggle()
+            return true
+
+        case .subtitleColorField(let id):
+            workbenchAccessibility.activeSubtitleColorPopover = id
+            workbenchAccessibility.focusSettingsTextInput(.subtitleColorField(id), isEnabled: true)
+            return true
+
+        case .subtitleColorPreset(let id, let index):
+            guard SettingsSubtitleColorField.presetHexColors.indices.contains(index) else {
+                return false
+            }
+            applySubtitlePresetColor(SettingsSubtitleColorField.presetHexColors[index], for: id)
+            return true
+
+        case .subtitleHorizontalAlignment(let alignment):
+            if settings.srtSubtitleStyle.horizontalAlignment != alignment {
+                settings.srtSubtitleStyle.horizontalAlignment = alignment
+            }
+            return true
+
+        case .subtitleVerticalAlignment(let alignment):
+            if settings.srtSubtitleStyle.verticalAlignment != alignment {
+                settings.srtSubtitleStyle.verticalAlignment = alignment
+            }
+            return true
+
+        case .subtitleBorderType(let borderType):
+            if settings.srtSubtitleStyle.borderType != borderType {
+                settings.srtSubtitleStyle.borderType = borderType
+            }
+            return true
+
+        case .subtitleRestoreDefaults:
+            workbenchAccessibility.activeSubtitleColorPopover = nil
+            workbenchAccessibility.unfocusAllSettingsTextInputs()
+            settings.srtSubtitleStyle = SRTSubtitleStyle()
+            return true
+
+        case .maintenanceRefresh:
+            refreshDatabaseStorageStats()
+            return true
+
+        case .maintenanceCompactDatabase:
+            requestCompactDatabaseConfirmation()
+            return true
+
+        case .developerEnableFTSDiagnostics:
+            settings.searchFTSVocabularyDiagnosticsEnabled.toggle()
+            return true
+
+        case .developerRefresh:
+            refreshSearchFTSVocabularyDiagnostics()
+            return true
+
+        case .numberField(let id):
+            workbenchAccessibility.focusSettingsTextInput(.numberField(id), isEnabled: true)
+            return true
+        }
+    }
+
+    func applySubtitlePresetColor(
+        _ presetHex: String,
+        for id: SettingsSubtitleCategory.ColorFieldID
+    ) {
+        guard let rgb = SettingsSubtitleColorField.parseRGB(fromHex: presetHex) else {
+            return
+        }
+        let keyPath: WritableKeyPath<SRTSubtitleStyle, SRTSubtitleStyle.Color>
+        switch id {
+        case .textColor:
+            keyPath = \.textColor
+        case .outlineColor:
+            keyPath = \.outlineColor
+        case .backgroundColor:
+            keyPath = \.backgroundColor
+        case .shadowColor:
+            keyPath = \.shadowColor
+        }
+        var updated = settings.srtSubtitleStyle[keyPath: keyPath]
+        updated.red = rgb.red
+        updated.green = rgb.green
+        updated.blue = rgb.blue
+        settings.srtSubtitleStyle[keyPath: keyPath] = updated
+    }
+
+    // MARK: - Settings Confirmation Dialog Accessibility
+
+    func currentSettingsDialogAccessibilityTargets() -> [WorkbenchDialogAccessibilityTarget] {
+        guard let session = settings.confirmation.session else {
+            return []
+        }
+        var targets: [WorkbenchDialogAccessibilityTarget] = [.dialogCloseButton]
+        for action in session.actions {
+            targets.append(.confirmationAction(action.id))
+        }
+        return targets
+    }
+
+    func reconcileSettingsDialogAccessibilityFocus() {
+        guard settings.confirmation.session != nil else {
+            _ = workbenchAccessibility.clearSettingsDialog()
+            return
+        }
+
+        _ = workbenchAccessibility.clearSettings(
+            keepTextInputFocus: false,
+            keepColorPopoverOpen: false
+        )
+
+        guard let focused = workbenchAccessibility.focusedSettingsDialogTarget else {
+            return
+        }
+
+        let targets = currentSettingsDialogAccessibilityTargets()
+        if !targets.contains(focused) {
+            _ = workbenchAccessibility.clearSettingsDialog()
+        }
+    }
+
+    @discardableResult
+    func moveSettingsDialogAccessibilityFocus(forward: Bool) -> Bool {
+        guard settings.confirmation.session != nil else {
+            _ = workbenchAccessibility.clearSettingsDialog()
+            return false
+        }
+        let targets = currentSettingsDialogAccessibilityTargets()
+        guard !targets.isEmpty else {
+            _ = workbenchAccessibility.clearSettingsDialog()
+            return false
+        }
+
+        let nextTarget: WorkbenchDialogAccessibilityTarget
+        if let current = workbenchAccessibility.focusedSettingsDialogTarget,
+           let index = targets.firstIndex(of: current)
+        {
+            if forward {
+                nextTarget = targets[(index + 1) % targets.count]
+            } else {
+                nextTarget = targets[(index - 1 + targets.count) % targets.count]
+            }
+        } else {
+            nextTarget = forward ? targets[0] : targets[targets.count - 1]
+        }
+
+        workbenchAccessibility.setSettingsDialogFocus(nextTarget)
+        return true
+    }
+
+    @discardableResult
+    func closeSettingsDialogFromAccessibility() -> Bool {
+        guard settings.confirmation.session != nil else {
+            return false
+        }
+        _ = workbenchAccessibility.clearSettingsDialog()
+        settings.confirmation.session = nil
+        return true
+    }
+
+    @discardableResult
+    func activateSettingsDialogAccessibilityTarget(
+        _ target: WorkbenchDialogAccessibilityTarget
+    ) -> Bool {
+        guard let session = settings.confirmation.session else {
+            return false
+        }
+        switch target {
+        case .dialogCloseButton:
+            return closeSettingsDialogFromAccessibility()
+        case .confirmationAction(let actionID):
+            guard let action = session.actions.first(where: { $0.id == actionID }) else {
+                return false
+            }
+            _ = workbenchAccessibility.clearSettingsDialog()
+            action.action()
+            settings.confirmation.session = nil
+            return true
+        default:
+            return false
+        }
+    }
+
+    @discardableResult
+    func handleSettingsDialogKeyDown(_ event: NSEvent) -> Bool {
+        guard settings.confirmation.session != nil,
+              !settingsInterfaceLayers.hasUncoveredOpenMenu,
+              !Self.hasMarkedTextInFocusedEditor()
+        else {
+            return false
+        }
+
+        let modifiers = event.modifierFlags
+            .intersection(.deviceIndependentFlagsMask)
+            .subtracting([.numericPad, .function])
+
+        switch event.keyCode {
+        case 48: // Tab
+            if modifiers.isEmpty {
+                return moveSettingsDialogAccessibilityFocus(forward: true)
+            } else if modifiers == [.shift] {
+                return moveSettingsDialogAccessibilityFocus(forward: false)
+            }
+            return false
+
+        case 53: // Esc
+            guard modifiers.isEmpty else { return false }
+            guard !event.isARepeat else { return true }
+            if workbenchAccessibility.isSettingsDialogActive {
+                _ = workbenchAccessibility.clearSettingsDialog()
+                return true
+            }
+            return closeSettingsDialogFromAccessibility()
+
+        case 49: // Space
+            guard modifiers.isEmpty,
+                  let focused = workbenchAccessibility.focusedSettingsDialogTarget
+            else {
+                return false
+            }
+            guard !event.isARepeat else { return true }
+            _ = activateSettingsDialogAccessibilityTarget(focused)
+            return true
+
+        case 36, 76: // Return / Keypad Enter
+            guard modifiers.isEmpty else { return false }
+            guard let focused = workbenchAccessibility.focusedSettingsDialogTarget else {
+                return true
+            }
+            guard !event.isARepeat else { return true }
+            _ = activateSettingsDialogAccessibilityTarget(focused)
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    @discardableResult
+    func handleSettingsDialogControllerInput(_ input: ControllerInput) -> Bool {
+        guard settings.confirmation.session != nil,
+              !settingsInterfaceLayers.hasUncoveredOpenMenu,
+              !Self.hasMarkedTextInFocusedEditor()
+        else {
+            return false
+        }
+
+        switch input {
+        case .button(let button, let isRepeat):
+            switch button {
+            case .rightShoulder:
+                return moveSettingsDialogAccessibilityFocus(forward: true)
+            case .leftShoulder:
+                return moveSettingsDialogAccessibilityFocus(forward: false)
+            case .south:
+                guard let focused = workbenchAccessibility.focusedSettingsDialogTarget else {
+                    return false
+                }
+                guard !isRepeat else { return true }
+                _ = activateSettingsDialogAccessibilityTarget(focused)
+                return true
+            case .east:
+                guard !isRepeat else { return true }
+                if workbenchAccessibility.isSettingsDialogActive {
+                    _ = workbenchAccessibility.clearSettingsDialog()
+                    return true
+                }
+                return closeSettingsDialogFromAccessibility()
+            default:
+                return false
+            }
+        case .direction:
+            return false
+        }
+    }
+
+    // MARK: - Settings Window Keyboard & Controller Routing
+
+    @discardableResult
+    func handleSettingsKeyDown(_ event: NSEvent) -> Bool {
+        guard !settingsInterfaceLayers.hasUncoveredOpenMenu else {
+            return false
+        }
+
+        if settings.confirmation.session != nil {
+            return handleSettingsDialogKeyDown(event)
+        }
+
+        guard !workbenchAccessibility.isShortcutRecording,
+              !Self.hasMarkedTextInFocusedEditor()
+        else {
+            return false
+        }
+
+        let modifiers = event.modifierFlags
+            .intersection(.deviceIndependentFlagsMask)
+            .subtracting([.numericPad, .function])
+
+        switch event.keyCode {
+        case 48: // Tab
+            if modifiers.isEmpty {
+                return moveSettingsAccessibilityFocus(forward: true)
+            } else if modifiers == [.shift] {
+                return moveSettingsAccessibilityFocus(forward: false)
+            }
+            return false
+
+        case 53: // Esc
+            guard modifiers.isEmpty else { return false }
+            guard !event.isARepeat else { return true }
+            if workbenchAccessibility.isSettingsActive {
+                _ = workbenchAccessibility.clearSettings(
+                    keepTextInputFocus: true,
+                    keepColorPopoverOpen: true
+                )
+                return true
+            }
+            if workbenchAccessibility.activeSubtitleColorPopover != nil
+                || workbenchAccessibility.isAnySettingsTextInputFocused
+            {
+                workbenchAccessibility.activeSubtitleColorPopover = nil
+                workbenchAccessibility.unfocusAllSettingsTextInputs()
+                return true
+            }
+            return false
+
+        case 49: // Space
+            guard modifiers.isEmpty else { return false }
+            if workbenchAccessibility.isAnySettingsTextInputFocused {
+                return false
+            }
+            guard let focused = workbenchAccessibility.focusedSettingsTarget else {
+                return false
+            }
+            guard !event.isARepeat else { return true }
+            _ = activateSettingsAccessibilityTarget(focused)
+            return true
+
+        case 36, 76: // Return / Keypad Enter
+            guard modifiers.isEmpty else { return false }
+            if workbenchAccessibility.isAnySettingsTextInputFocused {
+                return false
+            }
+            guard let focused = workbenchAccessibility.focusedSettingsTarget else {
+                return false
+            }
+            guard !event.isARepeat else { return true }
+            _ = activateSettingsAccessibilityTarget(focused)
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    @discardableResult
+    func handleSettingsControllerInput(_ input: ControllerInput) -> Bool {
+        guard !settingsInterfaceLayers.hasUncoveredOpenMenu else {
+            return false
+        }
+
+        if settings.confirmation.session != nil {
+            return handleSettingsDialogControllerInput(input)
+        }
+
+        guard !workbenchAccessibility.isShortcutRecording,
+              !Self.hasMarkedTextInFocusedEditor()
+        else {
+            return false
+        }
+
+        switch input {
+        case .button(let button, let isRepeat):
+            switch button {
+            case .rightShoulder:
+                return moveSettingsAccessibilityFocus(forward: true)
+            case .leftShoulder:
+                return moveSettingsAccessibilityFocus(forward: false)
+            case .south:
+                guard let focused = workbenchAccessibility.focusedSettingsTarget else {
+                    return false
+                }
+                guard !isRepeat else { return true }
+                _ = activateSettingsAccessibilityTarget(focused)
+                return true
+            case .east:
+                guard !isRepeat else { return true }
+                if workbenchAccessibility.isSettingsActive {
+                    _ = workbenchAccessibility.clearSettings(
+                        keepTextInputFocus: true,
+                        keepColorPopoverOpen: true
+                    )
+                    return true
+                }
+                if workbenchAccessibility.activeSubtitleColorPopover != nil
+                    || workbenchAccessibility.isAnySettingsTextInputFocused
+                {
+                    workbenchAccessibility.activeSubtitleColorPopover = nil
+                    workbenchAccessibility.unfocusAllSettingsTextInputs()
+                    return true
+                }
+                return false
+            default:
+                return false
+            }
+        case .direction:
+            return false
         }
     }
 }

@@ -8,20 +8,25 @@ struct SettingsDecodeCategory: View {
     @EnvironmentObject private var settingsStore: SettingsStore
 
     var body: some View {
-        SettingsGroup(
-            title: L("settings.category.decode"),
-            description: L("settings.decode.description")
-        ) {
-            SettingsRow(
-                L("settings.decode.decoder"),
-                note: L("settings.decode.note")
+        WorkbenchAccessibilityReader { accessibility in
+            SettingsGroup(
+                title: L("settings.category.decode"),
+                description: L("settings.decode.description")
             ) {
-                WorkbenchSegmentedControl(
-                    options: PlaybackDecodeMode.allCases,
-                    selection: $settingsStore.playbackDecodeMode,
-                    title: Self.displayName(for:),
-                    accessibilityLabel: { L("settings.decode.accessibility", Self.displayName(for: $0)) }
-                )
+                SettingsRow(
+                    L("settings.decode.decoder"),
+                    note: L("settings.decode.note")
+                ) {
+                    WorkbenchSegmentedControl(
+                        options: PlaybackDecodeMode.allCases,
+                        selection: $settingsStore.playbackDecodeMode,
+                        title: Self.displayName(for:),
+                        accessibilityLabel: { L("settings.decode.accessibility", Self.displayName(for: $0)) },
+                        isOptionFocused: { mode in
+                            accessibility?.isSettingsFocused(.decodeMode(mode)) == true
+                        }
+                    )
+                }
             }
         }
     }

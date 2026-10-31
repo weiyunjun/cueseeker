@@ -11,48 +11,55 @@ struct SettingsDeveloperCategory: View {
     @EnvironmentObject private var search: SearchStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
-            SettingsGroup(
-                title: L("settings.category.developer"),
-                description: L("settings.developer.description")
-            ) {
-                SettingsRow(
-                    L("settings.developer.fts_diagnostics"),
-                    note: L("settings.developer.fts_diagnostics_note")
+        WorkbenchAccessibilityReader { accessibility in
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
+                SettingsGroup(
+                    title: L("settings.category.developer"),
+                    description: L("settings.developer.description")
                 ) {
-                    Toggle("", isOn: $settingsStore.searchFTSVocabularyDiagnosticsEnabled)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .focusable(false)
-                }
-            }
-
-            SettingsGroup(title: L("settings.developer.fts_data")) {
-                SettingsRow {
-                    ftsVocabularyDiagnosticsStatusView
-                } trailing: {
-                    WorkbenchButton(
-                        title: L("settings.maintenance.refresh"),
-                        icon: .arrowClockwise
+                    SettingsRow(
+                        L("settings.developer.fts_diagnostics"),
+                        note: L("settings.developer.fts_diagnostics_note")
                     ) {
-                        appState.refreshSearchFTSVocabularyDiagnostics()
+                        Toggle("", isOn: $settingsStore.searchFTSVocabularyDiagnosticsEnabled)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .focusable(false)
+                            .workbenchAccessibilityFocusRing(
+                                isFocused: accessibility?.isSettingsFocused(.developerEnableFTSDiagnostics) == true,
+                                isCapsule: true
+                            )
                     }
-                    .disabled(
-                        !settingsStore.searchFTSVocabularyDiagnosticsEnabled
-                            || indexing.searchFTSVocabularyDiagnosticsStatus.isLoading
-                    )
                 }
 
-                if let diagnostics = indexing.searchFTSVocabularyDiagnostics,
-                   settingsStore.searchFTSVocabularyDiagnosticsEnabled {
-                    SettingsRowDivider()
-
-                    ftsVocabularyDiagnosticsData(diagnostics)
-                        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
-                        .padding(
-                            .vertical,
-                            WorkbenchControlMetrics.redesignSettingsRowVerticalPadding
+                SettingsGroup(title: L("settings.developer.fts_data")) {
+                    SettingsRow {
+                        ftsVocabularyDiagnosticsStatusView
+                    } trailing: {
+                        WorkbenchButton(
+                            title: L("settings.maintenance.refresh"),
+                            icon: .arrowClockwise,
+                            isFocused: accessibility?.isSettingsFocused(.developerRefresh) == true
+                        ) {
+                            appState.refreshSearchFTSVocabularyDiagnostics()
+                        }
+                        .disabled(
+                            !settingsStore.searchFTSVocabularyDiagnosticsEnabled
+                                || indexing.searchFTSVocabularyDiagnosticsStatus.isLoading
                         )
+                    }
+
+                    if let diagnostics = indexing.searchFTSVocabularyDiagnostics,
+                       settingsStore.searchFTSVocabularyDiagnosticsEnabled {
+                        SettingsRowDivider()
+
+                        ftsVocabularyDiagnosticsData(diagnostics)
+                            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+                            .padding(
+                                .vertical,
+                                WorkbenchControlMetrics.redesignSettingsRowVerticalPadding
+                            )
+                    }
                 }
             }
         }

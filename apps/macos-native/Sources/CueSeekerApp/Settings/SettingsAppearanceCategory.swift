@@ -7,20 +7,25 @@ struct SettingsAppearanceCategory: View {
     @EnvironmentObject private var settingsStore: SettingsStore
 
     var body: some View {
-        SettingsGroup(
-            title: L("settings.category.appearance"),
-            description: L("settings.appearance.description")
-        ) {
-            SettingsRow(
-                L("settings.appearance.mode"),
-                note: L("settings.appearance.note")
+        WorkbenchAccessibilityReader { accessibility in
+            SettingsGroup(
+                title: L("settings.category.appearance"),
+                description: L("settings.appearance.description")
             ) {
-                WorkbenchSegmentedControl(
-                    options: AppAppearanceMode.allCases,
-                    selection: $settingsStore.appAppearanceMode,
-                    title: \.displayName,
-                    accessibilityLabel: { L("settings.appearance.accessibility", $0.displayName) }
-                )
+                SettingsRow(
+                    L("settings.appearance.mode"),
+                    note: L("settings.appearance.note")
+                ) {
+                    WorkbenchSegmentedControl(
+                        options: AppAppearanceMode.allCases,
+                        selection: $settingsStore.appAppearanceMode,
+                        title: \.displayName,
+                        accessibilityLabel: { L("settings.appearance.accessibility", $0.displayName) },
+                        isOptionFocused: { mode in
+                            accessibility?.isSettingsFocused(.appearanceMode(mode)) == true
+                        }
+                    )
+                }
             }
         }
     }

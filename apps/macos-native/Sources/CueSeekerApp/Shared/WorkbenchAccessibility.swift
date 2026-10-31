@@ -1,5 +1,6 @@
 import AppKit
 import CueSeekerCore
+import CueSeekerPlayback
 import SwiftUI
 
 enum WorkbenchAccessibilityDebugLog {
@@ -64,9 +65,108 @@ enum WorkbenchDialogAccessibilityID: String, Equatable, Hashable {
     case ankiExport = "ankiExport"
     case filter = "filter"
     case confirmation = "confirmation"
+    case settingsConfirmation = "settingsConfirmation"
     case fileDetail = "fileDetail"
     case taskPanel = "taskPanel"
     case taskDetail = "taskDetail"
+}
+
+enum SettingsNumberFieldID: String, CaseIterable, Equatable, Hashable {
+    case autoSwitchGap
+    case subtitleSize
+    case subtitleLetterSpacing
+    case subtitleLineSpacing
+    case subtitleMarginX
+    case subtitleMarginY
+    case subtitleOutlineWidth
+    case subtitleBackgroundOpacity
+    case subtitleBlur
+    case subtitleShadowOpacity
+    case subtitleShadowOffset
+}
+
+enum SettingsTextInputKind: Equatable, Hashable {
+    case numberField(SettingsNumberFieldID)
+    case subtitleColorField(SettingsSubtitleCategory.ColorFieldID)
+
+    static var allCases: [SettingsTextInputKind] {
+        SettingsNumberFieldID.allCases.map { .numberField($0) }
+            + [
+                .subtitleColorField(.textColor),
+                .subtitleColorField(.outlineColor),
+                .subtitleColorField(.backgroundColor),
+                .subtitleColorField(.shadowColor),
+            ]
+    }
+
+    var settingsTarget: SettingsAccessibilityTarget {
+        switch self {
+        case .numberField(let id):
+            return .numberField(id)
+        case .subtitleColorField(let id):
+            return .subtitleColorField(id)
+        }
+    }
+}
+
+enum SettingsAccessibilityTarget: Equatable, Hashable {
+    // Sidebar (L-02.2)
+    case sidebarCategory(SettingsCategory)
+
+    // General
+    case appearanceMode(AppAppearanceMode)
+    case searchShowCueGroup
+    case searchPrefillCommandPanel
+    case languageDropdown
+    case deepLinkPlayFirstSearchResult
+
+    // Play
+    case playAutoPause
+    case playAutoSwitch
+    case numberField(SettingsNumberFieldID)
+    case decodeMode(PlaybackDecodeMode)
+
+    // Shortcuts (L-02.4)
+    case shortcutRestoreDefault(PlaybackShortcutAction)
+
+    // Subtitle (L-02.5)
+    case subtitleFontDropdown
+    case subtitleBold
+    case subtitleItalic
+    case subtitleColorField(SettingsSubtitleCategory.ColorFieldID)
+    case subtitleColorPreset(SettingsSubtitleCategory.ColorFieldID, Int)
+    case subtitleHorizontalAlignment(SRTSubtitleStyle.HorizontalAlignment)
+    case subtitleVerticalAlignment(SRTSubtitleStyle.VerticalAlignment)
+    case subtitleBorderType(SRTSubtitleStyle.BorderType)
+    case subtitleRestoreDefaults
+
+    // Maintenance
+    case maintenanceRefresh
+    case maintenanceCompactDatabase
+
+    // Developer
+    case developerEnableFTSDiagnostics
+    case developerRefresh
+
+    var textInputKind: SettingsTextInputKind? {
+        switch self {
+        case .numberField(let id):
+            return .numberField(id)
+        case .subtitleColorField(let id):
+            return .subtitleColorField(id)
+        default:
+            return nil
+        }
+    }
+
+    var colorWellID: SettingsSubtitleCategory.ColorFieldID? {
+        switch self {
+        case .subtitleColorField(let id), .subtitleColorPreset(let id, _):
+            return id
+        default:
+            return nil
+        }
+    }
 }
 
 enum WorkbenchDialogTextInputKind: String, CaseIterable, Equatable, Hashable {
@@ -259,6 +359,13 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     @Published var activeDialogID: WorkbenchDialogAccessibilityID?
     @Published private(set) var focusedDialogTarget: WorkbenchDialogAccessibilityTarget?
 
+    // Settings Window (Step 3: L-02 Settings)
+    @Published var selectedSettingsCategory: SettingsCategory = .general
+    @Published private(set) var focusedSettingsTarget: SettingsAccessibilityTarget?
+    @Published private(set) var focusedSettingsDialogTarget: WorkbenchDialogAccessibilityTarget?
+    @Published var activeSubtitleColorPopover: SettingsSubtitleCategory.ColorFieldID?
+    @Published var isShortcutRecording: Bool = false
+
     /// Current column count of the active Workbench card grid (`Recent`,
     /// `Library` Overview & Detail, `Excerpt` Overview), updated by
     /// `LibraryOverviewGrid` layout.
@@ -371,12 +478,28 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     /// file switcher dropdown menu when `.fileDetailPairedSwitcher` is activated.
     var onToggleFileDetailPairedMenu: (() -> Void)?
 
+    /// Closures registered by Settings dropdown triggers (`General` -> `Language`,
+    /// `Subtitle` -> `Font`).
+    var onToggleSettingsLanguageMenu: (() -> Void)?
+    var onToggleSettingsSubtitleFontMenu: (() -> Void)?
+
+    private var settingsTextInputs: [SettingsTextInputKind: RegisteredDialogTextInput] = [:]
+    private var activeSettingsTextInputs: Set<SettingsTextInputKind> = []
+
     var isActive: Bool {
         focusedTarget != nil
     }
 
     var isDialogActive: Bool {
         focusedDialogTarget != nil
+    }
+
+    var isSettingsActive: Bool {
+        focusedSettingsTarget != nil
+    }
+
+    var isSettingsDialogActive: Bool {
+        focusedSettingsDialogTarget != nil
     }
 
     var focusedCardID: String? {
@@ -387,10 +510,21 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         focusedTarget == target
     }
 
+    func isSettingsFocused(_ target: SettingsAccessibilityTarget) -> Bool {
+        focusedSettingsTarget == target
+    }
+
+    func isSettingsDialogFocused(_ target: WorkbenchDialogAccessibilityTarget) -> Bool {
+        focusedSettingsDialogTarget == target
+    }
+
     func isDialogFocused(
         _ target: WorkbenchDialogAccessibilityTarget,
         dialogID: WorkbenchDialogAccessibilityID? = nil
     ) -> Bool {
+        if dialogID == .settingsConfirmation {
+            return focusedSettingsDialogTarget == target
+        }
         guard focusedDialogTarget == target else {
             return false
         }
@@ -398,6 +532,154 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
             return dialogID == activeDialogID
         }
         return true
+    }
+
+    func setSettingsDialogFocus(_ target: WorkbenchDialogAccessibilityTarget?) {
+        if focusedSettingsDialogTarget != target {
+            focusedSettingsDialogTarget = target
+        }
+    }
+
+    @discardableResult
+    func clearSettingsDialog() -> Bool {
+        let hadFocus = focusedSettingsDialogTarget != nil
+        focusedSettingsDialogTarget = nil
+        return hadFocus
+    }
+
+    func setSettingsFocus(
+        _ target: SettingsAccessibilityTarget?,
+        isTargetEnabled: Bool = true
+    ) {
+        let previous = focusedSettingsTarget
+        if focusedSettingsTarget != target {
+            focusedSettingsTarget = target
+        }
+        if let colorWellID = target?.colorWellID {
+            if activeSubtitleColorPopover != colorWellID {
+                activeSubtitleColorPopover = colorWellID
+            }
+        } else if target != nil {
+            if activeSubtitleColorPopover != nil {
+                activeSubtitleColorPopover = nil
+            }
+        }
+        syncSettingsTextInputFocus(
+            from: previous,
+            to: target,
+            isTargetEnabled: isTargetEnabled
+        )
+    }
+
+    @discardableResult
+    func clearSettings(
+        keepTextInputFocus: Bool = true,
+        keepColorPopoverOpen: Bool = true
+    ) -> Bool {
+        let hadFocus = focusedSettingsTarget != nil
+        focusedSettingsTarget = nil
+        if !keepTextInputFocus {
+            unfocusAllSettingsTextInputs()
+        }
+        if !keepColorPopoverOpen {
+            activeSubtitleColorPopover = nil
+        }
+        return hadFocus
+    }
+
+    func registerSettingsTextInput(
+        _ kind: SettingsTextInputKind,
+        ownerToken: ObjectIdentifier? = nil,
+        setFocused: @escaping (Bool) -> Void,
+        isCurrentlyFocused: @escaping () -> Bool
+    ) {
+        settingsTextInputs[kind] = RegisteredDialogTextInput(
+            ownerToken: ownerToken,
+            setFocused: setFocused,
+            isCurrentlyFocused: isCurrentlyFocused
+        )
+        if isCurrentlyFocused() {
+            activeSettingsTextInputs.insert(kind)
+        }
+    }
+
+    func unregisterSettingsTextInput(
+        _ kind: SettingsTextInputKind,
+        ownerToken: ObjectIdentifier? = nil
+    ) {
+        if let ownerToken,
+           let existing = settingsTextInputs[kind],
+           let existingToken = existing.ownerToken,
+           existingToken != ownerToken {
+            return
+        }
+        settingsTextInputs.removeValue(forKey: kind)
+        activeSettingsTextInputs.remove(kind)
+    }
+
+    func setSettingsTextInputActive(_ kind: SettingsTextInputKind, isActive: Bool) {
+        if isActive {
+            activeSettingsTextInputs.insert(kind)
+        } else {
+            activeSettingsTextInputs.remove(kind)
+        }
+    }
+
+    func isSettingsTextInputActive(_ kind: SettingsTextInputKind) -> Bool {
+        if let entry = settingsTextInputs[kind], entry.isCurrentlyFocused() {
+            return true
+        }
+        return activeSettingsTextInputs.contains(kind)
+    }
+
+    var isAnySettingsTextInputFocused: Bool {
+        for kind in SettingsTextInputKind.allCases {
+            if isSettingsTextInputActive(kind) {
+                return true
+            }
+        }
+        return !activeSettingsTextInputs.isEmpty
+    }
+
+    func focusSettingsTextInput(_ kind: SettingsTextInputKind, isEnabled: Bool = true) {
+        guard isEnabled else {
+            unfocusAllSettingsTextInputs()
+            return
+        }
+        unfocusAllSettingsTextInputs(except: kind)
+        activeSettingsTextInputs.insert(kind)
+        settingsTextInputs[kind]?.setFocused(true)
+    }
+
+    func unfocusSettingsTextInput(_ kind: SettingsTextInputKind) {
+        activeSettingsTextInputs.remove(kind)
+        settingsTextInputs[kind]?.setFocused(false)
+    }
+
+    func unfocusAllSettingsTextInputs(except keptKind: SettingsTextInputKind? = nil) {
+        for kind in SettingsTextInputKind.allCases where kind != keptKind {
+            activeSettingsTextInputs.remove(kind)
+            settingsTextInputs[kind]?.setFocused(false)
+        }
+        if keptKind == nil,
+           let window = NSApp.keyWindow,
+           (window.firstResponder is NSText || window.firstResponder is NSTextField) {
+            _ = window.makeFirstResponder(nil)
+        }
+    }
+
+    private func syncSettingsTextInputFocus(
+        from previous: SettingsAccessibilityTarget?,
+        to next: SettingsAccessibilityTarget?,
+        isTargetEnabled: Bool
+    ) {
+        if let inputKind = next?.textInputKind {
+            focusSettingsTextInput(inputKind, isEnabled: isTargetEnabled)
+        } else if next != nil {
+            unfocusAllSettingsTextInputs()
+        } else if let prevKind = previous?.textInputKind {
+            _ = prevKind
+        }
     }
 
     func setDialogFocus(

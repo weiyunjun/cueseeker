@@ -638,8 +638,12 @@ final class AppCoordinator: ObservableObject {
 
         Publishers.MergeMany([
             interfaceLayers.objectWillChange.eraseToAnyPublisher(),
+            settingsInterfaceLayers.objectWillChange.eraseToAnyPublisher(),
             workbenchLayout.objectWillChange.eraseToAnyPublisher(),
             workbenchLayout.route.objectWillChange.eraseToAnyPublisher(),
+            settings.objectWillChange.eraseToAnyPublisher(),
+            settings.playbackShortcuts.objectWillChange.eraseToAnyPublisher(),
+            settings.confirmation.objectWillChange.eraseToAnyPublisher(),
             search.objectWillChange.eraseToAnyPublisher(),
             library.objectWillChange.eraseToAnyPublisher(),
             excerpt.objectWillChange.eraseToAnyPublisher(),
@@ -653,6 +657,8 @@ final class AppCoordinator: ObservableObject {
             Task { @MainActor [weak self] in
                 self?.reconcileWorkbenchAccessibilityFocus()
                 self?.reconcileDialogAccessibilityFocus()
+                self?.reconcileSettingsAccessibilityFocus()
+                self?.reconcileSettingsDialogAccessibilityFocus()
             }
         }
         .store(in: &interfaceLayerCancellables)

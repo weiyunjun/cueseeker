@@ -391,6 +391,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let settingsInterfaceLayers = appState.settingsInterfaceLayers
         let contentView = SettingsView()
             .modifier(InterfaceLayerCoverageBridge(layers: settingsInterfaceLayers))
+            .environment(\.workbenchAccessibility, appState.workbenchAccessibility)
             .environmentObject(appState)
             .environmentObject(appState.workbenchLayout)
             .environmentObject(appState.workbenchLayout.route)
@@ -403,6 +404,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.library)
             .environmentObject(appState.search)
             .environmentObject(appState.playback)
+            .environmentObject(appState.workbenchAccessibility)
         let settingsWindow = CueSeekerWindow(
             contentRect: NSRect(
                 x: 0,
@@ -414,8 +416,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        settingsWindow.onMouseDownClearAccessibility = {
+        settingsWindow.onMouseDownClearAccessibility = { [appState] in
             MainActor.assumeIsolated {
+                _ = appState.workbenchAccessibility.clearSettings(
+                    keepTextInputFocus: true,
+                    keepColorPopoverOpen: true
+                )
+                _ = appState.workbenchAccessibility.clearSettingsDialog()
                 MenuHighlightModel.broadcastMouseDown()
             }
         }
@@ -450,6 +457,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func settingsWindowWillClose(_ notification: Notification) {
         appState.workbenchLayout.isSettingsWindowOpen = false
+        _ = appState.workbenchAccessibility.clearSettings(
+            keepTextInputFocus: false,
+            keepColorPopoverOpen: false
+        )
+        _ = appState.workbenchAccessibility.clearSettingsDialog()
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {

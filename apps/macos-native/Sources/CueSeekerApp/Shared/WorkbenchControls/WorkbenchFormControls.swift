@@ -405,9 +405,11 @@ struct WorkbenchNumberField: View {
     var normalizeDraft: ((String) -> String)? = nil
     var onEditingEnded: (() -> Void)? = nil
     var onSubmit: (() -> Void)? = nil
+    var settingsInputKind: SettingsTextInputKind? = nil
 
     @State private var isFocused = false
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
 
     static func filterIntegerDraft(_ raw: String) -> String {
         let prefix = raw.prefix { scalar in
@@ -431,67 +433,102 @@ struct WorkbenchNumberField: View {
     }
 
     var body: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            WorkbenchSingleLineTextInput(
-                placeholder: placeholder,
-                text: $text,
-                placeholderColor: WorkbenchRedesignColors.textPlaceholder,
-                textColor: isEnabled
-                    ? WorkbenchRedesignColors.textPrimary
-                    : WorkbenchRedesignColors.textDisabled,
-                fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
-                alignment: .right,
-                usesMonospacedDigits: true,
-                focus: focus,
-                accessibilityLabel: placeholder,
-                normalizeDraft: normalizeDraft,
-                onFocusChange: { isFocused = $0 },
-                onEditingEnded: onEditingEnded,
-                onSubmit: onSubmit
-            )
+        WorkbenchAccessibilityReader { accessibility in
+            let isAccessibilityFocused = settingsInputKind.map {
+                accessibility?.isSettingsFocused($0.settingsTarget) == true
+            } ?? false
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                WorkbenchSingleLineTextInput(
+                    placeholder: placeholder,
+                    text: $text,
+                    placeholderColor: WorkbenchRedesignColors.textPlaceholder,
+                    textColor: isEnabled
+                        ? WorkbenchRedesignColors.textPrimary
+                        : WorkbenchRedesignColors.textDisabled,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                    alignment: .right,
+                    usesMonospacedDigits: true,
+                    focus: focus,
+                    accessibilityLabel: placeholder,
+                    normalizeDraft: normalizeDraft,
+                    onFocusChange: {
+                        isFocused = $0
+                        if let settingsInputKind {
+                            workbenchAccessibility?.setSettingsTextInputActive(settingsInputKind, isActive: $0)
+                        }
+                    },
+                    onBindTextField: { field in
+                        guard let settingsInputKind else { return }
+                        workbenchAccessibility?.registerSettingsTextInput(
+                            settingsInputKind,
+                            ownerToken: ObjectIdentifier(field),
+                            setFocused: { [weak field] focused in
+                                if focused {
+                                    field?.focusFromAccessibility()
+                                } else {
+                                    field?.unfocusFromAccessibility()
+                                }
+                                if field?.window == nil {
+                                    isFocused = focused && isEnabled
+                                    focus.wrappedValue = focused && isEnabled
+                                }
+                            },
+                            isCurrentlyFocused: { [weak field] in
+                                field?.isCurrentlyFocused == true
+                            }
+                        )
+                    },
+                    onEditingEnded: onEditingEnded,
+                    onSubmit: onSubmit
+                )
 
-            if let unit {
-                Text(unit)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeControl,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(
-                        isEnabled
-                            ? WorkbenchRedesignColors.textMuted
-                            : WorkbenchRedesignColors.textDisabled
-                    )
-                    .fixedSize()
+                if let unit {
+                    Text(unit)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeControl,
+                            weight: .regular
+                        ))
+                        .foregroundStyle(
+                            isEnabled
+                                ? WorkbenchRedesignColors.textMuted
+                                : WorkbenchRedesignColors.textDisabled
+                        )
+                        .fixedSize()
+                }
             }
+            .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
+            .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
+            .background(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
+                    style: .continuous
+                )
+                .fill(
+                    isEnabled
+                        ? WorkbenchRedesignColors.bgControl
+                        : WorkbenchRedesignColors.bgDisabled
+                )
+            )
+            .overlay(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
+                    style: .continuous
+                )
+                .strokeBorder(
+                    isEnabled
+                        ? (isFocused
+                            ? WorkbenchRedesignColors.borderFocus
+                            : WorkbenchRedesignColors.borderControl)
+                        : WorkbenchRedesignColors.borderDisabled,
+                    lineWidth: 1
+                )
+            )
+            .workbenchAccessibilityFocusRing(
+                isFocused: isAccessibilityFocused,
+                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
+            )
+            .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
         }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
-        .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
-        .background(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
-                style: .continuous
-            )
-            .fill(
-                isEnabled
-                    ? WorkbenchRedesignColors.bgControl
-                    : WorkbenchRedesignColors.bgDisabled
-            )
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
-                style: .continuous
-            )
-            .strokeBorder(
-                isEnabled
-                    ? (isFocused
-                        ? WorkbenchRedesignColors.borderFocus
-                        : WorkbenchRedesignColors.borderControl)
-                    : WorkbenchRedesignColors.borderDisabled,
-                lineWidth: 1
-            )
-        )
-        .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
     }
 }
 

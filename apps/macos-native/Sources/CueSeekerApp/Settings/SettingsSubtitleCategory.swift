@@ -26,6 +26,7 @@ struct SettingsSubtitleCategory: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @Environment(\.interfaceLayers) private var environmentInterfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     @StateObject private var fallbackInterfaceLayers = InterfaceLayerRegistry()
 
     @State private var activeFontMenu: SettingsSubtitleFontMenuState?
@@ -50,157 +51,191 @@ struct SettingsSubtitleCategory: View {
         let style = settingsStore.srtSubtitleStyle
         let systemFontTitle = L("settings.subtitle.system_font")
 
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
-            SettingsGroup(title: L("settings.subtitle.section.text")) {
-                row(L("settings.subtitle.font"), isFirst: true) {
-                    SettingsSubtitleFontTrigger(
-                        title: fontTitle(style.fontName),
-                        isOpen: isFontMenuOpen
-                    ) {
-                        toggleFontMenu()
-                    }
-                    .background(MenuAnchorProbe(handle: fontTriggerAnchor))
-                    .workbenchDropdownAnchor(
-                        id: Self.fontTriggerAnchorID,
-                        in: Self.coordinateSpaceName
-                    )
-                }
-                row(L("settings.subtitle.size")) {
-                    numberField(
-                        \.size,
-                        minimum: SRTSubtitleStyle.minimumSize,
-                        maximum: SettingsSubtitleBounds.sizeMaximum
-                    )
-                }
-                row(L("settings.subtitle.style")) {
-                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing6) {
-                        checkbox(L("settings.subtitle.bold"), \.isBold)
-                        checkbox(L("settings.subtitle.italic"), \.isItalic)
-                    }
-                }
-                row(L("settings.subtitle.color")) {
-                    colorField(
-                        id: .textColor,
-                        label: L("settings.subtitle.color"),
-                        keyPath: \.textColor
-                    )
-                }
-                row(L("settings.subtitle.letter_spacing")) {
-                    numberField(
-                        \.letterSpacing,
-                        minimum: SettingsSubtitleBounds.spacingMinimum,
-                        maximum: SettingsSubtitleBounds.spacingMaximum
-                    )
-                }
-                row(L("settings.subtitle.line_spacing")) {
-                    numberField(
-                        \.lineSpacing,
-                        minimum: SettingsSubtitleBounds.spacingMinimum,
-                        maximum: SettingsSubtitleBounds.spacingMaximum
-                    )
-                }
-            }
-
-            SettingsGroup(title: L("settings.subtitle.section.position")) {
-                row(L("settings.subtitle.horizontal"), isFirst: true) {
-                    segmentedControl(\.horizontalAlignment)
-                }
-                row(L("settings.subtitle.margin_x")) {
-                    numberField(
-                        \.marginX,
-                        minimum: SettingsSubtitleBounds.marginMinimum,
-                        maximum: SettingsSubtitleBounds.marginMaximum
-                    )
-                }
-                row(L("settings.subtitle.vertical")) {
-                    segmentedControl(\.verticalAlignment)
-                }
-                row(L("settings.subtitle.margin_y")) {
-                    numberField(
-                        \.marginY,
-                        minimum: SettingsSubtitleBounds.marginMinimum,
-                        maximum: SettingsSubtitleBounds.marginMaximum
-                    )
-                }
-            }
-
-            SettingsGroup(title: L("settings.subtitle.section.border")) {
-                row(L("settings.subtitle.border_type"), isFirst: true) {
-                    segmentedControl(\.borderType)
-                }
-                if style.borderType == .outline {
-                    row(L("settings.subtitle.outline_color")) {
-                        colorField(
-                            id: .outlineColor,
-                            label: L("settings.subtitle.outline_color"),
-                            keyPath: \.outlineColor
+        WorkbenchAccessibilityReader { accessibility in
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
+                SettingsGroup(title: L("settings.subtitle.section.text")) {
+                    row(L("settings.subtitle.font"), isFirst: true) {
+                        SettingsSubtitleFontTrigger(
+                            title: fontTitle(style.fontName),
+                            isOpen: isFontMenuOpen,
+                            isFocused: accessibility?.isSettingsFocused(.subtitleFontDropdown) == true
+                        ) {
+                            toggleFontMenu()
+                        }
+                        .background(MenuAnchorProbe(handle: fontTriggerAnchor))
+                        .workbenchDropdownAnchor(
+                            id: Self.fontTriggerAnchorID,
+                            in: Self.coordinateSpaceName
                         )
                     }
-                    row(L("settings.subtitle.outline_width")) {
+                    row(L("settings.subtitle.size")) {
                         numberField(
-                            \.outlineWidth,
-                            minimum: SettingsSubtitleBounds.effectMinimum,
-                            maximum: SettingsSubtitleBounds.effectMaximum
+                            \.size,
+                            minimum: SRTSubtitleStyle.minimumSize,
+                            maximum: SettingsSubtitleBounds.sizeMaximum,
+                            fieldID: .subtitleSize
                         )
                     }
-                } else {
-                    row(L("settings.subtitle.background_color")) {
+                    row(L("settings.subtitle.style")) {
+                        HStack(spacing: WorkbenchControlMetrics.redesignSpacing6) {
+                            checkbox(
+                                L("settings.subtitle.bold"),
+                                \.isBold,
+                                isFocused: accessibility?.isSettingsFocused(.subtitleBold) == true
+                            )
+                            checkbox(
+                                L("settings.subtitle.italic"),
+                                \.isItalic,
+                                isFocused: accessibility?.isSettingsFocused(.subtitleItalic) == true
+                            )
+                        }
+                    }
+                    row(L("settings.subtitle.color")) {
                         colorField(
-                            id: .backgroundColor,
-                            label: L("settings.subtitle.background_color"),
-                            keyPath: \.backgroundColor
+                            id: .textColor,
+                            label: L("settings.subtitle.color"),
+                            keyPath: \.textColor
                         )
                     }
-                    row(L("settings.subtitle.background_opacity")) {
-                        opacityField(\.backgroundColor)
+                    row(L("settings.subtitle.letter_spacing")) {
+                        numberField(
+                            \.letterSpacing,
+                            minimum: SettingsSubtitleBounds.spacingMinimum,
+                            maximum: SettingsSubtitleBounds.spacingMaximum,
+                            fieldID: .subtitleLetterSpacing
+                        )
+                    }
+                    row(L("settings.subtitle.line_spacing")) {
+                        numberField(
+                            \.lineSpacing,
+                            minimum: SettingsSubtitleBounds.spacingMinimum,
+                            maximum: SettingsSubtitleBounds.spacingMaximum,
+                            fieldID: .subtitleLineSpacing
+                        )
                     }
                 }
-                row(L("settings.subtitle.blur")) {
-                    numberField(
-                        \.blur,
-                        minimum: SettingsSubtitleBounds.effectMinimum,
-                        maximum: SettingsSubtitleBounds.effectMaximum
+
+                SettingsGroup(title: L("settings.subtitle.section.position")) {
+                    row(L("settings.subtitle.horizontal"), isFirst: true) {
+                        segmentedControl(\.horizontalAlignment) { option in
+                            accessibility?.isSettingsFocused(.subtitleHorizontalAlignment(option)) == true
+                        }
+                    }
+                    row(L("settings.subtitle.margin_x")) {
+                        numberField(
+                            \.marginX,
+                            minimum: SettingsSubtitleBounds.marginMinimum,
+                            maximum: SettingsSubtitleBounds.marginMaximum,
+                            fieldID: .subtitleMarginX
+                        )
+                    }
+                    row(L("settings.subtitle.vertical")) {
+                        segmentedControl(\.verticalAlignment) { option in
+                            accessibility?.isSettingsFocused(.subtitleVerticalAlignment(option)) == true
+                        }
+                    }
+                    row(L("settings.subtitle.margin_y")) {
+                        numberField(
+                            \.marginY,
+                            minimum: SettingsSubtitleBounds.marginMinimum,
+                            maximum: SettingsSubtitleBounds.marginMaximum,
+                            fieldID: .subtitleMarginY
+                        )
+                    }
+                }
+
+                SettingsGroup(title: L("settings.subtitle.section.border")) {
+                    row(L("settings.subtitle.border_type"), isFirst: true) {
+                        segmentedControl(\.borderType) { option in
+                            accessibility?.isSettingsFocused(.subtitleBorderType(option)) == true
+                        }
+                    }
+                    if style.borderType == .outline {
+                        row(L("settings.subtitle.outline_color")) {
+                            colorField(
+                                id: .outlineColor,
+                                label: L("settings.subtitle.outline_color"),
+                                keyPath: \.outlineColor
+                            )
+                        }
+                        row(L("settings.subtitle.outline_width")) {
+                            numberField(
+                                \.outlineWidth,
+                                minimum: SettingsSubtitleBounds.effectMinimum,
+                                maximum: SettingsSubtitleBounds.effectMaximum,
+                                fieldID: .subtitleOutlineWidth
+                            )
+                        }
+                    } else {
+                        row(L("settings.subtitle.background_color")) {
+                            colorField(
+                                id: .backgroundColor,
+                                label: L("settings.subtitle.background_color"),
+                                keyPath: \.backgroundColor
+                            )
+                        }
+                        row(L("settings.subtitle.background_opacity")) {
+                            opacityField(\.backgroundColor, fieldID: .subtitleBackgroundOpacity)
+                        }
+                    }
+                    row(L("settings.subtitle.blur")) {
+                        numberField(
+                            \.blur,
+                            minimum: SettingsSubtitleBounds.effectMinimum,
+                            maximum: SettingsSubtitleBounds.effectMaximum,
+                            fieldID: .subtitleBlur
+                        )
+                    }
+                }
+
+                SettingsGroup(title: L("settings.subtitle.section.shadow")) {
+                    row(L("settings.subtitle.shadow_color"), isFirst: true) {
+                        colorField(
+                            id: .shadowColor,
+                            label: L("settings.subtitle.shadow_color"),
+                            keyPath: \.shadowColor
+                        )
+                    }
+                    row(L("settings.subtitle.shadow_opacity")) {
+                        opacityField(\.shadowColor, fieldID: .subtitleShadowOpacity)
+                    }
+                    row(L("settings.subtitle.shadow_offset")) {
+                        numberField(
+                            \.shadowOffset,
+                            minimum: SettingsSubtitleBounds.effectMinimum,
+                            maximum: SettingsSubtitleBounds.effectMaximum,
+                            fieldID: .subtitleShadowOffset
+                        )
+                    }
+                }
+
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+
+                    WorkbenchButton(
+                        title: L("settings.subtitle.restore_defaults"),
+                        icon: .arrowCounterClockwise,
+                        isFocused: accessibility?.isSettingsFocused(.subtitleRestoreDefaults) == true
+                    ) {
+                        closeAllPopovers()
+                        settingsStore.srtSubtitleStyle = SRTSubtitleStyle()
+                    }
+                    .disabled(style == SRTSubtitleStyle())
+                    .workbenchTooltip(
+                        scenarioID: "disabled.settings.subtitle.restore_defaults",
+                        surface: .settings,
+                        isActive: style == SRTSubtitleStyle(),
+                        label: L("tooltip.disabled.settings.subtitle.restore_defaults")
                     )
                 }
             }
-
-            SettingsGroup(title: L("settings.subtitle.section.shadow")) {
-                row(L("settings.subtitle.shadow_color"), isFirst: true) {
-                    colorField(
-                        id: .shadowColor,
-                        label: L("settings.subtitle.shadow_color"),
-                        keyPath: \.shadowColor
-                    )
+            .onChange(of: accessibility?.activeSubtitleColorPopover) { newPopover in
+                if newPopover != nil {
+                    closeFontMenu()
                 }
-                row(L("settings.subtitle.shadow_opacity")) {
-                    opacityField(\.shadowColor)
+                if activeColorPopover != newPopover {
+                    activeColorPopover = newPopover
                 }
-                row(L("settings.subtitle.shadow_offset")) {
-                    numberField(
-                        \.shadowOffset,
-                        minimum: SettingsSubtitleBounds.effectMinimum,
-                        maximum: SettingsSubtitleBounds.effectMaximum
-                    )
-                }
-            }
-
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-
-                WorkbenchButton(
-                    title: L("settings.subtitle.restore_defaults"),
-                    icon: .arrowCounterClockwise
-                ) {
-                    closeAllPopovers()
-                    settingsStore.srtSubtitleStyle = SRTSubtitleStyle()
-                }
-                .disabled(style == SRTSubtitleStyle())
-                .workbenchTooltip(
-                    scenarioID: "disabled.settings.subtitle.restore_defaults",
-                    surface: .settings,
-                    isActive: style == SRTSubtitleStyle(),
-                    label: L("tooltip.disabled.settings.subtitle.restore_defaults")
-                )
             }
         }
         .coordinateSpace(name: Self.coordinateSpaceName)
@@ -275,6 +310,7 @@ struct SettingsSubtitleCategory: View {
                    let fieldFrame = anchorFrames[activeID.rawValue] {
                     SettingsSubtitleColorPresetsPopover(
                         selectedColor: colorBinding(for: activeID).wrappedValue,
+                        fieldID: activeID,
                         onSelectPreset: { presetHex in
                             applyPresetColor(presetHex, for: activeID)
                         }
@@ -318,13 +354,26 @@ struct SettingsSubtitleCategory: View {
             if availableFonts.isEmpty {
                 availableFonts = Self.loadSystemFonts()
             }
+            workbenchAccessibility?.onToggleSettingsSubtitleFontMenu = {
+                toggleFontMenu()
+            }
+            if let coordPopover = workbenchAccessibility?.activeSubtitleColorPopover {
+                activeColorPopover = coordPopover
+            }
+        }
+        .onChange(of: activeColorPopover) { newValue in
+            if workbenchAccessibility?.activeSubtitleColorPopover != newValue {
+                workbenchAccessibility?.activeSubtitleColorPopover = newValue
+            }
         }
         .onChange(of: style.borderType) { _ in
             if activeColorPopover == .outlineColor || activeColorPopover == .backgroundColor {
                 activeColorPopover = nil
+                workbenchAccessibility?.activeSubtitleColorPopover = nil
             }
         }
         .onDisappear {
+            workbenchAccessibility?.onToggleSettingsSubtitleFontMenu = nil
             closeAllPopovers()
         }
     }
@@ -351,6 +400,10 @@ struct SettingsSubtitleCategory: View {
     }
 
     private func openFontMenu() {
+        _ = workbenchAccessibility?.clearSettings(
+            keepTextInputFocus: false,
+            keepColorPopoverOpen: false
+        )
         activeColorPopover = nil
         if availableFonts.isEmpty {
             availableFonts = Self.loadSystemFonts()
@@ -488,6 +541,7 @@ struct SettingsSubtitleCategory: View {
         closeFontMenu()
         if activeColorPopover != nil {
             activeColorPopover = nil
+            workbenchAccessibility?.activeSubtitleColorPopover = nil
             NSApp.keyWindow?.makeFirstResponder(nil)
         }
     }
@@ -512,7 +566,8 @@ struct SettingsSubtitleCategory: View {
         _ keyPath: WritableKeyPath<SRTSubtitleStyle, Double>,
         minimum: Double,
         maximum: Double,
-        unit: String? = nil
+        unit: String? = nil,
+        fieldID: SettingsNumberFieldID
     ) -> some View {
         SettingsSubtitleNumberField(
             value: Binding(
@@ -521,12 +576,14 @@ struct SettingsSubtitleCategory: View {
             ),
             minimum: minimum,
             maximum: maximum,
-            unit: unit
+            unit: unit,
+            settingsInputKind: .numberField(fieldID)
         )
     }
 
     private func opacityField(
-        _ colorKeyPath: WritableKeyPath<SRTSubtitleStyle, SRTSubtitleStyle.Color>
+        _ colorKeyPath: WritableKeyPath<SRTSubtitleStyle, SRTSubtitleStyle.Color>,
+        fieldID: SettingsNumberFieldID
     ) -> some View {
         SettingsSubtitleNumberField(
             value: Binding(
@@ -543,7 +600,8 @@ struct SettingsSubtitleCategory: View {
             ),
             minimum: SettingsSubtitleBounds.opacityMinimum,
             maximum: SettingsSubtitleBounds.opacityMaximum,
-            unit: "%"
+            unit: "%",
+            settingsInputKind: .numberField(fieldID)
         )
     }
 
@@ -564,11 +622,18 @@ struct SettingsSubtitleCategory: View {
                     if isOpen {
                         closeFontMenu()
                         activeColorPopover = id
+                        if workbenchAccessibility?.activeSubtitleColorPopover != id {
+                            workbenchAccessibility?.activeSubtitleColorPopover = id
+                        }
                     } else if activeColorPopover == id {
                         activeColorPopover = nil
+                        if workbenchAccessibility?.activeSubtitleColorPopover == id {
+                            workbenchAccessibility?.activeSubtitleColorPopover = nil
+                        }
                     }
                 }
-            )
+            ),
+            fieldID: id
         )
         .workbenchDropdownAnchor(id: id.rawValue, in: Self.coordinateSpaceName)
     }
@@ -605,7 +670,8 @@ struct SettingsSubtitleCategory: View {
 
     private func checkbox(
         _ title: String,
-        _ keyPath: WritableKeyPath<SRTSubtitleStyle, Bool>
+        _ keyPath: WritableKeyPath<SRTSubtitleStyle, Bool>,
+        isFocused: Bool = false
     ) -> some View {
         let isChecked = settingsStore.srtSubtitleStyle[keyPath: keyPath]
 
@@ -617,6 +683,11 @@ struct SettingsSubtitleCategory: View {
                     state: isChecked ? .checked : .unchecked,
                     isEnabled: true,
                     size: WorkbenchControlMetrics.redesignCheckboxSize
+                )
+                .workbenchAccessibilityFocusRing(
+                    isFocused: isFocused,
+                    cornerRadius: WorkbenchControlMetrics.redesignCheckboxSize / 2,
+                    isCircular: true
                 )
 
                 Text(title)
@@ -631,7 +702,8 @@ struct SettingsSubtitleCategory: View {
     }
 
     private func segmentedControl<Option: SettingsSubtitleOption>(
-        _ keyPath: WritableKeyPath<SRTSubtitleStyle, Option>
+        _ keyPath: WritableKeyPath<SRTSubtitleStyle, Option>,
+        isOptionFocused: ((Option) -> Bool)? = nil
     ) -> some View {
         WorkbenchSegmentedControl(
             options: Array(Option.allCases),
@@ -640,7 +712,8 @@ struct SettingsSubtitleCategory: View {
                 set: { settingsStore.srtSubtitleStyle[keyPath: keyPath] = $0 }
             ),
             title: \.title,
-            accessibilityLabel: \.title
+            accessibilityLabel: \.title,
+            isOptionFocused: isOptionFocused
         )
     }
 
@@ -857,6 +930,7 @@ struct SettingsSubtitleFontOption: Identifiable, Equatable {
 struct SettingsSubtitleFontTrigger: View {
     let title: String
     let isOpen: Bool
+    var isFocused: Bool = false
     let action: () -> Void
 
     @State private var isHovered = false
@@ -915,6 +989,10 @@ struct SettingsSubtitleFontTrigger: View {
         }
         .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
         .focusable(false)
+        .workbenchAccessibilityFocusRing(
+            isFocused: isFocused,
+            cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
+        )
         .onPointerHover { isHovered = $0 }
     }
 }
@@ -1331,101 +1409,148 @@ struct SettingsSubtitleColorField: View {
     @Binding var color: SRTSubtitleStyle.Color
     let accessibilityLabel: String
     @Binding var isPopoverOpen: Bool
+    var fieldID: SettingsSubtitleCategory.ColorFieldID = .textColor
 
     @State private var draft = ""
     @State private var lastCommittedHex = "FFFFFF"
     @FocusState private var isFocused: Bool
     @State private var isNativeFocused = false
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
 
     var body: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignSettingsColorSwatchRadius,
-                style: .continuous
-            )
-            .fill(color.opaqueSwiftUIColor)
-            .frame(
-                width: WorkbenchControlMetrics.redesignSettingsColorSwatchSize,
-                height: WorkbenchControlMetrics.redesignSettingsColorSwatchSize
-            )
+        WorkbenchAccessibilityReader { accessibility in
+            let isAccessibilityFocused = accessibility?.isSettingsFocused(.subtitleColorField(fieldID)) == true
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignSettingsColorSwatchRadius,
+                    style: .continuous
+                )
+                .fill(color.opaqueSwiftUIColor)
+                .frame(
+                    width: WorkbenchControlMetrics.redesignSettingsColorSwatchSize,
+                    height: WorkbenchControlMetrics.redesignSettingsColorSwatchSize
+                )
 
-            HStack(spacing: 2) {
-                Text("#")
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeControl,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .fixedSize()
+                HStack(spacing: 2) {
+                    Text("#")
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeControl,
+                            weight: .regular
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                        .fixedSize()
 
-                WorkbenchSingleLineTextInput(
-                    placeholder: "",
-                    text: Binding(
-                        get: { draft },
-                        set: { newValue in
-                            draft = newValue
-                            applyDraft(newValue)
-                        }
-                    ),
-                    placeholderColor: WorkbenchRedesignColors.textPlaceholder,
-                    textColor: WorkbenchRedesignColors.textPrimary,
-                    fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
-                    alignment: .left,
-                    usesMonospacedDigits: true,
-                    focus: $isFocused,
-                    accessibilityLabel: accessibilityLabel,
-                    normalizeDraft: Self.normalizeDraft,
-                    onFocusChange: { focused in
-                        isNativeFocused = focused
-                        if focused {
-                            isPopoverOpen = true
-                        } else {
+                    WorkbenchSingleLineTextInput(
+                        placeholder: "",
+                        text: Binding(
+                            get: { draft },
+                            set: { newValue in
+                                draft = newValue
+                                applyDraft(newValue)
+                            }
+                        ),
+                        placeholderColor: WorkbenchRedesignColors.textPlaceholder,
+                        textColor: WorkbenchRedesignColors.textPrimary,
+                        fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                        alignment: .left,
+                        usesMonospacedDigits: true,
+                        focus: $isFocused,
+                        accessibilityLabel: accessibilityLabel,
+                        normalizeDraft: Self.normalizeDraft,
+                        onFocusChange: { focused in
+                            isNativeFocused = focused
+                            workbenchAccessibility?.setSettingsTextInputActive(
+                                .subtitleColorField(fieldID),
+                                isActive: focused
+                            )
+                            if focused {
+                                isPopoverOpen = true
+                            } else if workbenchAccessibility?.focusedSettingsTarget?.colorWellID != fieldID {
+                                isPopoverOpen = false
+                            }
+                        },
+                        onBindTextField: { field in
+                            let inputKind = SettingsTextInputKind.subtitleColorField(fieldID)
+                            workbenchAccessibility?.registerSettingsTextInput(
+                                inputKind,
+                                ownerToken: ObjectIdentifier(field),
+                                setFocused: { [weak field] focused in
+                                    if focused {
+                                        field?.focusFromAccessibility()
+                                    } else {
+                                        field?.unfocusFromAccessibility()
+                                    }
+                                    if field?.window == nil {
+                                        isNativeFocused = focused
+                                        isFocused = focused
+                                        if focused {
+                                            isPopoverOpen = true
+                                        } else if workbenchAccessibility?.focusedSettingsTarget?.colorWellID != fieldID {
+                                            isPopoverOpen = false
+                                        }
+                                    }
+                                },
+                                isCurrentlyFocused: { [weak field] in
+                                    field?.isCurrentlyFocused == true
+                                }
+                            )
+                        },
+                        onEditingEnded: commitDraft,
+                        onSubmit: nil,
+                        onCancel: {
+                            if let workbenchAccessibility, workbenchAccessibility.isSettingsActive {
+                                _ = workbenchAccessibility.clearSettings(
+                                    keepTextInputFocus: true,
+                                    keepColorPopoverOpen: true
+                                )
+                                return true
+                            }
                             isPopoverOpen = false
+                            workbenchAccessibility?.activeSubtitleColorPopover = nil
+                            isFocused = false
+                            NSApp.keyWindow?.makeFirstResponder(nil)
+                            return true
                         }
-                    },
-                    onEditingEnded: commitDraft,
-                    onSubmit: nil,
-                    onCancel: {
-                        isPopoverOpen = false
-                        isFocused = false
-                        NSApp.keyWindow?.makeFirstResponder(nil)
-                        return true
+                    )
+                }
+            }
+            .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
+            .frame(
+                width: WorkbenchControlMetrics.redesignSettingsNumberFieldWidth,
+                height: WorkbenchControlMetrics.redesignFieldHeight
+            )
+            .background(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
+                    style: .continuous
+                )
+                .fill(WorkbenchRedesignColors.bgControl)
+            )
+            .overlay(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
+                    style: .continuous
+                )
+                .strokeBorder(
+                    (isNativeFocused || isPopoverOpen)
+                        ? WorkbenchRedesignColors.borderFocus
+                        : WorkbenchRedesignColors.borderControl,
+                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                )
+            )
+            .workbenchAccessibilityFocusRing(
+                isFocused: isAccessibilityFocused,
+                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
+            )
+            .overlay(
+                WorkbenchSingleLineContainerOverlay(
+                    isEnabled: true,
+                    onPressRelease: {
+                        isPopoverOpen = true
                     }
                 )
-            }
+            )
         }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
-        .frame(
-            width: WorkbenchControlMetrics.redesignSettingsNumberFieldWidth,
-            height: WorkbenchControlMetrics.redesignFieldHeight
-        )
-        .background(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
-                style: .continuous
-            )
-            .fill(WorkbenchRedesignColors.bgControl)
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
-                style: .continuous
-            )
-            .strokeBorder(
-                (isNativeFocused || isPopoverOpen)
-                    ? WorkbenchRedesignColors.borderFocus
-                    : WorkbenchRedesignColors.borderControl,
-                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
-            )
-        )
-        .overlay(
-            WorkbenchSingleLineContainerOverlay(
-                isEnabled: true,
-                onPressRelease: {
-                    isPopoverOpen = true
-                }
-            )
-        )
         .onAppear {
             let initial = Self.hexString(for: color)
             draft = initial
@@ -1568,6 +1693,7 @@ struct SettingsSubtitleColorField: View {
 
 struct SettingsSubtitleColorPresetsPopover: View {
     let selectedColor: SRTSubtitleStyle.Color
+    var fieldID: SettingsSubtitleCategory.ColorFieldID = .textColor
     let onSelectPreset: (String) -> Void
 
     static var intrinsicWidth: CGFloat {
@@ -1583,56 +1709,62 @@ struct SettingsSubtitleColorPresetsPopover: View {
         let presets = SettingsSubtitleColorField.presetHexColors
         let rowCount = (presets.count + columns - 1) / columns
 
-        VStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            ForEach(0..<rowCount, id: \.self) { rowIndex in
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    ForEach(0..<columns, id: \.self) { columnIndex in
-                        let index = rowIndex * columns + columnIndex
-                        if index < presets.count {
-                            let hex = presets[index]
-                            Button {
-                                onSelectPreset(hex)
-                            } label: {
-                                RoundedRectangle(
-                                    cornerRadius: WorkbenchControlMetrics.redesignSettingsColorSwatchRadius,
-                                    style: .continuous
-                                )
-                                .fill(Color(nsColor: .hex(hex)))
-                                .frame(
-                                    width: WorkbenchControlMetrics.redesignSettingsColorPresetSwatchSize,
-                                    height: WorkbenchControlMetrics.redesignSettingsColorPresetSwatchSize
+        WorkbenchAccessibilityReader { accessibility in
+            VStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                ForEach(0..<rowCount, id: \.self) { rowIndex in
+                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                        ForEach(0..<columns, id: \.self) { columnIndex in
+                            let index = rowIndex * columns + columnIndex
+                            if index < presets.count {
+                                let hex = presets[index]
+                                Button {
+                                    onSelectPreset(hex)
+                                } label: {
+                                    RoundedRectangle(
+                                        cornerRadius: WorkbenchControlMetrics.redesignSettingsColorSwatchRadius,
+                                        style: .continuous
+                                    )
+                                    .fill(Color(nsColor: .hex(hex)))
+                                    .frame(
+                                        width: WorkbenchControlMetrics.redesignSettingsColorPresetSwatchSize,
+                                        height: WorkbenchControlMetrics.redesignSettingsColorPresetSwatchSize
+                                    )
+                                }
+                                .buttonStyle(StaticButtonStyle())
+                                .focusable(false)
+                                .workbenchAccessibilityFocusRing(
+                                    isFocused: accessibility?.isSettingsFocused(.subtitleColorPreset(fieldID, index)) == true,
+                                    cornerRadius: WorkbenchControlMetrics.redesignSettingsColorSwatchRadius
                                 )
                             }
-                            .buttonStyle(StaticButtonStyle())
-                            .focusable(false)
                         }
                     }
                 }
             }
+            .padding(WorkbenchControlMetrics.redesignSpacing3)
+            .background(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignMenuRadius,
+                    style: .continuous
+                )
+                .fill(WorkbenchRedesignColors.bgPopover)
+                .shadowToken(
+                    WorkbenchRedesignColors.shadowPopover,
+                    cornerRadius: WorkbenchControlMetrics.redesignMenuRadius
+                )
+            )
+            .overlay(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignMenuRadius,
+                    style: .continuous
+                )
+                .strokeBorder(
+                    WorkbenchRedesignColors.borderControl,
+                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                )
+            )
+            .background(FocusedTextInputCompanionSurface())
         }
-        .padding(WorkbenchControlMetrics.redesignSpacing3)
-        .background(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignMenuRadius,
-                style: .continuous
-            )
-            .fill(WorkbenchRedesignColors.bgPopover)
-            .shadowToken(
-                WorkbenchRedesignColors.shadowPopover,
-                cornerRadius: WorkbenchControlMetrics.redesignMenuRadius
-            )
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignMenuRadius,
-                style: .continuous
-            )
-            .strokeBorder(
-                WorkbenchRedesignColors.borderControl,
-                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
-            )
-        )
-        .background(FocusedTextInputCompanionSurface())
     }
 }
 
@@ -1645,6 +1777,7 @@ struct SettingsSubtitleNumberField: View {
     let minimum: Double
     var maximum: Double = SettingsSubtitleBounds.marginMaximum
     var unit: String? = nil
+    var settingsInputKind: SettingsTextInputKind? = nil
 
     @State private var draft = ""
     @FocusState private var isFocused: Bool
@@ -1665,7 +1798,8 @@ struct SettingsSubtitleNumberField: View {
                 Self.normalizeDraft(raw, maximum: maximum)
             },
             onEditingEnded: commitDraft,
-            onSubmit: nil
+            onSubmit: nil,
+            settingsInputKind: settingsInputKind
         )
         .frame(width: WorkbenchControlMetrics.redesignSettingsNumberFieldWidth)
         .onAppear {

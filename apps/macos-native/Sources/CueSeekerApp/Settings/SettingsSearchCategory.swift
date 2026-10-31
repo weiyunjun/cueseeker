@@ -8,37 +8,47 @@ struct SettingsSearchCategory: View {
     @EnvironmentObject private var cueGroupPresentation: CueGroupPresentationStore
 
     var body: some View {
-        SettingsGroup(
-            title: L("settings.category.search"),
-            description: L("settings.search.description")
-        ) {
-            SettingsRow(L("settings.search.show_cue_group")) {
-                Toggle(L("settings.search.show_cue_group"), isOn: Binding(
-                    get: { cueGroupPresentation.isEnabled },
-                    set: { cueGroupPresentation.setFromUser($0) }
-                ))
+        WorkbenchAccessibilityReader { accessibility in
+            SettingsGroup(
+                title: L("settings.category.search"),
+                description: L("settings.search.description")
+            ) {
+                SettingsRow(L("settings.search.show_cue_group")) {
+                    Toggle(L("settings.search.show_cue_group"), isOn: Binding(
+                        get: { cueGroupPresentation.isEnabled },
+                        set: { cueGroupPresentation.setFromUser($0) }
+                    ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .focusable(false)
+                        .workbenchAccessibilityFocusRing(
+                            isFocused: accessibility?.isSettingsFocused(.searchShowCueGroup) == true,
+                            isCapsule: true
+                        )
+                        .accessibilityIdentifier("settings.search.show-cue-group")
+                }
+
+                SettingsRowDivider()
+
+                SettingsRow(
+                    L("settings.search.prefill"),
+                    note: L("settings.search.prefill_note")
+                ) {
+                    Toggle(
+                        L("settings.search.prefill"),
+                        isOn: $settingsStore.prefillCommandPanelWithFocusedCue
+                    )
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .focusable(false)
-                    .accessibilityIdentifier("settings.search.show-cue-group")
-            }
-
-            SettingsRowDivider()
-
-            SettingsRow(
-                L("settings.search.prefill"),
-                note: L("settings.search.prefill_note")
-            ) {
-                Toggle(
-                    L("settings.search.prefill"),
-                    isOn: $settingsStore.prefillCommandPanelWithFocusedCue
-                )
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .focusable(false)
-                .accessibilityIdentifier(
-                    "settings.search.prefill-command-panel-with-focused-cue"
-                )
+                    .workbenchAccessibilityFocusRing(
+                        isFocused: accessibility?.isSettingsFocused(.searchPrefillCommandPanel) == true,
+                        isCapsule: true
+                    )
+                    .accessibilityIdentifier(
+                        "settings.search.prefill-command-panel-with-focused-cue"
+                    )
+                }
             }
         }
     }

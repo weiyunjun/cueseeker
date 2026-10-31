@@ -9,6 +9,7 @@ struct SettingsLanguageCategory: View {
     @EnvironmentObject private var localization: AppLocalizationStore
     @Environment(\.interfaceLayers) private var environmentInterfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     @StateObject private var fallbackInterfaceLayers = InterfaceLayerRegistry()
 
     @State private var activeLanguageMenu: SettingsLanguageMenuState?
@@ -31,17 +32,25 @@ struct SettingsLanguageCategory: View {
             description: L("settings.language.description")
         ) {
             SettingsRow(L("settings.language.field")) {
-                SettingsSubtitleFontTrigger(
-                    title: localization.language.displayName,
-                    isOpen: isLanguageMenuOpen
-                ) {
-                    toggleLanguageMenu()
+                WorkbenchAccessibilityReader { accessibility in
+                    SettingsSubtitleFontTrigger(
+                        title: localization.language.displayName,
+                        isOpen: isLanguageMenuOpen,
+                        isFocused: accessibility?.isSettingsFocused(.languageDropdown) == true
+                    ) {
+                        toggleLanguageMenu()
+                    }
+                    .background(MenuAnchorProbe(handle: languageTriggerAnchor))
+                    .workbenchDropdownAnchor(
+                        id: Self.languageTriggerAnchorID,
+                        in: Self.coordinateSpaceName
+                    )
                 }
-                .background(MenuAnchorProbe(handle: languageTriggerAnchor))
-                .workbenchDropdownAnchor(
-                    id: Self.languageTriggerAnchorID,
-                    in: Self.coordinateSpaceName
-                )
+            }
+        }
+        .onAppear {
+            workbenchAccessibility?.onToggleSettingsLanguageMenu = {
+                toggleLanguageMenu()
             }
         }
         .coordinateSpace(name: Self.coordinateSpaceName)
@@ -94,6 +103,7 @@ struct SettingsLanguageCategory: View {
             }
         }
         .onDisappear {
+            workbenchAccessibility?.onToggleSettingsLanguageMenu = nil
             closeLanguageMenu()
         }
     }
@@ -107,6 +117,10 @@ struct SettingsLanguageCategory: View {
     }
 
     private func openLanguageMenu() {
+        _ = workbenchAccessibility?.clearSettings(
+            keepTextInputFocus: false,
+            keepColorPopoverOpen: false
+        )
         let anchorFrame = viewportGeometry.anchorFrame(for: languageTriggerAnchor)
             ?? anchorFrames[Self.languageTriggerAnchorID]
             ?? CGRect(

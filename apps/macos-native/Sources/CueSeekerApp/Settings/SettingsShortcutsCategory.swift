@@ -15,6 +15,7 @@ struct SettingsShortcutsCategory: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var shortcuts: PlaybackShortcutStore
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     @StateObject private var recorder = PlaybackShortcutRecorder()
 
     var body: some View {
@@ -29,8 +30,19 @@ struct SettingsShortcutsCategory: View {
         // monitor sees them, and every other key comes through the monitor.
         .background(WindowKeyDownMonitor { recorder.handleKey($0) })
         .background(PlaybackShortcutKeyEquivalentCatcher { recorder.handleKey($0) })
+        .onChange(of: recorder.recordingAction) { recordingAction in
+            let isRecording = recordingAction != nil
+            workbenchAccessibility?.isShortcutRecording = isRecording
+            if isRecording {
+                _ = workbenchAccessibility?.clearSettings(
+                    keepTextInputFocus: false,
+                    keepColorPopoverOpen: false
+                )
+            }
+        }
         .onDisappear {
             recorder.stop()
+            workbenchAccessibility?.isShortcutRecording = false
         }
     }
 
@@ -62,19 +74,22 @@ struct SettingsShortcutsCategory: View {
             VStack(alignment: .trailing, spacing: WorkbenchControlMetrics.redesignSpacing1) {
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
                     if !isDefault {
-                        WorkbenchIconButton(
-                            icon: .arrowCounterClockwise,
-                            iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
-                            boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize
-                        ) {
-                            recorder.stop()
-                            shortcuts.reset(action)
+                        WorkbenchAccessibilityReader { accessibility in
+                            WorkbenchIconButton(
+                                icon: .arrowCounterClockwise,
+                                isFocused: accessibility?.isSettingsFocused(.shortcutRestoreDefault(action)) == true,
+                                iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
+                                boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize
+                            ) {
+                                recorder.stop()
+                                shortcuts.reset(action)
+                            }
+                            .workbenchTooltip(
+                                scenarioID: "settings.shortcuts.restore_default",
+                                surface: .settings,
+                                label: L("tooltip.settings.shortcuts.restore_default")
+                            )
                         }
-                        .workbenchTooltip(
-                            scenarioID: "settings.shortcuts.restore_default",
-                            surface: .settings,
-                            label: L("tooltip.settings.shortcuts.restore_default")
-                        )
                     }
 
                     PlaybackShortcutField(
