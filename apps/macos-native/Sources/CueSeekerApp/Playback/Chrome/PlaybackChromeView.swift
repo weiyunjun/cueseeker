@@ -130,33 +130,35 @@ struct PlaybackChromeView: View {
     }
 
     private var chromeSurface: some View {
-        VStack(spacing: 0) {
-            scrubberRow
+        WorkbenchAccessibilityReader { accessibility in
+            VStack(spacing: 0) {
+                scrubberRow
 
-            HStack(spacing: 0) {
-                leftGroup
+                HStack(spacing: 0) {
+                    leftGroup(accessibility: accessibility)
 
-                Spacer(minLength: 0)
+                    Spacer(minLength: 0)
 
-                rightGroup
-            }
-            .padding(.horizontal, PlaybackChromeMetrics.chromeHorizontalPadding)
-            .frame(height: PlaybackChromeMetrics.bottomControlsRowHeight)
-            .padding(.bottom, PlaybackChromeMetrics.chromeBottomPadding)
-        }
-        .background(
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {}
-        )
-        .padding(.top, PlaybackChromeMetrics.progressTopPadding)
-        .background(
-            Group {
-                if showsBackgroundGradient {
-                    PlaybackChromeBottomGradient()
+                    rightGroup(accessibility: accessibility)
                 }
+                .padding(.horizontal, PlaybackChromeMetrics.chromeHorizontalPadding)
+                .frame(height: PlaybackChromeMetrics.bottomControlsRowHeight)
+                .padding(.bottom, PlaybackChromeMetrics.chromeBottomPadding)
             }
-        )
+            .background(
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {}
+            )
+            .padding(.top, PlaybackChromeMetrics.progressTopPadding)
+            .background(
+                Group {
+                    if showsBackgroundGradient {
+                        PlaybackChromeBottomGradient()
+                    }
+                }
+            )
+        }
     }
 
     private var scrubberRow: some View {
@@ -194,10 +196,11 @@ struct PlaybackChromeView: View {
             : L("tooltip.player.next.cue.disabled")
     }
 
-    private var leftGroup: some View {
+    private func leftGroup(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         HStack(spacing: PlaybackChromeMetrics.controlsGap) {
             PlaybackPlayPauseChromeButton(
                 viewModel: viewModel,
+                isFocused: accessibility?.isPlaybackFocused(.playerPlayPause) == true,
                 action: controls.togglePlayPause
             )
             .workbenchTooltip(
@@ -210,6 +213,7 @@ struct PlaybackChromeView: View {
                 icon: .skipBack,
                 iconWeight: .fill,
                 isDisabled: !controls.canGoPrevious,
+                isFocused: accessibility?.isPlaybackFocused(.playerPrevious) == true,
                 accessibilityLabel: L("playback.previous_video"),
                 action: controls.goPrevious
             )
@@ -223,6 +227,7 @@ struct PlaybackChromeView: View {
                 icon: .skipForward,
                 iconWeight: .fill,
                 isDisabled: !controls.canGoNext,
+                isFocused: accessibility?.isPlaybackFocused(.playerNext) == true,
                 accessibilityLabel: L("playback.next_video"),
                 action: controls.goNext
             )
@@ -234,15 +239,17 @@ struct PlaybackChromeView: View {
 
             PlaybackVolumeControl(
                 viewModel: viewModel,
-                timeline: timeline
+                timeline: timeline,
+                isFocused: accessibility?.isPlaybackFocused(.playerMute) == true
             )
         }
     }
 
-    private var rightGroup: some View {
+    private func rightGroup(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         HStack(spacing: PlaybackChromeMetrics.controlsGap) {
             PlaybackChromeIconButton(
                 icon: .list,
+                isFocused: accessibility?.isPlaybackFocused(.playerPlaybackOverlay) == true,
                 accessibilityLabel: L("settings.shortcuts.action.openPlaybackOverlay"),
                 action: controls.openPlaybackOverlay
             )
@@ -254,6 +261,7 @@ struct PlaybackChromeView: View {
 
             PlaybackChromeIconButton(
                 icon: .repeatIcon,
+                isFocused: accessibility?.isPlaybackFocused(.playerRepeat) == true,
                 accessibilityLabel: L("playback.repeat"),
                 action: controls.repeatCurrentCue
             )
@@ -265,6 +273,7 @@ struct PlaybackChromeView: View {
 
             PlaybackChromeIconButton(
                 icon: .camera,
+                isFocused: accessibility?.isPlaybackFocused(.playerCopyScreenshot) == true,
                 accessibilityLabel: L("playback.copy_screenshot"),
                 action: viewModel.copyCurrentFrameScreenshot
             )
@@ -277,16 +286,18 @@ struct PlaybackChromeView: View {
             PlaybackChromeIconButton(
                 icon: .subtitles,
                 isOpen: playback.subtitleMenu != nil,
+                isFocused: accessibility?.isPlaybackFocused(.playerSubtitlesMenu) == true,
                 accessibilityLabel: L("playback.subtitles"),
                 action: controls.toggleSubtitleMenu
             )
             .anchorPreference(key: PlaybackSubtitleButtonAnchorKey.self, value: .bounds) { $0 }
 
-            speedControl
+            speedControl(isFocused: accessibility?.isPlaybackFocused(.playerSpeedMenu) == true)
 
             PlaybackChromeIconButton(
                 icon: .dotsThreeVertical,
                 isOpen: playback.moreMenu != nil,
+                isFocused: accessibility?.isPlaybackFocused(.playerMoreMenu) == true,
                 accessibilityLabel: L("playback.more"),
                 action: controls.toggleMoreMenu
             )
@@ -295,6 +306,7 @@ struct PlaybackChromeView: View {
             PlaybackChromeIconButton(
                 icon: controls.isFullscreen ? .cornersIn : .cornersOut,
                 isDisabled: controls.isFullscreenToggleDisabled,
+                isFocused: accessibility?.isPlaybackFocused(.playerFullscreen) == true,
                 accessibilityLabel: L("playback.fullscreen"),
                 action: controls.toggleFullscreen
             )
@@ -310,10 +322,11 @@ struct PlaybackChromeView: View {
         }
     }
 
-    private var speedControl: some View {
+    private func speedControl(isFocused: Bool) -> some View {
         PlaybackSpeedChromeButton(
             viewModel: viewModel,
-            isSpeedMenuVisible: isSpeedMenuVisibleBinding
+            isSpeedMenuVisible: isSpeedMenuVisibleBinding,
+            isFocused: isFocused
         )
         .workbenchTooltip(
             scenarioID: "player.control.speed",
@@ -326,12 +339,14 @@ struct PlaybackChromeView: View {
 
 private struct PlaybackPlayPauseChromeButton: View {
     @ObservedObject var viewModel: PlaybackViewModel
+    var isFocused: Bool = false
     let action: () -> Void
 
     var body: some View {
         PlaybackChromeIconButton(
             icon: viewModel.isPlaying ? .pause : .play,
             iconWeight: .fill,
+            isFocused: isFocused,
             accessibilityLabel: viewModel.isPlaying ? L("playback.pause") : L("playback.play"),
             action: action
         )
@@ -402,6 +417,7 @@ private struct PlaybackProgressScrubberRow: View {
 private struct PlaybackSpeedChromeButton: View {
     @ObservedObject var viewModel: PlaybackViewModel
     @Binding var isSpeedMenuVisible: Bool
+    var isFocused: Bool = false
 
     var body: some View {
         Button {
@@ -412,6 +428,11 @@ private struct PlaybackSpeedChromeButton: View {
                 .monospacedDigit()
                 .padding(.horizontal, PlaybackChromeMetrics.speedButtonHorizontalPadding)
                 .frame(height: WorkbenchControlMetrics.redesignIconButtonSize)
+                .workbenchAccessibilityFocusRing(
+                    isFocused: isFocused,
+                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                    isPlayerChrome: true
+                )
                 .contentShape(
                     RoundedRectangle(
                         cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,

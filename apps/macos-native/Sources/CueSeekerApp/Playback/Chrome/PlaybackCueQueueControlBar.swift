@@ -13,77 +13,83 @@ struct PlaybackCueQueueControlBar: View {
         let isAutoPauseEnabled = settings.autoPauseAfterCueFinishesEnabled
         let isAutoSwitchEnabled = settings.autoSwitchToNextCuesInPlaylistEnabled
 
-        HStack(spacing: PlaybackChromeMetrics.cueQueueBarItemGap) {
-            PlaybackCueQueueToggleButton(
-                label: L("playback.auto_pause"),
-                isOn: isAutoPauseEnabled,
-                isDisabled: false,
-                accessibilityLabel: L("settings.play.auto_pause"),
-                action: {
-                    settings.autoPauseAfterCueFinishesEnabled.toggle()
-                }
-            )
-            .workbenchTooltip(
-                scenarioID: "player.control.auto_pause",
-                label: L("settings.play.auto_pause")
-            )
+        WorkbenchAccessibilityReader { accessibility in
+            HStack(spacing: PlaybackChromeMetrics.cueQueueBarItemGap) {
+                PlaybackCueQueueToggleButton(
+                    label: L("playback.auto_pause"),
+                    isOn: isAutoPauseEnabled,
+                    isDisabled: false,
+                    isFocused: accessibility?.isPlaybackFocused(.playerAutoPause) == true,
+                    accessibilityLabel: L("settings.play.auto_pause"),
+                    action: {
+                        settings.autoPauseAfterCueFinishesEnabled.toggle()
+                    }
+                )
+                .workbenchTooltip(
+                    scenarioID: "player.control.auto_pause",
+                    label: L("settings.play.auto_pause")
+                )
 
-            PlaybackCueQueueToggleButton(
-                label: L("playback.auto_switch"),
-                isOn: isAutoSwitchEnabled,
-                isDisabled: !isAutoPauseEnabled,
-                accessibilityLabel: L("settings.play.auto_switch"),
-                action: {
-                    settings.autoSwitchToNextCuesInPlaylistEnabled.toggle()
-                }
-            )
-            .workbenchTooltip(
-                scenarioID: "player.control.auto_switch",
-                label: isAutoPauseEnabled
-                    ? L("settings.play.auto_switch")
-                    : L("tooltip.disabled.settings.play.auto_switch")
-            )
+                PlaybackCueQueueToggleButton(
+                    label: L("playback.auto_switch"),
+                    isOn: isAutoSwitchEnabled,
+                    isDisabled: !isAutoPauseEnabled,
+                    isFocused: accessibility?.isPlaybackFocused(.playerAutoSwitch) == true,
+                    accessibilityLabel: L("settings.play.auto_switch"),
+                    action: {
+                        settings.autoSwitchToNextCuesInPlaylistEnabled.toggle()
+                    }
+                )
+                .workbenchTooltip(
+                    scenarioID: "player.control.auto_switch",
+                    label: isAutoPauseEnabled
+                        ? L("settings.play.auto_switch")
+                        : L("tooltip.disabled.settings.play.auto_switch")
+                )
 
-            PlaybackCueQueueGapStepper(
-                gapMilliseconds: settings.autoSwitchCueSequenceGapMilliseconds,
-                isEnabled: isAutoSwitchEnabled,
-                canDecrease: settings.canDecreaseAutoSwitchCueSequenceGap,
-                canIncrease: settings.canIncreaseAutoSwitchCueSequenceGap,
-                onDecrease: {
-                    settings.decreaseAutoSwitchCueSequenceGapMilliseconds()
-                },
-                onIncrease: {
-                    settings.increaseAutoSwitchCueSequenceGapMilliseconds()
-                }
+                PlaybackCueQueueGapStepper(
+                    gapMilliseconds: settings.autoSwitchCueSequenceGapMilliseconds,
+                    isEnabled: isAutoSwitchEnabled,
+                    canDecrease: settings.canDecreaseAutoSwitchCueSequenceGap,
+                    canIncrease: settings.canIncreaseAutoSwitchCueSequenceGap,
+                    isDecreaseFocused: accessibility?.isPlaybackFocused(.playerAutoSwitchGapDecrease) == true,
+                    isIncreaseFocused: accessibility?.isPlaybackFocused(.playerAutoSwitchGapIncrease) == true,
+                    onDecrease: {
+                        settings.decreaseAutoSwitchCueSequenceGapMilliseconds()
+                    },
+                    onIncrease: {
+                        settings.increaseAutoSwitchCueSequenceGapMilliseconds()
+                    }
+                )
+            }
+            .padding(PlaybackChromeMetrics.cueQueueBarPadding)
+            .frame(height: PlaybackChromeMetrics.cueQueueBarHeight)
+            .background(
+                RoundedRectangle(
+                    cornerRadius: PlaybackChromeMetrics.cueQueueBarRadius,
+                    style: .continuous
+                )
+                .fill(PlaybackTheme.menuBackground)
             )
+            .overlay(
+                RoundedRectangle(
+                    cornerRadius: PlaybackChromeMetrics.cueQueueBarRadius,
+                    style: .continuous
+                )
+                .strokeBorder(
+                    PlaybackTheme.cueControlBarBorder,
+                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                )
+            )
+            .contentShape(
+                RoundedRectangle(
+                    cornerRadius: PlaybackChromeMetrics.cueQueueBarRadius,
+                    style: .continuous
+                )
+            )
+            .onTapGesture {}
+            .playerInteractiveRegion()
         }
-        .padding(PlaybackChromeMetrics.cueQueueBarPadding)
-        .frame(height: PlaybackChromeMetrics.cueQueueBarHeight)
-        .background(
-            RoundedRectangle(
-                cornerRadius: PlaybackChromeMetrics.cueQueueBarRadius,
-                style: .continuous
-            )
-            .fill(PlaybackTheme.menuBackground)
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: PlaybackChromeMetrics.cueQueueBarRadius,
-                style: .continuous
-            )
-            .strokeBorder(
-                PlaybackTheme.cueControlBarBorder,
-                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
-            )
-        )
-        .contentShape(
-            RoundedRectangle(
-                cornerRadius: PlaybackChromeMetrics.cueQueueBarRadius,
-                style: .continuous
-            )
-        )
-        .onTapGesture {}
-        .playerInteractiveRegion()
     }
 }
 
@@ -91,6 +97,7 @@ private struct PlaybackCueQueueToggleButton: View {
     let label: String
     let isOn: Bool
     let isDisabled: Bool
+    var isFocused: Bool = false
     let accessibilityLabel: String
     let action: () -> Void
 
@@ -125,6 +132,11 @@ private struct PlaybackCueQueueToggleButton: View {
             }
             .padding(.horizontal, PlaybackChromeMetrics.cueQueueToggleHorizontalPadding)
             .frame(height: PlaybackChromeMetrics.cueQueueControlHeight)
+            .workbenchAccessibilityFocusRing(
+                isFocused: isFocused,
+                cornerRadius: PlaybackChromeMetrics.cueQueueControlRadius,
+                isPlayerChrome: true
+            )
             .contentShape(
                 RoundedRectangle(
                     cornerRadius: PlaybackChromeMetrics.cueQueueControlRadius,
@@ -196,6 +208,8 @@ private struct PlaybackCueQueueGapStepper: View {
     let isEnabled: Bool
     let canDecrease: Bool
     let canIncrease: Bool
+    var isDecreaseFocused: Bool = false
+    var isIncreaseFocused: Bool = false
     let onDecrease: () -> Void
     let onIncrease: () -> Void
 
@@ -221,6 +235,7 @@ private struct PlaybackCueQueueGapStepper: View {
             PlaybackCueQueueStepperIconButton(
                 icon: .minus,
                 isDisabled: !isEnabled || !canDecrease,
+                isFocused: isDecreaseFocused,
                 accessibilityLabel: decreaseLabel,
                 action: onDecrease
             )
@@ -255,6 +270,7 @@ private struct PlaybackCueQueueGapStepper: View {
             PlaybackCueQueueStepperIconButton(
                 icon: .plus,
                 isDisabled: !isEnabled || !canIncrease,
+                isFocused: isIncreaseFocused,
                 accessibilityLabel: increaseLabel,
                 action: onIncrease
             )
@@ -294,6 +310,7 @@ private struct PlaybackCueQueueGapStepper: View {
 private struct PlaybackCueQueueStepperIconButton: View {
     let icon: AppIcon
     let isDisabled: Bool
+    var isFocused: Bool = false
     let accessibilityLabel: String
     let action: () -> Void
 
@@ -311,6 +328,11 @@ private struct PlaybackCueQueueStepperIconButton: View {
             .frame(
                 width: PlaybackChromeMetrics.cueQueueStepperButtonSize,
                 height: PlaybackChromeMetrics.cueQueueStepperButtonSize
+            )
+            .workbenchAccessibilityFocusRing(
+                isFocused: isFocused,
+                cornerRadius: PlaybackChromeMetrics.cueQueueStepperButtonRadius,
+                isPlayerChrome: true
             )
             .contentShape(
                 RoundedRectangle(

@@ -229,62 +229,74 @@ private struct PlaybackCommandPanelRoot: View {
     let onOpenSelectedItem: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            WorkbenchSearchField(
-                placeholder: L("sidebar.search"),
-                text: $query,
-                autofocus: true
-            ) {
-                _ = onSubmitSearch()
-            }
-            .padding(PlaybackCommandPanelMetrics.contentInset)
+        WorkbenchAccessibilityReader { accessibility in
+            VStack(spacing: 0) {
+                WorkbenchSearchField(
+                    placeholder: L("sidebar.search"),
+                    text: $query,
+                    autofocus: true,
+                    isSearchAccessibilityFocused: accessibility?.isPlaybackFocused(.commandPanelSearchField) == true,
+                    isClearAccessibilityFocused: accessibility?.isPlaybackFocused(.commandPanelSearchClearButton) == true,
+                    onSubmit: {
+                        guard accessibility?.isPlaybackActive != true else { return }
+                        _ = onSubmitSearch()
+                    },
+                    onBindAccessibilityTextField: { field in
+                        accessibility?.activeCommandPanelSearchTextField = field
+                    }
+                )
+                .padding(PlaybackCommandPanelMetrics.contentInset)
 
-            VStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                if !trimmedQuery.isEmpty {
+                VStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                    if !trimmedQuery.isEmpty {
+                        PlaybackCommandPanelRootRow(
+                            icon: .magnifyingGlass,
+                            title: L("sidebar.search"),
+                            detail: query,
+                            trailingText: searchResultCountText,
+                            isSelected: presentation.selectedOrdinal == 0,
+                            isFocused: accessibility?.isPlaybackFocused(.commandPanelRootOption(0)) == true,
+                            allowsHover: allowsHover
+                        ) {
+                            _ = onSubmitSearch()
+                        }
+                    }
+
                     PlaybackCommandPanelRootRow(
-                        icon: .magnifyingGlass,
-                        title: L("sidebar.search"),
-                        detail: query,
-                        trailingText: searchResultCountText,
-                        isSelected: presentation.selectedOrdinal == 0,
+                        icon: .video,
+                        title: L("sidebar.recent_videos"),
+                        detail: nil,
+                        trailingText: nil,
+                        isSelected: presentation.selectedOrdinal
+                            == recentVideosOrdinal,
+                        isFocused: accessibility?.isPlaybackFocused(.commandPanelRootOption(recentVideosOrdinal)) == true,
                         allowsHover: allowsHover
                     ) {
-                        _ = onSubmitSearch()
+                        _ = onOpenPage(.recentVideos)
+                    }
+
+                    PlaybackCommandPanelRootRow(
+                        icon: .bookmarkSimple,
+                        title: L("sidebar.recent_excerpts"),
+                        detail: nil,
+                        trailingText: nil,
+                        isSelected: presentation.selectedOrdinal
+                            == recentExcerptsOrdinal,
+                        isFocused: accessibility?.isPlaybackFocused(.commandPanelRootOption(recentExcerptsOrdinal)) == true,
+                        allowsHover: allowsHover
+                    ) {
+                        _ = onOpenPage(.recentExcerpts)
                     }
                 }
+                .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
 
-                PlaybackCommandPanelRootRow(
-                    icon: .video,
-                    title: L("sidebar.recent_videos"),
-                    detail: nil,
-                    trailingText: nil,
-                    isSelected: presentation.selectedOrdinal
-                        == recentVideosOrdinal,
-                    allowsHover: allowsHover
-                ) {
-                    _ = onOpenPage(.recentVideos)
-                }
+                Spacer(minLength: 0)
 
-                PlaybackCommandPanelRootRow(
-                    icon: .bookmarkSimple,
-                    title: L("sidebar.recent_excerpts"),
-                    detail: nil,
-                    trailingText: nil,
-                    isSelected: presentation.selectedOrdinal
-                        == recentExcerptsOrdinal,
-                    allowsHover: allowsHover
-                ) {
-                    _ = onOpenPage(.recentExcerpts)
-                }
+                PlaybackCommandPanelFooter(
+                    status: nil,
+                    onOpenSelectedItem: onOpenSelectedItem
+                )
             }
-            .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
-
-            Spacer(minLength: 0)
-
-            PlaybackCommandPanelFooter(
-                status: nil,
-                onOpenSelectedItem: onOpenSelectedItem
-            )
         }
     }
 
@@ -312,6 +324,7 @@ private struct PlaybackCommandPanelRootRow: View {
     let detail: String?
     let trailingText: String?
     let isSelected: Bool
+    var isFocused: Bool = false
     let allowsHover: Bool
     let action: () -> Void
     @State private var isHovered = false
@@ -392,6 +405,10 @@ private struct PlaybackCommandPanelRootRow: View {
                 )
                 .fill(backgroundFill)
             }
+            .workbenchAccessibilityFocusRing(
+                isFocused: isFocused,
+                cornerRadius: PlaybackCommandPanelMetrics.rowRadius
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
@@ -532,64 +549,70 @@ private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
     }
 
     var body: some View {
-        PlaybackCommandPanelSecondaryHeaderLayout(
-            spacing: WorkbenchControlMetrics.redesignSpacing3
-        ) {
-            Button {
-                _ = onBack()
-            } label: {
-                AppIconImage(
-                    .arrowLeft,
-                    size: WorkbenchControlMetrics.redesignControlIconSize
-                )
-                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                    .frame(
-                        width: WorkbenchControlMetrics
-                            .redesignIconButtonSize,
-                        height: WorkbenchControlMetrics
-                            .redesignIconButtonSize
+        WorkbenchAccessibilityReader { accessibility in
+            PlaybackCommandPanelSecondaryHeaderLayout(
+                spacing: WorkbenchControlMetrics.redesignSpacing3
+            ) {
+                Button {
+                    _ = onBack()
+                } label: {
+                    AppIconImage(
+                        .arrowLeft,
+                        size: WorkbenchControlMetrics.redesignControlIconSize
                     )
-                    .background(
-                        RoundedRectangle(
-                            cornerRadius: WorkbenchControlMetrics
-                                .redesignCornerRadius,
-                            style: .continuous
+                        .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                        .frame(
+                            width: WorkbenchControlMetrics
+                                .redesignIconButtonSize,
+                            height: WorkbenchControlMetrics
+                                .redesignIconButtonSize
                         )
-                        .fill(
-                            isBackPressed
-                                ? WorkbenchRedesignColors
-                                    .popoverSurfaceShortcutButtonPressedBg
-                                : (isBackHovered
+                        .background(
+                            RoundedRectangle(
+                                cornerRadius: WorkbenchControlMetrics
+                                    .redesignCornerRadius,
+                                style: .continuous
+                            )
+                            .fill(
+                                isBackPressed
                                     ? WorkbenchRedesignColors
-                                        .popoverSurfaceShortcutButtonHoverBg
-                                    : Color.clear)
+                                        .popoverSurfaceShortcutButtonPressedBg
+                                    : (isBackHovered
+                                        ? WorkbenchRedesignColors
+                                            .popoverSurfaceShortcutButtonHoverBg
+                                        : Color.clear)
+                            )
                         )
-                    )
-                    .contentShape(Rectangle())
+                        .workbenchAccessibilityFocusRing(
+                            isFocused: accessibility?.isPlaybackFocused(.commandPanelBackButton) == true,
+                            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableButtonStyle(isPressed: $isBackPressed, isHovered: $isBackHovered))
+                .focusable(false)
+                .onPointerHover { isBackHovered = $0 }
+                .workbenchTooltip(
+                    scenarioID: "command_panel.header.back",
+                    label: L("tooltip.command_panel.back"),
+                    shortcut: .fixed("Esc")
+                )
+                .accessibilityLabel(L("playback.back"))
+
+                Text(title)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: .semibold
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                trailing()
             }
-            .buttonStyle(PressableButtonStyle(isPressed: $isBackPressed, isHovered: $isBackHovered))
-            .focusable(false)
-            .onPointerHover { isBackHovered = $0 }
-            .workbenchTooltip(
-                scenarioID: "command_panel.header.back",
-                label: L("tooltip.command_panel.back"),
-                shortcut: .fixed("Esc")
-            )
-            .accessibilityLabel(L("playback.back"))
-
-            Text(title)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: .semibold
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-
-            trailing()
+            .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
+            .frame(height: PlaybackCommandPanelMetrics.headerHeight)
         }
-        .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
-        .frame(height: PlaybackCommandPanelMetrics.headerHeight)
     }
 }
 
@@ -654,57 +677,71 @@ private struct PlaybackCommandPanelSearchResults: View {
             onSelectSortOption: selectSortOption,
             isFilterDialogOpen: isFilterDialogOpen
         ) { sortMenu in
-            VStack(spacing: 0) {
-                PlaybackCommandPanelSecondaryHeader(
-                    title: presentation.query,
-                    onBack: onBack
-                ) {
-                    SchemaWorkbenchFilterAndSortControls(
-                        filterSelectionCount: filterSelectionCount,
-                        isFilterDialogOpen: isFilterDialogOpen,
-                        sortTitle: sortMenu.sortTitle,
-                        isSortMenuOpen: sortMenu.isSortMenuOpen,
-                        sortButtonAnchor: sortMenu.sortButtonAnchor,
-                        onFilter: {
-                            openFilterDialog(dismissSortMenu: sortMenu.dismissSortMenu)
-                        },
-                        onSort: sortMenu.toggleSortMenu
-                    )
-                }
+            WorkbenchAccessibilityReader { accessibility in
+                let _ = syncAccessibilityCallbacks(
+                    accessibility,
+                    dismissSortMenu: sortMenu.dismissSortMenu,
+                    toggleSortMenu: sortMenu.toggleSortMenu
+                )
 
-                GeometryReader { geometry in
-                    if let windowStore {
-                        PlaybackCommandPanelSearchReel(
-                            windowStore: windowStore,
-                            isSearching: searchStore.isSearching,
-                            showsCueGroup: cueGroupPresentation.isEnabled,
-                            viewportSize: geometry.size,
-                            keyboardNavigationRequest: keyboardNavigationRequest,
-                            reducesMotion: reduceMotion,
-                            onCommitSelection: onCommitSelection,
-                            onCopySelectedText: onCopySelectedText,
-                            onSearchSelectedText: onSearchSelectedText
-                        )
-                    } else if !searchStore.isSearching {
-                        WorkbenchEmptyHint(
-                            icon: .searchNoResults,
-                            message: L("table.search_no_results")
+                VStack(spacing: 0) {
+                    PlaybackCommandPanelSecondaryHeader(
+                        title: presentation.query,
+                        onBack: onBack
+                    ) {
+                        SchemaWorkbenchFilterAndSortControls(
+                            filterSelectionCount: filterSelectionCount,
+                            isFilterDialogOpen: isFilterDialogOpen,
+                            sortTitle: sortMenu.sortTitle,
+                            isSortMenuOpen: sortMenu.isSortMenuOpen,
+                            isFilterFocused: accessibility?.isPlaybackFocused(.commandPanelFilterButton) == true,
+                            isSortFocused: accessibility?.isPlaybackFocused(.commandPanelSortButton) == true,
+                            sortButtonAnchor: sortMenu.sortButtonAnchor,
+                            onFilter: {
+                                openFilterDialog(dismissSortMenu: sortMenu.dismissSortMenu)
+                            },
+                            onSort: sortMenu.toggleSortMenu
                         )
                     }
-                }
 
-                PlaybackCueFooter(
-                    surface: .commandPanel,
-                    status: resultStatus,
-                    actions: PlaybackCueFooterAction.cueActions(
-                        playTitle: L("playback.play"),
-                        request: onRequestAction
+                    GeometryReader { geometry in
+                        if let windowStore {
+                            PlaybackCommandPanelSearchReel(
+                                windowStore: windowStore,
+                                isSearching: searchStore.isSearching,
+                                showsCueGroup: cueGroupPresentation.isEnabled,
+                                viewportSize: geometry.size,
+                                keyboardNavigationRequest: keyboardNavigationRequest,
+                                reducesMotion: reduceMotion,
+                                onCommitSelection: onCommitSelection,
+                                onCopySelectedText: onCopySelectedText,
+                                onSearchSelectedText: onSearchSelectedText
+                            )
+                        } else if !searchStore.isSearching {
+                            WorkbenchEmptyHint(
+                                icon: .searchNoResults,
+                                message: L("table.search_no_results")
+                            )
+                        }
+                    }
+
+                    PlaybackCueFooter(
+                        surface: .commandPanel,
+                        status: resultStatus,
+                        actions: PlaybackCueFooterAction.cueActions(
+                            playTitle: L("playback.play"),
+                            request: onRequestAction
+                        )
                     )
-                )
-                .padding(
-                    .horizontal,
-                    PlaybackCommandPanelMetrics.contentInset
-                )
+                    .padding(
+                        .horizontal,
+                        PlaybackCommandPanelMetrics.contentInset
+                    )
+                }
+                .onDisappear {
+                    accessibility?.onOpenCommandPanelFilterDialog = nil
+                    accessibility?.onToggleCommandPanelSortMenu = nil
+                }
             }
         }
         .onAppear(perform: onSynchronize)
@@ -714,6 +751,17 @@ private struct PlaybackCommandPanelSearchResults: View {
         .onDisappear {
             closeFilterDialog()
         }
+    }
+
+    private func syncAccessibilityCallbacks(
+        _ accessibility: WorkbenchAccessibilityCoordinator?,
+        dismissSortMenu: @escaping () -> Void,
+        toggleSortMenu: @escaping () -> Void
+    ) {
+        accessibility?.onOpenCommandPanelFilterDialog = {
+            openFilterDialog(dismissSortMenu: dismissSortMenu)
+        }
+        accessibility?.onToggleCommandPanelSortMenu = toggleSortMenu
     }
 
     private func openFilterDialog(dismissSortMenu: () -> Void) {

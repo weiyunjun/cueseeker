@@ -34,6 +34,7 @@ extension AppCoordinator {
         if interfaceLayers.hasUncoveredOpenMenu {
             return routeControllerInputToMenuGate(input, menuGate: interfaceLayers.menuGate)
         }
+        reconcilePlaybackAccessibilityFocus()
         let resolvedTextInputState = textInputState
             ?? PlaybackKeyboardTextInputState(
                 isEditableFocused: Self.isEditableTextInputFocused(),
@@ -56,7 +57,8 @@ extension AppCoordinator {
             if handled {
                 return true
             }
-            guard resolvedTextInputState.isEditableFocused,
+            guard resolvedTextInputState.isEditableFocused
+                    || workbenchAccessibility.focusedPlaybackTarget == .commandPanelSearchField,
                   let nativeTextAction
             else {
                 return false
@@ -76,6 +78,15 @@ extension AppCoordinator {
             return false
         }
 
+        switch button {
+        case .leftShoulder:
+            return movePlaybackAccessibilityFocus(forward: false)
+        case .rightShoulder:
+            return movePlaybackAccessibilityFocus(forward: true)
+        default:
+            break
+        }
+
         if let commandPanel = playback.commandPanelPresentation,
            let handled = handlePlaybackCommandPanelControllerButton(
                commandPanel,
@@ -89,15 +100,6 @@ extension AppCoordinator {
         if let session = playback.subtitleFocusSession,
            session.isEditingCollage,
            let handled = handlePlaybackCollageControllerButton(
-               session,
-               button: button,
-               isRepeat: isRepeat
-           ) {
-            return handled
-        }
-
-        if let session = playback.subtitleFocusSession,
-           let handled = handlePlaybackSubtitleFocusControllerButton(
                session,
                button: button,
                isRepeat: isRepeat
@@ -155,27 +157,6 @@ extension AppCoordinator {
         }
     }
 
-    private func handlePlaybackSubtitleFocusControllerButton(
-        _ session: PlaybackSubtitleFocusSessionStore,
-        button: ControllerButton,
-        isRepeat: Bool
-    ) -> Bool? {
-        switch button {
-        case .leftShoulder:
-            guard !isRepeat else {
-                return false
-            }
-            return session.selectPreviousModule()
-        case .rightShoulder:
-            guard !isRepeat else {
-                return false
-            }
-            return session.selectNextModule()
-        default:
-            return nil
-        }
-    }
-
     private func handlePlaybackStageControllerButton(
         _ button: ControllerButton,
         isRepeat: Bool,
@@ -216,12 +197,9 @@ extension AppCoordinator {
             }
             return keyboardEquivalent(36, isRepeat, nil)
         case .leftShoulder:
-            return false
+            return movePlaybackAccessibilityFocus(forward: false)
         case .rightShoulder:
-            guard !isRepeat else {
-                return false
-            }
-            return keyboardEquivalent(48, isRepeat, nil)
+            return movePlaybackAccessibilityFocus(forward: true)
         case .leftTrigger:
             return keyboardEquivalent(0, isRepeat, nil)
         case .rightTrigger:

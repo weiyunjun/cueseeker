@@ -3,6 +3,7 @@ import SwiftUI
 struct PlaybackVolumeControl: View {
     @ObservedObject var viewModel: PlaybackViewModel
     @ObservedObject var timeline: PlaybackTimelineInteractionStore
+    var isFocused: Bool = false
     @State private var isHovered = false
     @State private var isSpeakerPressed = false
 
@@ -30,6 +31,11 @@ struct PlaybackVolumeControl: View {
                             ? PlaybackTheme.controlPressedBackground
                             : Color.clear
                     )
+                )
+                .workbenchAccessibilityFocusRing(
+                    isFocused: isFocused,
+                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                    isPlayerChrome: true
                 )
                 .contentShape(
                     RoundedRectangle(

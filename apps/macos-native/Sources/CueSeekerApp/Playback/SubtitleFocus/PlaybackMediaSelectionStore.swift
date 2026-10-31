@@ -151,6 +151,16 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         return true
     }
 
+    @discardableResult
+    func selectFromAccessibility(_ itemID: String) -> Bool {
+        guard isActive, availableItemIDs.contains(itemID) else {
+            return false
+        }
+        PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
+        select(itemID)
+        return true
+    }
+
     func recordVisibleFrames(
         _ framesByItemID: [String: CGRect],
         viewportHeight: CGFloat

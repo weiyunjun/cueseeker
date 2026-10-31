@@ -88,6 +88,7 @@ final class PlaybackPointerVisibilityStore: ObservableObject {
 final class PlaybackStore: ObservableObject {
     let timeline = PlaybackTimelineInteractionStore()
     let pointerVisibility = PlaybackPointerVisibilityStore()
+    let chromeVisibility = PlaybackChromeVisibilityModel()
 
     /// The layer registry answers every "is this layer covered" question, so
     /// the store reports its layers — Playback Overlay, Command Panel — and
@@ -161,7 +162,11 @@ final class PlaybackStore: ObservableObject {
     /// later runs first), and from `handlePlaybackKeyDown`, the App's single
     /// owner of playback-page keys, which is also where a game controller's
     /// input arrives.
-    @Published private(set) var isSpeedMenuOpen = false
+    @Published private(set) var isSpeedMenuOpen = false {
+        didSet {
+            updateChromeMenuOpenState()
+        }
+    }
     let speedMenuHighlight = MenuHighlightModel()
 
     func openSpeedMenu(defaultPosition: Int?) {
@@ -233,7 +238,11 @@ final class PlaybackStore: ObservableObject {
 
     /// The open Player Subtitle Menu and what it lists; nil while closed. Its
     /// keys arrive the same two ways as the speed menu's.
-    @Published private(set) var subtitleMenu: PlaybackSubtitleMenu?
+    @Published private(set) var subtitleMenu: PlaybackSubtitleMenu? {
+        didSet {
+            updateChromeMenuOpenState()
+        }
+    }
     let subtitleMenuHighlight = MenuHighlightModel()
 
     func openSubtitleMenu(_ menu: PlaybackSubtitleMenu) {
@@ -283,10 +292,20 @@ final class PlaybackStore: ObservableObject {
 
     /// The open More menu and what it lists; nil while closed. Its keys arrive
     /// the same two ways as the speed menu's.
-    @Published private(set) var moreMenu: PlaybackMoreMenu?
+    @Published private(set) var moreMenu: PlaybackMoreMenu? {
+        didSet {
+            updateChromeMenuOpenState()
+        }
+    }
     let moreMenuHighlight = MenuHighlightModel()
     let moreSubmenuHighlight = MenuHighlightModel()
     let moreSubmenuState = MenuSubmenuState<PlaybackMoreSubmenu>()
+
+    private func updateChromeMenuOpenState() {
+        chromeVisibility.setMenuOpen(
+            isSpeedMenuOpen || subtitleMenu != nil || moreMenu != nil
+        )
+    }
 
     func openMoreMenu(_ menu: PlaybackMoreMenu) {
         closeSpeedMenu()

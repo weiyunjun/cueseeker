@@ -25,6 +25,7 @@ struct PlaybackPageView: View {
                     playbackSurface: playbackSurface,
                     appState: appState,
                     fullscreenManager: appState.playbackFullscreenManager,
+                    chrome: playback.chromeVisibility,
                     isLayerOpen: isPlaybackModalActive,
                     onClose: onClose
                 )

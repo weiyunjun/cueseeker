@@ -6,6 +6,7 @@ struct PlaybackChromeIconButton: View {
     /// The menu or mode it controls is open; it looks hovered for as long.
     var isOpen = false
     var isDisabled = false
+    var isFocused = false
     let accessibilityLabel: String
     let action: () -> Void
 
@@ -14,6 +15,7 @@ struct PlaybackChromeIconButton: View {
         iconWeight: AppIconWeight? = nil,
         isOpen: Bool = false,
         isDisabled: Bool = false,
+        isFocused: Bool = false,
         accessibilityLabel: String,
         action: @escaping () -> Void
     ) {
@@ -21,6 +23,7 @@ struct PlaybackChromeIconButton: View {
         self.iconWeight = iconWeight
         self.isOpen = isOpen
         self.isDisabled = isDisabled
+        self.isFocused = isFocused
         self.accessibilityLabel = accessibilityLabel
         self.action = action
     }
@@ -40,6 +43,11 @@ struct PlaybackChromeIconButton: View {
             .frame(
                 width: WorkbenchControlMetrics.redesignIconButtonSize,
                 height: WorkbenchControlMetrics.redesignIconButtonSize
+            )
+            .workbenchAccessibilityFocusRing(
+                isFocused: isFocused,
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                isPlayerChrome: true
             )
             .contentShape(
                 RoundedRectangle(

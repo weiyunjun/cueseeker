@@ -130,6 +130,10 @@ func playbackOverlayPControlsExclusiveEditingCollageMode() async throws {
         #expect(session.isEditingCollage)
         #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
         #expect(session.selectedModule == .current)
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayReturn)
+        #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == nil)
+        #expect(session.isEditingCollage)
         #expect(app.handlePlaybackKeyDown(keyCode: 12, modifierFlagsRawValue: 0))
         #expect(app.playback.playbackViewModel?.areSubtitlesVisible == subtitlesWereVisible)
         #expect(session.collageSelectionPlan.contains(cueID: 13))
@@ -276,27 +280,27 @@ func playbackOverlayTabCyclesModulesAndIgnoresKeyRepeat() async throws {
         ))
 
         #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
-        #expect(session.selectedModule == .playlist)
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayReturn)
         #expect(app.handlePlaybackKeyDown(
             keyCode: 48,
             modifierFlagsRawValue: 0,
             isRepeat: true
         ))
-        #expect(session.selectedModule == .playlist)
-
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.current))
         #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
-        #expect(session.selectedModule == .current)
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.playlist))
+        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(session.selectedModule == .playlist)
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.playlist))
 
         #expect(app.handlePlaybackKeyDown(
             keyCode: 48,
             modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
         ))
-        #expect(session.selectedModule == .playlist)
-        #expect(app.handlePlaybackKeyDown(
-            keyCode: 48,
-            modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
-        ))
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.current))
+        #expect(app.handlePlaybackKeyDown(keyCode: 49, modifierFlagsRawValue: 0))
         #expect(session.selectedModule == .current)
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.current))
     }
 }
 
@@ -315,11 +319,19 @@ func playbackControllerShouldersCycleOverlayModules() async throws {
         ))
 
         #expect(app.handlePlaybackControllerInput(.button(.rightShoulder)))
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayReturn)
+        #expect(app.handlePlaybackControllerInput(.button(.rightShoulder, isRepeat: true)))
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.current))
+        #expect(app.handlePlaybackControllerInput(.button(.rightShoulder)))
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.playlist))
+        #expect(app.handlePlaybackControllerInput(.button(.south)))
         #expect(session.selectedModule == .playlist)
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.playlist))
+
         #expect(app.handlePlaybackControllerInput(.button(.leftShoulder)))
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.current))
+        #expect(app.handlePlaybackControllerInput(.button(.south)))
         #expect(session.selectedModule == .current)
-        #expect(app.handlePlaybackControllerInput(.button(.leftShoulder)))
-        #expect(session.selectedModule == .playlist)
         #expect(!app.handlePlaybackControllerInput(.button(.centerSurface)))
     }
 }

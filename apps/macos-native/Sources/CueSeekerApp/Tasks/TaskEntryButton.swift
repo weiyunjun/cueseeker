@@ -18,6 +18,7 @@ struct TaskEntryButton: View {
     var countBackground: Color = WorkbenchRedesignColors.badgeNeutralBg
     var countTextColor: Color = WorkbenchRedesignColors.textSecondary
     var isFocused: Bool = false
+    var isPlayerChrome: Bool = false
     let onOpen: () -> Void
 
     var body: some View {
@@ -25,6 +26,7 @@ struct TaskEntryButton: View {
             icon: .tray,
             isOpen: tasks.isPanelOpen,
             isFocused: isFocused,
+            isPlayerChrome: isPlayerChrome,
             hoverBackground: hoverBackground,
             pressedBackground: pressedBackground,
             openBackground: openBackground,

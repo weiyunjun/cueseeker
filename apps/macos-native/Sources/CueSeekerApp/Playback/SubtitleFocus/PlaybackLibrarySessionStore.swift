@@ -103,6 +103,14 @@ final class PlaybackLibrarySessionStore: ObservableObject {
         return selection.move(direction)
     }
 
+    @discardableResult
+    func selectFromAccessibility(_ itemID: String) -> Bool {
+        guard isActive else {
+            return false
+        }
+        return selection.selectFromAccessibility(itemID)
+    }
+
     func primaryActionVideo(
         itemID: String? = nil
     ) -> CompleteLibraryVideoPresentation? {

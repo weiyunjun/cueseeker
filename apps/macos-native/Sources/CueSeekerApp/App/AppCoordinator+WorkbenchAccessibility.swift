@@ -2695,4 +2695,615 @@ extension AppCoordinator {
             return false
         }
     }
+
+    // MARK: - Playback Surfaces Accessibility (Step 4: L-07 ~ L-09)
+
+    func activePlaybackAccessibilitySurface() -> PlaybackAccessibilitySurface? {
+        guard activeDialogAccessibilityID() == nil,
+              !interfaceLayers.isOpen(.dialog)
+        else {
+            return nil
+        }
+        guard currentPlaybackVideoPath != nil || playbackFullscreenManager.isFullscreen else {
+            return nil
+        }
+        if let presentation = playback.commandPanelPresentation {
+            return .commandPanel(presentation.page)
+        }
+        if let session = playback.subtitleFocusSession,
+           session.state != .closed
+        {
+            return .playbackOverlay
+        }
+        if currentPlaybackVideoPath != nil {
+            return .playerStage
+        }
+        return nil
+    }
+
+    func currentPlaybackAccessibilityTargets() -> [PlaybackAccessibilityTarget] {
+        guard let surface = activePlaybackAccessibilitySurface() else {
+            return []
+        }
+
+        switch surface {
+        case .playerStage:
+            var targets: [PlaybackAccessibilityTarget] = [
+                .playerReturn,
+                .playerCommandPanel,
+                .playerTask,
+                .playerSettings,
+            ]
+            if playback.chromeSnapshot.isCueQueuePlayback || isCueQueuePlaybackActive {
+                targets.append(contentsOf: [
+                    .playerAutoPause,
+                    .playerAutoSwitch,
+                    .playerAutoSwitchGapDecrease,
+                    .playerAutoSwitchGapIncrease,
+                ])
+            }
+            if playback.playbackViewModel != nil {
+                targets.append(contentsOf: [
+                    .playerPlayPause,
+                    .playerPrevious,
+                    .playerNext,
+                    .playerMute,
+                    .playerPlaybackOverlay,
+                    .playerRepeat,
+                    .playerCopyScreenshot,
+                    .playerSubtitlesMenu,
+                    .playerSpeedMenu,
+                    .playerMoreMenu,
+                    .playerFullscreen,
+                ])
+            }
+            return targets
+
+        case .playbackOverlay:
+            guard let session = playback.subtitleFocusSession,
+                  session.state != .closed
+            else {
+                return []
+            }
+            var targets: [PlaybackAccessibilityTarget] = [.overlayReturn]
+            if !session.isEditingCollage {
+                for module in session.availableModules {
+                    targets.append(.overlayTab(module))
+                }
+            }
+            if session.selectedModule == .current {
+                targets.append(.overlayCollageButton)
+            }
+            targets.append(contentsOf: [
+                .overlayCommandPanel,
+                .overlayTask,
+                .overlaySettings,
+            ])
+
+            if session.selectedModule == .current {
+                if session.isEditingCollage {
+                    targets.append(contentsOf: [
+                        .overlayFooterAction("copy-collage"),
+                        .overlayFooterAction("export-collage"),
+                        .overlayFooterAction("select"),
+                    ])
+                } else if session.currentSnapshot != nil {
+                    targets.append(contentsOf: [
+                        .overlayFooterAction("excerpt"),
+                        .overlayFooterAction("copy-cue-text"),
+                        .overlayFooterAction("copy-deep-link"),
+                        .overlayFooterAction("play"),
+                    ])
+                }
+            } else if session.selectedModule == .playlist {
+                if let libraryStore = session.libraryStore {
+                    if let detail = libraryStore.detail, !detail.videos.isEmpty {
+                        for video in detail.videos {
+                            targets.append(.overlayVideoCard(video.id))
+                            targets.append(.overlayVideoCardActionButton(video.id))
+                        }
+                    }
+                    targets.append(.overlayFooterAction("play"))
+                } else if session.playlistWindow != nil {
+                    targets.append(contentsOf: [
+                        .overlayFooterAction("excerpt"),
+                        .overlayFooterAction("copy-cue-text"),
+                        .overlayFooterAction("copy-deep-link"),
+                        .overlayFooterAction("play"),
+                    ])
+                }
+            }
+            return targets
+
+        case .commandPanel(let page):
+            guard let presentation = playback.commandPanelPresentation else {
+                return []
+            }
+            var targets: [PlaybackAccessibilityTarget] = []
+            switch page {
+            case .root:
+                targets.append(.commandPanelSearchField)
+                if !presentation.query.isEmpty {
+                    targets.append(.commandPanelSearchClearButton)
+                }
+                let itemCount = playbackCommandPanelItemCount(for: .root)
+                for ordinal in 0..<itemCount {
+                    targets.append(.commandPanelRootOption(ordinal))
+                }
+                targets.append(.commandPanelFooterAction("open"))
+
+            case .recentVideos:
+                targets.append(.commandPanelBackButton)
+                for item in playbackCommandPanelRecentVideos {
+                    targets.append(.commandPanelRecentCard(item.id))
+                    targets.append(.commandPanelRecentCardActionButton(item.id))
+                }
+                targets.append(.commandPanelFooterAction("open"))
+
+            case .recentExcerpts:
+                targets.append(.commandPanelBackButton)
+                for summary in playbackCommandPanelRecentExcerpts {
+                    let cardID = String(summary.id)
+                    targets.append(.commandPanelRecentCard(cardID))
+                    targets.append(.commandPanelRecentCardActionButton(cardID))
+                }
+                targets.append(.commandPanelFooterAction("open"))
+
+            case .searchResults:
+                targets.append(contentsOf: [
+                    .commandPanelBackButton,
+                    .commandPanelFilterButton,
+                    .commandPanelSortButton,
+                    .commandPanelFooterAction("excerpt"),
+                    .commandPanelFooterAction("copy-cue-text"),
+                    .commandPanelFooterAction("copy-deep-link"),
+                    .commandPanelFooterAction("play"),
+                ])
+            }
+            return targets
+        }
+    }
+
+    func clearPlaybackAccessibilityFocus(keepTextInputFocus: Bool = true) {
+        _ = workbenchAccessibility.clearPlayback(keepTextInputFocus: keepTextInputFocus)
+        playback.chromeVisibility.setAccessibilityFocused(false)
+    }
+
+    func applyPlaybackAccessibilityFocus(
+        _ target: PlaybackAccessibilityTarget?,
+        surface: PlaybackAccessibilitySurface
+    ) {
+        guard let target else {
+            clearPlaybackAccessibilityFocus()
+            return
+        }
+        workbenchAccessibility.setPlaybackFocus(target, surface: surface)
+        playback.chromeVisibility.setAccessibilityFocused(surface == .playerStage)
+
+        if let cardID = target.overlayVideoCardID {
+            _ = playback.subtitleFocusSession?.libraryStore?.selectFromAccessibility(cardID)
+        } else if let ordinal = target.commandPanelRootOptionOrdinal {
+            PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
+            selectPlaybackCommandPanelItem(at: ordinal)
+        } else if let cardID = target.commandPanelRecentCardID {
+            selectPlaybackCommandPanelRecentCardFromAccessibility(cardID)
+        }
+    }
+
+    func reconcilePlaybackAccessibilityFocus() {
+        let hasOpenPlaybackMenu = interfaceLayers.hasUncoveredOpenMenu
+            || playback.isSpeedMenuOpen
+            || playback.subtitleMenu != nil
+            || playback.moreMenu != nil
+            || playback.excerptDestinationMenu != nil
+        if hasOpenPlaybackMenu {
+            if workbenchAccessibility.isPlaybackActive || playback.chromeVisibility.isAccessibilityFocused {
+                clearPlaybackAccessibilityFocus(keepTextInputFocus: true)
+            }
+            return
+        }
+
+        guard let surface = activePlaybackAccessibilitySurface() else {
+            if workbenchAccessibility.isPlaybackActive || playback.chromeVisibility.isAccessibilityFocused {
+                clearPlaybackAccessibilityFocus(keepTextInputFocus: true)
+            }
+            if workbenchAccessibility.activePlaybackSurface != nil {
+                workbenchAccessibility.activePlaybackSurface = nil
+            }
+            return
+        }
+
+        if workbenchAccessibility.activePlaybackSurface != surface {
+            clearPlaybackAccessibilityFocus(keepTextInputFocus: true)
+            workbenchAccessibility.activePlaybackSurface = surface
+            return
+        }
+
+        guard let focused = workbenchAccessibility.focusedPlaybackTarget else {
+            if playback.chromeVisibility.isAccessibilityFocused {
+                playback.chromeVisibility.setAccessibilityFocused(false)
+            }
+            return
+        }
+
+        let targets = currentPlaybackAccessibilityTargets()
+        if !targets.contains(focused) {
+            clearPlaybackAccessibilityFocus(keepTextInputFocus: true)
+        } else {
+            playback.chromeVisibility.setAccessibilityFocused(surface == .playerStage)
+        }
+    }
+
+    @discardableResult
+    func movePlaybackAccessibilityFocus(forward: Bool) -> Bool {
+        reconcilePlaybackAccessibilityFocus()
+        guard let surface = activePlaybackAccessibilitySurface() else {
+            return false
+        }
+        let targets = currentPlaybackAccessibilityTargets()
+        guard !targets.isEmpty else {
+            clearPlaybackAccessibilityFocus()
+            return true
+        }
+
+        if let current = workbenchAccessibility.focusedPlaybackTarget,
+           let index = targets.firstIndex(of: current)
+        {
+            let nextIndex = forward
+                ? (index + 1) % targets.count
+                : (index - 1 + targets.count) % targets.count
+            applyPlaybackAccessibilityFocus(targets[nextIndex], surface: surface)
+        } else {
+            applyPlaybackAccessibilityFocus(forward ? targets.first : targets.last, surface: surface)
+        }
+        return true
+    }
+
+    @discardableResult
+    func movePlaybackOverlayVideoCardSelection(
+        _ direction: PlaybackMediaSelectionDirection
+    ) -> Bool {
+        guard let session = playback.subtitleFocusSession,
+              session.selectedModule == .playlist,
+              let libraryStore = session.libraryStore
+        else {
+            return false
+        }
+        _ = session.requestMediaSelectionNavigation(direction)
+        if let selectedID = libraryStore.selection.selectedItemID {
+            applyPlaybackAccessibilityFocus(
+                .overlayVideoCard(selectedID),
+                surface: .playbackOverlay
+            )
+        }
+        return true
+    }
+
+    @discardableResult
+    func moveCommandPanelRootSelectionFromAccessibility(_ offset: Int) -> Bool {
+        guard playback.commandPanelPresentation?.page == .root else {
+            return false
+        }
+        _ = movePlaybackCommandPanelSelection(offset)
+        if let ordinal = playback.commandPanelPresentation?.selectedOrdinal {
+            applyPlaybackAccessibilityFocus(
+                .commandPanelRootOption(ordinal),
+                surface: .commandPanel(.root)
+            )
+        }
+        return true
+    }
+
+    @discardableResult
+    func moveCommandPanelRecentCardSelectionFromAccessibility(
+        _ direction: PlaybackMediaSelectionDirection
+    ) -> Bool {
+        guard let page = playback.commandPanelPresentation?.page,
+              page.showsRecentCardGrid
+        else {
+            return false
+        }
+        _ = movePlaybackCommandPanelRecentCardSelection(direction)
+        if let ordinal = playback.commandPanelPresentation?.selectedOrdinal {
+            let itemIDs = playbackCommandPanelRecentCardItemIDs(for: page)
+            if itemIDs.indices.contains(ordinal) {
+                applyPlaybackAccessibilityFocus(
+                    .commandPanelRecentCard(itemIDs[ordinal]),
+                    surface: .commandPanel(page)
+                )
+            }
+        }
+        return true
+    }
+
+    func selectPlaybackCommandPanelRecentCardFromAccessibility(_ cardID: String) {
+        guard var presentation = playback.commandPanelPresentation,
+              presentation.page.showsRecentCardGrid
+        else {
+            return
+        }
+        let itemIDs = playbackCommandPanelRecentCardItemIDs(for: presentation.page)
+        guard let ordinal = itemIDs.firstIndex(of: cardID) else {
+            return
+        }
+        PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
+        guard presentation.selectedOrdinal != ordinal else {
+            return
+        }
+        presentation.selectedOrdinal = ordinal
+        playback.noteCommandPanelRecentCardSelectionMoved()
+        playback.presentCommandPanel(presentation)
+    }
+
+    @discardableResult
+    func activatePlaybackAccessibilityTarget(_ target: PlaybackAccessibilityTarget) -> Bool {
+        switch target {
+        case .playerReturn, .overlayReturn:
+            workbenchLayout.clearSearchFocus()
+            stopPlayback()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .playerCommandPanel, .overlayCommandPanel:
+            _ = presentPlaybackCommandPanel()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .playerTask, .overlayTask:
+            tasks.openPanel()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .playerSettings, .overlaySettings:
+            performUserInitiatedAppCommand {
+                NotificationCenter.default.post(name: .cueSeekerShowSettings, object: nil)
+            }
+            return true
+
+        case .playerAutoPause:
+            guard playback.chromeSnapshot.isCueQueuePlayback || isCueQueuePlaybackActive else { return true }
+            settings.autoPauseAfterCueFinishesEnabled.toggle()
+            return true
+
+        case .playerAutoSwitch:
+            guard playback.chromeSnapshot.isCueQueuePlayback || isCueQueuePlaybackActive,
+                  settings.autoPauseAfterCueFinishesEnabled
+            else {
+                return true
+            }
+            settings.autoSwitchToNextCuesInPlaylistEnabled.toggle()
+            return true
+
+        case .playerAutoSwitchGapDecrease:
+            guard playback.chromeSnapshot.isCueQueuePlayback || isCueQueuePlaybackActive,
+                  settings.autoPauseAfterCueFinishesEnabled,
+                  settings.autoSwitchToNextCuesInPlaylistEnabled,
+                  settings.canDecreaseAutoSwitchCueSequenceGap
+            else {
+                return true
+            }
+            settings.decreaseAutoSwitchCueSequenceGapMilliseconds()
+            return true
+
+        case .playerAutoSwitchGapIncrease:
+            guard playback.chromeSnapshot.isCueQueuePlayback || isCueQueuePlaybackActive,
+                  settings.autoPauseAfterCueFinishesEnabled,
+                  settings.autoSwitchToNextCuesInPlaylistEnabled,
+                  settings.canIncreaseAutoSwitchCueSequenceGap
+            else {
+                return true
+            }
+            settings.increaseAutoSwitchCueSequenceGapMilliseconds()
+            return true
+
+        case .playerPlayPause:
+            togglePlaybackFromUser()
+            return true
+
+        case .playerPrevious:
+            guard playback.chromeSnapshot.canGoPrevious || canGoPrevious else { return true }
+            goPrevious()
+            return true
+
+        case .playerNext:
+            guard playback.chromeSnapshot.canGoNext || canGoNext else { return true }
+            goNext()
+            return true
+
+        case .playerMute:
+            playback.playbackViewModel?.toggleMute()
+            return true
+
+        case .playerPlaybackOverlay:
+            _ = openPlaybackSubtitleFocusFromUser()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .playerRepeat:
+            _ = repeatCurrentPlaylistCue()
+            return true
+
+        case .playerCopyScreenshot:
+            playback.playbackViewModel?.copyCurrentFrameScreenshot()
+            return true
+
+        case .playerSubtitlesMenu:
+            togglePlaybackSubtitleMenu()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .playerSpeedMenu:
+            if playback.isSpeedMenuOpen {
+                playback.closeSpeedMenu()
+            } else if let viewModel = playback.playbackViewModel {
+                playback.openSpeedMenu(
+                    defaultPosition: PlaybackViewModel.speedPresetIndex(
+                        for: viewModel.playbackSpeed
+                    )
+                )
+            }
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .playerMoreMenu:
+            togglePlaybackMoreMenu()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .playerFullscreen:
+            let isDisabled = !(playback.chromeSnapshot.hasPlaybackSelection || hasPlaybackSelection)
+                || workbenchLayout.isVideoSizeTransitionInProgress
+                || playbackFullscreenManager.isTransitioning
+            guard !isDisabled else { return true }
+            togglePlaybackFullscreenFromUser()
+            return true
+
+        case .overlayTab(let module):
+            guard let session = playback.subtitleFocusSession else { return false }
+            if session.selectedModule != module {
+                _ = session.selectModule(module)
+            }
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .overlayCollageButton:
+            guard let session = playback.subtitleFocusSession else { return false }
+            _ = session.toggleEditingCollage()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .overlayVideoCard(let id):
+            guard let session = playback.subtitleFocusSession,
+                  let libraryStore = session.libraryStore
+            else {
+                return false
+            }
+            _ = libraryStore.selectFromAccessibility(id)
+            if let video = libraryStore.primaryActionVideo(itemID: id) {
+                _ = openPlaybackLibraryEpisodeFromOverlay(video)
+            }
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .overlayVideoCardActionButton(let id):
+            _ = playback.subtitleFocusSession?.libraryStore?.selectFromAccessibility(id)
+            let opened = workbenchAccessibility.activatePlaybackOverlayCardAction(id: id)
+            reconcilePlaybackAccessibilityFocus()
+            return opened
+
+        case .overlayFooterAction(let actionID):
+            guard let session = playback.subtitleFocusSession else { return false }
+            switch actionID {
+            case "excerpt":
+                _ = requestPlaybackSubtitleFocusAction(.excerpt)
+                reconcilePlaybackAccessibilityFocus()
+                return true
+            case "copy-cue-text":
+                _ = requestPlaybackSubtitleFocusAction(.copyCueText)
+                return true
+            case "copy-deep-link":
+                _ = requestPlaybackSubtitleFocusAction(.copyCueMarkdownLink)
+                return true
+            case "play":
+                if session.selectedModule == .playlist, session.libraryStore != nil {
+                    _ = requestPlaybackLibraryPrimaryAction()
+                } else {
+                    _ = requestPlaybackSubtitleFocusAction(.playFromThisCue)
+                }
+                reconcilePlaybackAccessibilityFocus()
+                return true
+            case "copy-collage":
+                _ = session.copyCurrentCollage()
+                return true
+            case "export-collage":
+                _ = session.exportCurrentCollage()
+                return true
+            case "select":
+                _ = session.toggleFocusedCollageCueSelection()
+                return true
+            default:
+                return false
+            }
+
+        case .commandPanelSearchField:
+            workbenchAccessibility.activeCommandPanelSearchTextField?.focusFromAccessibility()
+            return true
+
+        case .commandPanelSearchClearButton:
+            workbenchAccessibility.activeCommandPanelSearchTextField?.clearTextAndFocus()
+            updatePlaybackCommandPanelQuery("")
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .commandPanelRootOption(let ordinal):
+            selectPlaybackCommandPanelItem(at: ordinal)
+            _ = openSelectedPlaybackCommandPanelItem()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .commandPanelBackButton:
+            _ = returnPlaybackCommandPanelToRoot()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .commandPanelFilterButton:
+            if let openFilter = workbenchAccessibility.onOpenCommandPanelFilterDialog {
+                openFilter()
+            } else {
+                filterDialog.session = CueFacetFilterDialogSession(
+                    source: .search,
+                    filter: search.searchFacetFilter,
+                    apply: { [weak self] newFilter in
+                        self?.applySearchFacetFilter(newFilter)
+                    }
+                )
+            }
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .commandPanelSortButton:
+            guard let toggleSort = workbenchAccessibility.onToggleCommandPanelSortMenu else {
+                return false
+            }
+            toggleSort()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .commandPanelRecentCard(let id):
+            selectPlaybackCommandPanelRecentCardFromAccessibility(id)
+            _ = openSelectedPlaybackCommandPanelItem()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .commandPanelRecentCardActionButton(let id):
+            selectPlaybackCommandPanelRecentCardFromAccessibility(id)
+            let opened = workbenchAccessibility.activateCommandPanelCardAction(id: id)
+            reconcilePlaybackAccessibilityFocus()
+            return opened
+
+        case .commandPanelFooterAction(let actionID):
+            switch actionID {
+            case "open":
+                _ = openSelectedPlaybackCommandPanelItem()
+                reconcilePlaybackAccessibilityFocus()
+                return true
+            case "excerpt":
+                _ = requestPlaybackCommandPanelSearchAction(.excerpt)
+                reconcilePlaybackAccessibilityFocus()
+                return true
+            case "copy-cue-text":
+                _ = requestPlaybackCommandPanelSearchAction(.copyCueText)
+                return true
+            case "copy-deep-link":
+                _ = requestPlaybackCommandPanelSearchAction(.copyCueMarkdownLink)
+                return true
+            case "play":
+                _ = requestPlaybackCommandPanelSearchAction(.playFromThisCue)
+                reconcilePlaybackAccessibilityFocus()
+                return true
+            default:
+                return false
+            }
+        }
+    }
 }

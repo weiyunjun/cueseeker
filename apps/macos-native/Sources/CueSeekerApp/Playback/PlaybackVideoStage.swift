@@ -4,6 +4,7 @@ struct PlaybackVideoStage: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
+    @ObservedObject var chrome: PlaybackChromeVisibilityModel
     /// A playback layer is open above the stage. The window controls stay
     /// shown for it even while the Player UI is hidden.
     let isLayerOpen: Bool
@@ -11,7 +12,6 @@ struct PlaybackVideoStage: View {
     @EnvironmentObject private var playback: PlaybackStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @Environment(\.isDialogOpen) private var isDialogOpen
-    @StateObject private var chrome = PlaybackChromeVisibilityModel()
 
     var body: some View {
         GeometryReader { geometry in

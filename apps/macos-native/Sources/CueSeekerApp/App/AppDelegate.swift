@@ -210,6 +210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             MainActor.assumeIsolated {
                 _ = appState.workbenchAccessibility.clear()
                 _ = appState.workbenchAccessibility.clearDialog(keepTextInputFocus: true)
+                appState.clearPlaybackAccessibilityFocus(keepTextInputFocus: true)
                 MenuHighlightModel.broadcastMouseDown()
             }
         }

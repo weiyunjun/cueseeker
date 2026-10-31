@@ -20,6 +20,7 @@ struct TopbarAppEntries: View {
     var isCommandPanelFocused: Bool = false
     var isTaskFocused: Bool = false
     var isSettingsFocused: Bool = false
+    var isPlayerChrome: Bool = false
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
@@ -31,7 +32,8 @@ struct TopbarAppEntries: View {
                     hoverBackground: hoverBackground,
                     pressedBackground: pressedBackground,
                     openBackground: openBackground,
-                    isFocused: isCommandPanelFocused
+                    isFocused: isCommandPanelFocused,
+                    isPlayerChrome: isPlayerChrome
                 ) {
                     appState.performUserInitiatedAppCommand {
                         _ = appState.presentPlaybackCommandPanel()
@@ -49,7 +51,8 @@ struct TopbarAppEntries: View {
                 openBackground: openBackground,
                 countBackground: countBackground,
                 countTextColor: countTextColor,
-                isFocused: isTaskFocused
+                isFocused: isTaskFocused,
+                isPlayerChrome: isPlayerChrome
             ) {
                 appState.performUserInitiatedAppCommand {
                     appState.tasks.openPanel()
@@ -64,7 +67,8 @@ struct TopbarAppEntries: View {
                 hoverBackground: hoverBackground,
                 pressedBackground: pressedBackground,
                 openBackground: openBackground,
-                isFocused: isSettingsFocused
+                isFocused: isSettingsFocused,
+                isPlayerChrome: isPlayerChrome
             ) {
                 appState.performUserInitiatedAppCommand {
                     NotificationCenter.default.post(name: .cueSeekerShowSettings, object: nil)
@@ -83,6 +87,7 @@ struct CommandPanelEntryButton: View {
     var pressedBackground: Color = WorkbenchRedesignColors.bgPressed
     var openBackground: Color? = nil
     var isFocused: Bool = false
+    var isPlayerChrome: Bool = false
     let onOpen: () -> Void
 
     var body: some View {
@@ -90,6 +95,7 @@ struct CommandPanelEntryButton: View {
             icon: .magnifyingGlass,
             isOpen: playback.commandPanelPresentation != nil,
             isFocused: isFocused,
+            isPlayerChrome: isPlayerChrome,
             hoverBackground: hoverBackground,
             pressedBackground: pressedBackground,
             openBackground: openBackground,
@@ -119,6 +125,7 @@ struct SettingsEntryButton: View {
     var pressedBackground: Color = WorkbenchRedesignColors.bgPressed
     var openBackground: Color? = nil
     var isFocused: Bool = false
+    var isPlayerChrome: Bool = false
     let onOpen: () -> Void
 
     var body: some View {
@@ -126,6 +133,7 @@ struct SettingsEntryButton: View {
             icon: .gear,
             isOpen: layoutState.isSettingsWindowOpen,
             isFocused: isFocused,
+            isPlayerChrome: isPlayerChrome,
             hoverBackground: hoverBackground,
             pressedBackground: pressedBackground,
             openBackground: openBackground,

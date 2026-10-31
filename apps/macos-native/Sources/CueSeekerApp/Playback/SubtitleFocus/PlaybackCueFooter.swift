@@ -272,14 +272,23 @@ struct PlaybackCueFooter: View {
                 horizontalSpacing: WorkbenchControlMetrics.redesignSpacing2,
                 verticalSpacing: WorkbenchControlMetrics.redesignSpacing1
             ) {
-                ForEach(actions) { action in
-                    PlaybackCueFooterActionButton(
-                        surface: surface,
-                        action: action,
-                        shortcuts: appState.settings.playbackShortcuts,
-                        isOpen: action.opensExcerptDestinationMenu
-                            && openMenu != nil
-                    )
+                WorkbenchAccessibilityReader { accessibility in
+                    ForEach(actions) { action in
+                        let target: PlaybackAccessibilityTarget = switch surface {
+                        case .playbackOverlay:
+                            .overlayFooterAction(action.id)
+                        case .commandPanel:
+                            .commandPanelFooterAction(action.id)
+                        }
+                        PlaybackCueFooterActionButton(
+                            surface: surface,
+                            action: action,
+                            shortcuts: appState.settings.playbackShortcuts,
+                            isOpen: action.opensExcerptDestinationMenu
+                                && openMenu != nil,
+                            isFocused: accessibility?.isPlaybackFocused(target) == true
+                        )
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -556,6 +565,7 @@ private struct PlaybackCueFooterActionButton: View {
     /// The menu this button opened is up. It wears the same background it wears
     /// on hover for as long as that menu stays open.
     var isOpen = false
+    var isFocused = false
 
     @State private var isHovered = false
     @State private var isPressed = false
@@ -615,6 +625,10 @@ private struct PlaybackCueFooterActionButton: View {
                             : Color.clear)
                 )
             }
+            .workbenchAccessibilityFocusRing(
+                isFocused: isFocused,
+                cornerRadius: WorkbenchControlMetrics.redesignChipRadius
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))

@@ -336,7 +336,7 @@ extension AppCoordinator {
         return true
     }
 
-    private func playbackCommandPanelRecentCardItemIDs(
+    func playbackCommandPanelRecentCardItemIDs(
         for page: PlaybackCommandPanelPage
     ) -> [String] {
         switch page {
@@ -648,7 +648,7 @@ extension AppCoordinator {
         return true
     }
 
-    private func playbackCommandPanelItemCount(
+    func playbackCommandPanelItemCount(
         for page: PlaybackCommandPanelPage
     ) -> Int {
         switch page {

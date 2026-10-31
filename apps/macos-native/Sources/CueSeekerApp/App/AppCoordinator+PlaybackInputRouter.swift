@@ -80,6 +80,8 @@ extension AppCoordinator {
             return true
         }
 
+        reconcilePlaybackAccessibilityFocus()
+
         // The cue action the press runs where the Playback Overlay and the
         // Command Panel's search results offer Save to Excerpt, Copy Cue Text
         // and Copy Deep Link.
@@ -89,9 +91,11 @@ extension AppCoordinator {
 
         if let commandPanel = playback.commandPanelPresentation {
             if shortcuts.effectiveKey(for: .openCommandPanel) == shortcutKey,
-               !textInputState.isEditableFocused {
+               !textInputState.isEditableFocused,
+               workbenchAccessibility.focusedPlaybackTarget != .commandPanelSearchField {
                 if !isRepeat {
                     _ = presentPlaybackCommandPanel()
+                    reconcilePlaybackAccessibilityFocus()
                 }
                 return true
             }
@@ -121,6 +125,7 @@ extension AppCoordinator {
            !textInputState.isEditableFocused {
             if !isRepeat {
                 _ = presentPlaybackCommandPanel()
+                reconcilePlaybackAccessibilityFocus()
             }
             return true
         }
@@ -185,6 +190,7 @@ extension AppCoordinator {
         if shortcuts.effectiveKey(for: .editCollage) == shortcutKey {
             if !isRepeat {
                 _ = subtitleFocusSession.toggleEditingCollage()
+                reconcilePlaybackAccessibilityFocus()
             }
             return true
         }
@@ -201,6 +207,18 @@ extension AppCoordinator {
             }
             return true
         }
+        let disallowedModifiers: NSEvent.ModifierFlags = [
+            .command,
+            .control,
+            .option,
+        ]
+        if keyCode == 48,
+           modifierFlags.intersection(disallowedModifiers).isEmpty {
+            return movePlaybackAccessibilityFocus(
+                forward: !modifierFlags.contains(.shift)
+            )
+        }
+
         let editingCollageModifiers: NSEvent.ModifierFlags = [
             .command,
             .control,
@@ -214,11 +232,32 @@ extension AppCoordinator {
 
         switch keyCode {
         case 53:
-            if !isRepeat {
-                _ = subtitleFocusSession.toggleEditingCollage()
+            guard !isRepeat else {
+                return true
+            }
+            if workbenchAccessibility.isPlaybackActive {
+                clearPlaybackAccessibilityFocus()
+                return true
+            }
+            _ = subtitleFocusSession.toggleEditingCollage()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+        case 49:
+            if let focused = workbenchAccessibility.focusedPlaybackTarget,
+               workbenchAccessibility.activePlaybackSurface == .playbackOverlay {
+                if !isRepeat {
+                    _ = activatePlaybackAccessibilityTarget(focused)
+                }
             }
             return true
         case 36, 76:
+            if let focused = workbenchAccessibility.focusedPlaybackTarget,
+               workbenchAccessibility.activePlaybackSurface == .playbackOverlay {
+                if !isRepeat {
+                    _ = activatePlaybackAccessibilityTarget(focused)
+                }
+                return true
+            }
             if !isRepeat {
                 _ = subtitleFocusSession.toggleFocusedCollageCueSelection()
             }
@@ -250,20 +289,95 @@ extension AppCoordinator {
             .option,
         ]
         if commandPanel.page == .root,
-           textInputState.isEditableFocused,
+           (textInputState.isEditableFocused || workbenchAccessibility.focusedPlaybackTarget == .commandPanelSearchField),
            textInputState.hasMarkedText {
             return false
         }
 
-        if keyCode == 53,
+        if keyCode == 48,
            modifierFlags.intersection(disallowedModifiers).isEmpty {
+            return movePlaybackAccessibilityFocus(
+                forward: !modifierFlags.contains(.shift)
+            )
+        }
+
+        if keyCode == 53,
+           modifierFlags.intersection(disallowedModifiers).isEmpty,
+           !modifierFlags.contains(.shift) {
             guard !isRepeat else {
+                return true
+            }
+            if workbenchAccessibility.isPlaybackActive {
+                clearPlaybackAccessibilityFocus(keepTextInputFocus: true)
                 return true
             }
             if commandPanel.page == .root {
                 return dismissPlaybackCommandPanelFromUser()
             }
             return returnPlaybackCommandPanelToRoot()
+        }
+
+        if let focused = workbenchAccessibility.focusedPlaybackTarget {
+            if focused == .commandPanelSearchField {
+                guard modifierFlags.intersection(disallowedModifiers).isEmpty,
+                      !modifierFlags.contains(.shift)
+                else {
+                    return false
+                }
+                switch keyCode {
+                case 126, 125:
+                    return true
+                case 36, 76:
+                    if !isRepeat {
+                        _ = activatePlaybackAccessibilityTarget(focused)
+                    }
+                    return true
+                default:
+                    return false
+                }
+            }
+
+            if let cueShortcutAction {
+                if commandPanel.page == .searchResults, !isRepeat {
+                    _ = requestPlaybackCommandPanelSearchAction(cueShortcutAction)
+                    reconcilePlaybackAccessibilityFocus()
+                }
+                return true
+            }
+            guard modifierFlags.intersection(disallowedModifiers).isEmpty,
+                  !modifierFlags.contains(.shift)
+            else {
+                return true
+            }
+            switch keyCode {
+            case 49, 36, 76:
+                if !isRepeat {
+                    _ = activatePlaybackAccessibilityTarget(focused)
+                }
+            case 123 where focused.commandPanelRecentCardID != nil:
+                _ = moveCommandPanelRecentCardSelectionFromAccessibility(.left)
+            case 124 where focused.commandPanelRecentCardID != nil:
+                _ = moveCommandPanelRecentCardSelectionFromAccessibility(.right)
+            case 126:
+                if focused.commandPanelRootOptionOrdinal != nil {
+                    _ = moveCommandPanelRootSelectionFromAccessibility(-1)
+                } else if focused.commandPanelRecentCardID != nil {
+                    _ = moveCommandPanelRecentCardSelectionFromAccessibility(.up)
+                } else if commandPanel.page == .searchResults {
+                    _ = movePlaybackCommandPanelSelection(-1)
+                }
+            case 125:
+                if focused.commandPanelRootOptionOrdinal != nil {
+                    _ = moveCommandPanelRootSelectionFromAccessibility(1)
+                } else if focused.commandPanelRecentCardID != nil {
+                    _ = moveCommandPanelRecentCardSelectionFromAccessibility(.down)
+                } else if commandPanel.page == .searchResults {
+                    _ = movePlaybackCommandPanelSelection(1)
+                }
+            default:
+                break
+            }
+            return true
         }
 
         if commandPanel.page == .root,
@@ -335,38 +449,45 @@ extension AppCoordinator {
         cueShortcutAction: PlaybackSubtitleFocusAction?
     ) -> Bool {
         let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
-        let moduleSwitchModifiers: NSEvent.ModifierFlags = [
-            .command,
-            .control,
-            .option,
-        ]
 
         if shortcuts.effectiveKey(for: .editCollage) == shortcutKey {
             if !isRepeat,
                subtitleFocusSession.selectedModule == .current {
                 _ = subtitleFocusSession.toggleEditingCollage()
+                reconcilePlaybackAccessibilityFocus()
             }
             return true
         }
 
         if keyCode == 48,
-           modifierFlags.intersection(moduleSwitchModifiers).isEmpty {
-            if !isRepeat {
-                if modifierFlags.contains(.shift) {
-                    _ = subtitleFocusSession.selectPreviousModule()
-                } else {
-                    _ = subtitleFocusSession.selectNextModule()
-                }
-            }
-            return true
+           modifierFlags.intersection(disallowedModifiers).isEmpty {
+            return movePlaybackAccessibilityFocus(
+                forward: !modifierFlags.contains(.shift)
+            )
         }
 
         if keyCode == 53,
-           modifierFlags.intersection(disallowedModifiers).isEmpty {
+           modifierFlags.intersection(disallowedModifiers).isEmpty,
+           !modifierFlags.contains(.shift) {
             guard !isRepeat else {
                 return true
             }
+            if workbenchAccessibility.isPlaybackActive {
+                clearPlaybackAccessibilityFocus()
+                return true
+            }
             return dismissPlaybackSubtitleFocusFromUser()
+        }
+
+        if (keyCode == 49 || keyCode == 36 || keyCode == 76),
+           modifierFlags.intersection(disallowedModifiers).isEmpty,
+           !modifierFlags.contains(.shift),
+           let focused = workbenchAccessibility.focusedPlaybackTarget,
+           workbenchAccessibility.activePlaybackSurface == .playbackOverlay {
+            if !isRepeat {
+                _ = activatePlaybackAccessibilityTarget(focused)
+            }
+            return true
         }
 
         let usesMediaPlaylist =
@@ -385,6 +506,25 @@ extension AppCoordinator {
             ]
             guard modifierFlags.intersection(mediaActionModifiers).isEmpty else {
                 return false
+            }
+
+            if workbenchAccessibility.isPlaybackActive {
+                guard workbenchAccessibility.focusedPlaybackTarget?.overlayVideoCardID != nil else {
+                    return true
+                }
+                switch keyCode {
+                case 123:
+                    _ = movePlaybackOverlayVideoCardSelection(.left)
+                case 124:
+                    _ = movePlaybackOverlayVideoCardSelection(.right)
+                case 126:
+                    _ = movePlaybackOverlayVideoCardSelection(.up)
+                case 125:
+                    _ = movePlaybackOverlayVideoCardSelection(.down)
+                default:
+                    break
+                }
+                return true
             }
 
             switch keyCode {
@@ -417,6 +557,7 @@ extension AppCoordinator {
             if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
                 == true {
                 _ = requestPlaybackSubtitleFocusAction(cueShortcutAction)
+                reconcilePlaybackAccessibilityFocus()
             }
             return true
         }
@@ -462,6 +603,26 @@ extension AppCoordinator {
         shortcutKey: PlaybackShortcutKey,
         shortcuts: PlaybackShortcutKeymap
     ) -> Bool {
+        let hasDisallowedModifiers = shortcutKey.command
+            || shortcutKey.option
+            || shortcutKey.control
+
+        if keyCode == 48,
+           !hasDisallowedModifiers,
+           !textInputState.hasMarkedText {
+            return movePlaybackAccessibilityFocus(forward: !shortcutKey.shift)
+        }
+
+        if keyCode == 53,
+           !hasDisallowedModifiers,
+           !shortcutKey.shift,
+           workbenchAccessibility.isPlaybackActive {
+            if !isRepeat {
+                clearPlaybackAccessibilityFocus()
+            }
+            return true
+        }
+
         if Self.handlePlaybackFullscreenEscape(
             keyCode: keyCode,
             isRepeat: isRepeat,
@@ -473,6 +634,17 @@ extension AppCoordinator {
 
         guard !textInputState.isEditableFocused else {
             return false
+        }
+
+        if (keyCode == 49 || keyCode == 36 || keyCode == 76),
+           !hasDisallowedModifiers,
+           !shortcutKey.shift,
+           let focused = workbenchAccessibility.focusedPlaybackTarget,
+           workbenchAccessibility.activePlaybackSurface == .playerStage {
+            if !isRepeat {
+                _ = activatePlaybackAccessibilityTarget(focused)
+            }
+            return true
         }
 
         let playbackShortcut = shortcuts.action(for: shortcutKey, in: .playback)

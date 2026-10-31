@@ -659,6 +659,7 @@ final class AppCoordinator: ObservableObject {
                 self?.reconcileDialogAccessibilityFocus()
                 self?.reconcileSettingsAccessibilityFocus()
                 self?.reconcileSettingsDialogAccessibilityFocus()
+                self?.reconcilePlaybackAccessibilityFocus()
             }
         }
         .store(in: &interfaceLayerCancellables)

@@ -219,7 +219,8 @@ struct WorkbenchSearchField: View {
             )
             if let field = textFieldBox.field,
                let workbenchAccessibility,
-               workbenchAccessibility.activeSearchTextField !== field
+               workbenchAccessibility.activeSearchTextField !== field,
+               workbenchAccessibility.activeCommandPanelSearchTextField !== field
             {
                 return
             }
@@ -556,6 +557,7 @@ struct WorkbenchIconButton: View {
     /// same as hover, the way a shortcut button does.
     var isOpen: Bool = false
     var isFocused: Bool = false
+    var isPlayerChrome: Bool = false
     /// Default resting background when not hovered, pressed, or open.
     var defaultBackground: Color = Color.clear
     /// Hover is read against the surface the button sits on, so a button drawn
@@ -647,7 +649,8 @@ struct WorkbenchIconButton: View {
         )
         .workbenchAccessibilityFocusRing(
             isFocused: isFocused,
-            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+            isPlayerChrome: isPlayerChrome
         )
         .contentShape(Rectangle())
     }

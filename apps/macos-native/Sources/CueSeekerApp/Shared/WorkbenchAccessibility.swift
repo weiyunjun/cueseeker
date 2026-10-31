@@ -353,6 +353,125 @@ enum WorkbenchAccessibilityTarget: Hashable {
     }
 }
 
+enum PlaybackAccessibilitySurface: Equatable, Hashable {
+    case playerStage
+    case playbackOverlay
+    case commandPanel(PlaybackCommandPanelPage)
+}
+
+enum PlaybackAccessibilityTarget: Equatable, Hashable {
+    // L-07 Player Stage - Topbar (L-07.1)
+    case playerReturn
+    case playerCommandPanel
+    case playerTask
+    case playerSettings
+
+    // L-07 Player Stage - Cue Queue Control Bar (L-07.2)
+    case playerAutoPause
+    case playerAutoSwitch
+    case playerAutoSwitchGapDecrease
+    case playerAutoSwitchGapIncrease
+
+    // L-07 Player Stage - Bottom Control Bar (L-07.2)
+    case playerPlayPause
+    case playerPrevious
+    case playerNext
+    case playerMute
+    case playerPlaybackOverlay
+    case playerRepeat
+    case playerCopyScreenshot
+    case playerSubtitlesMenu
+    case playerSpeedMenu
+    case playerMoreMenu
+    case playerFullscreen
+
+    // L-08 Playback Overlay - Topbar (L-08.1)
+    case overlayReturn
+    case overlayTab(PlaybackOverlayModule)
+    case overlayCollageButton
+    case overlayCommandPanel
+    case overlayTask
+    case overlaySettings
+
+    // L-08 Playback Overlay - Video Playlist Content (L-08.2)
+    case overlayVideoCard(String)
+    case overlayVideoCardActionButton(String)
+
+    // L-08 Playback Overlay - Bottom Bar (L-08.3)
+    case overlayFooterAction(String)
+
+    // L-09 Command Panel - Root (L-09.1)
+    case commandPanelSearchField
+    case commandPanelSearchClearButton
+    case commandPanelRootOption(Int)
+
+    // L-09 Command Panel - Secondary Header (L-09.2)
+    case commandPanelBackButton
+    case commandPanelFilterButton
+    case commandPanelSortButton
+
+    // L-09 Command Panel - Recent Videos / Excerpt Lists Grid (L-09.2)
+    case commandPanelRecentCard(String)
+    case commandPanelRecentCardActionButton(String)
+
+    // L-09 Command Panel - Footer (L-09.1 / L-09.2 / L-09.3)
+    case commandPanelFooterAction(String)
+
+    var isPlayerStageTarget: Bool {
+        switch self {
+        case .playerReturn,
+             .playerCommandPanel,
+             .playerTask,
+             .playerSettings,
+             .playerAutoPause,
+             .playerAutoSwitch,
+             .playerAutoSwitchGapDecrease,
+             .playerAutoSwitchGapIncrease,
+             .playerPlayPause,
+             .playerPrevious,
+             .playerNext,
+             .playerMute,
+             .playerPlaybackOverlay,
+             .playerRepeat,
+             .playerCopyScreenshot,
+             .playerSubtitlesMenu,
+             .playerSpeedMenu,
+             .playerMoreMenu,
+             .playerFullscreen:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var overlayVideoCardID: String? {
+        switch self {
+        case .overlayVideoCard(let id), .overlayVideoCardActionButton(let id):
+            return id
+        default:
+            return nil
+        }
+    }
+
+    var commandPanelRecentCardID: String? {
+        switch self {
+        case .commandPanelRecentCard(let id), .commandPanelRecentCardActionButton(let id):
+            return id
+        default:
+            return nil
+        }
+    }
+
+    var commandPanelRootOptionOrdinal: Int? {
+        switch self {
+        case .commandPanelRootOption(let ordinal):
+            return ordinal
+        default:
+            return nil
+        }
+    }
+}
+
 @MainActor
 final class WorkbenchAccessibilityCoordinator: ObservableObject {
     @Published private(set) var focusedTarget: WorkbenchAccessibilityTarget?
@@ -365,6 +484,10 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     @Published private(set) var focusedSettingsDialogTarget: WorkbenchDialogAccessibilityTarget?
     @Published var activeSubtitleColorPopover: SettingsSubtitleCategory.ColorFieldID?
     @Published var isShortcutRecording: Bool = false
+
+    // Playback Surfaces (Step 4: L-07 Player Stage, L-08 Playback Overlay, L-09 Command Panel)
+    @Published var activePlaybackSurface: PlaybackAccessibilitySurface?
+    @Published private(set) var focusedPlaybackTarget: PlaybackAccessibilityTarget?
 
     /// Current column count of the active Workbench card grid (`Recent`,
     /// `Library` Overview & Detail, `Excerpt` Overview), updated by
@@ -486,6 +609,21 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     private var settingsTextInputs: [SettingsTextInputKind: RegisteredDialogTextInput] = [:]
     private var activeSettingsTextInputs: Set<SettingsTextInputKind> = []
 
+    /// Weak reference to the Command Panel Root search field's native text field.
+    weak var activeCommandPanelSearchTextField: WorkbenchNativeSingleLineTextField?
+
+    /// Closures registered by `PlaybackLibraryOverlay` (`Video Playlist`) cards
+    /// to open their `dots-three` menu by card ID.
+    private var playbackOverlayCardMenuOpeners: [String: RegisteredCardMenuOpener] = [:]
+
+    /// Closures registered by `PlaybackCommandPanel` (`Recent Videos` & `Recent Excerpt Lists`)
+    /// cards to open their `dots-three` menu by card ID.
+    private var commandPanelCardMenuOpeners: [String: RegisteredCardMenuOpener] = [:]
+
+    /// Closures registered by `PlaybackCommandPanelSearchResults` for Filter and Sort triggers.
+    var onOpenCommandPanelFilterDialog: (() -> Void)?
+    var onToggleCommandPanelSortMenu: (() -> Void)?
+
     var isActive: Bool {
         focusedTarget != nil
     }
@@ -502,12 +640,20 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         focusedSettingsDialogTarget != nil
     }
 
+    var isPlaybackActive: Bool {
+        focusedPlaybackTarget != nil
+    }
+
     var focusedCardID: String? {
         focusedTarget?.mediaCardID
     }
 
     func isFocused(_ target: WorkbenchAccessibilityTarget) -> Bool {
         focusedTarget == target
+    }
+
+    func isPlaybackFocused(_ target: PlaybackAccessibilityTarget) -> Bool {
+        focusedPlaybackTarget == target
     }
 
     func isSettingsFocused(_ target: SettingsAccessibilityTarget) -> Bool {
@@ -944,6 +1090,129 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         }
         openMenu()
         return true
+    }
+
+    func setPlaybackFocus(
+        _ target: PlaybackAccessibilityTarget?,
+        surface: PlaybackAccessibilitySurface? = nil
+    ) {
+        if let surface, activePlaybackSurface != surface {
+            activePlaybackSurface = surface
+        }
+        let previous = focusedPlaybackTarget
+        if focusedPlaybackTarget != target {
+            focusedPlaybackTarget = target
+        }
+        syncCommandPanelSearchFieldFocus(from: previous, to: target)
+    }
+
+    @discardableResult
+    func clearPlayback(keepTextInputFocus: Bool = true) -> Bool {
+        let hadFocus = focusedPlaybackTarget != nil
+        focusedPlaybackTarget = nil
+        if !keepTextInputFocus,
+           let field = activeCommandPanelSearchTextField,
+           field.isCurrentlyFocused
+        {
+            _ = field.window?.makeFirstResponder(nil)
+        }
+        return hadFocus
+    }
+
+    func registerPlaybackOverlayCardAction(
+        id: String,
+        ownerToken: ObjectIdentifier? = nil,
+        openMenu: @escaping () -> Void
+    ) {
+        playbackOverlayCardMenuOpeners[id] = RegisteredCardMenuOpener(
+            ownerToken: ownerToken,
+            openMenu: openMenu
+        )
+    }
+
+    func unregisterPlaybackOverlayCardAction(
+        id: String,
+        ownerToken: ObjectIdentifier? = nil
+    ) {
+        if let ownerToken,
+           let existing = playbackOverlayCardMenuOpeners[id],
+           let existingToken = existing.ownerToken,
+           existingToken != ownerToken {
+            return
+        }
+        playbackOverlayCardMenuOpeners.removeValue(forKey: id)
+    }
+
+    @discardableResult
+    func activatePlaybackOverlayCardAction(id: String) -> Bool {
+        guard let entry = playbackOverlayCardMenuOpeners[id] else {
+            return false
+        }
+        entry.openMenu()
+        return true
+    }
+
+    func registerCommandPanelCardAction(
+        id: String,
+        ownerToken: ObjectIdentifier? = nil,
+        openMenu: @escaping () -> Void
+    ) {
+        commandPanelCardMenuOpeners[id] = RegisteredCardMenuOpener(
+            ownerToken: ownerToken,
+            openMenu: openMenu
+        )
+    }
+
+    func unregisterCommandPanelCardAction(
+        id: String,
+        ownerToken: ObjectIdentifier? = nil
+    ) {
+        if let ownerToken,
+           let existing = commandPanelCardMenuOpeners[id],
+           let existingToken = existing.ownerToken,
+           existingToken != ownerToken {
+            return
+        }
+        commandPanelCardMenuOpeners.removeValue(forKey: id)
+    }
+
+    @discardableResult
+    func activateCommandPanelCardAction(id: String) -> Bool {
+        guard let entry = commandPanelCardMenuOpeners[id] else {
+            return false
+        }
+        entry.openMenu()
+        return true
+    }
+
+    private func syncCommandPanelSearchFieldFocus(
+        from previous: PlaybackAccessibilityTarget?,
+        to next: PlaybackAccessibilityTarget?
+    ) {
+        _ = previous
+        if next == .commandPanelSearchField {
+            activeCommandPanelSearchTextField?.focusFromAccessibility()
+            DispatchQueue.main.async { [weak self] in
+                guard let self,
+                      self.focusedPlaybackTarget == .commandPanelSearchField
+                else {
+                    return
+                }
+                self.activeCommandPanelSearchTextField?.focusFromAccessibility()
+            }
+        } else if next != nil {
+            if let field = activeCommandPanelSearchTextField, field.isCurrentlyFocused {
+                _ = field.window?.makeFirstResponder(nil)
+            } else {
+                let activeWindow = NSApplication.shared.keyWindow
+                    ?? NSApplication.shared.windows.first { $0 is CueSeekerMainWindow }
+                if let textView = activeWindow?.firstResponder as? NSTextView,
+                   textView.isEditable
+                {
+                    _ = activeWindow?.makeFirstResponder(nil)
+                }
+            }
+        }
     }
 
     private func syncNativeSearchFieldFocus(

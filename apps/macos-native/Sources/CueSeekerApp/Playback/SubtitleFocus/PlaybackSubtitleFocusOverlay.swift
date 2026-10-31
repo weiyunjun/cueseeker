@@ -346,85 +346,103 @@ struct PlaybackOverlayTopBar: View {
             }
         )
         .overlay {
-            WorkbenchAdaptiveHeaderBar(
-                leadingInset: 0,
-                trailingInset: WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding,
-                minimumGap: WorkbenchControlMetrics.redesignSpacing3,
-                keepsCenterOnMidline: isEditingCollage
-            ) {
-                PlaybackReturnButton(
-                    hoverBackground: WorkbenchRedesignColors
-                        .overlaySurfaceShortcutButtonHoverBg,
-                    pressedBackground: WorkbenchRedesignColors
-                        .overlaySurfaceShortcutButtonPressedBg,
-                    scenarioID: "playback_overlay.topbar.return",
-                    action: onReturn
-                )
-            } center: {
-                if isEditingCollage {
-                    Text(L("playback.collage.editing"))
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizeBody,
-                            weight: .semibold
-                        ))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                        .allowsHitTesting(false)
-                        .accessibilityIdentifier("playback-collage-editor-title")
-                } else {
-                    WorkbenchTabs(
-                        items: modules.map {
-                            .init(
-                                value: $0,
-                                label: $0.label,
-                                accessibilityIdentifier: "playback-view-\($0.rawValue)"
-                            )
-                        },
-                        selection: selectedModule ?? modules.first ?? .current
-                    ) { module in
-                        _ = onSelect(module)
+            WorkbenchAccessibilityReader { accessibility in
+                let focusedTab: PlaybackOverlayModule? = {
+                    guard let target = accessibility?.focusedPlaybackTarget,
+                          accessibility?.activePlaybackSurface == .playbackOverlay,
+                          case .overlayTab(let module) = target
+                    else {
+                        return nil
                     }
-                }
-            } trailing: {
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                    if selectedModule == .current {
-                        WorkbenchIconButton(
-                            icon: .imagesSquare,
-                            isOpen: isEditingCollage,
-                            hoverBackground: WorkbenchRedesignColors
-                                .overlaySurfaceShortcutButtonHoverBg,
-                            pressedBackground: WorkbenchRedesignColors
-                                .overlaySurfaceShortcutButtonPressedBg
-                        ) {
-                            _ = onToggleEditingCollage()
-                        }
-                        .workbenchTooltip(
-                            scenarioID: "playback_overlay.topbar.collage",
-                            label: isEditingCollage
-                                ? L("tooltip.playback_overlay.collage.exit")
-                                : L("tooltip.playback_overlay.collage.edit"),
-                            shortcut: .action(.editCollage)
-                        )
-                        .accessibilityLabel(
-                            isEditingCollage
-                                ? L("playback.collage.exit")
-                                : L("playback.collage")
-                        )
-                        .accessibilityIdentifier(
-                            isEditingCollage
-                                ? "playback-exit-collage"
-                                : "playback-enter-collage"
-                        )
-                    }
+                    return module
+                }()
 
-                    TopbarAppEntries(
-                        showsCommandPanel: true,
+                WorkbenchAdaptiveHeaderBar(
+                    leadingInset: 0,
+                    trailingInset: WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding,
+                    minimumGap: WorkbenchControlMetrics.redesignSpacing3,
+                    keepsCenterOnMidline: isEditingCollage
+                ) {
+                    PlaybackReturnButton(
                         hoverBackground: WorkbenchRedesignColors
                             .overlaySurfaceShortcutButtonHoverBg,
                         pressedBackground: WorkbenchRedesignColors
-                            .overlaySurfaceShortcutButtonPressedBg
+                            .overlaySurfaceShortcutButtonPressedBg,
+                        scenarioID: "playback_overlay.topbar.return",
+                        isFocused: accessibility?.isPlaybackFocused(.overlayReturn) == true,
+                        action: onReturn
                     )
+                } center: {
+                    if isEditingCollage {
+                        Text(L("playback.collage.editing"))
+                            .font(.system(
+                                size: WorkbenchControlMetrics.redesignFontSizeBody,
+                                weight: .semibold
+                            ))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                            .allowsHitTesting(false)
+                            .accessibilityIdentifier("playback-collage-editor-title")
+                    } else {
+                        WorkbenchTabs(
+                            items: modules.map {
+                                .init(
+                                    value: $0,
+                                    label: $0.label,
+                                    accessibilityIdentifier: "playback-view-\($0.rawValue)"
+                                )
+                            },
+                            selection: selectedModule ?? modules.first ?? .current,
+                            focusedValue: focusedTab
+                        ) { module in
+                            _ = onSelect(module)
+                        }
+                    }
+                } trailing: {
+                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                        if selectedModule == .current {
+                            WorkbenchIconButton(
+                                icon: .imagesSquare,
+                                isOpen: isEditingCollage,
+                                isFocused: accessibility?.isPlaybackFocused(.overlayCollageButton) == true,
+                                hoverBackground: WorkbenchRedesignColors
+                                    .overlaySurfaceShortcutButtonHoverBg,
+                                pressedBackground: WorkbenchRedesignColors
+                                    .overlaySurfaceShortcutButtonPressedBg
+                            ) {
+                                _ = onToggleEditingCollage()
+                            }
+                            .workbenchTooltip(
+                                scenarioID: "playback_overlay.topbar.collage",
+                                label: isEditingCollage
+                                    ? L("tooltip.playback_overlay.collage.exit")
+                                    : L("tooltip.playback_overlay.collage.edit"),
+                                shortcut: .action(.editCollage)
+                            )
+                            .accessibilityLabel(
+                                isEditingCollage
+                                    ? L("playback.collage.exit")
+                                    : L("playback.collage")
+                            )
+                            .accessibilityIdentifier(
+                                isEditingCollage
+                                    ? "playback-exit-collage"
+                                    : "playback-enter-collage"
+                            )
+                        }
+
+                        TopbarAppEntries(
+                            showsCommandPanel: true,
+                            hoverBackground: WorkbenchRedesignColors
+                                .overlaySurfaceShortcutButtonHoverBg,
+                            pressedBackground: WorkbenchRedesignColors
+                                .overlaySurfaceShortcutButtonPressedBg,
+                            isCommandPanelFocused: accessibility?.isPlaybackFocused(.overlayCommandPanel) == true,
+                            isTaskFocused: accessibility?.isPlaybackFocused(.overlayTask) == true,
+                            isSettingsFocused: accessibility?.isPlaybackFocused(.overlaySettings) == true
+                        )
+                    }
                 }
             }
         }

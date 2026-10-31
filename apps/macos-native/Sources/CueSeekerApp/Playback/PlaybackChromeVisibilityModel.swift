@@ -42,6 +42,10 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     /// page: the pointer is shown and the Player UI's state and countdown are
     /// frozen until it closes.
     private var isLayerOpen = false
+    /// A Player Chrome menu (Subtitles, Speed, or More) is open on the stage.
+    private(set) var isMenuOpen = false
+    /// Player UI accessibility focus is active on a Player Chrome control.
+    private(set) var isAccessibilityFocused = false
     private var isDragging = false
     /// The clickable controls of the Player UI, in the player area's
     /// top-left-origin coordinates. The window controls are asked from AppKit.
@@ -70,10 +74,11 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         playerWindow = nil
     }
 
-    /// Entering fullscreen hides both at once.
+    /// Entering fullscreen hides both at once unless accessibility focus is
+    /// holding the Player UI visible.
     func enteringFullscreen() {
         cancelIdleCountdown()
-        setPlayerUIVisible(false)
+        setPlayerUIVisible(isAccessibilityFocused)
         setPointerVisible(false)
         applyCursorOwnership()
     }
@@ -121,6 +126,40 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         }
     }
 
+    func setMenuOpen(_ isOpen: Bool) {
+        guard isMenuOpen != isOpen else {
+            return
+        }
+        isMenuOpen = isOpen
+        if isOpen {
+            cancelIdleCountdown()
+            setPlayerUIVisible(true)
+            applyCursorOwnership()
+        } else {
+            reevaluate()
+        }
+    }
+
+    /// Wakes and holds the Player UI while accessibility focus sits on any
+    /// Player UI control, without actively unhiding a hidden pointer. Leaving
+    /// accessibility re-evaluates against the live pointer and window state.
+    func setAccessibilityFocused(_ isFocused: Bool) {
+        guard isAccessibilityFocused != isFocused else {
+            return
+        }
+        isAccessibilityFocused = isFocused
+        cancelIdleCountdown()
+        if isFocused {
+            setPlayerUIVisible(true)
+            applyCursorOwnership()
+        } else {
+            if playerWindow == nil, !isPointerVisible, !isLayerOpen, !isMenuOpen {
+                setPlayerUIVisible(false)
+            }
+            reevaluate()
+        }
+    }
+
     /// The progress bar or the volume slider is being dragged.
     func setDragging(_ isDragging: Bool) {
         guard self.isDragging != isDragging else {
@@ -160,18 +199,34 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         guard playerWindow != nil else {
             return
         }
+        if isAccessibilityFocused {
+            cancelIdleCountdown()
+            setPlayerUIVisible(true)
+            if !hasFocus || !isPointerInPlayerArea {
+                setPointerVisible(true)
+            }
+            applyCursorOwnership()
+            return
+        }
         if !hasFocus || !isPointerInPlayerArea {
             // Outside the window or without focus the Player UI is hidden and
             // the pointer is shown.
             cancelIdleCountdown()
-            if !isLayerOpen {
+            if !isLayerOpen && !isMenuOpen {
                 setPlayerUIVisible(false)
             }
             setPointerVisible(true)
             applyCursorOwnership()
             return
         }
-        guard !isLayerOpen else {
+        guard !isLayerOpen && !isMenuOpen else {
+            cancelIdleCountdown()
+            applyCursorOwnership()
+            return
+        }
+        if !isPointerVisible {
+            cancelIdleCountdown()
+            setPlayerUIVisible(false)
             applyCursorOwnership()
             return
         }
@@ -191,7 +246,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     }
 
     private var isGoverned: Bool {
-        !isLayerOpen && hasFocus && isPointerInPlayerArea
+        !isLayerOpen && !isMenuOpen && !isAccessibilityFocused && hasFocus && isPointerInPlayerArea
     }
 
     private var isIdleCountdownDue: Bool {

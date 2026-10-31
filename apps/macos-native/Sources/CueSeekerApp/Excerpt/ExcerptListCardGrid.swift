@@ -154,10 +154,15 @@ private struct ExcerptListCard: View {
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
             let isWorkbench = layerContext.layer == .workbenchPage && !highlight.keepsCurrentWhenPointerLeaves
+            let isCommandPanel = layerContext.layer == .commandPanel
             let _ = isWorkbench ? highlight.syncSelectedDuringRender(accessibility?.focusedCardID) : ()
-            let _ = isWorkbench ? syncAccessibilityAction(accessibility) : ()
-            let isCardFocused = isWorkbench && accessibility?.isFocused(.mediaCard(cardID)) == true
-            let isActionFocused = isWorkbench && accessibility?.isFocused(.mediaCardActionButton(cardID)) == true
+            let _ = (isWorkbench || isCommandPanel)
+                ? syncAccessibilityAction(accessibility, layer: layerContext.layer)
+                : ()
+            let isCardFocused = (isWorkbench && accessibility?.isFocused(.mediaCard(cardID)) == true)
+                || (isCommandPanel && accessibility?.isPlaybackFocused(.commandPanelRecentCard(cardID)) == true)
+            let isActionFocused = (isWorkbench && accessibility?.isFocused(.mediaCardActionButton(cardID)) == true)
+                || (isCommandPanel && accessibility?.isPlaybackFocused(.commandPanelRecentCardActionButton(cardID)) == true)
 
             LibraryOverviewCardSurface(
                 isSelected: highlight.isSelected(cardID),
@@ -187,30 +192,41 @@ private struct ExcerptListCard: View {
                 }
             )
             .onAppear {
-                guard isWorkbench else { return }
-                syncAccessibilityAction(accessibility)
+                guard isWorkbench || isCommandPanel else { return }
+                syncAccessibilityAction(accessibility, layer: layerContext.layer)
             }
             .onDisappear {
-                guard isWorkbench else { return }
-                accessibility?.unregisterMediaCardAction(
-                    id: cardID,
-                    ownerToken: ObjectIdentifier(moreMenuAnchor)
-                )
+                let token = ObjectIdentifier(moreMenuAnchor)
+                if isWorkbench {
+                    accessibility?.unregisterMediaCardAction(id: cardID, ownerToken: token)
+                } else if isCommandPanel {
+                    accessibility?.unregisterCommandPanelCardAction(id: cardID, ownerToken: token)
+                }
             }
             .accessibilityLabel(summary.list.name)
         }
     }
 
-    private func syncAccessibilityAction(_ accessibility: WorkbenchAccessibilityCoordinator?) {
+    private func syncAccessibilityAction(
+        _ accessibility: WorkbenchAccessibilityCoordinator?,
+        layer: InterfaceLayer
+    ) {
         let items = contextMenuItems
         let anchor = moreMenuAnchor
         let id = cardID
         let toggle = toggleAnchorMenu
-        accessibility?.registerMediaCardAction(
-            id: id,
-            ownerToken: ObjectIdentifier(anchor)
-        ) {
-            toggle?(items, anchor, id)
+        let token = ObjectIdentifier(anchor)
+        switch layer {
+        case .workbenchPage:
+            accessibility?.registerMediaCardAction(id: id, ownerToken: token) {
+                toggle?(items, anchor, id)
+            }
+        case .commandPanel:
+            accessibility?.registerCommandPanelCardAction(id: id, ownerToken: token) {
+                toggle?(items, anchor, id)
+            }
+        default:
+            break
         }
     }
 

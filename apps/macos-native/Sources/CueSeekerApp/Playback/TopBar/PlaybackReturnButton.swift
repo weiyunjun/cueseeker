@@ -11,12 +11,16 @@ struct PlaybackReturnButton: View {
     let hoverBackground: Color
     var pressedBackground: Color = WorkbenchRedesignColors.bgPressed
     var scenarioID: String = "player.topbar.return"
+    var isFocused: Bool = false
+    var isPlayerChrome: Bool = false
     let action: () -> Void
     @Environment(\.isAppFullscreen) private var isAppFullscreen
 
     var body: some View {
         WorkbenchIconButton(
             icon: .caretLeft,
+            isFocused: isFocused,
+            isPlayerChrome: isPlayerChrome,
             hoverBackground: hoverBackground,
             pressedBackground: pressedBackground,
             iconColor: iconColor,
