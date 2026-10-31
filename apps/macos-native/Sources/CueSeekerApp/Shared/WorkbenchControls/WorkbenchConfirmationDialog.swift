@@ -79,49 +79,57 @@ final class ConfirmationCenter: ObservableObject {
 
 /// The Confirmation dialog body. It draws no scrim of its own: dimming and the
 /// input barrier come from the dialog layer it is placed in.
-///
-/// It is the one interface that opens with focus, on Cancel. Buttons never
-/// take the keyboard focus, so the dialog draws Cancel's Focused state itself
-/// and gives Space to it the way Space presses a focused button.
 struct WorkbenchConfirmationDialog: View {
     let session: WorkbenchConfirmationSession
     /// Closing dismisses the confirmation itself. It does not run the caller's
     /// cancel action, so a confirmation without one still closes.
     let onClose: () -> Void
 
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
+    @Environment(\.workbenchDialogID) private var workbenchDialogID
+
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-            WorkbenchDialogHeader(title: session.title)
+        WorkbenchAccessibilityReader { accessibility in
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                WorkbenchDialogHeader(title: session.title)
 
-            Text(session.message)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .regular))
-                .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                .multilineTextAlignment(.leading)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(session.message)
+                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .regular))
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                Spacer(minLength: 0)
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                    Spacer(minLength: 0)
 
-                ForEach(session.actions) { action in
-                    actionButton(action)
+                    ForEach(session.actions) { action in
+                        actionButton(
+                            action,
+                            isFocused: accessibility?.isDialogFocused(
+                                .confirmationAction(action.id),
+                                dialogID: workbenchDialogID ?? .confirmation
+                            ) == true
+                        )
+                    }
                 }
+                .padding(.top, WorkbenchControlMetrics.redesignSpacing1)
             }
-            .padding(.top, WorkbenchControlMetrics.redesignSpacing1)
+            .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
+            .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+            .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
+            .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthSmall)
+            .background(WorkbenchRedesignColors.bgDialog)
+            .workbenchDialogCloseButton(onClose: onClose)
+            .subtitleTableTextSelectionNonInteractiveRegion()
+            .background(WindowKeyDownMonitor(handle: handleKey))
         }
-        .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
-        .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
-        .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
-        .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthSmall)
-        .background(WorkbenchRedesignColors.bgDialog)
-        .workbenchDialogCloseButton(onClose: onClose)
-        .subtitleTableTextSelectionNonInteractiveRegion()
-        .background(WindowKeyDownMonitor(handle: handleKey))
     }
 
-    /// Returns whether the key was spent here, in which case nothing below
-    /// sees it. Enter keeps its own shortcut.
     private func handleKey(_ event: NSEvent) -> Bool {
+        guard workbenchAccessibility == nil else {
+            return false
+        }
         guard event.modifierFlags
             .intersection([.command, .control, .option, .shift])
             .isEmpty
@@ -129,11 +137,7 @@ struct WorkbenchConfirmationDialog: View {
             return false
         }
         switch event.keyCode {
-        case 49:
-            return pressFocusedAction(isRepeat: event.isARepeat)
         case 53:
-            // Escape closes it, as it closed the sheet the confirmation used
-            // to be.
             if !event.isARepeat {
                 onClose()
             }
@@ -143,62 +147,27 @@ struct WorkbenchConfirmationDialog: View {
         }
     }
 
-    /// Space presses Cancel, the button the dialog draws as focused.
-    private func pressFocusedAction(isRepeat: Bool) -> Bool {
-        guard let cancel = session.actions.first(where: \.isCancel) else {
-            return false
-        }
-        if !isRepeat {
-            cancel.action()
-        }
-        return true
-    }
-
     @ViewBuilder
-    private func actionButton(_ action: WorkbenchConfirmationAction) -> some View {
-        Group {
-            switch action.style {
-            case .neutral:
-                WorkbenchButton(
-                    title: action.title,
-                    isFocused: action.isCancel,
-                    action: action.action
-                )
-            case .primary:
-                WorkbenchPrimaryButton(
-                    title: action.title,
-                    action: action.action
-                )
-            case .destructive:
-                WorkbenchDestructiveButton(
-                    title: action.title,
-                    action: action.action
-                )
-            }
-        }
-        .confirmationKeyboardShortcut(
-            isDefault: action.isDefault,
-            isCancel: action.isCancel
-        )
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func confirmationKeyboardShortcut(
-        isDefault: Bool,
-        isCancel: Bool
-    ) -> some View {
-        if isDefault && isCancel {
-            self
-                .keyboardShortcut(.defaultAction)
-                .keyboardShortcut(.cancelAction)
-        } else if isDefault {
-            self.keyboardShortcut(.defaultAction)
-        } else if isCancel {
-            self.keyboardShortcut(.cancelAction)
-        } else {
-            self
+    private func actionButton(_ action: WorkbenchConfirmationAction, isFocused: Bool) -> some View {
+        switch action.style {
+        case .neutral:
+            WorkbenchButton(
+                title: action.title,
+                isFocused: isFocused,
+                action: action.action
+            )
+        case .primary:
+            WorkbenchPrimaryButton(
+                title: action.title,
+                isFocused: isFocused,
+                action: action.action
+            )
+        case .destructive:
+            WorkbenchDestructiveButton(
+                title: action.title,
+                isFocused: isFocused,
+                action: action.action
+            )
         }
     }
 }

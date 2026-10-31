@@ -256,32 +256,72 @@ struct WorkbenchFormTextField: View {
     @Binding var text: String
     let validationMessage: String?
     let focus: FocusState<Bool>.Binding
+    var dialogInputKind: WorkbenchDialogTextInputKind? = nil
 
     @State private var isFocused = false
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
+    @Environment(\.workbenchDialogID) private var workbenchDialogID
 
     var body: some View {
-        WorkbenchFormFieldContainer(
-            label: label,
-            validationMessage: validationMessage
-        ) {
-            WorkbenchSingleLineTextInput(
-                placeholder: placeholder,
-                text: $text,
-                placeholderColor: WorkbenchRedesignColors.textPlaceholder,
-                textColor: WorkbenchRedesignColors.textPrimary,
-                fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
-                focus: focus,
-                accessibilityLabel: label,
-                onFocusChange: { isFocused = $0 }
-            )
-                .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
-                .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
-                .workbenchFormFieldChrome(
-                    hasError: validationMessage != nil,
-                    isFocused: isFocused
+        WorkbenchAccessibilityReader { accessibility in
+            let isAccessibilityFocused = dialogInputKind.map {
+                accessibility?.isDialogFocused($0.dialogTarget, dialogID: workbenchDialogID) == true
+            } ?? false
+            WorkbenchFormFieldContainer(
+                label: label,
+                validationMessage: validationMessage
+            ) {
+                WorkbenchSingleLineTextInput(
+                    placeholder: placeholder,
+                    text: $text,
+                    placeholderColor: WorkbenchRedesignColors.textPlaceholder,
+                    textColor: WorkbenchRedesignColors.textPrimary,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                    isDialogField: dialogInputKind != nil,
+                    focus: focus,
+                    accessibilityLabel: label,
+                    onFocusChange: {
+                        isFocused = $0
+                        if let dialogInputKind {
+                            workbenchAccessibility?.setDialogTextInputActive(dialogInputKind, isActive: $0)
+                        }
+                    },
+                    onBindTextField: { field in
+                        guard let dialogInputKind else { return }
+                        workbenchAccessibility?.registerDialogTextInput(
+                            dialogInputKind,
+                            ownerToken: ObjectIdentifier(field),
+                            setFocused: { [weak field] focused in
+                                if focused {
+                                    field?.focusFromAccessibility()
+                                } else {
+                                    field?.unfocusFromAccessibility()
+                                }
+                                if field?.window == nil {
+                                    isFocused = focused && isEnabled
+                                    focus.wrappedValue = focused && isEnabled
+                                }
+                            },
+                            isCurrentlyFocused: { [weak field] in
+                                field?.isCurrentlyFocused == true
+                            }
+                        )
+                    }
                 )
-                .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
+                    .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
+                    .workbenchFormFieldChrome(
+                        hasError: validationMessage != nil,
+                        isFocused: isFocused
+                    )
+                    .workbenchAccessibilityFocusRing(
+                        isFocused: isAccessibilityFocused,
+                        cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
+                    )
+                    .background(WorkbenchAccessibilityScrollRevealProbe(isActive: isAccessibilityFocused))
+                    .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
+            }
         }
     }
 }
@@ -294,25 +334,65 @@ struct WorkbenchFormTextArea: View {
     let focus: FocusState<Bool>.Binding
     /// The box's height comes from the layout it sits in.
     let height: CGFloat
+    var dialogInputKind: WorkbenchDialogTextInputKind? = nil
 
     @State private var isFocused = false
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
+    @Environment(\.workbenchDialogID) private var workbenchDialogID
 
     var body: some View {
-        WorkbenchFormFieldContainer(
-            label: label,
-            validationMessage: validationMessage
-        ) {
-            WorkbenchTextAreaInput(
-                text: $text,
-                placeholder: placeholder,
-                focus: focus,
-                onFocusChange: { isFocused = $0 }
-            )
-            .frame(height: height)
-            .workbenchFormFieldChrome(
-                hasError: validationMessage != nil,
-                isFocused: isFocused
-            )
+        WorkbenchAccessibilityReader { accessibility in
+            let isAccessibilityFocused = dialogInputKind.map {
+                accessibility?.isDialogFocused($0.dialogTarget, dialogID: workbenchDialogID) == true
+            } ?? false
+            WorkbenchFormFieldContainer(
+                label: label,
+                validationMessage: validationMessage
+            ) {
+                WorkbenchTextAreaInput(
+                    text: $text,
+                    placeholder: placeholder,
+                    focus: focus,
+                    onFocusChange: {
+                        isFocused = $0
+                        if let dialogInputKind {
+                            workbenchAccessibility?.setDialogTextInputActive(dialogInputKind, isActive: $0)
+                        }
+                    },
+                    onBindContainerView: { container in
+                        guard let dialogInputKind else { return }
+                        workbenchAccessibility?.registerDialogTextInput(
+                            dialogInputKind,
+                            ownerToken: ObjectIdentifier(container),
+                            setFocused: { [weak container] focused in
+                                if focused {
+                                    container?.focusFromAccessibility()
+                                } else {
+                                    container?.unfocusFromAccessibility()
+                                }
+                                if container?.window == nil {
+                                    isFocused = focused && isEnabled
+                                    focus.wrappedValue = focused && isEnabled
+                                }
+                            },
+                            isCurrentlyFocused: { [weak container] in
+                                container?.isTextViewFirstResponder == true
+                            }
+                        )
+                    }
+                )
+                .frame(height: height)
+                .workbenchFormFieldChrome(
+                    hasError: validationMessage != nil,
+                    isFocused: isFocused
+                )
+                .workbenchAccessibilityFocusRing(
+                    isFocused: isAccessibilityFocused,
+                    cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
+                )
+                .background(WorkbenchAccessibilityScrollRevealProbe(isActive: isAccessibilityFocused))
+            }
         }
     }
 }
@@ -540,48 +620,87 @@ struct WorkbenchDialogFormTextField: View {
     var autofocus: Bool = false
     let focus: FocusState<Bool>.Binding
     var normalizeDraft: ((String) -> String)? = nil
+    var dialogInputKind: WorkbenchDialogTextInputKind? = nil
     var onSubmit: (() -> Void)?
 
     @State private var isFocused = false
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
+    @Environment(\.workbenchDialogID) private var workbenchDialogID
 
     var body: some View {
-        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-            WorkbenchFormLabel(text: label)
-                .frame(
-                    width: WorkbenchControlMetrics.redesignFormLabelWidth,
-                    height: WorkbenchControlMetrics.redesignFieldHeight,
-                    alignment: .leading
-                )
+        WorkbenchAccessibilityReader { accessibility in
+            let isAccessibilityFocused = dialogInputKind.map {
+                accessibility?.isDialogFocused($0.dialogTarget, dialogID: workbenchDialogID) == true
+            } ?? false
+            HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                WorkbenchFormLabel(text: label)
+                    .frame(
+                        width: WorkbenchControlMetrics.redesignFormLabelWidth,
+                        height: WorkbenchControlMetrics.redesignFieldHeight,
+                        alignment: .leading
+                    )
 
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                WorkbenchSingleLineTextInput(
-                    placeholder: placeholder,
-                    text: $text,
-                    placeholderColor: WorkbenchRedesignColors.textPlaceholder,
-                    textColor: isEnabled
-                        ? WorkbenchRedesignColors.textPrimary
-                        : WorkbenchRedesignColors.textDisabled,
-                    fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
-                    autofocus: autofocus,
-                    isDialogField: true,
-                    focus: focus,
-                    accessibilityLabel: label,
-                    normalizeDraft: normalizeDraft,
-                    onFocusChange: { isFocused = $0 },
-                    onSubmit: onSubmit
-                )
-                .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
-                .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
-                .workbenchDialogFormFieldChrome(
-                    hasError: showsErrorBorder && validationMessage != nil,
-                    isFocused: isFocused,
-                    isEnabled: isEnabled
-                )
-                .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                    WorkbenchSingleLineTextInput(
+                        placeholder: placeholder,
+                        text: $text,
+                        placeholderColor: WorkbenchRedesignColors.textPlaceholder,
+                        textColor: isEnabled
+                            ? WorkbenchRedesignColors.textPrimary
+                            : WorkbenchRedesignColors.textDisabled,
+                        fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                        autofocus: autofocus,
+                        isDialogField: true,
+                        focus: focus,
+                        accessibilityLabel: label,
+                        normalizeDraft: normalizeDraft,
+                        onFocusChange: {
+                            isFocused = $0
+                            if let dialogInputKind {
+                                workbenchAccessibility?.setDialogTextInputActive(dialogInputKind, isActive: $0)
+                            }
+                        },
+                        onBindTextField: { field in
+                            guard let dialogInputKind else { return }
+                            workbenchAccessibility?.registerDialogTextInput(
+                                dialogInputKind,
+                                ownerToken: ObjectIdentifier(field),
+                                setFocused: { [weak field] focused in
+                                    if focused {
+                                        field?.focusFromAccessibility()
+                                    } else {
+                                        field?.unfocusFromAccessibility()
+                                    }
+                                    if field?.window == nil {
+                                        isFocused = focused && isEnabled
+                                        focus.wrappedValue = focused && isEnabled
+                                    }
+                                },
+                                isCurrentlyFocused: { [weak field] in
+                                    field?.isCurrentlyFocused == true
+                                }
+                            )
+                        },
+                        onSubmit: onSubmit
+                    )
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
+                    .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
+                    .workbenchDialogFormFieldChrome(
+                        hasError: showsErrorBorder && validationMessage != nil,
+                        isFocused: isFocused,
+                        isEnabled: isEnabled
+                    )
+                    .workbenchAccessibilityFocusRing(
+                        isFocused: isAccessibilityFocused,
+                        cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
+                    )
+                    .background(WorkbenchAccessibilityScrollRevealProbe(isActive: isAccessibilityFocused))
+                    .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
 
-                if reservesValidationLine {
-                    WorkbenchValidationMessage(text: validationMessage)
+                    if reservesValidationLine {
+                        WorkbenchValidationMessage(text: validationMessage)
+                    }
                 }
             }
         }
@@ -596,40 +715,79 @@ struct WorkbenchDialogFormPasswordField: View {
     var reservesValidationLine: Bool = false
     var showsErrorBorder: Bool = false
     let focus: FocusState<Bool>.Binding
+    var dialogInputKind: WorkbenchDialogTextInputKind? = nil
     var onSubmit: (() -> Void)?
 
     @State private var isFocused = false
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
+    @Environment(\.workbenchDialogID) private var workbenchDialogID
 
     var body: some View {
-        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-            WorkbenchFormLabel(text: label)
-                .frame(
-                    width: WorkbenchControlMetrics.redesignFormLabelWidth,
-                    height: WorkbenchControlMetrics.redesignFieldHeight,
-                    alignment: .leading
-                )
+        WorkbenchAccessibilityReader { accessibility in
+            let isAccessibilityFocused = dialogInputKind.map {
+                accessibility?.isDialogFocused($0.dialogTarget, dialogID: workbenchDialogID) == true
+            } ?? false
+            HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                WorkbenchFormLabel(text: label)
+                    .frame(
+                        width: WorkbenchControlMetrics.redesignFormLabelWidth,
+                        height: WorkbenchControlMetrics.redesignFieldHeight,
+                        alignment: .leading
+                    )
 
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                WorkbenchSecureSingleLineInput(
-                    text: $text,
-                    placeholder: placeholder,
-                    focus: focus,
-                    accessibilityLabel: label,
-                    onFocusChange: { isFocused = $0 },
-                    onSubmit: onSubmit
-                )
-                .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
-                .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
-                .workbenchDialogFormFieldChrome(
-                    hasError: showsErrorBorder && validationMessage != nil,
-                    isFocused: isFocused,
-                    isEnabled: isEnabled
-                )
-                .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                    WorkbenchSecureSingleLineInput(
+                        text: $text,
+                        placeholder: placeholder,
+                        focus: focus,
+                        accessibilityLabel: label,
+                        onFocusChange: {
+                            isFocused = $0
+                            if let dialogInputKind {
+                                workbenchAccessibility?.setDialogTextInputActive(dialogInputKind, isActive: $0)
+                            }
+                        },
+                        onBindSecureField: { field in
+                            guard let dialogInputKind else { return }
+                            workbenchAccessibility?.registerDialogTextInput(
+                                dialogInputKind,
+                                ownerToken: ObjectIdentifier(field),
+                                setFocused: { [weak field] focused in
+                                    if focused {
+                                        field?.focusFromAccessibility()
+                                    } else {
+                                        field?.unfocusFromAccessibility()
+                                    }
+                                    if field?.window == nil {
+                                        isFocused = focused && isEnabled
+                                        focus.wrappedValue = focused && isEnabled
+                                    }
+                                },
+                                isCurrentlyFocused: { [weak field] in
+                                    field?.isCurrentlyFocused == true
+                                }
+                            )
+                        },
+                        onSubmit: onSubmit
+                    )
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
+                    .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
+                    .workbenchDialogFormFieldChrome(
+                        hasError: showsErrorBorder && validationMessage != nil,
+                        isFocused: isFocused,
+                        isEnabled: isEnabled
+                    )
+                    .workbenchAccessibilityFocusRing(
+                        isFocused: isAccessibilityFocused,
+                        cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
+                    )
+                    .background(WorkbenchAccessibilityScrollRevealProbe(isActive: isAccessibilityFocused))
+                    .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
 
-                if reservesValidationLine {
-                    WorkbenchValidationMessage(text: validationMessage)
+                    if reservesValidationLine {
+                        WorkbenchValidationMessage(text: validationMessage)
+                    }
                 }
             }
         }

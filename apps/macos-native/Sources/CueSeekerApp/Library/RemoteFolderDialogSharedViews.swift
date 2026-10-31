@@ -204,14 +204,17 @@ struct RemoteFolderDialogContainer<
     @ViewBuilder let connectionFields: () -> ConnectionFields
 
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
+    @Environment(\.workbenchDialogID) private var dialogID
 
     var body: some View {
-        Group {
-            switch session.step {
-            case .connection:
-                connectionStepView
-            case .browser:
-                browserStepView
+        WorkbenchAccessibilityReader { accessibility in
+            Group {
+                switch session.step {
+                case .connection:
+                    connectionStepView(accessibility: accessibility)
+                case .browser:
+                    browserStepView(accessibility: accessibility)
+                }
             }
         }
         .background(WorkbenchRedesignColors.bgDialog)
@@ -219,7 +222,7 @@ struct RemoteFolderDialogContainer<
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 
-    private var connectionStepView: some View {
+    private func connectionStepView(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchDialogHeader(title: L(style.titleKey))
 
@@ -227,7 +230,7 @@ struct RemoteFolderDialogContainer<
                 connectionFields()
             }
 
-            connectionActions
+            connectionActions(accessibility: accessibility)
         }
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
@@ -235,12 +238,13 @@ struct RemoteFolderDialogContainer<
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthMedium)
     }
 
-    private var connectionActions: some View {
+    private func connectionActions(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             Spacer(minLength: 0)
 
             WorkbenchButton(
                 title: L("common.cancel"),
+                isFocused: accessibility?.isDialogFocused(.remoteCancel, dialogID: dialogID) == true,
                 action: onClose
             )
             .keyboardShortcut(.cancelAction)
@@ -248,6 +252,7 @@ struct RemoteFolderDialogContainer<
             WorkbenchPrimaryButton(
                 title: L(style.connectTitleKey),
                 showsSpinner: session.isSubmitting,
+                isFocused: accessibility?.isDialogFocused(.remoteConnect, dialogID: dialogID) == true,
                 action: submitConnectionIfIdle
             )
             .disabled(session.isSubmitting)
@@ -255,7 +260,7 @@ struct RemoteFolderDialogContainer<
         }
     }
 
-    private var browserStepView: some View {
+    private func browserStepView(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchDialogHeader(title: L(style.titleKey))
                 .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
@@ -263,15 +268,17 @@ struct RemoteFolderDialogContainer<
             if !session.breadcrumbNodes.isEmpty {
                 RemoteFolderBreadcrumbBar(
                     nodes: session.breadcrumbNodes,
+                    dialogID: dialogID,
+                    accessibility: accessibility,
                     onSelectNode: onSelectBreadcrumb
                 )
                 .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
             }
 
-            browserContent
+            browserContent(accessibility: accessibility)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            browserActions
+            browserActions(accessibility: accessibility)
                 .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
         }
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
@@ -281,7 +288,7 @@ struct RemoteFolderDialogContainer<
     }
 
     @ViewBuilder
-    private var browserContent: some View {
+    private func browserContent(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         if session.isLoadingDirectory {
             ZStack {
                 WorkbenchSpinner()
@@ -302,6 +309,8 @@ struct RemoteFolderDialogContainer<
                             folderIcon: style.folderIcon,
                             isDisabled: item.kind == .folder && session.isFolderItemDisabled(item),
                             isSelected: item.kind == .folder && session.selectedFolderPaths.contains(item.id),
+                            isCardFocused: item.kind == .folder && accessibility?.isDialogFocused(.remoteFolderCard(item.id), dialogID: dialogID) == true,
+                            isCheckboxFocused: item.kind == .folder && accessibility?.isDialogFocused(.remoteFolderCheckbox(item.id), dialogID: dialogID) == true,
                             onToggleSelection: {
                                 session.toggleFolderSelection(item)
                             },
@@ -318,10 +327,11 @@ struct RemoteFolderDialogContainer<
         }
     }
 
-    private var browserActions: some View {
+    private func browserActions(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchButton(
                 title: L("common.back"),
+                isFocused: accessibility?.isDialogFocused(.remoteBack, dialogID: dialogID) == true,
                 action: {
                     if let onBack {
                         onBack()
@@ -336,12 +346,14 @@ struct RemoteFolderDialogContainer<
 
             WorkbenchButton(
                 title: L("common.cancel"),
+                isFocused: accessibility?.isDialogFocused(.remoteCancel, dialogID: dialogID) == true,
                 action: onClose
             )
             .keyboardShortcut(.cancelAction)
 
             WorkbenchPrimaryButton(
                 title: L(style.addTitleKey),
+                isFocused: accessibility?.isDialogFocused(.remoteAdd, dialogID: dialogID) == true,
                 action: submitAddIfReady
             )
             .disabled(!session.canAddInBrowser)
@@ -366,6 +378,8 @@ struct RemoteFolderDialogContainer<
 
 struct RemoteFolderBreadcrumbBar: View {
     let nodes: [RemoteFolderBreadcrumbNode]
+    var dialogID: WorkbenchDialogAccessibilityID? = nil
+    var accessibility: WorkbenchAccessibilityCoordinator? = nil
     var onSelectNode: ((RemoteFolderBreadcrumbNode) -> Void)? = nil
 
     var body: some View {
@@ -380,7 +394,10 @@ struct RemoteFolderBreadcrumbBar: View {
                 }
 
                 if index < nodes.count - 1 {
-                    BreadcrumbLink(title: node.title) {
+                    BreadcrumbLink(
+                        title: node.title,
+                        isFocused: accessibility?.isDialogFocused(.remoteBreadcrumb(node.id), dialogID: dialogID) == true
+                    ) {
                         onSelectNode?(node)
                     }
                 } else {
@@ -405,6 +422,8 @@ struct WebDAVBrowserCard: View {
     var folderIcon: AppIcon = .folderWebdav
     var isDisabled: Bool = false
     let isSelected: Bool
+    var isCardFocused: Bool = false
+    var isCheckboxFocused: Bool = false
     let onToggleSelection: () -> Void
     let onOpenFolder: () -> Void
 
@@ -493,6 +512,11 @@ struct WebDAVBrowserCard: View {
                             isEnabled: !isDisabled,
                             size: WorkbenchControlMetrics.redesignCheckboxSize
                         )
+                        .workbenchAccessibilityFocusRing(
+                            isFocused: isCheckboxFocused,
+                            cornerRadius: WorkbenchControlMetrics.redesignCheckboxSize / 2,
+                            isCircular: true
+                        )
                         .padding(.leading, WorkbenchControlMetrics.redesignSpacing4)
                         .padding(.trailing, WorkbenchControlMetrics.redesignSpacing4)
                         .frame(
@@ -577,12 +601,21 @@ struct WebDAVBrowserCard: View {
             minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
             alignment: .leading
         )
-        .background(shape.fill(backgroundFillColor))
+        .background {
+            ZStack {
+                shape.fill(backgroundFillColor)
+                WorkbenchAccessibilityScrollRevealProbe(isActive: isCardFocused || isCheckboxFocused)
+            }
+        }
         .overlay(
             shape.strokeBorder(
                 borderStrokeColor,
                 lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
             )
+        )
+        .workbenchAccessibilityFocusRing(
+            isFocused: isCardFocused,
+            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
         )
         .contentShape(shape)
         .onPointerHover { hovering in

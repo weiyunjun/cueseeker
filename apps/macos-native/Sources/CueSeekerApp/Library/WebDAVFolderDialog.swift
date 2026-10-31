@@ -71,7 +71,8 @@ struct WebDAVFolderDialog: View {
                 placeholder: "",
                 text: $session.address,
                 focus: $isAddressFocused,
-                normalizeDraft: WebDAVAddress.decodedDisplayAddress
+                normalizeDraft: WebDAVAddress.decodedDisplayAddress,
+                dialogInputKind: .remoteAddress
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("webdav-address")
@@ -80,7 +81,8 @@ struct WebDAVFolderDialog: View {
                 label: L("webdav.field.username"),
                 placeholder: "",
                 text: $session.username,
-                focus: $isUsernameFocused
+                focus: $isUsernameFocused,
+                dialogInputKind: .remoteUsername
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("webdav-username")
@@ -91,7 +93,8 @@ struct WebDAVFolderDialog: View {
                 text: $session.password,
                 validationMessage: session.validationMessage,
                 reservesValidationLine: true,
-                focus: $isPasswordFocused
+                focus: $isPasswordFocused,
+                dialogInputKind: .remotePassword
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("webdav-password")

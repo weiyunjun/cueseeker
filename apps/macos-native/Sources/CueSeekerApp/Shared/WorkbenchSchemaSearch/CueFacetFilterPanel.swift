@@ -303,6 +303,7 @@ struct CueFacetFilterDialog: View {
     let onClose: () -> Void
 
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
+    @Environment(\.workbenchDialogID) private var dialogID
 
     var body: some View {
         let _ = UIInvalidationProbe.count("UI.FilterDialog.body")
@@ -313,26 +314,28 @@ struct CueFacetFilterDialog: View {
             selection: session.filter,
             update: { change in change(&session.filter) }
         )
-        VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            WorkbenchDialogHeader(title: L("table.filter"))
-                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+        WorkbenchAccessibilityReader { accessibility in
+            VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                WorkbenchDialogHeader(title: L("table.filter"))
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
 
-            // The scroll view reaches the dialog's sides, so its scrollbar runs
-            // in the inset rather than over the options. It takes the height
-            // the header and footer leave, so the footer keeps the bottom and
-            // short content leaves room below itself.
-            WorkbenchScrollView {
-                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                    ForEach(sections) { section in
-                        sectionView(section)
+                // The scroll view reaches the dialog's sides, so its scrollbar runs
+                // in the inset rather than over the options. It takes the height
+                // the header and footer leave, so the footer keeps the bottom and
+                // short content leaves room below itself.
+                WorkbenchScrollView {
+                    VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                        ForEach(sections) { section in
+                            sectionView(section, accessibility: accessibility)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
-            }
 
-            footer
-                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+                footer(accessibility: accessibility)
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+            }
         }
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
@@ -345,7 +348,10 @@ struct CueFacetFilterDialog: View {
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 
-    private func sectionView(_ section: CueFacetSection) -> some View {
+    private func sectionView(
+        _ section: CueFacetSection,
+        accessibility: WorkbenchAccessibilityCoordinator?
+    ) -> some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                 AppIconImage(section.icon, size: WorkbenchControlMetrics.redesignControlIconSize)
@@ -373,13 +379,19 @@ struct CueFacetFilterDialog: View {
                 verticalSpacing: WorkbenchControlMetrics.redesignSpacing2
             ) {
                 ForEach(section.options) { option in
-                    CueFacetFilterChip(option: option)
+                    CueFacetFilterChip(
+                        option: option,
+                        isFocused: accessibility?.isDialogFocused(
+                            .filterChip(section.id, option.id),
+                            dialogID: dialogID
+                        ) == true
+                    )
                 }
             }
         }
     }
 
-    private var footer: some View {
+    private func footer(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         let isResetDisabled = session.filter.normalizingFolders(
             listed: availableFolders.map(\.path)
         ).isEmpty
@@ -389,6 +401,7 @@ struct CueFacetFilterDialog: View {
             // Show like any other change.
             WorkbenchButton(
                 title: L("common.reset"),
+                isFocused: accessibility?.isDialogFocused(.filterReset, dialogID: dialogID) == true,
                 action: { session.filter = CueFacetFilter() }
             )
             // A Folder selection that leaves out every listed folder is no
@@ -404,6 +417,7 @@ struct CueFacetFilterDialog: View {
 
             WorkbenchButton(
                 title: L("common.cancel"),
+                isFocused: accessibility?.isDialogFocused(.filterCancel, dialogID: dialogID) == true,
                 action: onClose
             )
             .keyboardShortcut(.cancelAction)
@@ -415,6 +429,7 @@ struct CueFacetFilterDialog: View {
                 title: counts.totalCount.map { session.source.showTitle(totalCount: $0) }
                     ?? L("facet.calculating"),
                 showsSpinner: counts.totalCount == nil,
+                isFocused: accessibility?.isDialogFocused(.filterShow, dialogID: dialogID) == true,
                 action: {
                     session.show()
                     onClose()
@@ -429,6 +444,7 @@ struct CueFacetFilterDialog: View {
 /// that is not known yet.
 private struct CueFacetFilterChip: View {
     let option: CueFacetOption
+    var isFocused: Bool = false
 
     @State private var isHovered = false
     @State private var isPressed = false
@@ -473,8 +489,17 @@ private struct CueFacetFilterChip: View {
         .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
         .frame(maxWidth: WorkbenchControlMetrics.redesignFilterChipMaxWidth)
         .frame(height: WorkbenchControlMetrics.redesignFilterChipHeight)
-        .background(shape.fill(backgroundColor))
+        .background {
+            ZStack {
+                shape.fill(backgroundColor)
+                WorkbenchAccessibilityScrollRevealProbe(isActive: isFocused)
+            }
+        }
         .overlay(shape.strokeBorder(borderColor, lineWidth: 1))
+        .workbenchAccessibilityFocusRing(
+            isFocused: isFocused,
+            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+        )
         .contentShape(shape)
     }
 
@@ -714,7 +739,7 @@ private extension CueCharacterFacet {
     }
 }
 
-private extension SubtitleLanguageCode {
+extension SubtitleLanguageCode {
     /// Every language the library has a cue in, and Unknown, in this order.
     static func listed(
         emptyDistribution: CueFacetDistribution?,

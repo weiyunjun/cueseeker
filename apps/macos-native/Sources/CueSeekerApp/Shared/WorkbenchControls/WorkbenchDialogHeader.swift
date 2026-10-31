@@ -30,8 +30,25 @@ extension View {
         onClose: @escaping () -> Void
     ) -> some View {
         overlay(alignment: .topTrailing) {
+            WorkbenchDialogCloseButtonOverlay(
+                closesOnEscape: closesOnEscape,
+                onClose: onClose
+            )
+        }
+    }
+}
+
+private struct WorkbenchDialogCloseButtonOverlay: View {
+    let closesOnEscape: Bool
+    let onClose: () -> Void
+
+    @Environment(\.workbenchDialogID) private var dialogID
+
+    var body: some View {
+        WorkbenchAccessibilityReader { accessibility in
             WorkbenchIconButton(
                 icon: .x,
+                isFocused: accessibility?.isDialogFocused(.dialogCloseButton, dialogID: dialogID) == true,
                 iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
                 boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
                 action: onClose

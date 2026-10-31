@@ -507,6 +507,7 @@ struct LibraryCoverChooser<Content: View>: View {
     let title: String
     let icon: AppIcon
     let isEnabled: Bool
+    var isFocused: Bool = false
     let action: () -> Void
     private let content: Content
 
@@ -516,12 +517,14 @@ struct LibraryCoverChooser<Content: View>: View {
         title: String,
         icon: AppIcon,
         isEnabled: Bool,
+        isFocused: Bool = false,
         action: @escaping () -> Void,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.icon = icon
         self.isEnabled = isEnabled
+        self.isFocused = isFocused
         self.action = action
         self.content = content()
     }
@@ -552,6 +555,11 @@ struct LibraryCoverChooser<Content: View>: View {
                     }
                 }
             }
+            .workbenchAccessibilityFocusRing(
+                isFocused: isFocused,
+                cornerRadius: WorkbenchControlMetrics.redesignLibraryCoverRadius
+            )
+            .background(WorkbenchAccessibilityScrollRevealProbe(isActive: isFocused))
         }
         .buttonStyle(StaticButtonStyle())
         .focusable(false)

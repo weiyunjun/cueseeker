@@ -134,41 +134,45 @@ struct LibraryRenameDialog: View {
     let onClose: () -> Void
 
     @FocusState private var isNameFocused: Bool
+    @Environment(\.workbenchDialogID) private var dialogID
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            WorkbenchDialogHeader(title: session.title)
+        WorkbenchAccessibilityReader { accessibility in
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                WorkbenchDialogHeader(title: session.title)
 
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                HStack(alignment: .firstTextBaseline, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                    WorkbenchFormLabel(text: L("rename.current_name"))
-                        .frame(width: WorkbenchControlMetrics.redesignFormLabelWidth, alignment: .leading)
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                    HStack(alignment: .firstTextBaseline, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                        WorkbenchFormLabel(text: L("rename.current_name"))
+                            .frame(width: WorkbenchControlMetrics.redesignFormLabelWidth, alignment: .leading)
 
-                    Text(session.currentName)
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizeControl,
-                            weight: .regular
-                        ))
-                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .accessibilityIdentifier("rename-current-name")
+                        Text(session.currentName)
+                            .font(.system(
+                                size: WorkbenchControlMetrics.redesignFontSizeControl,
+                                weight: .regular
+                            ))
+                            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier("rename-current-name")
+                    }
+
+                    WorkbenchDialogFormTextField(
+                        label: L("rename.new_name"),
+                        placeholder: "",
+                        text: $session.newName,
+                        validationMessage: session.validationMessage,
+                        reservesValidationLine: true,
+                        autofocus: true,
+                        focus: $isNameFocused,
+                        dialogInputKind: .renameNewName
+                    )
+                    .accessibilityIdentifier("rename-new-name")
                 }
 
-                WorkbenchDialogFormTextField(
-                    label: L("rename.new_name"),
-                    placeholder: "",
-                    text: $session.newName,
-                    validationMessage: session.validationMessage,
-                    reservesValidationLine: true,
-                    autofocus: true,
-                    focus: $isNameFocused
-                )
-                .accessibilityIdentifier("rename-new-name")
+                actions(accessibility: accessibility)
             }
-
-            actions
         }
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
@@ -186,18 +190,20 @@ struct LibraryRenameDialog: View {
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 
-    private var actions: some View {
+    private func actions(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             Spacer(minLength: 0)
 
             WorkbenchButton(
                 title: L("common.cancel"),
+                isFocused: accessibility?.isDialogFocused(.renameCancel, dialogID: dialogID) == true,
                 action: onClose
             )
             .keyboardShortcut(.cancelAction)
 
             WorkbenchPrimaryButton(
                 title: L("rename.confirm"),
+                isFocused: accessibility?.isDialogFocused(.renameConfirm, dialogID: dialogID) == true,
                 action: confirm
             )
             .accessibilityIdentifier("rename-confirm")

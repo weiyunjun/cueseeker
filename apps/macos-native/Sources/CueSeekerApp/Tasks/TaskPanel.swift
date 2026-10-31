@@ -20,64 +20,68 @@ struct TaskPanel: View {
     // Observed so the labels below are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
+    @Environment(\.workbenchDialogID) private var dialogID
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
 
     @State private var activeMenu: WorkbenchCardMenuState?
     @StateObject private var menuHighlight = MenuHighlightModel()
     @State private var viewportSize: CGSize = .zero
 
     var body: some View {
-        VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            headerRow
+        WorkbenchAccessibilityReader { accessibility in
+            VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                headerRow(accessibility: accessibility)
 
-            // The list reaches the dialog's sides and bottom: the scrollbar
-            // runs in the inset, and the last card ends one inset above the
-            // bottom edge.
-            GeometryReader { geometry in
-                WorkbenchScrollView {
-                    tabContent
-                        .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
-                        .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
-                }
-                .coordinateSpace(name: Self.taskCardCoordinateSpaceName)
-                .onAppear {
-                    viewportSize = geometry.size
-                }
-                .onChange(of: geometry.size) { newSize in
-                    viewportSize = newSize
-                }
-                .overlay(alignment: .topLeading) {
-                    if let activeMenu {
-                        let menuFrame = activeMenu.menuFrame
-                        ZStack(alignment: .topLeading) {
-                            MenuGateClientView(
-                                gate: appState.interfaceLayers.menuGate,
-                                owner: .dialog,
-                                kind: .cardMenu,
-                                menuFrame: menuFrame,
-                                anchorFrame: activeMenu.anchorFrame,
-                                handleKey: { keyCode, _ in
-                                    menuHighlight.handleStandardMenuKey(
-                                        keyCode: keyCode,
-                                        onActivate: { _ = activateHighlightedItem(in: activeMenu) },
-                                        onDismiss: { dismissMenu() }
-                                    )
-                                },
-                                dismiss: { _ in
-                                    dismissMenu(openedAs: activeMenu.id)
-                                }
-                            )
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .allowsHitTesting(false)
+                // The list reaches the dialog's sides and bottom: the scrollbar
+                // runs in the inset, and the last card ends one inset above the
+                // bottom edge.
+                GeometryReader { geometry in
+                    WorkbenchScrollView {
+                        tabContent(accessibility: accessibility)
+                            .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+                            .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
+                    }
+                    .coordinateSpace(name: Self.taskCardCoordinateSpaceName)
+                    .onAppear {
+                        viewportSize = geometry.size
+                    }
+                    .onChange(of: geometry.size) { newSize in
+                        viewportSize = newSize
+                    }
+                    .overlay(alignment: .topLeading) {
+                        if let activeMenu {
+                            let menuFrame = activeMenu.menuFrame
+                            ZStack(alignment: .topLeading) {
+                                MenuGateClientView(
+                                    gate: appState.interfaceLayers.menuGate,
+                                    owner: .dialog,
+                                    kind: .cardMenu,
+                                    menuFrame: menuFrame,
+                                    anchorFrame: activeMenu.anchorFrame,
+                                    handleKey: { keyCode, _ in
+                                        menuHighlight.handleStandardMenuKey(
+                                            keyCode: keyCode,
+                                            onActivate: { _ = activateHighlightedItem(in: activeMenu) },
+                                            onDismiss: { dismissMenu() }
+                                        )
+                                    },
+                                    dismiss: { _ in
+                                        dismissMenu(openedAs: activeMenu.id)
+                                    }
+                                )
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .allowsHitTesting(false)
 
-                            WorkbenchCardMenuPopover(
-                                items: activeMenu.items,
-                                highlight: menuHighlight,
-                                onDismiss: { dismissMenu() }
-                            )
-                            .offset(x: menuFrame.minX, y: menuFrame.minY)
+                                WorkbenchCardMenuPopover(
+                                    items: activeMenu.items,
+                                    highlight: menuHighlight,
+                                    onDismiss: { dismissMenu() }
+                                )
+                                .offset(x: menuFrame.minX, y: menuFrame.minY)
+                            }
+                            .id(activeMenu.id)
+                            .zIndex(1000)
                         }
-                        .id(activeMenu.id)
-                        .zIndex(1000)
                     }
                 }
             }
@@ -89,12 +93,15 @@ struct TaskPanel: View {
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 
-    private var headerRow: some View {
+    private func headerRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         let titleText = L("task.title")
         let titleFont = Font.system(
             size: WorkbenchControlMetrics.redesignDialogTitleFontSize,
             weight: .semibold
         )
+        let focusedTab = TaskQueueTab.allCases.first {
+            accessibility?.isDialogFocused(.taskPanelTab($0), dialogID: dialogID) == true
+        }
 
         return WorkbenchAdaptiveHeaderBar(
             leadingInset: WorkbenchControlMetrics.redesignDialogInset,
@@ -121,7 +128,8 @@ struct TaskPanel: View {
                         accessibilityIdentifier: "task-tab-\($0.rawValue)"
                     )
                 },
-                selection: tasks.selectedTab
+                selection: tasks.selectedTab,
+                focusedValue: focusedTab
             ) { tab in
                 dismissMenu()
                 tasks.selectedTab = tab
@@ -129,6 +137,7 @@ struct TaskPanel: View {
         } trailing: {
             WorkbenchIconButton(
                 icon: .x,
+                isFocused: accessibility?.isDialogFocused(.dialogCloseButton, dialogID: dialogID) == true,
                 iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
                 boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
                 action: {
@@ -148,7 +157,7 @@ struct TaskPanel: View {
     }
 
     @ViewBuilder
-    private var tabContent: some View {
+    private func tabContent(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         let isRightClickEnabled = confirmation.session == nil && tasks.detailTaskID == nil
         switch tasks.selectedTab {
         case .current:
@@ -157,9 +166,11 @@ struct TaskPanel: View {
                     let cardID = "current-\(entry.id)"
                     let items = currentMenuItems(for: entry)
                     TaskCurrentCard(
+                        cardID: cardID,
                         entry: entry,
                         isCardMenuOpen: activeMenu?.cardID == cardID,
                         isButtonMenuOpen: activeMenu?.cardID == cardID && activeMenu?.isButtonAnchored == true,
+                        isActionFocused: accessibility?.isDialogFocused(.taskCardActionButton(cardID), dialogID: dialogID) == true,
                         isRightClickEnabled: isRightClickEnabled,
                         onOpenButtonMenu: { anchorFrame in
                             toggleMenu(for: cardID, anchorFrame: anchorFrame, items: items)
@@ -176,9 +187,11 @@ struct TaskPanel: View {
                     let cardID = "history-\(record.id)"
                     let items = historyMenuItems(for: record)
                     TaskHistoryCard(
+                        cardID: cardID,
                         record: record,
                         isCardMenuOpen: activeMenu?.cardID == cardID,
                         isButtonMenuOpen: activeMenu?.cardID == cardID && activeMenu?.isButtonAnchored == true,
+                        isActionFocused: accessibility?.isDialogFocused(.taskCardActionButton(cardID), dialogID: dialogID) == true,
                         isRightClickEnabled: isRightClickEnabled,
                         onOpenButtonMenu: { anchorFrame in
                             toggleMenu(for: cardID, anchorFrame: anchorFrame, items: items)
@@ -195,9 +208,11 @@ struct TaskPanel: View {
                     let cardID = "history-\(record.id)"
                     let items = historyMenuItems(for: record)
                     TaskHistoryCard(
+                        cardID: cardID,
                         record: record,
                         isCardMenuOpen: activeMenu?.cardID == cardID,
                         isButtonMenuOpen: activeMenu?.cardID == cardID && activeMenu?.isButtonAnchored == true,
+                        isActionFocused: accessibility?.isDialogFocused(.taskCardActionButton(cardID), dialogID: dialogID) == true,
                         isRightClickEnabled: isRightClickEnabled,
                         onOpenButtonMenu: { anchorFrame in
                             toggleMenu(for: cardID, anchorFrame: anchorFrame, items: items)
@@ -358,6 +373,7 @@ struct TaskPanel: View {
             on: .dialog,
             in: appState.interfaceLayers
         )
+        workbenchAccessibility?.clearDialog(keepTextInputFocus: false)
         activeMenu = WorkbenchCardMenuState(
             cardID: cardID,
             anchorFrame: anchorFrame,
@@ -384,6 +400,7 @@ struct TaskPanel: View {
             on: .dialog,
             in: appState.interfaceLayers
         )
+        workbenchAccessibility?.clearDialog(keepTextInputFocus: false)
         activeMenu = WorkbenchCardMenuState(
             cardID: cardID,
             anchorFrame: nil,
@@ -452,19 +469,24 @@ struct TaskPanel: View {
 }
 
 private struct TaskCurrentCard: View {
+    let cardID: String
     let entry: TaskQueueEntry
     let isCardMenuOpen: Bool
     let isButtonMenuOpen: Bool
+    var isActionFocused: Bool = false
     let isRightClickEnabled: Bool
     let onOpenButtonMenu: (CGRect) -> Void
     let onOpenContextMenu: (CGPoint) -> Void
 
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
+
     var body: some View {
         TaskCardContainer(
             isCardMenuOpen: isCardMenuOpen,
+            isActionFocused: isActionFocused,
             isRightClickEnabled: isRightClickEnabled,
             onOpenContextMenu: onOpenContextMenu
-        ) {
+        ) { isHovered in
             WorkbenchCardIcon(icon: entry.record.icon)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
@@ -484,6 +506,7 @@ private struct TaskCurrentCard: View {
                 WorkbenchIconButton(
                     icon: .dotsThree,
                     isOpen: isButtonMenuOpen,
+                    isFocused: isActionFocused,
                     hoverBackground: (isCardMenuOpen && !isButtonMenuOpen)
                         ? Color.clear
                         : WorkbenchRedesignColors.rowSelected,
@@ -493,11 +516,22 @@ private struct TaskCurrentCard: View {
                         onOpenButtonMenu(frame)
                     }
                 )
+                .onAppear {
+                    workbenchAccessibility?.registerTaskCardAction(id: cardID) {
+                        let frame = buttonProxy.frame(in: .named(TaskPanel.taskCardCoordinateSpaceName))
+                        onOpenButtonMenu(frame)
+                    }
+                }
+                .onDisappear {
+                    workbenchAccessibility?.unregisterTaskCardAction(id: cardID)
+                }
             }
             .frame(
                 width: WorkbenchControlMetrics.redesignIconButtonSize,
                 height: WorkbenchControlMetrics.redesignIconButtonSize
             )
+            .opacity(isHovered || isCardMenuOpen || isActionFocused ? 1 : 0)
+            .allowsHitTesting(isHovered || isCardMenuOpen || isActionFocused)
             .padding(.top, WorkbenchControlMetrics.redesignCardTrailingIconButtonTopOffset)
         }
     }
@@ -604,19 +638,24 @@ private struct TaskProgressBarRow: View {
 }
 
 private struct TaskHistoryCard: View {
+    let cardID: String
     let record: TaskRecord
     let isCardMenuOpen: Bool
     let isButtonMenuOpen: Bool
+    var isActionFocused: Bool = false
     let isRightClickEnabled: Bool
     let onOpenButtonMenu: (CGRect) -> Void
     let onOpenContextMenu: (CGPoint) -> Void
 
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
+
     var body: some View {
         TaskCardContainer(
             isCardMenuOpen: isCardMenuOpen,
+            isActionFocused: isActionFocused,
             isRightClickEnabled: isRightClickEnabled,
             onOpenContextMenu: onOpenContextMenu
-        ) {
+        ) { isHovered in
             WorkbenchCardIcon(icon: record.icon)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
@@ -645,6 +684,7 @@ private struct TaskHistoryCard: View {
                 WorkbenchIconButton(
                     icon: .dotsThree,
                     isOpen: isButtonMenuOpen,
+                    isFocused: isActionFocused,
                     hoverBackground: (isCardMenuOpen && !isButtonMenuOpen)
                         ? Color.clear
                         : WorkbenchRedesignColors.rowSelected,
@@ -654,11 +694,22 @@ private struct TaskHistoryCard: View {
                         onOpenButtonMenu(frame)
                     }
                 )
+                .onAppear {
+                    workbenchAccessibility?.registerTaskCardAction(id: cardID) {
+                        let frame = buttonProxy.frame(in: .named(TaskPanel.taskCardCoordinateSpaceName))
+                        onOpenButtonMenu(frame)
+                    }
+                }
+                .onDisappear {
+                    workbenchAccessibility?.unregisterTaskCardAction(id: cardID)
+                }
             }
             .frame(
                 width: WorkbenchControlMetrics.redesignIconButtonSize,
                 height: WorkbenchControlMetrics.redesignIconButtonSize
             )
+            .opacity(isHovered || isCardMenuOpen || isActionFocused ? 1 : 0)
+            .allowsHitTesting(isHovered || isCardMenuOpen || isActionFocused)
             .padding(.top, WorkbenchControlMetrics.redesignCardTrailingIconButtonTopOffset)
          }
      }
@@ -693,16 +744,17 @@ private struct TaskHistoryCard: View {
 
 private struct TaskCardContainer<Content: View>: View {
     let isCardMenuOpen: Bool
+    var isActionFocused: Bool = false
     let isRightClickEnabled: Bool
     let onOpenContextMenu: (CGPoint) -> Void
-    @ViewBuilder let content: () -> Content
+    @ViewBuilder let content: (Bool) -> Content
 
     @Environment(\.interfaceLayers) private var interfaceLayers
     @State private var isHovered = false
 
     var body: some View {
         HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            content()
+            content(isHovered)
         }
         .padding(WorkbenchControlMetrics.redesignSpacing4)
         .frame(
@@ -717,6 +769,8 @@ private struct TaskCardContainer<Content: View>: View {
                     style: .continuous
                 )
                 .fill((isHovered || isCardMenuOpen) ? WorkbenchRedesignColors.rowHover : WorkbenchRedesignColors.tableBg)
+
+                WorkbenchAccessibilityScrollRevealProbe(isActive: isActionFocused)
 
                 GeometryReader { cardProxy in
                     WorkbenchCardRightClickMonitor(

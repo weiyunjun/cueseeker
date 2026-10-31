@@ -53,6 +53,133 @@ enum SchemaWorkbenchSelectionActionID: String, Hashable {
     case delete = "delete"
 }
 
+enum WorkbenchDialogAccessibilityID: String, Equatable, Hashable {
+    case editCover = "editCover"
+    case excerptListEditor = "excerptListEditor"
+    case rename = "rename"
+    case webdav = "webdav"
+    case smb = "smb"
+    case ftp = "ftp"
+    case nfs = "nfs"
+    case ankiExport = "ankiExport"
+    case filter = "filter"
+    case confirmation = "confirmation"
+    case fileDetail = "fileDetail"
+    case taskPanel = "taskPanel"
+    case taskDetail = "taskDetail"
+}
+
+enum WorkbenchDialogTextInputKind: String, CaseIterable, Equatable, Hashable {
+    case excerptEditorName
+    case excerptEditorDescription
+    case renameNewName
+    case remoteAddress
+    case remotePort
+    case remoteUsername
+    case remotePassword
+    case ankiFileName
+    case ankiLocation
+
+    var dialogTarget: WorkbenchDialogAccessibilityTarget {
+        switch self {
+        case .excerptEditorName:
+            return .excerptEditorNameField
+        case .excerptEditorDescription:
+            return .excerptEditorDescriptionField
+        case .renameNewName:
+            return .renameNewNameField
+        case .remoteAddress:
+            return .remoteAddressField
+        case .remotePort:
+            return .remotePortField
+        case .remoteUsername:
+            return .remoteUsernameField
+        case .remotePassword:
+            return .remotePasswordField
+        case .ankiFileName:
+            return .ankiFileNameField
+        case .ankiLocation:
+            return .ankiLocationField
+        }
+    }
+}
+
+enum WorkbenchDialogAccessibilityTarget: Equatable, Hashable {
+    case dialogCloseButton
+    // L-06.1 Edit Cover Dialog
+    case editCoverChooseImage
+    case editCoverCancel
+    case editCoverSave
+    // L-06.2 Excerpt List Editor Dialog
+    case excerptEditorChooseImage
+    case excerptEditorNameField
+    case excerptEditorDescriptionField
+    case excerptEditorCancel
+    case excerptEditorSave
+    // L-06.3 Rename Dialog
+    case renameNewNameField
+    case renameCancel
+    case renameConfirm
+    // L-06.4 Remote Folder Dialogs (WebDAV / SMB / FTP / NFS)
+    case remoteAddressField
+    case remotePortField
+    case remoteUsernameField
+    case remotePasswordField
+    case remoteCancel
+    case remoteConnect
+    case remoteBreadcrumb(String)
+    case remoteFolderCard(String)
+    case remoteFolderCheckbox(String)
+    case remoteBack
+    case remoteAdd
+    // L-06.5 Export to Anki Dialog
+    case ankiAddFront
+    case ankiRemoveItem(AnkiExportSide, AnkiCardItem)
+    case ankiAddBack
+    case ankiFileNameField
+    case ankiLocationField
+    case ankiChooseFolderButton
+    case ankiCancel
+    case ankiExport
+    // L-06.6 Filter Dialog
+    case filterChip(CueFacetKind, String)
+    case filterReset
+    case filterCancel
+    case filterShow
+    // L-06.7 Confirmation Dialog
+    case confirmationAction(String)
+    // L-06.8 File Detail Dialog
+    case fileDetailPairedSwitcher
+    // L-06.9 Task Panel
+    case taskPanelTab(TaskQueueTab)
+    case taskCardActionButton(String)
+
+    var dialogTextInputKind: WorkbenchDialogTextInputKind? {
+        switch self {
+        case .excerptEditorNameField:
+            return .excerptEditorName
+        case .excerptEditorDescriptionField:
+            return .excerptEditorDescription
+        case .renameNewNameField:
+            return .renameNewName
+        case .remoteAddressField:
+            return .remoteAddress
+        case .remotePortField:
+            return .remotePort
+        case .remoteUsernameField:
+            return .remoteUsername
+        case .remotePasswordField:
+            return .remotePassword
+        case .ankiFileNameField:
+            return .ankiFileName
+        case .ankiLocationField:
+            return .ankiLocation
+        default:
+            return nil
+        }
+    }
+}
+
 enum WorkbenchAccessibilityTarget: Hashable {
     // Topbar (L-01.2)
     case topbarSidebarToggle
@@ -129,6 +256,8 @@ enum WorkbenchAccessibilityTarget: Hashable {
 @MainActor
 final class WorkbenchAccessibilityCoordinator: ObservableObject {
     @Published private(set) var focusedTarget: WorkbenchAccessibilityTarget?
+    @Published var activeDialogID: WorkbenchDialogAccessibilityID?
+    @Published private(set) var focusedDialogTarget: WorkbenchDialogAccessibilityTarget?
 
     /// Current column count of the active Workbench card grid (`Recent`,
     /// `Library` Overview & Detail, `Excerpt` Overview), updated by
@@ -217,8 +346,37 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     /// opening their `dots-three` menu by ID.
     private var fileCardMenuOpeners: [String: () -> Void] = [:]
 
+    private struct RegisteredDialogTextInput {
+        let ownerToken: ObjectIdentifier?
+        let setFocused: (Bool) -> Void
+        let isCurrentlyFocused: () -> Bool
+    }
+
+    private var dialogTextInputs: [WorkbenchDialogTextInputKind: RegisteredDialogTextInput] = [:]
+    private var activeDialogTextInputs: Set<WorkbenchDialogTextInputKind> = []
+
+    /// Closures registered by `TaskPanel` cards (`current-<id>`, `history-<id>`)
+    /// to open their `dots-three` menu by ID.
+    private var taskCardMenuOpeners: [String: RegisteredCardMenuOpener] = [:]
+
+    /// Closure registered by the active Remote Folder Dialog (Step 1) to run
+    /// its `connect()` validation and connection workflow when `.remoteConnect` is activated.
+    var onRemoteDialogConnect: (() -> Void)?
+
+    /// Closures registered by `AnkiExportDialog` for activating the Front / Back `+` buttons.
+    var onTriggerAnkiAddFront: (() -> Void)?
+    var onTriggerAnkiAddBack: (() -> Void)?
+
+    /// Closure registered by `WorkbenchFileDetailDialog` to open the paired
+    /// file switcher dropdown menu when `.fileDetailPairedSwitcher` is activated.
+    var onToggleFileDetailPairedMenu: (() -> Void)?
+
     var isActive: Bool {
         focusedTarget != nil
+    }
+
+    var isDialogActive: Bool {
+        focusedDialogTarget != nil
     }
 
     var focusedCardID: String? {
@@ -227,6 +385,176 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
 
     func isFocused(_ target: WorkbenchAccessibilityTarget) -> Bool {
         focusedTarget == target
+    }
+
+    func isDialogFocused(
+        _ target: WorkbenchDialogAccessibilityTarget,
+        dialogID: WorkbenchDialogAccessibilityID? = nil
+    ) -> Bool {
+        guard focusedDialogTarget == target else {
+            return false
+        }
+        if let dialogID, let activeDialogID {
+            return dialogID == activeDialogID
+        }
+        return true
+    }
+
+    func setDialogFocus(
+        _ target: WorkbenchDialogAccessibilityTarget?,
+        dialogID: WorkbenchDialogAccessibilityID? = nil,
+        isTargetEnabled: Bool = true
+    ) {
+        if let dialogID, activeDialogID != dialogID {
+            activeDialogID = dialogID
+        }
+        let previous = focusedDialogTarget
+        if focusedDialogTarget != target {
+            focusedDialogTarget = target
+        }
+        syncDialogTextInputFocus(
+            from: previous,
+            to: target,
+            isTargetEnabled: isTargetEnabled
+        )
+    }
+
+    @discardableResult
+    func clearDialog(keepTextInputFocus: Bool = true) -> Bool {
+        let hadFocus = focusedDialogTarget != nil
+        focusedDialogTarget = nil
+        if !keepTextInputFocus {
+            unfocusAllDialogTextInputs()
+        }
+        return hadFocus
+    }
+
+    func registerDialogTextInput(
+        _ kind: WorkbenchDialogTextInputKind,
+        ownerToken: ObjectIdentifier? = nil,
+        setFocused: @escaping (Bool) -> Void,
+        isCurrentlyFocused: @escaping () -> Bool
+    ) {
+        dialogTextInputs[kind] = RegisteredDialogTextInput(
+            ownerToken: ownerToken,
+            setFocused: setFocused,
+            isCurrentlyFocused: isCurrentlyFocused
+        )
+        if isCurrentlyFocused() {
+            activeDialogTextInputs.insert(kind)
+        }
+    }
+
+    func unregisterDialogTextInput(
+        _ kind: WorkbenchDialogTextInputKind,
+        ownerToken: ObjectIdentifier? = nil
+    ) {
+        if let ownerToken,
+           let existing = dialogTextInputs[kind],
+           let existingToken = existing.ownerToken,
+           existingToken != ownerToken {
+            return
+        }
+        dialogTextInputs.removeValue(forKey: kind)
+        activeDialogTextInputs.remove(kind)
+    }
+
+    func setDialogTextInputActive(_ kind: WorkbenchDialogTextInputKind, isActive: Bool) {
+        if isActive {
+            activeDialogTextInputs.insert(kind)
+        } else {
+            activeDialogTextInputs.remove(kind)
+        }
+    }
+
+    func isDialogTextInputActive(_ kind: WorkbenchDialogTextInputKind) -> Bool {
+        if let entry = dialogTextInputs[kind], entry.isCurrentlyFocused() {
+            return true
+        }
+        return activeDialogTextInputs.contains(kind)
+    }
+
+    var isAnyDialogTextInputFocused: Bool {
+        for kind in WorkbenchDialogTextInputKind.allCases {
+            if isDialogTextInputActive(kind) {
+                return true
+            }
+        }
+        return !activeDialogTextInputs.isEmpty
+    }
+
+    func focusDialogTextInput(_ kind: WorkbenchDialogTextInputKind, isEnabled: Bool = true) {
+        guard isEnabled else {
+            unfocusAllDialogTextInputs()
+            return
+        }
+        unfocusAllDialogTextInputs(except: kind)
+        activeDialogTextInputs.insert(kind)
+        dialogTextInputs[kind]?.setFocused(true)
+    }
+
+    func unfocusDialogTextInput(_ kind: WorkbenchDialogTextInputKind) {
+        activeDialogTextInputs.remove(kind)
+        dialogTextInputs[kind]?.setFocused(false)
+    }
+
+    func unfocusAllDialogTextInputs(except keptKind: WorkbenchDialogTextInputKind? = nil) {
+        for kind in WorkbenchDialogTextInputKind.allCases where kind != keptKind {
+            activeDialogTextInputs.remove(kind)
+            dialogTextInputs[kind]?.setFocused(false)
+        }
+        if keptKind == nil,
+           let window = NSApp.keyWindow,
+           (window.firstResponder is NSText || window.firstResponder is NSTextField) {
+            _ = window.makeFirstResponder(nil)
+        }
+    }
+
+    private func syncDialogTextInputFocus(
+        from previous: WorkbenchDialogAccessibilityTarget?,
+        to next: WorkbenchDialogAccessibilityTarget?,
+        isTargetEnabled: Bool
+    ) {
+        if let inputKind = next?.dialogTextInputKind {
+            focusDialogTextInput(inputKind, isEnabled: isTargetEnabled)
+        } else if next != nil {
+            unfocusAllDialogTextInputs()
+        } else if let prevKind = previous?.dialogTextInputKind {
+            _ = prevKind
+        }
+    }
+
+    func registerTaskCardAction(
+        id: String,
+        ownerToken: ObjectIdentifier? = nil,
+        openMenu: @escaping () -> Void
+    ) {
+        taskCardMenuOpeners[id] = RegisteredCardMenuOpener(
+            ownerToken: ownerToken,
+            openMenu: openMenu
+        )
+    }
+
+    func unregisterTaskCardAction(
+        id: String,
+        ownerToken: ObjectIdentifier? = nil
+    ) {
+        if let ownerToken,
+           let existing = taskCardMenuOpeners[id],
+           let existingToken = existing.ownerToken,
+           existingToken != ownerToken {
+            return
+        }
+        taskCardMenuOpeners.removeValue(forKey: id)
+    }
+
+    @discardableResult
+    func activateTaskCardAction(id: String) -> Bool {
+        guard let entry = taskCardMenuOpeners[id] else {
+            return false
+        }
+        entry.openMenu()
+        return true
     }
 
     func setFocus(_ target: WorkbenchAccessibilityTarget?) {
@@ -370,10 +698,19 @@ private struct WorkbenchAccessibilityCoordinatorKey: EnvironmentKey {
     static let defaultValue: WorkbenchAccessibilityCoordinator? = nil
 }
 
+private struct WorkbenchDialogAccessibilityIDKey: EnvironmentKey {
+    static let defaultValue: WorkbenchDialogAccessibilityID? = nil
+}
+
 extension EnvironmentValues {
     var workbenchAccessibility: WorkbenchAccessibilityCoordinator? {
         get { self[WorkbenchAccessibilityCoordinatorKey.self] }
         set { self[WorkbenchAccessibilityCoordinatorKey.self] = newValue }
+    }
+
+    var workbenchDialogID: WorkbenchDialogAccessibilityID? {
+        get { self[WorkbenchDialogAccessibilityIDKey.self] }
+        set { self[WorkbenchDialogAccessibilityIDKey.self] = newValue }
     }
 }
 

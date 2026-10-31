@@ -114,6 +114,8 @@ struct WorkbenchFileDetailDialog: View {
 
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
     @Environment(\.interfaceLayers) private var interfaceLayers
+    @Environment(\.workbenchDialogID) private var dialogID
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     @State private var languageRevision = 0
     @State private var isMenuOpen = false
     @State private var triggerFrame: CGRect = .zero
@@ -143,53 +145,64 @@ struct WorkbenchFileDetailDialog: View {
     }
 
     private var fileDetailDialogBody: some View {
-        WorkbenchDialogColumn(
-            spacing: WorkbenchControlMetrics.redesignSpacing4,
-            maxHeight: availableSize.height - WorkbenchControlMetrics.redesignDialogTopPadding
-        ) {
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                WorkbenchDialogHeader(title: session.dialogTitle)
-
-                FileDetailPairedSwitcherTrigger(
-                    icon: session.icon,
-                    title: session.fileName,
-                    isOpen: isMenuOpen,
-                    action: {
-                        toggleMenu()
-                    }
-                )
-                .background(
-                    GeometryReader { triggerProxy in
-                        Color.clear
-                            .onAppear {
-                                triggerFrame = triggerProxy.frame(in: .named(Self.menuCoordinateSpaceName))
-                            }
-                            .onChange(of: triggerProxy.frame(in: .named(Self.menuCoordinateSpaceName))) { newFrame in
-                                triggerFrame = newFrame
-                            }
-                    }
-                )
-                .accessibilityIdentifier("file-detail-paired-switcher-trigger")
-            }
-            .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
-
-            WorkbenchScrollView(controller: scrollController) {
+        WorkbenchAccessibilityReader { accessibility in
+            WorkbenchDialogColumn(
+                spacing: WorkbenchControlMetrics.redesignSpacing4,
+                maxHeight: availableSize.height - WorkbenchControlMetrics.redesignDialogTopPadding
+            ) {
                 VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                    switch session.kind {
-                    case .folder(let folderInfo):
-                        folderContent(folderInfo)
-                    case .video(let videoInfo):
-                        videoContent(videoInfo)
-                    case .subtitle(let subtitleInfo):
-                        subtitleContent(subtitleInfo)
-                    }
+                    WorkbenchDialogHeader(title: session.dialogTitle)
+
+                    FileDetailPairedSwitcherTrigger(
+                        icon: session.icon,
+                        title: session.fileName,
+                        isOpen: isMenuOpen,
+                        isFocused: accessibility?.isDialogFocused(.fileDetailPairedSwitcher, dialogID: dialogID) == true,
+                        action: {
+                            toggleMenu()
+                        }
+                    )
+                    .background(
+                        GeometryReader { triggerProxy in
+                            Color.clear
+                                .onAppear {
+                                    triggerFrame = triggerProxy.frame(in: .named(Self.menuCoordinateSpaceName))
+                                }
+                                .onChange(of: triggerProxy.frame(in: .named(Self.menuCoordinateSpaceName))) { newFrame in
+                                    triggerFrame = newFrame
+                                }
+                        }
+                    )
+                    .accessibilityIdentifier("file-detail-paired-switcher-trigger")
                 }
-                .id(session.selectedItemID)
                 .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
-                .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
+
+                WorkbenchScrollView(controller: scrollController) {
+                    VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                        switch session.kind {
+                        case .folder(let folderInfo):
+                            folderContent(folderInfo)
+                        case .video(let videoInfo):
+                            videoContent(videoInfo)
+                        case .subtitle(let subtitleInfo):
+                            subtitleContent(subtitleInfo)
+                        }
+                    }
+                    .id(session.selectedItemID)
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+                    .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
+                }
             }
         }
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
+        .onAppear {
+            workbenchAccessibility?.onToggleFileDetailPairedMenu = {
+                toggleMenu()
+            }
+        }
+        .onDisappear {
+            workbenchAccessibility?.onToggleFileDetailPairedMenu = nil
+        }
         .background(
             GeometryReader { dialogProxy in
                 Color.clear
@@ -286,6 +299,7 @@ struct WorkbenchFileDetailDialog: View {
         if isMenuOpen {
             dismissMenu()
         } else {
+            workbenchAccessibility?.clearDialog(keepTextInputFocus: false)
             menuHighlight.open(selectablePositions: Array(session.pairedItems.indices))
             isMenuOpen = true
         }
@@ -555,6 +569,7 @@ struct FileDetailPairedSwitcherTrigger: View {
     let icon: AppIcon
     let title: String
     let isOpen: Bool
+    var isFocused: Bool = false
     let action: () -> Void
 
     @State private var isHovered = false
@@ -613,6 +628,10 @@ struct FileDetailPairedSwitcherTrigger: View {
                     borderColor,
                     lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
                 )
+            )
+            .workbenchAccessibilityFocusRing(
+                isFocused: isFocused,
+                cornerRadius: WorkbenchControlMetrics.redesignSettingsGroupRadius
             )
             .contentShape(Rectangle())
         }

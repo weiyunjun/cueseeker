@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import CueSeekerCore
 import Foundation
 
@@ -319,11 +320,12 @@ extension AppCoordinator {
     func reconcileWorkbenchAccessibilityFocus() {
         if isPlaybackPageVisible
             || playbackFullscreenManager.isFullscreen
+            || activeDialogAccessibilityID() != nil
             || interfaceLayers.isCovered(.workbenchPage)
             || interfaceLayers.isFrozen(.workbenchPage)
         {
             WorkbenchAccessibilityDebugLog.log(
-                "reconcileWorkbenchAccessibilityFocus -> clearing due to page state: playbackVisible=\(isPlaybackPageVisible) fullscreen=\(playbackFullscreenManager.isFullscreen) covered=\(interfaceLayers.isCovered(.workbenchPage)) frozen=\(interfaceLayers.isFrozen(.workbenchPage)) focused=\(String(describing: workbenchAccessibility.focusedTarget))"
+                "reconcileWorkbenchAccessibilityFocus -> clearing due to page state: playbackVisible=\(isPlaybackPageVisible) fullscreen=\(playbackFullscreenManager.isFullscreen) activeDialog=\(String(describing: activeDialogAccessibilityID())) covered=\(interfaceLayers.isCovered(.workbenchPage)) frozen=\(interfaceLayers.isFrozen(.workbenchPage)) focused=\(String(describing: workbenchAccessibility.focusedTarget))"
             )
             workbenchAccessibility.clear()
             return
@@ -746,15 +748,1068 @@ extension AppCoordinator {
         }
     }
 
+    // MARK: - Dialog & Task Panel Accessibility (Step 2: L-06.1 ~ L-06.11)
+
+    func activeDialogAccessibilityID() -> WorkbenchDialogAccessibilityID? {
+        if confirmation.session != nil {
+            return .confirmation
+        }
+        if let detailTaskID = tasks.detailTaskID,
+           tasks.taskDetailSnapshot(for: detailTaskID) != nil
+        {
+            return .taskDetail
+        }
+        if tasks.isPanelOpen {
+            return .taskPanel
+        }
+        if tasks.ankiExportSession != nil {
+            return .ankiExport
+        }
+        if filterDialog.session != nil {
+            return .filter
+        }
+        if library.fileDetailSession != nil {
+            return .fileDetail
+        }
+        if library.nfsDialogSession != nil {
+            return .nfs
+        }
+        if library.ftpDialogSession != nil {
+            return .ftp
+        }
+        if library.smbDialogSession != nil {
+            return .smb
+        }
+        if library.webdavDialogSession != nil {
+            return .webdav
+        }
+        if library.renameSession != nil {
+            return .rename
+        }
+        if excerpt.listEditorSession != nil {
+            return .excerptListEditor
+        }
+        if library.coverEditingSession != nil {
+            return .editCover
+        }
+        return nil
+    }
+
+    private func activeDialogSessionPublisher() -> (ObjectIdentifier, AnyPublisher<Void, Never>)? {
+        guard let dialogID = activeDialogAccessibilityID() else {
+            return nil
+        }
+        switch dialogID {
+        case .editCover:
+            guard let session = library.coverEditingSession else { return nil }
+            return (ObjectIdentifier(session), session.objectWillChange.map { _ in () }.eraseToAnyPublisher())
+        case .excerptListEditor:
+            guard let session = excerpt.listEditorSession else { return nil }
+            return (ObjectIdentifier(session), session.objectWillChange.map { _ in () }.eraseToAnyPublisher())
+        case .rename:
+            guard let session = library.renameSession else { return nil }
+            return (ObjectIdentifier(session), session.objectWillChange.map { _ in () }.eraseToAnyPublisher())
+        case .webdav:
+            guard let session = library.webdavDialogSession else { return nil }
+            return (ObjectIdentifier(session), session.objectWillChange.map { _ in () }.eraseToAnyPublisher())
+        case .smb:
+            guard let session = library.smbDialogSession else { return nil }
+            return (ObjectIdentifier(session), session.objectWillChange.map { _ in () }.eraseToAnyPublisher())
+        case .ftp:
+            guard let session = library.ftpDialogSession else { return nil }
+            return (ObjectIdentifier(session), session.objectWillChange.map { _ in () }.eraseToAnyPublisher())
+        case .nfs:
+            guard let session = library.nfsDialogSession else { return nil }
+            return (ObjectIdentifier(session), session.objectWillChange.map { _ in () }.eraseToAnyPublisher())
+        case .ankiExport:
+            guard let session = tasks.ankiExportSession else { return nil }
+            return (ObjectIdentifier(session), session.objectWillChange.map { _ in () }.eraseToAnyPublisher())
+        case .filter:
+            guard let session = filterDialog.session else { return nil }
+            return (ObjectIdentifier(session), session.objectWillChange.map { _ in () }.eraseToAnyPublisher())
+        case .fileDetail:
+            guard let session = library.fileDetailSession else { return nil }
+            return (ObjectIdentifier(session), session.objectWillChange.map { _ in () }.eraseToAnyPublisher())
+        case .confirmation, .taskPanel, .taskDetail:
+            return nil
+        }
+    }
+
+    private func updateActiveDialogSessionSubscriptionIfNeeded() {
+        guard let (objectID, publisher) = activeDialogSessionPublisher() else {
+            activeDialogSessionObjectID = nil
+            activeDialogSessionCancellable = nil
+            return
+        }
+        guard activeDialogSessionObjectID != objectID else {
+            return
+        }
+        activeDialogSessionObjectID = objectID
+        activeDialogSessionCancellable = publisher.sink { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.reconcileDialogAccessibilityFocus()
+            }
+        }
+    }
+
+    func currentDialogAccessibilityTargets() -> [WorkbenchDialogAccessibilityTarget] {
+        guard let dialogID = activeDialogAccessibilityID() else {
+            return []
+        }
+
+        switch dialogID {
+        case .editCover:
+            guard let session = library.coverEditingSession else { return [] }
+            var targets: [WorkbenchDialogAccessibilityTarget] = [.dialogCloseButton]
+            if session.selectedSource == nil {
+                targets.append(.editCoverChooseImage)
+            }
+            targets.append(.editCoverCancel)
+            targets.append(.editCoverSave)
+            return targets
+
+        case .excerptListEditor:
+            guard let session = excerpt.listEditorSession else { return [] }
+            var targets: [WorkbenchDialogAccessibilityTarget] = [.dialogCloseButton]
+            if session.selectedCoverSource == nil {
+                targets.append(.excerptEditorChooseImage)
+            }
+            targets.append(.excerptEditorNameField)
+            targets.append(.excerptEditorDescriptionField)
+            targets.append(.excerptEditorCancel)
+            targets.append(.excerptEditorSave)
+            return targets
+
+        case .rename:
+            guard library.renameSession != nil else { return [] }
+            return [
+                .dialogCloseButton,
+                .renameNewNameField,
+                .renameCancel,
+                .renameConfirm
+            ]
+
+        case .webdav:
+            guard let session = library.webdavDialogSession else { return [] }
+            return remoteFolderDialogAccessibilityTargets(
+                session: session,
+                connectionFieldTargets: [.remoteAddressField, .remoteUsernameField, .remotePasswordField]
+            )
+
+        case .smb:
+            guard let session = library.smbDialogSession else { return [] }
+            return remoteFolderDialogAccessibilityTargets(
+                session: session,
+                connectionFieldTargets: [.remoteAddressField, .remotePortField, .remoteUsernameField, .remotePasswordField]
+            )
+
+        case .ftp:
+            guard let session = library.ftpDialogSession else { return [] }
+            return remoteFolderDialogAccessibilityTargets(
+                session: session,
+                connectionFieldTargets: [.remoteAddressField, .remotePortField, .remoteUsernameField, .remotePasswordField]
+            )
+
+        case .nfs:
+            guard let session = library.nfsDialogSession else { return [] }
+            return remoteFolderDialogAccessibilityTargets(
+                session: session,
+                connectionFieldTargets: [.remoteAddressField]
+            )
+
+        case .ankiExport:
+            guard let session = tasks.ankiExportSession else { return [] }
+            var targets: [WorkbenchDialogAccessibilityTarget] = [.dialogCloseButton]
+            targets.append(.ankiAddFront)
+            for item in session.items(for: .front) {
+                targets.append(.ankiRemoveItem(.front, item))
+            }
+            targets.append(.ankiAddBack)
+            for item in session.items(for: .back) {
+                targets.append(.ankiRemoveItem(.back, item))
+            }
+            targets.append(.ankiFileNameField)
+            targets.append(.ankiLocationField)
+            targets.append(.ankiChooseFolderButton)
+            targets.append(.ankiCancel)
+            targets.append(.ankiExport)
+            return targets
+
+        case .filter:
+            guard let session = filterDialog.session else { return [] }
+            var targets: [WorkbenchDialogAccessibilityTarget] = [.dialogCloseButton]
+            for section in filterDialogSections(for: session) {
+                for option in section.options {
+                    targets.append(.filterChip(section.id, option.id))
+                }
+            }
+            targets.append(.filterReset)
+            targets.append(.filterCancel)
+            targets.append(.filterShow)
+            return targets
+
+        case .confirmation:
+            guard let session = confirmation.session else { return [] }
+            var targets: [WorkbenchDialogAccessibilityTarget] = [.dialogCloseButton]
+            for action in session.actions {
+                targets.append(.confirmationAction(action.id))
+            }
+            return targets
+
+        case .fileDetail:
+            guard let session = library.fileDetailSession else { return [] }
+            if session.isFileDetail {
+                return [.dialogCloseButton, .fileDetailPairedSwitcher]
+            } else {
+                return [.dialogCloseButton]
+            }
+
+        case .taskPanel:
+            guard tasks.isPanelOpen else { return [] }
+            var targets: [WorkbenchDialogAccessibilityTarget] = TaskQueueTab.allCases.map {
+                .taskPanelTab($0)
+            }
+            targets.append(.dialogCloseButton)
+            switch tasks.selectedTab {
+            case .current:
+                for entry in tasks.current {
+                    targets.append(.taskCardActionButton("current-\(entry.id)"))
+                }
+            case .completed:
+                for record in tasks.completed {
+                    targets.append(.taskCardActionButton("history-\(record.id)"))
+                }
+            case .incomplete:
+                for record in tasks.incomplete {
+                    targets.append(.taskCardActionButton("history-\(record.id)"))
+                }
+            }
+            return targets
+
+        case .taskDetail:
+            return [.dialogCloseButton]
+        }
+    }
+
+    private func remoteFolderDialogAccessibilityTargets<Session: RemoteFolderDialogSessionProtocol>(
+        session: Session,
+        connectionFieldTargets: [WorkbenchDialogAccessibilityTarget]
+    ) -> [WorkbenchDialogAccessibilityTarget] {
+        var targets: [WorkbenchDialogAccessibilityTarget] = [.dialogCloseButton]
+        switch session.step {
+        case .connection:
+            targets.append(contentsOf: connectionFieldTargets)
+            targets.append(.remoteCancel)
+            targets.append(.remoteConnect)
+        case .browser:
+            for node in session.breadcrumbNodes.dropLast() {
+                targets.append(.remoteBreadcrumb(node.id))
+            }
+            if !session.isLoadingDirectory && session.directoryErrorMessage == nil {
+                for item in session.items where item.kind == .folder && !session.isFolderItemDisabled(item) {
+                    targets.append(.remoteFolderCard(item.id))
+                    targets.append(.remoteFolderCheckbox(item.id))
+                }
+            }
+            targets.append(.remoteBack)
+            targets.append(.remoteCancel)
+            targets.append(.remoteAdd)
+        }
+        return targets
+    }
+
+    private func filterDialogCountsAndOptions(
+        for session: CueFacetFilterDialogSession
+    ) -> (
+        counts: CueFacetFilterCounts,
+        availableLanguages: [SubtitleLanguageCode],
+        availableFolders: [CueFacetFolderOption]
+    ) {
+        switch session.source {
+        case .search:
+            let state = SearchFacetDialogSearchState(search)
+            return (
+                counts: state.counts(for: session.filter),
+                availableLanguages: state.availableLanguages,
+                availableFolders: state.availableFolders
+            )
+        case .excerpt:
+            let availableLanguages = SubtitleLanguageCode.listed(
+                emptyDistribution: search.emptySearchFacetDistribution,
+                snapshot: excerpt.residentFacetSnapshot
+            )
+            let availableFolders = CueFacetFolderOption.listed(
+                emptyDistribution: search.emptySearchFacetDistribution,
+                snapshot: excerpt.residentFacetSnapshot
+            )
+            let counts: CueFacetFilterCounts
+            if excerpt.residentFacetSnapshot != nil {
+                let projection = residentExcerptTableProjection(
+                    searchText: excerpt.tableSearchDraft,
+                    facetFilter: session.filter
+                )
+                counts = CueFacetFilterCounts(
+                    distribution: projection.distribution,
+                    isCalculating: false,
+                    totalCount: projection.distribution.totalCount
+                )
+            } else {
+                counts = .unknown
+            }
+            return (
+                counts: counts,
+                availableLanguages: availableLanguages,
+                availableFolders: availableFolders
+            )
+        }
+    }
+
+    func filterDialogSections(for session: CueFacetFilterDialogSession) -> [CueFacetSection] {
+        let resolved = filterDialogCountsAndOptions(for: session)
+        return CueFacetSection.sections(
+            counts: resolved.counts,
+            availableLanguages: resolved.availableLanguages,
+            availableFolders: resolved.availableFolders,
+            selection: session.filter,
+            update: { change in change(&session.filter) }
+        )
+    }
+
+    func isDialogAccessibilityTargetEnabled(_ target: WorkbenchDialogAccessibilityTarget) -> Bool {
+        guard let dialogID = activeDialogAccessibilityID() else {
+            return false
+        }
+        switch target {
+        case .dialogCloseButton:
+            switch dialogID {
+            case .editCover:
+                return library.coverEditingSession?.isSaving == false
+            case .excerptListEditor:
+                return excerpt.listEditorSession?.isSaving == false
+            default:
+                return true
+            }
+
+        case .editCoverChooseImage, .editCoverCancel:
+            return library.coverEditingSession?.isSaving == false
+
+        case .editCoverSave:
+            return library.coverEditingSession?.canSave == true
+
+        case .excerptEditorChooseImage, .excerptEditorCancel, .excerptEditorSave:
+            return excerpt.listEditorSession?.isSaving == false
+
+        case .excerptEditorNameField, .excerptEditorDescriptionField:
+            return true
+
+        case .renameNewNameField, .renameCancel, .renameConfirm:
+            return true
+
+        case .remoteAddressField, .remotePortField, .remoteUsernameField, .remotePasswordField, .remoteConnect:
+            switch dialogID {
+            case .webdav:
+                return library.webdavDialogSession?.isSubmitting == false
+            case .smb:
+                return library.smbDialogSession?.isSubmitting == false
+            case .ftp:
+                return library.ftpDialogSession?.isSubmitting == false
+            case .nfs:
+                return library.nfsDialogSession?.isSubmitting == false
+            default:
+                return false
+            }
+
+        case .remoteCancel, .remoteBack, .remoteBreadcrumb:
+            return true
+
+        case .remoteFolderCard(let itemID), .remoteFolderCheckbox(let itemID):
+            switch dialogID {
+            case .webdav:
+                guard let session = library.webdavDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID })
+                else { return false }
+                return item.kind == .folder && !session.isFolderItemDisabled(item)
+            case .smb:
+                guard let session = library.smbDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID })
+                else { return false }
+                return item.kind == .folder && !session.isFolderItemDisabled(item)
+            case .ftp:
+                guard let session = library.ftpDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID })
+                else { return false }
+                return item.kind == .folder && !session.isFolderItemDisabled(item)
+            case .nfs:
+                guard let session = library.nfsDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID })
+                else { return false }
+                return item.kind == .folder && !session.isFolderItemDisabled(item)
+            default:
+                return false
+            }
+
+        case .remoteAdd:
+            switch dialogID {
+            case .webdav:
+                return library.webdavDialogSession?.canAddInBrowser == true
+            case .smb:
+                return library.smbDialogSession?.canAddInBrowser == true
+            case .ftp:
+                return library.ftpDialogSession?.canAddInBrowser == true
+            case .nfs:
+                return library.nfsDialogSession?.canAddInBrowser == true
+            default:
+                return false
+            }
+
+        case .ankiAddFront:
+            return tasks.ankiExportSession?.remainingItems(for: .front).isEmpty == false
+
+        case .ankiAddBack:
+            return tasks.ankiExportSession?.remainingItems(for: .back).isEmpty == false
+
+        case .ankiRemoveItem, .ankiFileNameField, .ankiLocationField, .ankiChooseFolderButton, .ankiCancel, .ankiExport:
+            return true
+
+        case .filterChip:
+            return true
+
+        case .filterReset:
+            guard let session = filterDialog.session else { return false }
+            let resolved = filterDialogCountsAndOptions(for: session)
+            return !session.filter.normalizingFolders(
+                listed: resolved.availableFolders.map(\.path)
+            ).isEmpty
+
+        case .filterCancel:
+            return true
+
+        case .filterShow:
+            guard let session = filterDialog.session else { return false }
+            let resolved = filterDialogCountsAndOptions(for: session)
+            return resolved.counts.totalCount != nil
+
+        case .confirmationAction, .fileDetailPairedSwitcher, .taskPanelTab, .taskCardActionButton:
+            return true
+        }
+    }
+
+    func reconcileDialogAccessibilityFocus() {
+        updateActiveDialogSessionSubscriptionIfNeeded()
+
+        guard let currentDialogID = activeDialogAccessibilityID() else {
+            workbenchAccessibility.activeDialogID = nil
+            workbenchAccessibility.clearDialog(keepTextInputFocus: false)
+            return
+        }
+
+        workbenchAccessibility.clear()
+
+        if interfaceLayers.hasUncoveredOpenMenu {
+            workbenchAccessibility.activeDialogID = currentDialogID
+            workbenchAccessibility.clearDialog(keepTextInputFocus: false)
+            return
+        }
+
+        if workbenchAccessibility.activeDialogID != currentDialogID {
+            workbenchAccessibility.activeDialogID = currentDialogID
+            workbenchAccessibility.clearDialog(keepTextInputFocus: true)
+            return
+        }
+
+        guard let focused = workbenchAccessibility.focusedDialogTarget else {
+            return
+        }
+
+        let targets = currentDialogAccessibilityTargets()
+        if !targets.contains(focused) {
+            workbenchAccessibility.clearDialog(keepTextInputFocus: true)
+        }
+    }
+
+    @discardableResult
+    func moveDialogAccessibilityFocus(forward: Bool) -> Bool {
+        updateActiveDialogSessionSubscriptionIfNeeded()
+
+        guard let activeDialogID = activeDialogAccessibilityID() else {
+            workbenchAccessibility.activeDialogID = nil
+            workbenchAccessibility.clearDialog(keepTextInputFocus: true)
+            return false
+        }
+
+        workbenchAccessibility.clear()
+
+        let targets = currentDialogAccessibilityTargets()
+        guard !targets.isEmpty else {
+            workbenchAccessibility.activeDialogID = activeDialogID
+            workbenchAccessibility.clearDialog(keepTextInputFocus: true)
+            return true
+        }
+
+        let nextTarget: WorkbenchDialogAccessibilityTarget
+        if workbenchAccessibility.activeDialogID == activeDialogID,
+           let current = workbenchAccessibility.focusedDialogTarget,
+           let index = targets.firstIndex(of: current)
+        {
+            let nextIndex = forward
+                ? (index + 1) % targets.count
+                : (index - 1 + targets.count) % targets.count
+            nextTarget = targets[nextIndex]
+        } else {
+            nextTarget = forward ? targets[0] : targets[targets.count - 1]
+        }
+
+        PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
+
+        let isEnabled = isDialogAccessibilityTargetEnabled(nextTarget)
+        workbenchAccessibility.setDialogFocus(
+            nextTarget,
+            dialogID: activeDialogID,
+            isTargetEnabled: isEnabled
+        )
+        return true
+    }
+
+    @discardableResult
+    func closeTopmostDialogFromAccessibility() -> Bool {
+        guard let dialogID = activeDialogAccessibilityID() else {
+            return false
+        }
+        defer {
+            reconcileDialogAccessibilityFocus()
+        }
+
+        switch dialogID {
+        case .confirmation:
+            confirmation.session = nil
+            return true
+        case .taskDetail:
+            tasks.closeTaskDetail()
+            return true
+        case .taskPanel:
+            tasks.closePanel()
+            return true
+        case .ankiExport:
+            closeAnkiExportDialog()
+            return true
+        case .filter:
+            filterDialog.session = nil
+            return true
+        case .fileDetail:
+            closeFileDetailDialog()
+            return true
+        case .nfs:
+            closeNFSFolderDialog()
+            return true
+        case .ftp:
+            closeFTPFolderDialog()
+            return true
+        case .smb:
+            closeSMBFolderDialog()
+            return true
+        case .webdav:
+            closeWebDAVFolderDialog()
+            return true
+        case .rename:
+            closeRenameDialog()
+            return true
+        case .excerptListEditor:
+            guard excerpt.listEditorSession?.isSaving != true else {
+                return false
+            }
+            closeExcerptListEditor()
+            return true
+        case .editCover:
+            guard library.coverEditingSession?.isSaving != true else {
+                return false
+            }
+            cancelLibraryCoverEditing()
+            return true
+        }
+    }
+
+    @discardableResult
+    func activateDialogAccessibilityTarget(_ target: WorkbenchDialogAccessibilityTarget) -> Bool {
+        guard let dialogID = activeDialogAccessibilityID(),
+              isDialogAccessibilityTargetEnabled(target)
+        else {
+            return false
+        }
+        defer {
+            reconcileDialogAccessibilityFocus()
+            DispatchQueue.main.async { [weak self] in
+                self?.reconcileDialogAccessibilityFocus()
+            }
+        }
+
+        switch target {
+        case .dialogCloseButton:
+            return closeTopmostDialogFromAccessibility()
+
+        case .editCoverChooseImage:
+            guard let session = library.coverEditingSession else { return false }
+            beginChoosingLibraryCover(session)
+            return true
+
+        case .editCoverCancel:
+            return closeTopmostDialogFromAccessibility()
+
+        case .editCoverSave:
+            guard let session = library.coverEditingSession, session.canSave else {
+                return false
+            }
+            saveLibraryCoverEditing(session)
+            return true
+
+        case .excerptEditorChooseImage:
+            guard let session = excerpt.listEditorSession else { return false }
+            beginChoosingExcerptListCover(session)
+            return true
+
+        case .excerptEditorNameField:
+            workbenchAccessibility.focusDialogTextInput(.excerptEditorName)
+            return true
+
+        case .excerptEditorDescriptionField:
+            workbenchAccessibility.focusDialogTextInput(.excerptEditorDescription)
+            return true
+
+        case .excerptEditorCancel:
+            return closeTopmostDialogFromAccessibility()
+
+        case .excerptEditorSave:
+            guard let session = excerpt.listEditorSession else { return false }
+            validateExcerptListEditor(session)
+            if session.nameValidationMessage != nil {
+                workbenchAccessibility.focusDialogTextInput(.excerptEditorName)
+                return true
+            }
+            if session.descriptionValidationMessage != nil {
+                workbenchAccessibility.focusDialogTextInput(.excerptEditorDescription)
+                return true
+            }
+            saveExcerptListEditor(session)
+            return true
+
+        case .renameNewNameField:
+            workbenchAccessibility.focusDialogTextInput(.renameNewName)
+            return true
+
+        case .renameCancel:
+            return closeTopmostDialogFromAccessibility()
+
+        case .renameConfirm:
+            guard let session = library.renameSession else { return false }
+            guard session.validate() else {
+                workbenchAccessibility.focusDialogTextInput(.renameNewName)
+                return true
+            }
+            confirmRename(session)
+            return true
+
+        case .remoteAddressField:
+            workbenchAccessibility.focusDialogTextInput(.remoteAddress)
+            return true
+
+        case .remotePortField:
+            workbenchAccessibility.focusDialogTextInput(.remotePort)
+            return true
+
+        case .remoteUsernameField:
+            workbenchAccessibility.focusDialogTextInput(.remoteUsername)
+            return true
+
+        case .remotePasswordField:
+            workbenchAccessibility.focusDialogTextInput(.remotePassword)
+            return true
+
+        case .remoteCancel:
+            return closeTopmostDialogFromAccessibility()
+
+        case .remoteConnect, .remoteAdd:
+            switch dialogID {
+            case .webdav:
+                guard let session = library.webdavDialogSession else { return false }
+                confirmWebDAVFolderDialog(session)
+                return true
+            case .smb:
+                guard let session = library.smbDialogSession else { return false }
+                confirmSMBFolderDialog(session)
+                return true
+            case .ftp:
+                guard let session = library.ftpDialogSession else { return false }
+                confirmFTPFolderDialog(session)
+                return true
+            case .nfs:
+                guard let session = library.nfsDialogSession else { return false }
+                confirmNFSFolderDialog(session)
+                return true
+            default:
+                return false
+            }
+
+        case .remoteBack:
+            switch dialogID {
+            case .webdav:
+                guard let session = library.webdavDialogSession else { return false }
+                navigateBackInWebDAVFolderDialog(session)
+                return true
+            case .smb:
+                guard let session = library.smbDialogSession else { return false }
+                navigateBackInSMBFolderDialog(session)
+                return true
+            case .ftp:
+                guard let session = library.ftpDialogSession else { return false }
+                navigateBackInFTPFolderDialog(session)
+                return true
+            case .nfs:
+                guard let session = library.nfsDialogSession else { return false }
+                navigateBackInNFSFolderDialog(session)
+                return true
+            default:
+                return false
+            }
+
+        case .remoteBreadcrumb(let nodeID):
+            switch dialogID {
+            case .webdav:
+                guard let session = library.webdavDialogSession,
+                      let node = session.breadcrumbNodes.dropLast().first(where: { $0.id == nodeID })
+                else { return false }
+                navigateWebDAVBreadcrumb(to: node, in: session)
+                return true
+            case .smb:
+                guard let session = library.smbDialogSession,
+                      let node = session.breadcrumbNodes.dropLast().first(where: { $0.id == nodeID })
+                else { return false }
+                navigateSMBBreadcrumb(to: node, in: session)
+                return true
+            case .ftp:
+                guard let session = library.ftpDialogSession,
+                      let node = session.breadcrumbNodes.dropLast().first(where: { $0.id == nodeID })
+                else { return false }
+                navigateFTPBreadcrumb(to: node, in: session)
+                return true
+            case .nfs:
+                guard let session = library.nfsDialogSession,
+                      let node = session.breadcrumbNodes.dropLast().first(where: { $0.id == nodeID })
+                else { return false }
+                navigateNFSBreadcrumb(to: node, in: session)
+                return true
+            default:
+                return false
+            }
+
+        case .remoteFolderCard(let itemID):
+            switch dialogID {
+            case .webdav:
+                guard let session = library.webdavDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID }),
+                      item.kind == .folder,
+                      !session.isFolderItemDisabled(item)
+                else { return false }
+                openWebDAVSubfolder(item, in: session)
+                return true
+            case .smb:
+                guard let session = library.smbDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID }),
+                      item.kind == .folder,
+                      !session.isFolderItemDisabled(item)
+                else { return false }
+                openSMBBSubfolderIfAvailable(item, in: session)
+                return true
+            case .ftp:
+                guard let session = library.ftpDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID }),
+                      item.kind == .folder,
+                      !session.isFolderItemDisabled(item)
+                else { return false }
+                openFTPSubfolder(item, in: session)
+                return true
+            case .nfs:
+                guard let session = library.nfsDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID }),
+                      item.kind == .folder,
+                      !session.isFolderItemDisabled(item)
+                else { return false }
+                openNFSSubfolder(item, in: session)
+                return true
+            default:
+                return false
+            }
+
+        case .remoteFolderCheckbox(let itemID):
+            switch dialogID {
+            case .webdav:
+                guard let session = library.webdavDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID }),
+                      item.kind == .folder,
+                      !session.isFolderItemDisabled(item)
+                else { return false }
+                session.toggleFolderSelection(item)
+                return true
+            case .smb:
+                guard let session = library.smbDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID }),
+                      item.kind == .folder,
+                      !session.isFolderItemDisabled(item)
+                else { return false }
+                session.toggleFolderSelection(item)
+                return true
+            case .ftp:
+                guard let session = library.ftpDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID }),
+                      item.kind == .folder,
+                      !session.isFolderItemDisabled(item)
+                else { return false }
+                session.toggleFolderSelection(item)
+                return true
+            case .nfs:
+                guard let session = library.nfsDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID }),
+                      item.kind == .folder,
+                      !session.isFolderItemDisabled(item)
+                else { return false }
+                session.toggleFolderSelection(item)
+                return true
+            default:
+                return false
+            }
+
+        case .ankiAddFront:
+            guard let trigger = workbenchAccessibility.onTriggerAnkiAddFront else {
+                return false
+            }
+            trigger()
+            return true
+
+        case .ankiAddBack:
+            guard let trigger = workbenchAccessibility.onTriggerAnkiAddBack else {
+                return false
+            }
+            trigger()
+            return true
+
+        case .ankiRemoveItem(let side, let item):
+            guard let session = tasks.ankiExportSession else { return false }
+            session.removeItem(item, from: side)
+            workbenchAccessibility.clearDialog(keepTextInputFocus: true)
+            return true
+
+        case .ankiFileNameField:
+            workbenchAccessibility.focusDialogTextInput(.ankiFileName)
+            return true
+
+        case .ankiLocationField:
+            workbenchAccessibility.focusDialogTextInput(.ankiLocation)
+            return true
+
+        case .ankiChooseFolderButton:
+            guard let session = tasks.ankiExportSession else { return false }
+            beginChoosingAnkiExportFolder(session)
+            return true
+
+        case .ankiCancel:
+            return closeTopmostDialogFromAccessibility()
+
+        case .ankiExport:
+            guard let session = tasks.ankiExportSession else { return false }
+            guard session.validate() else {
+                if session.validationMessage != nil {
+                    workbenchAccessibility.focusDialogTextInput(.ankiFileName)
+                } else if session.locationValidationMessage != nil {
+                    workbenchAccessibility.focusDialogTextInput(.ankiLocation)
+                }
+                return true
+            }
+            confirmAnkiExport(session)
+            return true
+
+        case .filterChip(let sectionKind, let optionID):
+            guard let session = filterDialog.session else { return false }
+            let sections = filterDialogSections(for: session)
+            guard let section = sections.first(where: { $0.id == sectionKind }),
+                  let option = section.options.first(where: { $0.id == optionID })
+            else {
+                return false
+            }
+            option.toggle()
+            return true
+
+        case .filterReset:
+            guard let session = filterDialog.session else { return false }
+            session.filter = CueFacetFilter()
+            return true
+
+        case .filterCancel:
+            return closeTopmostDialogFromAccessibility()
+
+        case .filterShow:
+            guard let session = filterDialog.session else { return false }
+            session.show()
+            filterDialog.session = nil
+            return true
+
+        case .confirmationAction(let actionID):
+            guard let session = confirmation.session,
+                  let action = session.actions.first(where: { $0.id == actionID })
+            else {
+                return false
+            }
+            action.action()
+            return true
+
+        case .fileDetailPairedSwitcher:
+            guard let toggle = workbenchAccessibility.onToggleFileDetailPairedMenu else {
+                return false
+            }
+            toggle()
+            return true
+
+        case .taskPanelTab(let tab):
+            tasks.selectedTab = tab
+            return true
+
+        case .taskCardActionButton(let cardID):
+            return workbenchAccessibility.activateTaskCardAction(id: cardID)
+        }
+    }
+
+    private func openSMBBSubfolderIfAvailable(
+        _ item: WebDAVBrowserItem,
+        in session: SMBFolderDialogSession
+    ) {
+        openSMBSubfolder(item, in: session)
+    }
+
+    func handleDialogKeyDown(_ event: NSEvent) -> Bool {
+        guard !Self.hasMarkedTextInFocusedEditor(),
+              !interfaceLayers.hasUncoveredOpenMenu,
+              activeDialogAccessibilityID() != nil
+        else {
+            return false
+        }
+
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let disallowed: NSEvent.ModifierFlags = [.command, .control, .option]
+        guard flags.intersection(disallowed).isEmpty else {
+            return false
+        }
+
+        switch event.keyCode {
+        case MenuGate.tabKeyCode:
+            let forward = !flags.contains(.shift)
+            return moveDialogAccessibilityFocus(forward: forward)
+
+        case 53:
+            guard !flags.contains(.shift) else {
+                return false
+            }
+            guard !event.isARepeat else {
+                return true
+            }
+            reconcileDialogAccessibilityFocus()
+            if workbenchAccessibility.isDialogActive {
+                workbenchAccessibility.clearDialog(keepTextInputFocus: true)
+                return true
+            }
+            return closeTopmostDialogFromAccessibility()
+
+        case 49, 36, 76:
+            guard !flags.contains(.shift) else {
+                return false
+            }
+            reconcileDialogAccessibilityFocus()
+            guard let focused = workbenchAccessibility.focusedDialogTarget else {
+                return false
+            }
+            if focused.dialogTextInputKind != nil {
+                return false
+            }
+            guard !event.isARepeat else {
+                return true
+            }
+            _ = activateDialogAccessibilityTarget(focused)
+            return true
+
+        default:
+            return false
+        }
+    }
+
+    @discardableResult
+    func handleDialogControllerInput(_ input: ControllerInput) -> Bool {
+        guard !Self.hasMarkedTextInFocusedEditor(),
+              !interfaceLayers.hasUncoveredOpenMenu,
+              activeDialogAccessibilityID() != nil
+        else {
+            return false
+        }
+
+        switch input {
+        case .button(let button, let isRepeat):
+            switch button {
+            case .rightShoulder:
+                return moveDialogAccessibilityFocus(forward: true)
+
+            case .leftShoulder:
+                return moveDialogAccessibilityFocus(forward: false)
+
+            case .south:
+                reconcileDialogAccessibilityFocus()
+                guard let focused = workbenchAccessibility.focusedDialogTarget else {
+                    return false
+                }
+                guard !isRepeat else {
+                    return true
+                }
+                if let inputKind = focused.dialogTextInputKind {
+                    let isEnabled = isDialogAccessibilityTargetEnabled(focused)
+                    workbenchAccessibility.focusDialogTextInput(inputKind, isEnabled: isEnabled)
+                    return true
+                }
+                _ = activateDialogAccessibilityTarget(focused)
+                return true
+
+            case .east:
+                guard !isRepeat else {
+                    return true
+                }
+                reconcileDialogAccessibilityFocus()
+                if workbenchAccessibility.isDialogActive {
+                    workbenchAccessibility.clearDialog(keepTextInputFocus: true)
+                    return true
+                }
+                return closeTopmostDialogFromAccessibility()
+
+            default:
+                return false
+            }
+
+        case .direction:
+            return false
+        }
+    }
+
     // MARK: - Keyboard & Controller Routing
 
     func handleWorkbenchKeyDown(_ event: NSEvent) -> Bool {
+        guard !Self.hasMarkedTextInFocusedEditor() else {
+            return false
+        }
+
+        if activeDialogAccessibilityID() != nil {
+            guard !interfaceLayers.hasUncoveredOpenMenu else {
+                return false
+            }
+            return handleDialogKeyDown(event)
+        }
+
         let firstResponderDesc = String(describing: NSApp.keyWindow?.firstResponder)
         guard !isPlaybackPageVisible,
               !playbackFullscreenManager.isFullscreen,
               !interfaceLayers.isCovered(.workbenchPage),
-              !interfaceLayers.isFrozen(.workbenchPage),
-              !Self.hasMarkedTextInFocusedEditor()
+              !interfaceLayers.isFrozen(.workbenchPage)
         else {
             WorkbenchAccessibilityDebugLog.log(
                 "handleWorkbenchKeyDown BLOCKED keyCode=\(event.keyCode) playbackVisible=\(isPlaybackPageVisible) fullscreen=\(playbackFullscreenManager.isFullscreen) covered=\(interfaceLayers.isCovered(.workbenchPage)) frozen=\(interfaceLayers.isFrozen(.workbenchPage)) hasMarkedText=\(Self.hasMarkedTextInFocusedEditor()) firstResponder=\(firstResponderDesc)"
@@ -884,6 +1939,10 @@ extension AppCoordinator {
             return routeControllerInputToMenuGate(input, menuGate: interfaceLayers.menuGate)
         }
 
+        if activeDialogAccessibilityID() != nil {
+            return handleDialogControllerInput(input)
+        }
+
         if interfaceLayers.isOpen(.dialog) {
             return false
         }
@@ -897,6 +1956,13 @@ extension AppCoordinator {
 
     @discardableResult
     func handleWorkbenchControllerInput(_ input: ControllerInput) -> Bool {
+        if activeDialogAccessibilityID() != nil {
+            guard !interfaceLayers.hasUncoveredOpenMenu else {
+                return false
+            }
+            return handleDialogControllerInput(input)
+        }
+
         guard !isPlaybackPageVisible,
               !playbackFullscreenManager.isFullscreen,
               !interfaceLayers.isCovered(.workbenchPage),

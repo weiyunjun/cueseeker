@@ -126,36 +126,39 @@ struct ExcerptListEditorDialog: View {
     @FocusState private var isNameFocused: Bool
     @FocusState private var isDescriptionFocused: Bool
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
+    @Environment(\.workbenchDialogID) private var dialogID
 
     var body: some View {
-        WorkbenchDialogColumn(
-            spacing: WorkbenchControlMetrics.redesignCoverDialogRegionGap,
-            maxHeight: availableSize.height
-                - WorkbenchControlMetrics.redesignDialogTopPadding
-                - WorkbenchControlMetrics.redesignDialogInset
-        ) {
-            WorkbenchDialogHeader(title: session.mode.title)
-                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+        WorkbenchAccessibilityReader { accessibility in
+            WorkbenchDialogColumn(
+                spacing: WorkbenchControlMetrics.redesignCoverDialogRegionGap,
+                maxHeight: availableSize.height
+                    - WorkbenchControlMetrics.redesignDialogTopPadding
+                    - WorkbenchControlMetrics.redesignDialogInset
+            ) {
+                WorkbenchDialogHeader(title: session.mode.title)
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
 
-            // The scroll view reaches the dialog's sides, so its scrollbar runs
-            // in the inset rather than over the cover or the fields.
-            WorkbenchScrollView {
-                mainLayout {
-                    coverRegion
-                        .frame(width: WorkbenchControlMetrics.redesignExcerptListEditorCoverWidth)
+                // The scroll view reaches the dialog's sides, so its scrollbar runs
+                // in the inset rather than over the cover or the fields.
+                WorkbenchScrollView {
+                    mainLayout {
+                        coverRegion(accessibility: accessibility)
+                            .frame(width: WorkbenchControlMetrics.redesignExcerptListEditorCoverWidth)
 
-                    formRegion
-                        .frame(
-                            width: isWide
-                                ? WorkbenchControlMetrics.redesignExcerptListEditorWideFormWidth
-                                : WorkbenchControlMetrics.redesignExcerptListEditorCoverWidth
-                        )
+                        formRegion
+                            .frame(
+                                width: isWide
+                                    ? WorkbenchControlMetrics.redesignExcerptListEditorWideFormWidth
+                                    : WorkbenchControlMetrics.redesignExcerptListEditorCoverWidth
+                            )
+                    }
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
                 }
-                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
-            }
 
-            actions
-                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+                actions(accessibility: accessibility)
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+            }
         }
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
@@ -196,7 +199,7 @@ struct ExcerptListEditorDialog: View {
     }
 
     @ViewBuilder
-    private var coverRegion: some View {
+    private func coverRegion(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
             if let source = session.selectedCoverSource {
                 LibraryCoverFrame {
@@ -214,6 +217,7 @@ struct ExcerptListEditorDialog: View {
                     title: LibraryCoverEditingCopy.chooseImageActionTitle,
                     icon: LibraryCoverEditingCopy.editIcon,
                     isEnabled: !session.isSaving,
+                    isFocused: accessibility?.isDialogFocused(.excerptEditorChooseImage, dialogID: dialogID) == true,
                     action: onChooseImage
                 ) {
                     ExcerptListCoverView(coverPath: session.originalCoverPath)
@@ -237,7 +241,8 @@ struct ExcerptListEditorDialog: View {
                 placeholder: L("excerpt.list_name.placeholder"),
                 text: $session.name,
                 validationMessage: session.nameValidationMessage,
-                focus: $isNameFocused
+                focus: $isNameFocused,
+                dialogInputKind: .excerptEditorName
             )
 
             WorkbenchFormTextArea(
@@ -246,17 +251,19 @@ struct ExcerptListEditorDialog: View {
                 text: $session.listDescription,
                 validationMessage: session.descriptionValidationMessage,
                 focus: $isDescriptionFocused,
-                height: WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight
+                height: WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight,
+                dialogInputKind: .excerptEditorDescription
             )
         }
     }
 
-    private var actions: some View {
+    private func actions(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             Spacer(minLength: 0)
 
             WorkbenchButton(
                 title: L("common.cancel"),
+                isFocused: accessibility?.isDialogFocused(.excerptEditorCancel, dialogID: dialogID) == true,
                 action: onClose
             )
             .disabled(session.isSaving)
@@ -264,6 +271,7 @@ struct ExcerptListEditorDialog: View {
 
             WorkbenchPrimaryButton(
                 title: session.mode.primaryActionTitle,
+                isFocused: accessibility?.isDialogFocused(.excerptEditorSave, dialogID: dialogID) == true,
                 action: save
             )
             .disabled(session.isSaving)

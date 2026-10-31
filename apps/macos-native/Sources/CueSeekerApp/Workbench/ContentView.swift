@@ -188,6 +188,7 @@ private struct ContentDialogLayerHost: View {
                         appState.saveLibraryCoverEditing(session)
                     }
                 )
+                .environment(\.workbenchDialogID, .editCover)
                 .workbenchDialog()
             }
 
@@ -205,6 +206,7 @@ private struct ContentDialogLayerHost: View {
                     },
                     onClose: appState.closeExcerptListEditor
                 )
+                .environment(\.workbenchDialogID, .excerptListEditor)
                 .workbenchDialog()
             }
 
@@ -216,6 +218,7 @@ private struct ContentDialogLayerHost: View {
                     },
                     onClose: appState.closeRenameDialog
                 )
+                .environment(\.workbenchDialogID, .rename)
                 .workbenchDialog()
             }
 
@@ -236,6 +239,7 @@ private struct ContentDialogLayerHost: View {
                         appState.navigateWebDAVBreadcrumb(to: node, in: session)
                     }
                 )
+                .environment(\.workbenchDialogID, .webdav)
                 .workbenchDialog()
             }
 
@@ -256,6 +260,7 @@ private struct ContentDialogLayerHost: View {
                         appState.navigateSMBBreadcrumb(to: node, in: session)
                     }
                 )
+                .environment(\.workbenchDialogID, .smb)
                 .workbenchDialog()
             }
 
@@ -276,6 +281,7 @@ private struct ContentDialogLayerHost: View {
                         appState.navigateFTPBreadcrumb(to: node, in: session)
                     }
                 )
+                .environment(\.workbenchDialogID, .ftp)
                 .workbenchDialog()
             }
 
@@ -296,6 +302,7 @@ private struct ContentDialogLayerHost: View {
                         appState.navigateNFSBreadcrumb(to: node, in: session)
                     }
                 )
+                .environment(\.workbenchDialogID, .nfs)
                 .workbenchDialog()
             }
 
@@ -305,6 +312,7 @@ private struct ContentDialogLayerHost: View {
                     menuGate: appState.interfaceLayers.menuGate,
                     onClose: appState.closeFileDetailDialog
                 )
+                .environment(\.workbenchDialogID, .fileDetail)
                 .workbenchDialog()
             }
 
@@ -326,6 +334,7 @@ private struct ContentDialogLayerHost: View {
                         )
                     }
                 }
+                .environment(\.workbenchDialogID, .filter)
                 .workbenchDialog()
             }
 
@@ -341,11 +350,13 @@ private struct ContentDialogLayerHost: View {
                     },
                     onClose: appState.closeAnkiExportDialog
                 )
+                .environment(\.workbenchDialogID, .ankiExport)
                 .workbenchDialog()
             }
 
             if tasks.isPanelOpen {
                 TaskPanel(tasks: tasks, confirmation: confirmation)
+                    .environment(\.workbenchDialogID, .taskPanel)
                     .workbenchDialog(isCovered: confirmation.session != nil || tasks.detailTaskID != nil)
             }
 
@@ -357,6 +368,7 @@ private struct ContentDialogLayerHost: View {
                     progress: snapshot.progress,
                     onClose: tasks.closeTaskDetail
                 )
+                .environment(\.workbenchDialogID, .taskDetail)
                 .workbenchDialog(level: 2)
             }
 
@@ -365,6 +377,7 @@ private struct ContentDialogLayerHost: View {
                     session: session,
                     onClose: { confirmation.session = nil }
                 )
+                .environment(\.workbenchDialogID, .confirmation)
                 .workbenchDialog(level: 2)
             }
         }

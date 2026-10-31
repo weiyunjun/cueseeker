@@ -220,8 +220,12 @@ struct AnkiExportDialog: View {
     @FocusState private var isLocationFocused: Bool
     @State private var isLocationFieldFocused = false
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
+    @Environment(\.workbenchDialogID) private var dialogID
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
 
     @State private var activeMenu: AnkiAddMenuState?
+    @State private var frontAddButtonFrame: CGRect = .zero
+    @State private var backAddButtonFrame: CGRect = .zero
     @StateObject private var menuHighlight = MenuHighlightModel()
     @State private var dragState: AnkiRowDragState?
     @State private var dragTranslationY: CGFloat = 0
@@ -243,48 +247,64 @@ struct AnkiExportDialog: View {
     }
 
     var body: some View {
-        WorkbenchDialogColumn(
-            spacing: WorkbenchControlMetrics.redesignSpacing4,
-            maxHeight: availableSize.height
-                - WorkbenchControlMetrics.redesignDialogTopPadding
-                - WorkbenchControlMetrics.redesignDialogInset
-        ) {
-            WorkbenchDialogHeader(title: L("anki_export.title"))
-                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+        WorkbenchAccessibilityReader { accessibility in
+            WorkbenchDialogColumn(
+                spacing: WorkbenchControlMetrics.redesignSpacing4,
+                maxHeight: availableSize.height
+                    - WorkbenchControlMetrics.redesignDialogTopPadding
+                    - WorkbenchControlMetrics.redesignDialogInset
+            ) {
+                WorkbenchDialogHeader(title: L("anki_export.title"))
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
 
-            // The scroll view reaches the dialog's sides, so its scrollbar runs
-            // in the inset rather than over the form.
-            WorkbenchScrollView {
-                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                    // Section 1: Front & Back Card Columns
-                    HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing5) {
-                        cardSideColumn(side: .front)
-                        cardSideColumn(side: .back)
+                // The scroll view reaches the dialog's sides, so its scrollbar runs
+                // in the inset rather than over the form.
+                WorkbenchScrollView {
+                    VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                        // Section 1: Front & Back Card Columns
+                        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing5) {
+                            cardSideColumn(side: .front, accessibility: accessibility)
+                            cardSideColumn(side: .back, accessibility: accessibility)
+                        }
+
+                        // Section 2 & 3: File Name and Location (horizontal form rows)
+                        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                            WorkbenchDialogFormTextField(
+                                label: L("anki_export.file_name"),
+                                placeholder: "",
+                                text: $session.fileName,
+                                validationMessage: session.validationMessage,
+                                reservesValidationLine: true,
+                                focus: $isFileNameFocused,
+                                dialogInputKind: .ankiFileName
+                            )
+
+                            locationRow(accessibility: accessibility)
+                        }
                     }
-
-                    // Section 2 & 3: File Name and Location (horizontal form rows)
-                    VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                        WorkbenchDialogFormTextField(
-                            label: L("anki_export.file_name"),
-                            placeholder: "",
-                            text: $session.fileName,
-                            validationMessage: session.validationMessage,
-                            reservesValidationLine: true,
-                            focus: $isFileNameFocused
-                        )
-
-                        locationRow
-                    }
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
                 }
-                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
-            }
 
-            actions
-                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+                actions(accessibility: accessibility)
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+            }
         }
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
         .coordinateSpace(name: Self.menuCoordinateSpaceName)
+        .onAppear {
+            workbenchAccessibility?.onTriggerAnkiAddFront = {
+                handleAddButtonTap(for: .front, anchorFrame: frontAddButtonFrame)
+            }
+            workbenchAccessibility?.onTriggerAnkiAddBack = {
+                handleAddButtonTap(for: .back, anchorFrame: backAddButtonFrame)
+            }
+        }
+        .onDisappear {
+            workbenchAccessibility?.onTriggerAnkiAddFront = nil
+            workbenchAccessibility?.onTriggerAnkiAddBack = nil
+            workbenchAccessibility?.unregisterDialogTextInput(.ankiLocation)
+        }
         .overlay(alignment: .topLeading) {
             if let activeMenu {
                 let menuFrame = activeMenu.menuFrame
@@ -356,10 +376,15 @@ struct AnkiExportDialog: View {
 
     /// One side column (Front or Back) with header row (`Front`/`Back` + `+` button)
     /// and a fixed-height 288px white card box below.
-    private func cardSideColumn(side: AnkiExportSide) -> some View {
+    private func cardSideColumn(
+        side: AnkiExportSide,
+        accessibility: WorkbenchAccessibilityCoordinator?
+    ) -> some View {
         let items = session.items(for: side)
         let remaining = session.remainingItems(for: side)
         let validationError = side == .front ? session.frontValidationError : session.backValidationError
+        let addTarget: WorkbenchDialogAccessibilityTarget = side == .front ? .ankiAddFront : .ankiAddBack
+        let isAddFocused = accessibility?.isDialogFocused(addTarget, dialogID: dialogID) == true
 
         return VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
             HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing1) {
@@ -375,6 +400,7 @@ struct AnkiExportDialog: View {
                     WorkbenchIconButton(
                         icon: .plus,
                         isOpen: activeMenu?.side == side,
+                        isFocused: isAddFocused,
                         iconSize: WorkbenchControlMetrics.redesignAnkiExportAddIconSize,
                         boxSize: WorkbenchControlMetrics.redesignAnkiExportAddButtonSize,
                         action: {
@@ -382,6 +408,22 @@ struct AnkiExportDialog: View {
                             handleAddButtonTap(for: side, anchorFrame: frame)
                         }
                     )
+                    .background(WorkbenchAccessibilityScrollRevealProbe(isActive: isAddFocused))
+                    .onAppear {
+                        let frame = buttonProxy.frame(in: .named(Self.menuCoordinateSpaceName))
+                        if side == .front {
+                            frontAddButtonFrame = frame
+                        } else {
+                            backAddButtonFrame = frame
+                        }
+                    }
+                    .onChange(of: buttonProxy.frame(in: .named(Self.menuCoordinateSpaceName))) { frame in
+                        if side == .front {
+                            frontAddButtonFrame = frame
+                        } else {
+                            backAddButtonFrame = frame
+                        }
+                    }
                     .disabled(remaining.isEmpty)
                     .workbenchTooltip(
                         scenarioID: "anki_export.card.add_item",
@@ -414,8 +456,13 @@ struct AnkiExportDialog: View {
                     VStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                             let isDragging = isDraggingRow(side: side, item: item)
+                            let isRemoveFocused = accessibility?.isDialogFocused(
+                                .ankiRemoveItem(side, item),
+                                dialogID: dialogID
+                            ) == true
                             AnkiCardBadgeRow(
                                 item: item,
+                                isRemoveFocused: isRemoveFocused,
                                 onRemove: {
                                     dismissMenu()
                                     session.removeItem(item, from: side)
@@ -569,6 +616,7 @@ struct AnkiExportDialog: View {
         anchorFrame: CGRect,
         items: [AnkiCardItem]
     ) {
+        workbenchAccessibility?.clearDialog(keepTextInputFocus: false)
         let naturalSize = measuredMenuSize(for: items)
         let menuFrame = CGRect(
             x: anchorFrame.minX,
@@ -618,8 +666,11 @@ struct AnkiExportDialog: View {
         return host.fittingSize
     }
 
-    private var locationRow: some View {
-        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+    private func locationRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
+        let isLocationAccessibilityFocused = accessibility?.isDialogFocused(.ankiLocationField, dialogID: dialogID) == true
+        let isChooseFolderFocused = accessibility?.isDialogFocused(.ankiChooseFolderButton, dialogID: dialogID) == true
+
+        return HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
             WorkbenchFormLabel(text: L("anki_export.location"))
                 .frame(
                     width: WorkbenchControlMetrics.redesignFormLabelWidth,
@@ -639,9 +690,30 @@ struct AnkiExportDialog: View {
                         accessibilityLabel: L("anki_export.location"),
                         onFocusChange: { focused in
                             isLocationFieldFocused = focused
+                            workbenchAccessibility?.setDialogTextInputActive(.ankiLocation, isActive: focused)
                             if focused {
                                 isFileNameFocused = false
                             }
+                        },
+                        onBindTextField: { field in
+                            workbenchAccessibility?.registerDialogTextInput(
+                                .ankiLocation,
+                                ownerToken: ObjectIdentifier(field),
+                                setFocused: { [weak field] focused in
+                                    if focused {
+                                        field?.focusFromAccessibility()
+                                    } else {
+                                        field?.unfocusFromAccessibility()
+                                    }
+                                    if field?.window == nil {
+                                        isLocationFieldFocused = focused
+                                        isLocationFocused = focused
+                                    }
+                                },
+                                isCurrentlyFocused: { [weak field] in
+                                    field?.isCurrentlyFocused == true
+                                }
+                            )
                         }
                     )
                     .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
@@ -650,16 +722,23 @@ struct AnkiExportDialog: View {
                         hasError: session.locationValidationMessage != nil,
                         isFocused: isLocationFieldFocused || isLocationFocused
                     )
+                    .workbenchAccessibilityFocusRing(
+                        isFocused: isLocationAccessibilityFocused,
+                        cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
+                    )
+                    .background(WorkbenchAccessibilityScrollRevealProbe(isActive: isLocationAccessibilityFocused))
                     .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: true))
                     .accessibilityIdentifier("anki-export-location")
 
                     WorkbenchIconButton(
                         icon: .folder,
+                        isFocused: isChooseFolderFocused,
                         action: {
                             dismissMenu()
                             onChooseFolder()
                         }
                     )
+                    .background(WorkbenchAccessibilityScrollRevealProbe(isActive: isChooseFolderFocused))
                     .workbenchTooltip(
                         scenarioID: "anki_export.location.choose_folder",
                         label: L("tooltip.anki_export.choose_folder")
@@ -673,12 +752,13 @@ struct AnkiExportDialog: View {
         }
     }
 
-    private var actions: some View {
+    private func actions(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             Spacer(minLength: 0)
 
             WorkbenchButton(
                 title: L("common.cancel"),
+                isFocused: accessibility?.isDialogFocused(.ankiCancel, dialogID: dialogID) == true,
                 action: {
                     dismissMenu()
                     onClose()
@@ -688,6 +768,7 @@ struct AnkiExportDialog: View {
 
             WorkbenchPrimaryButton(
                 title: L("anki_export.export"),
+                isFocused: accessibility?.isDialogFocused(.ankiExport, dialogID: dialogID) == true,
                 action: export
             )
         }
@@ -745,6 +826,7 @@ private struct AnkiCardItemMenuPopover: View {
 /// the left and an 'x' remove button on the right.
 private struct AnkiCardBadgeRow: View {
     let item: AnkiCardItem
+    var isRemoveFocused: Bool = false
     let onRemove: () -> Void
 
     @State private var isRemoveHovered = false
@@ -787,6 +869,10 @@ private struct AnkiCardBadgeRow: View {
                     )
                     .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 }
+                .workbenchAccessibilityFocusRing(
+                    isFocused: isRemoveFocused,
+                    cornerRadius: WorkbenchControlMetrics.redesignAnkiExportBadgeRemoveButtonRadius
+                )
                 .contentShape(Rectangle())
             }
             .buttonStyle(PressableButtonStyle(isPressed: $isRemovePressed, isHovered: $isRemoveHovered))
@@ -800,7 +886,12 @@ private struct AnkiCardBadgeRow: View {
         .padding(.leading, WorkbenchControlMetrics.redesignSpacing2 + 2)
         .padding(.trailing, WorkbenchControlMetrics.redesignSpacing2)
         .frame(height: WorkbenchControlMetrics.redesignFilterChipHeight)
-        .background(WorkbenchRedesignColors.bgControl)
+        .background {
+            ZStack {
+                WorkbenchRedesignColors.bgControl
+                WorkbenchAccessibilityScrollRevealProbe(isActive: isRemoveFocused)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius)

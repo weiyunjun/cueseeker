@@ -73,7 +73,8 @@ struct FTPFolderDialog: View {
                 placeholder: "",
                 text: $session.address,
                 focus: $isAddressFocused,
-                normalizeDraft: FTPAddress.decodedDisplayAddress
+                normalizeDraft: FTPAddress.decodedDisplayAddress,
+                dialogInputKind: .remoteAddress
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("ftp-address")
@@ -82,7 +83,8 @@ struct FTPFolderDialog: View {
                 label: L("ftp.field.port"),
                 placeholder: "",
                 text: $session.port,
-                focus: $isPortFocused
+                focus: $isPortFocused,
+                dialogInputKind: .remotePort
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("ftp-port")
@@ -91,7 +93,8 @@ struct FTPFolderDialog: View {
                 label: L("ftp.field.username"),
                 placeholder: "",
                 text: $session.username,
-                focus: $isUsernameFocused
+                focus: $isUsernameFocused,
+                dialogInputKind: .remoteUsername
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("ftp-username")
@@ -102,7 +105,8 @@ struct FTPFolderDialog: View {
                 text: $session.password,
                 validationMessage: session.validationMessage,
                 reservesValidationLine: true,
-                focus: $isPasswordFocused
+                focus: $isPasswordFocused,
+                dialogInputKind: .remotePassword
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("ftp-password")

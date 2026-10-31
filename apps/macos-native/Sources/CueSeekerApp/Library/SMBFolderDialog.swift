@@ -78,7 +78,8 @@ struct SMBFolderDialog: View {
                 placeholder: "",
                 text: $session.address,
                 focus: $isAddressFocused,
-                normalizeDraft: SMBAddress.decodedDisplayAddress
+                normalizeDraft: SMBAddress.decodedDisplayAddress,
+                dialogInputKind: .remoteAddress
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("smb-address")
@@ -87,7 +88,8 @@ struct SMBFolderDialog: View {
                 label: L("smb.field.port"),
                 placeholder: "",
                 text: $session.port,
-                focus: $isPortFocused
+                focus: $isPortFocused,
+                dialogInputKind: .remotePort
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("smb-port")
@@ -96,7 +98,8 @@ struct SMBFolderDialog: View {
                 label: L("smb.field.username"),
                 placeholder: "",
                 text: $session.username,
-                focus: $isUsernameFocused
+                focus: $isUsernameFocused,
+                dialogInputKind: .remoteUsername
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("smb-username")
@@ -107,7 +110,8 @@ struct SMBFolderDialog: View {
                 text: $session.password,
                 validationMessage: session.validationMessage,
                 reservesValidationLine: true,
-                focus: $isPasswordFocused
+                focus: $isPasswordFocused,
+                dialogInputKind: .remotePassword
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("smb-password")

@@ -218,8 +218,9 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         guard isEnabled && isEditable else {
             return
         }
+        let wasFocused = isCurrentlyFocused
         didUserInteractSinceAutofocus = true
-        if !isCurrentlyFocused {
+        if !wasFocused {
             let madeFirst = window?.makeFirstResponder(self)
             WorkbenchAccessibilityDebugLog.log(
                 "WorkbenchNativeSingleLineTextField.focusFromAccessibility makeFirstResponder=\(String(describing: madeFirst)) isCurrentlyFocusedAfter=\(isCurrentlyFocused)"
@@ -228,10 +229,24 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         if let editor = currentEditor() as? NSTextView {
             applyTextStyle(to: editor)
             let length = (editor.string as NSString).length
-            let endRange = NSRange(location: length, length: 0)
-            editor.setSelectedRange(endRange)
-            editor.scrollRangeToVisible(endRange)
+            if !wasFocused && autofocus {
+                let allRange = NSRange(location: 0, length: length)
+                editor.setSelectedRange(allRange)
+                editor.scrollRangeToVisible(allRange)
+            } else {
+                let endRange = NSRange(location: length, length: 0)
+                editor.setSelectedRange(endRange)
+                editor.scrollRangeToVisible(endRange)
+            }
         }
+        needsDisplay = true
+    }
+
+    func unfocusFromAccessibility() {
+        guard isCurrentlyFocused else {
+            return
+        }
+        _ = window?.makeFirstResponder(nil)
         needsDisplay = true
     }
 
@@ -859,6 +874,7 @@ struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
     let focus: FocusState<Bool>.Binding
     let accessibilityLabel: String
     let onFocusChange: (Bool) -> Void
+    var onBindSecureField: ((WorkbenchNativeSecureTextField) -> Void)? = nil
     var onSubmit: (() -> Void)?
 
     @Environment(\.isEnabled) private var isEnabled
@@ -879,6 +895,7 @@ struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
             isEnabled: isEnabled
         )
         field.stringValue = SearchInputNormalizer.singleLine(text)
+        onBindSecureField?(field)
         return field
     }
 
@@ -889,6 +906,7 @@ struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
             accessibilityLabel: accessibilityLabel,
             isEnabled: isEnabled
         )
+        onBindSecureField?(nsView)
         let normalized = SearchInputNormalizer.singleLine(text)
         if nsView.stringValue != normalized {
             nsView.stringValue = normalized
@@ -1110,6 +1128,31 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
         }
         super.textDidEndEditing(notification)
         onFocusChange?(false)
+    }
+
+    func focusFromAccessibility() {
+        guard isEnabled && isEditable else {
+            return
+        }
+        if !isCurrentlyFocused {
+            _ = window?.makeFirstResponder(self)
+        }
+        applyBulletKerningToCurrentEditor()
+        if let editor = currentEditor() as? NSTextView {
+            let length = (editor.string as NSString).length
+            let endRange = NSRange(location: length, length: 0)
+            editor.setSelectedRange(endRange)
+            editor.scrollRangeToVisible(endRange)
+        }
+        needsDisplay = true
+    }
+
+    func unfocusFromAccessibility() {
+        guard isCurrentlyFocused else {
+            return
+        }
+        _ = window?.makeFirstResponder(nil)
+        needsDisplay = true
     }
 
     func configure(placeholder: String, accessibilityLabel: String, isEnabled: Bool) {

@@ -6,6 +6,7 @@ struct WorkbenchTextAreaInput: NSViewRepresentable {
     let placeholder: String
     let focus: FocusState<Bool>.Binding
     let onFocusChange: (Bool) -> Void
+    var onBindContainerView: ((WorkbenchTextAreaContainerView) -> Void)? = nil
 
     @Environment(\.isEnabled) private var isEnabled
 
@@ -25,6 +26,7 @@ struct WorkbenchTextAreaInput: NSViewRepresentable {
             isEnabled: isEnabled
         )
         context.coordinator.applyExternalText(text, to: view)
+        onBindContainerView?(view)
         return view
     }
 
@@ -37,6 +39,7 @@ struct WorkbenchTextAreaInput: NSViewRepresentable {
             placeholder: placeholder,
             isEnabled: isEnabled
         )
+        onBindContainerView?(nsView)
         if nsView.shouldApplyExternalText(text) {
             context.coordinator.applyExternalText(text, to: nsView)
         }
@@ -164,6 +167,29 @@ final class WorkbenchTextAreaContainerView: NSView {
             return
         }
         window.makeFirstResponder(textView)
+    }
+
+    func focusFromAccessibility() {
+        guard textView.isEditable else {
+            return
+        }
+        let wasFirst = isTextViewFirstResponder
+        focusTextViewIfPossible()
+        if !wasFirst {
+            let length = (textView.string as NSString).length
+            let endRange = NSRange(location: length, length: 0)
+            textView.setSelectedRange(endRange)
+            textView.scrollRangeToVisible(endRange)
+        }
+        textView.needsDisplay = true
+    }
+
+    func unfocusFromAccessibility() {
+        guard isTextViewFirstResponder else {
+            return
+        }
+        _ = window?.makeFirstResponder(nil)
+        textView.needsDisplay = true
     }
 
     var isTextViewFirstResponder: Bool {

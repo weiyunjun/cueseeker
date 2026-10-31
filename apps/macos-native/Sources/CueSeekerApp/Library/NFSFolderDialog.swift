@@ -75,7 +75,8 @@ struct NFSFolderDialog: View {
                 reservesValidationLine: true,
                 showsErrorBorder: false,
                 focus: $isAddressFocused,
-                normalizeDraft: NFSAddress.decodedDisplayAddress
+                normalizeDraft: NFSAddress.decodedDisplayAddress,
+                dialogInputKind: .remoteAddress
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("nfs-address")

@@ -44,6 +44,8 @@ final class AppCoordinator: ObservableObject {
     let workbenchAccessibility = WorkbenchAccessibilityCoordinator()
     var settingsCancellables: Set<AnyCancellable> = []
     private var interfaceLayerCancellables: Set<AnyCancellable> = []
+    var activeDialogSessionCancellable: AnyCancellable?
+    var activeDialogSessionObjectID: ObjectIdentifier?
 
     let databaseURL: URL
     let playbackSubtitleFocusDatabaseReader: PlaybackSubtitleFocusDatabaseReader
@@ -634,7 +636,7 @@ final class AppCoordinator: ObservableObject {
             }
             .store(in: &interfaceLayerCancellables)
 
-        Publishers.MergeMany(
+        Publishers.MergeMany([
             interfaceLayers.objectWillChange.eraseToAnyPublisher(),
             workbenchLayout.objectWillChange.eraseToAnyPublisher(),
             workbenchLayout.route.objectWillChange.eraseToAnyPublisher(),
@@ -643,11 +645,14 @@ final class AppCoordinator: ObservableObject {
             excerpt.objectWillChange.eraseToAnyPublisher(),
             indexing.objectWillChange.eraseToAnyPublisher(),
             tasks.objectWillChange.eraseToAnyPublisher(),
-            playback.objectWillChange.eraseToAnyPublisher()
-        )
+            playback.objectWillChange.eraseToAnyPublisher(),
+            confirmation.objectWillChange.eraseToAnyPublisher(),
+            filterDialog.objectWillChange.eraseToAnyPublisher()
+        ])
         .sink { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.reconcileWorkbenchAccessibilityFocus()
+                self?.reconcileDialogAccessibilityFocus()
             }
         }
         .store(in: &interfaceLayerCancellables)
