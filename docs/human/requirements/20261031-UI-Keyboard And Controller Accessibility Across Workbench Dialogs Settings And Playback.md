@@ -32,7 +32,7 @@ main
    - **非白名单元素（不参与无障碍）**：系统原生窗口红绿灯、设置页快捷键录制框（`Shortcut Field`，且其处于 `Recording` 录制状态期间全局禁用无障碍）、标题、普通文本、各页面数量统计文本（如 `xx folders`、`xx results`、`xx excerpts`、`xx / yy rows selected`）、静态图标、分割线（含 `Menu Divider`）、面包屑最右侧不可交互的当前末级节点（`Current Item`）、File 单集容器内的视频/字幕文件行整体、远程目录浏览中的纯视频/字幕文件行、任务卡片整体、表格行（`Table Row`）整体、表格已失效（`Unavailable`）行的首列空白槽位与台词文字、播放页进度条与音量滑块轨道、封面裁剪编辑态下的裁剪框与角点手柄、导出 Anki 数据对象胶囊本体与左侧拖拽手柄、长截图预览组、所有字幕流 `Playback Cue Reel` 及其内部项。
 
 3. **按需显现子控件（`Presence`）、布局层 `Hidden` 与结构层 `Collapsed / Closed`**：
-   - **受 `Presence` 控制的个体按需显现子控件**：全应用包含 ① 封面卡片（`Media Card`：含 `Library` 一级、`Excerpt` 一级及 `Recent` / `Command Panel` 中的摘录集卡片）右下角 `dots-three` 按钮、② File 页面卡片（含一/二级文件夹卡片、单集容器内视频/字幕行）右侧 `dots-three` 按钮、③ 任务面板卡片（`Task Card`）右侧 `dots-three` 按钮、④ 表格普通模式下表头首列 `#` 全选 `Checkbox`（存在有效行时）、有效行首列 `Checkbox` 及数据行右侧 `dots-three` 按钮。当无障碍选中父卡片整体或表格行内其他部位时，上述子控件保持不显示；**仅当无障碍光圈直接移至该子控件自身时（或通过该按钮打开菜单期间），仅该单个子控件切换为显示并套上无障碍光圈**（期间即便鼠标移开或窗口失焦也保持显示），无障碍移出该子控件后立即恢复不显示。
+   - **受 `Presence` 控制的个体按需显现子控件**：全应用包含 ① 封面卡片（`Media Card`：含 `Recent` 视频与摘录集卡片、`Library` 一/二级、`Excerpt` 一级、`Playback Video Playlist` 及 `Command Panel` 二级中的可用封面卡片）右下角 `dots-three` 按钮、② File 页面卡片（含一/二级文件夹卡片、单集容器内视频/字幕行）右侧 `dots-three` 按钮、③ 任务面板卡片（`Task Card`）右侧 `dots-three` 按钮、④ 表格普通模式下表头首列 `#` 全选 `Checkbox`（存在有效行时）、有效行首列 `Checkbox` 及数据行右侧 `dots-three` 按钮。当无障碍选中父卡片整体或表格行内其他部位时，上述子控件保持不显示；**仅当无障碍光圈直接移至该子控件自身时（或通过该按钮打开菜单期间），仅该单个子控件切换为显示并套上无障碍光圈**（期间即便鼠标移开或窗口失焦也保持显示），无障碍移出该子控件后立即恢复不显示。
    - **布局层 `Visible / Hidden`（播放页 `Player UI` 唤醒与常驻）**：在播放页主界面按下 `Tab` / `Shift + Tab` / `L1` / `R1` 开启无障碍时，立即将整套 `Player UI`（顶栏、台词队列控制栏、底栏）从 `Hidden` 切换为 `Visible`（不主动唤出已隐藏的鼠标指针）；当无障碍光圈位于 `Player UI` 上时，「不自动隐藏 `Player UI`」优先级高于所有自动隐藏条件（3 秒静止、鼠标移出窗口、`Cmd + Tab` 窗口失焦、进入全屏均不隐藏 `Player UI`）；退出无障碍后立即按当时指针与窗口状态重新判定显隐与 3 秒计时。
    - **结构层 `Collapsed / Closed` 不参与无障碍**：处于收起态的 `Sidebar`、收起态的音量滑块区域、未打开的菜单/二级菜单、未展开的 `Color Well` 预设色块面板、未打开的弹窗/浮层内部组件均不参与无障碍。主窗口在窄窗口模式下展开浮层导航栏（`Overlay Sidebar`）时，被其视觉遮挡的顶栏后退/前进按钮及页面组件不做跳过处理，正常参与无障碍聚焦与触发。
 
@@ -82,9 +82,9 @@ main
      - **普通模式（`Normal Mode`）**：搜索框（及有文字时的内部 `✕`；点击 `✕` 清空文字后 `✕` 消失并自动退出无障碍） → `Filter` 按钮 → `Sort` 按钮 → 表头首列 `#` 全选 `Checkbox`（存在有效行时，选中显现并套光圈，表头整行不变底色） → 各数据行（从上到下，整行不套光圈、不变底色：**有效行**依次选 ① 首列按需显现的 `Checkbox` → ② 圆角 `8px` 热区框套光圈的 `Cues` 台词文字［无下划线］ → ③ 右侧按需显现的 `dots-three` 按钮；**已失效 `Unavailable` 行**仅选右侧按需显现的 `dots-three` 按钮）；
      - **批量选择模式（`Select Mode`）**：第一行右侧 `Exit Selection` 按钮 → 第二行 `Export to Anki` 按钮 → `Copy Deep Links` 按钮 → `Copy Table` 按钮 → 表头首列 `#` 全选 `Checkbox` → 各**有效数据行**首列 `Checkbox`（从上到下；**已失效 `Unavailable` 行**跳过）；
      - 跨屏移动时表格立即最小幅度无动画滚动露出目标项。
-   - **`L-03.1 Recent`**：按非空时间分组（`Last 7 Days` → `Last 30 Days` → `Earlier` → `Never Played`）从上到下、每组网格内从左到右遍历封面卡片（`Videos` 下直接选卡片整体；`Excerpt Lists` 下每张卡片先选整体再选右下角 `dots-three` 按钮）。
+   - **`L-03.1 Recent`**：按非空时间分组（`Last 7 Days` → `Last 30 Days` → `Earlier` → `Never Played`）从上到下、每组网格内从左到右遍历封面卡片（`Videos` 与 `Excerpt Lists` 下均为每张卡片先选整体再选右下角 `dots-three` 按钮）。
    - **`L-04.1 Library` 一级总览页**：搜索框（及内部 `✕`） → 排序按钮 → 下方文件夹卡片网格（从上到下、从左到右，每张卡片先选整体再选右下角 `dots-three` 按钮）。
-   - **`L-04.3 Library` 二级详情页**：`Cover Summary` 底部按钮行（`Resume` / `Play` → `View in File` → `More`） → 下方剧集卡片网格（从上到下、从左到右依次选每张剧集卡片整体）。
+   - **`L-04.3 Library` 二级详情页**：`Cover Summary` 底部按钮行（`Resume` / `Play` → `View in File` → `More`） → 下方剧集卡片网格（从上到下、从左到右，每张剧集卡片先选整体再选右下角 `dots-three` 按钮）。
    - **`L-05.1 Excerpt` 一级总览页**：搜索框（及内部 `✕`） → 排序按钮 → 新建按钮（`+`） → 下方摘录集卡片网格（从上到下、从左到右，每张卡片先选整体再选右下角 `dots-three` 按钮）。
    - **`L-04.5 File` 一/二/三级页面**：顶部 `Add Folder` 按钮 → `Index All` 按钮 → `Status Indicator` 状态文字（所有状态下均可选中，圆角 `6px` 光圈，无下划线） → 面包屑未激活上级链接节点（仅二/三级，从左到右，跳过最右侧当前末级节点） → 一/二级文件夹卡片（从上到下，每张先选卡片整体再选右侧 `dots-three` 按钮，无 `Select` 底色） → 二/三级单集容器内各视频/字幕文件行右侧的 `dots-three` 按钮（从上到下，跳过文件行整体）。
 3. **弹出菜单与二级菜单（`C-04.1` ~ `C-04.3`，含工作台菜单手柄完整适配）**：
@@ -127,11 +127,11 @@ main
 2. **播放页浮层（`L-08 Playback Overlay`）**：
    - **移除原有的 `Tab` 与手柄 `L1` / `R1` 直接切换 `Current / Playlist` 标签页功能**，统一改为无障碍焦点遍历；
    - **`Current` 与 `Subtitle Playlist` 视图**：顶栏（返回按钮 → `Current` Tab → `Playlist` Tab［存在时］ → `Collage` 按钮［仅 `Current`］ → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口） →（中间字幕流 `Reel` 跳过） → 底栏右侧各 `Shortcut Action Button`（从左到右）；
-   - **`Video Playlist` 视图**：顶栏（返回按钮 → `Current` Tab → `Playlist` Tab → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口） → 中间视频封面卡片网格（从上到下、从左到右依次选每张卡片整体，在网格内与常驻 `Select` 双向跟随） → 底栏右侧 `Play` 按钮；
+   - **`Video Playlist` 视图**：顶栏（返回按钮 → `Current` Tab → `Playlist` Tab → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口） → 中间视频封面卡片网格（从上到下、从左到右，每张卡片先选整体再选右下角 `dots-three` 按钮，在网格内与常驻 `Select` 双向跟随） → 底栏右侧 `Play` 按钮；
    - **`Editing Collage` 视图**：顶栏（返回按钮 → `Collage` 按钮 → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口） →（中间左侧长截图预览组与右侧字幕勾选流均跳过） → 底栏右侧各 `Shortcut Action Button`（`Copy Collage` → `Export Collage` → `Select`）。
 3. **命令面板（`L-09 Command Panel`）**：
    - **一级根视图（`L-09.1`）**：打开时默认赋予顶部搜索框普通输入焦点（无外圈光圈）；按 `Tab` / `R1` 开启无障碍时从第 1 个组件（顶部搜索框整体）开始依次遍历：顶部搜索框（及有文字时的内部 `✕`） → 中间选项列表（`Search Action`［Filled Query 时］ → `Recent Videos` → `Recent Excerpt Lists`；仅当无障碍光圈位于该选项列表内时与常驻 `Select` 双向跟随，光圈在顶部搜索框或底栏按钮上时按方向键不移动选项列表 `Select`） → 底栏 `Open` 按钮；
-   - **二级视图 — `Recent Videos` / `Recent Excerpt Lists`（`L-09.2`）**：顶部返回按钮 → 中间封面卡片网格（按分组从上到下、从左到右，在网格内与常驻 `Select` 双向跟随；`Recent Videos` 选卡片整体，`Recent Excerpt Lists` 每张卡片先选整体再选右下角 `dots-three` 按钮） → 底栏 `Open` 按钮；
+   - **二级视图 — `Recent Videos` / `Recent Excerpt Lists`（`L-09.2`）**：顶部返回按钮 → 中间封面卡片网格（按分组从上到下、从左到右，在网格内与常驻 `Select` 双向跟随；`Recent Videos` 与 `Recent Excerpt Lists` 均为每张卡片先选整体再选右下角 `dots-three` 按钮） → 底栏 `Open` 按钮；
    - **二级视图 — `Search Results`（`L-09.2` / `L-09.3`）**：顶部返回按钮 → `Filter` 按钮 → `Sort` 按钮 →（中间搜索结果字幕流 `Reel` 跳过） → 底栏各 `Shortcut Action Button`（`Save to Excerpt List` → `Copy Cue Text` → `Copy Deep Link` → `Play`）。
 
 ---

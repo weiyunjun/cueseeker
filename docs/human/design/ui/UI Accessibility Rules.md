@@ -23,7 +23,7 @@
 4. **受 `Presence` 控制的按需显现子控件 vs 布局层 `Hidden` vs 结构层 `Collapsed / Closed` 的区分规则**：
    - **受 `Presence` 控制的按需显现子控件（个体按需显现）**：
      - **定义与范围**：所属父组件当前已在界面中展开可见，仅子控件自身受插槽 `Presence` 条件控制、常规下只在鼠标 `Hover` 父组件或打开挂靠菜单期间才显现的子控件。全应用包含以下 4 类：
-       1. 封面卡片（`Media Card`：含 `Library` 一级文件夹卡片、`Excerpt` 一级及 `Recent` / `Command Panel` 中的摘录集卡片）右下角的 `dots-three`（`...`）按钮；
+       1. 封面卡片（`Media Card`：含 `Recent` 视频与摘录集卡片、`Library` 一级可用文件夹卡片与二级剧集卡片、`Excerpt` 一级摘录集卡片、`Playback Video Playlist` 卡片、`Command Panel` 最近视频与最近摘录集卡片）右下角的 `dots-three`（`...`）按钮；
        2. File 页面卡片（`File Card`：含一级根目录卡片、二级子文件夹卡片、单集容器内的视频/字幕文件行）右侧的 `dots-three`（`...`）按钮；
        3. 任务面板卡片（`Task Card`）右侧的 `dots-three`（`...`）按钮；
        4. 表格（`Table` 普通模式 `Normal Mode`）表头首列 `#` 槽位的全选 `Checkbox`（当存在有效行时）、有效数据行首列序号槽位的 `Checkbox`、以及数据行 `Cues` 列右侧的 `dots-three`（`...`）按钮。
@@ -192,8 +192,7 @@
 4. **`C-11.5 Media Card`（媒体封面卡片）**：
    - **Workbench 与 Playback 封面卡片规则对齐与唯一区别**：Workbench 封面卡片与 Playback 封面卡片共用同一套 `Select` + `Hover` 状态机（无障碍进入或在卡片网格内移动时联动触发 `Select`，立即取消已有鼠标 `Hover` 效果并将鼠标 `Hover` 状态机置为抑制态，直至鼠标再次实际移动；同一卡片同时处于 `Select` 与 `Hover` 时只显示无动画的 `Select` 底色，不叠加 `Hover` 底色）。唯一区别在于 Playback 封面卡片网格强制常驻保持一张卡片处于 `Select`，而 Workbench 封面卡片网格没有强制常驻 `Select`，当无障碍光圈移出网格或退出无障碍后，Workbench 封面卡片的 `Select` 状态立即取消；
    - **Select 承载规则**：在封面卡片网格中，`Select` 状态的最小承载单位为封面卡片整体，卡片内部的 `dots-three` 按钮自身无法被单独 `Select`；
-   - **无内部子按钮的封面卡片**（`Recent Videos` 卡片、`Library` 二级剧集卡片、`Playback Video Playlist` 卡片、`Command Panel Recent Videos` 卡片）：直接选中卡片整体（因处于 `Select` 区域，卡片呈现 `Select` 底色，且外围套上无障碍光圈）；
-   - **带右下角 `dots-three` 按钮的封面卡片**（`Library` 一级文件夹卡片、`Excerpt` 一级及 `Recent` / `Command Panel` 中的摘录集卡片）：按「先整体、再部分」顺序：
+   - **可用封面卡片与右下角 `dots-three` 按钮遍历顺序**（含 `Recent` 视频与摘录集卡片、`Library` 一级文件夹卡片与二级剧集卡片、`Excerpt` 一级摘录集卡片、`Playback Video Playlist` 卡片、`Command Panel` 最近视频与最近摘录集卡片）：按「先整体、再部分」顺序（0 集 `Disabled` 禁用态文件夹卡片无右下角 `dots-three` 按钮，仅选中卡片整体）：
      1. **先选中卡片整体**：卡片呈现 `Select` 底色并套上无障碍光圈（此时因触发 `Select` 联动取消并抑制了鼠标 `Hover`，右下角 `dots-three` 按钮保持隐藏，直至无障碍移至该按钮或鼠标再次实际移动悬停于该卡片）；
      2. **再选中右下角 `dots-three` 按钮**：该 `dots-three` 按钮显现并套上无障碍光圈；同时因无障碍仍处于该卡片网格（`Select` 区域）内且无法单独 `Select` 按钮，`Select` 底色继续挂在该按钮所属的封面卡片上；
    - **方向键默认选中卡片整体**：当无障碍已处于封面卡片网格内（位于某张卡片整体或其 `dots-three` 按钮上）时，按下方向键（或手柄十字键/左摇杆）默认选中目标卡片的**卡片整体**。
@@ -234,11 +233,11 @@
 
 ### 3.1.2 各业务页面内容区内部顺序
 1. **`L-03.1 Recent`**：
-   - 按非空时间分组（`Last 7 Days` → `Last 30 Days` → `Earlier` → `Never Played`）从上到下、每组网格内从左到右依次遍历封面卡片（`Videos` 标签页下直接选每张卡片整体；`Excerpt Lists` 标签页下每张卡片先选整体再选右下角 `dots-three` 按钮）。
+   - 按非空时间分组（`Last 7 Days` → `Last 30 Days` → `Earlier` → `Never Played`）从上到下、每组网格内从左到右依次遍历封面卡片（`Videos` 与 `Excerpt Lists` 标签页下均为每张卡片先选整体再选右下角 `dots-three` 按钮）。
 2. **`L-04.1 Library` 一级总览页**：
    - 搜索框（及内部 `✕`） → 排序按钮 → 下方文件夹卡片网格（从上到下、从左到右，每张卡片先选整体再选右下角 `dots-three` 按钮）。
 3. **`L-04.3 Library` 二级详情页**：
-   - `Cover Summary` 底部按钮行（`Resume` / `Play` → `View in File` → `More`） → 下方剧集卡片网格（从上到下、从左到右依次选每张剧集卡片整体）。
+   - `Cover Summary` 底部按钮行（`Resume` / `Play` → `View in File` → `More`） → 下方剧集卡片网格（从上到下、从左到右，每张剧集卡片先选整体再选右下角 `dots-three` 按钮）。
 4. **`L-04.5 File` 一/二/三级页面**：
    - 顶部操作行：`Add Folder` 按钮 → `Index All` 按钮 → `Status Indicator` 状态文字；
    - 面包屑行（仅二/三级页面）：从左到右依次选中未激活的上级链接节点；
@@ -306,7 +305,7 @@
    - **底栏（`L-08.3`）**：右侧动作区各 `Shortcut Action Button`（从左到右）。
 2. **`Video Playlist` 视图**：
    - **顶栏（`L-08.2`）**：返回按钮 → 顶栏 `Tabs`（`Current` → `Playlist`） → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口；
-   - **内容区（`L-08.5`）**：视频封面卡片网格（从上到下、从左到右依次选中每张卡片整体，在卡片网格内与 `Select` 双向跟随）；
+   - **内容区（`L-08.5`）**：视频封面卡片网格（从上到下、从左到右，每张卡片先选整体再选右下角 `dots-three` 按钮，在卡片网格内与 `Select` 双向跟随）；
    - **底栏（`L-08.3`）**：右侧 `Play` 按钮。
 3. **`Editing Collage` 长截图编辑视图**：
    - **顶栏（`L-08.2`）**：返回按钮 → `Collage` 按钮 → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口；
@@ -318,6 +317,6 @@
    - 打开时默认聚焦顶部搜索框（无外圈光圈）；
    - 按 `Tab` 开启无障碍时从第 1 个组件（顶部搜索框整体）开始依次遍历：顶部搜索框（及有文字时的内部 `✕`） → 中间选项列表（`Search Action`［Filled Query 时］ → `Recent Videos` → `Recent Excerpt Lists`；无障碍位于该选项列表内时与 `Select` 双向跟随） → 底栏 `Open` 按钮。
 2. **二级视图 — `Recent Videos` / `Recent Excerpt Lists`（`L-09.2`）**：
-   - 顶部返回按钮 → 中间封面卡片网格（按分组从上到下、从左到右，在网格内与 `Select` 双向跟随；`Recent Videos` 直接选卡片整体，`Recent Excerpt Lists` 每张卡片先选整体再选右下角 `dots-three` 按钮） → 底栏 `Open` 按钮。
+   - 顶部返回按钮 → 中间封面卡片网格（按分组从上到下、从左到右，在网格内与 `Select` 双向跟随；`Recent Videos` 与 `Recent Excerpt Lists` 均为每张卡片先选整体再选右下角 `dots-three` 按钮） → 底栏 `Open` 按钮。
 3. **二级视图 — `Search Results`（`L-09.2` / `L-09.3`）**：
    - 顶部返回按钮 → `Filter` 按钮 → `Sort` 按钮 →（中间搜索结果字幕流 `Reel` 跳过） → 底栏各 `Shortcut Action Button`（从左到右）。
