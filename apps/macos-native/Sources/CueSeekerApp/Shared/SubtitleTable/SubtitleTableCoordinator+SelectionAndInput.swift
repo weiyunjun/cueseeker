@@ -1502,6 +1502,9 @@ extension SubtitleTableView.Coordinator {
         else {
             return false
         }
+        WorkbenchAccessibilityDebugLog.log(
+            "SubtitleTableView.Coordinator.handleKeyDown keyCode=\(event.keyCode) focusedCheckboxRow=\(String(describing: focusedCheckboxRow)) a11y.focused=\(String(describing: workbenchAccessibility?.focusedTarget))"
+        )
 
         switch event.keyCode {
         case 48:

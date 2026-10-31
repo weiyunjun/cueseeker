@@ -261,6 +261,7 @@ extension AppCoordinator {
         searchDraft: String,
         to targets: inout [WorkbenchAccessibilityTarget]
     ) {
+        let beforeCount = targets.count
         if workbenchAccessibility.isTableInSelectionMode {
             targets.append(.toolbarExitSelectButton)
             targets.append(.toolbarSelectionAction(.exportToAnki))
@@ -274,11 +275,19 @@ extension AppCoordinator {
             targets.append(.toolbarFilterButton)
             targets.append(.toolbarSortButton)
         }
+        let toolbarTargets = Array(targets.suffix(from: beforeCount))
+        let tableTargets: [WorkbenchAccessibilityTarget]
         if let overrideTargets = workbenchAccessibility.tableTargetsOverrideForTesting {
-            targets.append(contentsOf: overrideTargets())
+            tableTargets = overrideTargets()
         } else if let tableCoordinator = workbenchAccessibility.activeSubtitleTableCoordinator {
-            targets.append(contentsOf: tableCoordinator.accessibilityTargets())
+            tableTargets = tableCoordinator.accessibilityTargets()
+        } else {
+            tableTargets = []
         }
+        targets.append(contentsOf: tableTargets)
+        WorkbenchAccessibilityDebugLog.log(
+            "appendSchemaToolbarAndTableTargets route=\(workbenchLayout.currentRoute) a11y.isTableInSelectionMode=\(workbenchAccessibility.isTableInSelectionMode) tableCoord.isSelectionMode=\(String(describing: workbenchAccessibility.activeSubtitleTableCoordinator?.isSelectionMode)) toolbarTargets=\(toolbarTargets) tableTargetsCount=\(tableTargets.count)"
+        )
     }
 
     private func appendExcerptDetailAccessibilityTargets(
@@ -313,6 +322,9 @@ extension AppCoordinator {
             || interfaceLayers.isCovered(.workbenchPage)
             || interfaceLayers.isFrozen(.workbenchPage)
         {
+            WorkbenchAccessibilityDebugLog.log(
+                "reconcileWorkbenchAccessibilityFocus -> clearing due to page state: playbackVisible=\(isPlaybackPageVisible) fullscreen=\(playbackFullscreenManager.isFullscreen) covered=\(interfaceLayers.isCovered(.workbenchPage)) frozen=\(interfaceLayers.isFrozen(.workbenchPage)) focused=\(String(describing: workbenchAccessibility.focusedTarget))"
+            )
             workbenchAccessibility.clear()
             return
         }
@@ -320,7 +332,14 @@ extension AppCoordinator {
             return
         }
         let targets = currentWorkbenchAccessibilityTargets()
-        if !targets.contains(focused) {
+        let contains = targets.contains(focused)
+        WorkbenchAccessibilityDebugLog.log(
+            "reconcileWorkbenchAccessibilityFocus focused=\(focused) contains=\(contains) isTableInSelectionMode=\(workbenchAccessibility.isTableInSelectionMode) targetsCount=\(targets.count)"
+        )
+        if !contains {
+            WorkbenchAccessibilityDebugLog.log(
+                "reconcileWorkbenchAccessibilityFocus -> target \(focused) NOT in targets! Clearing focus. nonTableTargets=\(targets.filter { !$0.isTableTarget })"
+            )
             workbenchAccessibility.clear()
         }
     }
@@ -328,6 +347,11 @@ extension AppCoordinator {
     @discardableResult
     func moveWorkbenchAccessibilityFocus(forward: Bool) -> Bool {
         let targets = currentWorkbenchAccessibilityTargets()
+        let nonTableTargets = targets.filter { !$0.isTableTarget }
+        let tableTargets = targets.filter { $0.isTableTarget }
+        WorkbenchAccessibilityDebugLog.log(
+            "moveWorkbenchAccessibilityFocus forward=\(forward) current=\(String(describing: workbenchAccessibility.focusedTarget)) isTableInSelectionMode=\(workbenchAccessibility.isTableInSelectionMode) nonTableTargets=\(nonTableTargets) tableTargetsCount=\(tableTargets.count) firstTable=\(String(describing: tableTargets.first)) lastTable=\(String(describing: tableTargets.last))"
+        )
         guard !targets.isEmpty else {
             workbenchAccessibility.clear()
             return true
@@ -418,6 +442,9 @@ extension AppCoordinator {
 
     @discardableResult
     func activateWorkbenchAccessibilityTarget(_ target: WorkbenchAccessibilityTarget) -> Bool {
+        WorkbenchAccessibilityDebugLog.log(
+            "activateWorkbenchAccessibilityTarget START target=\(target) route=\(workbenchLayout.currentRoute) isTableInSelectionMode=\(workbenchAccessibility.isTableInSelectionMode) activeSearchTextField=\(workbenchAccessibility.activeSearchTextField != nil) onOpenFilter=\(workbenchAccessibility.onOpenToolbarFilterDialog != nil) onToggleSort=\(workbenchAccessibility.onToggleToolbarSortMenu != nil) onExitSelect=\(workbenchAccessibility.onExitTableSelectionMode != nil) onPerformSelectionAction=\(workbenchAccessibility.onPerformSelectionAction != nil)"
+        )
         defer {
             reconcileWorkbenchAccessibilityFocus()
             DispatchQueue.main.async { [weak self] in
@@ -531,10 +558,16 @@ extension AppCoordinator {
             return true
 
         case .toolbarSearchField:
+            WorkbenchAccessibilityDebugLog.log(
+                "activateWorkbenchAccessibilityTarget .toolbarSearchField -> activeSearchTextField=\(String(describing: workbenchAccessibility.activeSearchTextField))"
+            )
             workbenchAccessibility.activeSearchTextField?.focusFromAccessibility()
             return true
 
         case .toolbarSearchClearButton:
+            WorkbenchAccessibilityDebugLog.log(
+                "activateWorkbenchAccessibilityTarget .toolbarSearchClearButton -> activeSearchTextField=\(String(describing: workbenchAccessibility.activeSearchTextField))"
+            )
             workbenchAccessibility.activeSearchTextField?.clearTextAndFocus()
             switch workbenchLayout.currentRoute {
             case .search:
@@ -552,15 +585,19 @@ extension AppCoordinator {
 
         case .toolbarFilterButton:
             guard let openFilter = workbenchAccessibility.onOpenToolbarFilterDialog else {
+                WorkbenchAccessibilityDebugLog.log("activateWorkbenchAccessibilityTarget .toolbarFilterButton FAILED: onOpenToolbarFilterDialog is nil")
                 return false
             }
+            WorkbenchAccessibilityDebugLog.log("activateWorkbenchAccessibilityTarget .toolbarFilterButton -> invoking openFilter()")
             openFilter()
             return true
 
         case .toolbarSortButton:
             guard let toggleSort = workbenchAccessibility.onToggleToolbarSortMenu else {
+                WorkbenchAccessibilityDebugLog.log("activateWorkbenchAccessibilityTarget .toolbarSortButton FAILED: onToggleToolbarSortMenu is nil")
                 return false
             }
+            WorkbenchAccessibilityDebugLog.log("activateWorkbenchAccessibilityTarget .toolbarSortButton -> invoking toggleSort()")
             toggleSort()
             return true
 
@@ -570,23 +607,30 @@ extension AppCoordinator {
 
         case .toolbarExitSelectButton:
             guard let exitSelect = workbenchAccessibility.onExitTableSelectionMode else {
+                WorkbenchAccessibilityDebugLog.log("activateWorkbenchAccessibilityTarget .toolbarExitSelectButton FAILED: onExitTableSelectionMode is nil")
                 return false
             }
+            WorkbenchAccessibilityDebugLog.log("activateWorkbenchAccessibilityTarget .toolbarExitSelectButton -> invoking exitSelect()")
             exitSelect()
             return true
 
         case .toolbarSelectionAction(let actionID):
             guard let performAction = workbenchAccessibility.onPerformSelectionAction else {
+                WorkbenchAccessibilityDebugLog.log("activateWorkbenchAccessibilityTarget .toolbarSelectionAction(\(actionID)) FAILED: onPerformSelectionAction is nil")
                 return false
             }
+            WorkbenchAccessibilityDebugLog.log("activateWorkbenchAccessibilityTarget .toolbarSelectionAction(\(actionID)) -> invoking performAction")
             performAction(actionID)
             return true
 
         case .tableHeaderCheckbox, .tableRowCheckbox, .tableRowCueText, .tableRowActionButton:
             guard let tableCoordinator = workbenchAccessibility.activeSubtitleTableCoordinator else {
+                WorkbenchAccessibilityDebugLog.log("activateWorkbenchAccessibilityTarget \(target) FAILED: activeSubtitleTableCoordinator is nil")
                 return false
             }
-            return tableCoordinator.activateAccessibilityTarget(target)
+            let result = tableCoordinator.activateAccessibilityTarget(target)
+            WorkbenchAccessibilityDebugLog.log("activateWorkbenchAccessibilityTarget \(target) -> tableCoordinator returned \(result)")
+            return result
 
         case .mediaCard(let cardID):
             switch workbenchLayout.currentRoute {
@@ -705,12 +749,16 @@ extension AppCoordinator {
     // MARK: - Keyboard & Controller Routing
 
     func handleWorkbenchKeyDown(_ event: NSEvent) -> Bool {
+        let firstResponderDesc = String(describing: NSApp.keyWindow?.firstResponder)
         guard !isPlaybackPageVisible,
               !playbackFullscreenManager.isFullscreen,
               !interfaceLayers.isCovered(.workbenchPage),
               !interfaceLayers.isFrozen(.workbenchPage),
               !Self.hasMarkedTextInFocusedEditor()
         else {
+            WorkbenchAccessibilityDebugLog.log(
+                "handleWorkbenchKeyDown BLOCKED keyCode=\(event.keyCode) playbackVisible=\(isPlaybackPageVisible) fullscreen=\(playbackFullscreenManager.isFullscreen) covered=\(interfaceLayers.isCovered(.workbenchPage)) frozen=\(interfaceLayers.isFrozen(.workbenchPage)) hasMarkedText=\(Self.hasMarkedTextInFocusedEditor()) firstResponder=\(firstResponderDesc)"
+            )
             return false
         }
 
@@ -719,6 +767,10 @@ extension AppCoordinator {
         guard flags.intersection(disallowed).isEmpty else {
             return false
         }
+
+        WorkbenchAccessibilityDebugLog.log(
+            "handleWorkbenchKeyDown keyCode=\(event.keyCode) shift=\(flags.contains(.shift)) isRepeat=\(event.isARepeat) focused=\(String(describing: workbenchAccessibility.focusedTarget)) isTableInSelectionMode=\(workbenchAccessibility.isTableInSelectionMode) firstResponder=\(firstResponderDesc)"
+        )
 
         switch event.keyCode {
         case MenuGate.tabKeyCode:
@@ -851,8 +903,15 @@ extension AppCoordinator {
               !interfaceLayers.isFrozen(.workbenchPage),
               !Self.hasMarkedTextInFocusedEditor()
         else {
+            WorkbenchAccessibilityDebugLog.log(
+                "handleWorkbenchControllerInput BLOCKED input=\(input) playbackVisible=\(isPlaybackPageVisible) fullscreen=\(playbackFullscreenManager.isFullscreen) covered=\(interfaceLayers.isCovered(.workbenchPage)) frozen=\(interfaceLayers.isFrozen(.workbenchPage)) hasMarkedText=\(Self.hasMarkedTextInFocusedEditor())"
+            )
             return false
         }
+
+        WorkbenchAccessibilityDebugLog.log(
+            "handleWorkbenchControllerInput input=\(input) focused=\(String(describing: workbenchAccessibility.focusedTarget)) isTableInSelectionMode=\(workbenchAccessibility.isTableInSelectionMode)"
+        )
 
         switch input {
         case .button(let button, let isRepeat):

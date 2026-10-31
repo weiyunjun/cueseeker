@@ -1,5 +1,49 @@
 import AppKit
+import CueSeekerCore
 import SwiftUI
+
+enum WorkbenchAccessibilityDebugLog {
+    private static let lock = NSLock()
+    private static let workspaceLogURL = URL(
+        fileURLWithPath: "/Users/weiyunjun/Documents/Code/CueSeeker/logs/a11y-debug.log"
+    )
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    static func log(_ event: String, _ details: String = "") {
+        guard !ApplicationInfo.isRunningInUnitTestProcess else { return }
+        let timestamp = isoFormatter.string(from: Date())
+        let line = details.isEmpty
+            ? "\(timestamp) [A11Y_DEBUG] \(event)\n"
+            : "\(timestamp) [A11Y_DEBUG] \(event) | \(details)\n"
+        AppLogger.shared.info(.app, "[A11Y_DEBUG] \(event)", details: details.isEmpty ? nil : details)
+        NSLog("[A11Y_DEBUG] %@ | %@", event, details)
+        lock.lock()
+        defer { lock.unlock() }
+        do {
+            let dir = workspaceLogURL.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            if !FileManager.default.fileExists(atPath: workspaceLogURL.path) {
+                try Data(line.utf8).write(to: workspaceLogURL, options: .atomic)
+            } else {
+                let handle = try FileHandle(forWritingTo: workspaceLogURL)
+                defer { try? handle.close() }
+                try handle.seekToEnd()
+                try handle.write(contentsOf: Data(line.utf8))
+            }
+        } catch {
+            // Ignore file write errors in debug helper
+        }
+    }
+
+    static func ptr(_ object: AnyObject?) -> String {
+        guard let object else { return "nil" }
+        return String(describing: Unmanaged.passUnretained(object).toOpaque())
+    }
+}
 
 enum SchemaWorkbenchSelectionActionID: String, Hashable {
     case exportToAnki = "anki"
@@ -93,13 +137,31 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
 
     /// Current SubtitleTableView coordinator when `Search` or `Excerpt` Detail
     /// is mounted on the Workbench page.
-    weak var activeSubtitleTableCoordinator: SubtitleTableView.Coordinator?
+    weak var activeSubtitleTableCoordinator: SubtitleTableView.Coordinator? {
+        didSet {
+            if activeSubtitleTableCoordinator !== oldValue {
+                WorkbenchAccessibilityDebugLog.log(
+                    "Coordinator.activeSubtitleTableCoordinator.didSet",
+                    "old=\(oldValue?.tableName ?? "nil")(\(WorkbenchAccessibilityDebugLog.ptr(oldValue))) new=\(activeSubtitleTableCoordinator?.tableName ?? "nil")(\(WorkbenchAccessibilityDebugLog.ptr(activeSubtitleTableCoordinator)))"
+                )
+            }
+        }
+    }
     var tableTargetsOverrideForTesting: (() -> [WorkbenchAccessibilityTarget])?
 
     /// Weak reference to the active Workbench search field's native text field,
     /// so focusing `.toolbarSearchField` places the insertion point inside it
     /// and leaving `.toolbarSearchField` resigns first responder.
-    weak var activeSearchTextField: WorkbenchNativeSingleLineTextField?
+    weak var activeSearchTextField: WorkbenchNativeSingleLineTextField? {
+        didSet {
+            if activeSearchTextField !== oldValue {
+                WorkbenchAccessibilityDebugLog.log(
+                    "Coordinator.activeSearchTextField.didSet",
+                    "old=\(WorkbenchAccessibilityDebugLog.ptr(oldValue)) new=\(WorkbenchAccessibilityDebugLog.ptr(activeSearchTextField)) newWindow=\(activeSearchTextField?.window != nil)"
+                )
+            }
+        }
+    }
 
     /// Closures registered by card grids (`Recent` Excerpt Lists, `Library` Overview,
     /// `Excerpt` Overview) to open the card's `dots-three` menu by card ID.
@@ -123,7 +185,16 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
 
     /// Whether the active Workbench table (`Search` or `Excerpt` Detail) is
     /// currently in batch selection mode (`Select Mode`).
-    var isTableInSelectionMode: Bool = false
+    var isTableInSelectionMode: Bool = false {
+        didSet {
+            if isTableInSelectionMode != oldValue {
+                WorkbenchAccessibilityDebugLog.log(
+                    "Coordinator.isTableInSelectionMode.didSet",
+                    "old=\(oldValue) new=\(isTableInSelectionMode) focused=\(String(describing: focusedTarget))"
+                )
+            }
+        }
+    }
 
     /// Closure registered by `WorkbenchLibraryView` or `WorkbenchExcerptTableView`
     /// to toggle the Cover Summary `More` menu when `.coverSummaryMoreButton` is activated.
@@ -158,6 +229,10 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         if focusedTarget != target {
             focusedTarget = target
         }
+        WorkbenchAccessibilityDebugLog.log(
+            "Coordinator.setFocus",
+            "from=\(String(describing: previous)) to=\(String(describing: target)) isTableInSelectionMode=\(isTableInSelectionMode) tableIsSelectionMode=\(String(describing: activeSubtitleTableCoordinator?.isSelectionMode)) searchField=\(WorkbenchAccessibilityDebugLog.ptr(activeSearchTextField))"
+        )
         if target?.mediaCardID != nil {
             PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
         }
@@ -168,9 +243,14 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
 
     @discardableResult
     func clear() -> Bool {
-        guard focusedTarget != nil else {
+        guard let previous = focusedTarget else {
             return false
         }
+        let caller = Thread.callStackSymbols.dropFirst(1).prefix(4).joined(separator: " <- ")
+        WorkbenchAccessibilityDebugLog.log(
+            "Coordinator.clear",
+            "cleared=\(String(describing: previous)) isTableInSelectionMode=\(isTableInSelectionMode) caller=\(caller)"
+        )
         focusedTarget = nil
         CardHighlightModel.broadcastWorkbenchAccessibilitySelectedCardChanged(nil)
         activeSubtitleTableCoordinator?.syncWorkbenchAccessibilityFocus(nil)
@@ -182,6 +262,10 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         guard let field = activeSearchTextField, field.isCurrentlyFocused else {
             return false
         }
+        WorkbenchAccessibilityDebugLog.log(
+            "Coordinator.resignActiveSearchTextFieldIfFocused",
+            "field=\(WorkbenchAccessibilityDebugLog.ptr(field))"
+        )
         _ = field.window?.makeFirstResponder(nil)
         return true
     }
@@ -224,12 +308,25 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         to next: WorkbenchAccessibilityTarget?
     ) {
         if next == .toolbarSearchField {
+            WorkbenchAccessibilityDebugLog.log(
+                "Coordinator.syncNativeSearchFieldFocus.schedule",
+                "from=\(String(describing: previous)) activeSearchTextField=\(WorkbenchAccessibilityDebugLog.ptr(activeSearchTextField))"
+            )
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.focusedTarget == .toolbarSearchField else { return }
+                guard let self else { return }
+                WorkbenchAccessibilityDebugLog.log(
+                    "Coordinator.syncNativeSearchFieldFocus.async",
+                    "focusedTarget=\(String(describing: self.focusedTarget)) activeSearchTextField=\(WorkbenchAccessibilityDebugLog.ptr(self.activeSearchTextField)) window=\(self.activeSearchTextField?.window != nil)"
+                )
+                guard self.focusedTarget == .toolbarSearchField else { return }
                 self.activeSearchTextField?.focusFromAccessibility()
             }
         } else if next != nil {
             if let field = activeSearchTextField, field.isCurrentlyFocused {
+                WorkbenchAccessibilityDebugLog.log(
+                    "Coordinator.syncNativeSearchFieldFocus.resign",
+                    "to=\(String(describing: next)) field=\(WorkbenchAccessibilityDebugLog.ptr(field))"
+                )
                 _ = field.window?.makeFirstResponder(nil)
             }
         }
