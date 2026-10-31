@@ -1,5 +1,5 @@
 import AppKit
-import CueSeekerCore
+@testable import CueSeekerCore
 import SwiftUI
 import Testing
 @testable import CueSeekerApp
@@ -442,5 +442,119 @@ struct WorkbenchAccessibilityStep1Tests {
         #expect(app.workbenchAccessibility.activateFileCardAction(id: rootPath))
         // Opening a card menu on the File page clears underlying accessibility focus.
         #expect(app.workbenchAccessibility.focusedTarget == nil)
+    }
+
+    @Test
+    func recentVideosAndLibraryEpisodeGridIncludeWholeCardAndDotsThreeActionButton() {
+        let (app, suiteName, userDefaults) = makeTestCoordinator()
+        defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+
+        let recentItem1 = RecentLibraryWatchingPresentation(
+            videoFileID: 1,
+            subtitleFileID: 101,
+            videoPath: "/Media/Show/Episode 1.mkv",
+            videoName: "Episode 1.mkv",
+            duration: 100,
+            subtitlePath: "/Media/Show/Episode 1.srt",
+            subtitleFormat: .srt,
+            displayTitle: "Episode 1",
+            fileExtension: "mkv",
+            folderPath: "/Media/Show",
+            folderTitle: "Show",
+            episodeNumber: 1,
+            positionMilliseconds: 1_000,
+            playbackDuration: 100,
+            startedAt: "2026-07-22T00:00:00Z",
+            completedAt: nil,
+            updatedAt: "2026-07-22T00:00:00Z",
+            coverPath: nil,
+            coverRevision: nil
+        )
+        let recentItem2 = RecentLibraryWatchingPresentation(
+            videoFileID: 2,
+            subtitleFileID: 102,
+            videoPath: "/Media/Show/Episode 2.mkv",
+            videoName: "Episode 2.mkv",
+            duration: 100,
+            subtitlePath: "/Media/Show/Episode 2.srt",
+            subtitleFormat: .srt,
+            displayTitle: "Episode 2",
+            fileExtension: "mkv",
+            folderPath: "/Media/Show",
+            folderTitle: "Show",
+            episodeNumber: 2,
+            positionMilliseconds: 0,
+            playbackDuration: 100,
+            startedAt: nil,
+            completedAt: nil,
+            updatedAt: "",
+            coverPath: nil,
+            coverRevision: nil
+        )
+
+        app.activateWorkbenchPanelMode(.recentWatching)
+        app.workbenchLayout.selectRecentSection(.videos)
+        app.library.testRecentWatchingStatus = .idle
+        app.library.testRecentWatchingItems = [recentItem1, recentItem2]
+
+        let recentVideoTargets = app.currentWorkbenchAccessibilityTargets()
+        #expect(recentVideoTargets.suffix(4) == [
+            .mediaCard(recentItem1.id),
+            .mediaCardActionButton(recentItem1.id),
+            .mediaCard(recentItem2.id),
+            .mediaCardActionButton(recentItem2.id),
+        ])
+
+        let episodeVideo = CompleteLibraryVideoPresentation(
+            videoFileID: 1,
+            subtitleFileID: 101,
+            videoPath: "/Media/Show/Episode 1.mkv",
+            videoName: "Episode 1.mkv",
+            fileSize: 1_024,
+            videoCodec: "h264",
+            videoWidth: 1_920,
+            videoHeight: 1_080,
+            frameRate: 24,
+            duration: 100,
+            subtitlePath: "/Media/Show/Episode 1.srt",
+            subtitleFormat: .srt,
+            displayTitle: "Episode 1",
+            fileExtension: "mkv",
+            episodeNumber: 1,
+            positionMilliseconds: 1_000,
+            playbackDuration: 100,
+            startedAt: "2026-07-22T00:00:00Z",
+            completedAt: nil,
+            historyUpdatedAt: "2026-07-22T00:00:00Z",
+            coverPath: nil,
+            coverRevision: nil
+        )
+        let folderSummary = CompleteLibraryFolderSummaryPresentation(
+            folderPath: "/Media/Show",
+            folderTitle: "Show",
+            coverPath: nil,
+            coverRevision: nil,
+            episodeCount: 1,
+            indexedAt: "2026-07-22T00:00:00Z"
+        )
+        let folderDetail = CompleteLibraryFolderDetailPresentation(
+            folderPath: "/Media/Show",
+            folderTitle: "Show",
+            videos: [episodeVideo]
+        )
+
+        app.library.completeLibraryFolderSummaries = [folderSummary]
+        app.library.completeLibraryFolderDetailStatusesByPath["/Media/Show"] = .idle
+        app.library.completeLibraryFolderDetailsByPath["/Media/Show"] = folderDetail
+        app.navigateWorkbench(to: .libraryFolder(folderPath: "/Media/Show"))
+
+        let episodeDetailTargets = app.currentWorkbenchAccessibilityTargets()
+        #expect(episodeDetailTargets.suffix(5) == [
+            .coverSummaryPrimaryButton,
+            .coverSummaryEditCoverButton,
+            .coverSummaryMoreButton,
+            .mediaCard(episodeVideo.id),
+            .mediaCardActionButton(episodeVideo.id),
+        ])
     }
 }

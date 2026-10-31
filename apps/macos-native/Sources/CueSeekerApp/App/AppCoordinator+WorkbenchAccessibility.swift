@@ -71,6 +71,7 @@ extension AppCoordinator {
             for entry in sections {
                 for item in entry.items {
                     targets.append(.mediaCard(item.id))
+                    targets.append(.mediaCardActionButton(item.id))
                 }
             }
         case .excerpts:
@@ -107,9 +108,11 @@ extension AppCoordinator {
         }
         targets.append(.toolbarSortButton)
 
-        for folder in library.displayedCompleteLibraryFolderSummaries where folder.episodeCount > 0 {
+        for folder in library.displayedCompleteLibraryFolderSummaries {
             targets.append(.mediaCard(folder.id))
-            targets.append(.mediaCardActionButton(folder.id))
+            if folder.episodeCount > 0 {
+                targets.append(.mediaCardActionButton(folder.id))
+            }
         }
     }
 
@@ -140,6 +143,7 @@ extension AppCoordinator {
 
         for video in detail.videos {
             targets.append(.mediaCard(video.id))
+            targets.append(.mediaCardActionButton(video.id))
         }
     }
 
