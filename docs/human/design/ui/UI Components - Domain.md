@@ -855,9 +855,9 @@
   - 随未隐藏指针的当前位置更新（滚动期间按 `300ms` 防抖，键盘/手柄移动 Selected 时立即清除并抑制 Hover 直至鼠标实际移动，菜单或对话框打开期间冻结在关联卡片上，关闭后立即按指针位置重算）；右键点击只触发 Hover，不改变 Selected
 - Selected
   - Background：`--color-library-media-card-selected-bg`（不带动画）
-  - 仅存在于 Playback 界面的卡片网格，始终保持一张卡片处于 Selected；Workbench 界面的封面卡片无 Selected 状态
+  - Playback 界面的卡片网格强制始终保持一张卡片处于 Selected（离开网格或退出无障碍后仍保留）；Workbench 界面的卡片网格无强制常驻 Selected，仅在无障碍光圈位于卡片网格内时联动使对应卡片处于 Selected，脱离网格或退出无障碍后立即取消 Selected
   - 同一张卡片同时处于 Selected 与 Hover 时，只显示 Selected 背景，不叠加
-  - 仅初始默认 Selected 与方向键/手柄导航改变 Selected 时，若卡片显示不全则最小滚动使其完整可见，不带动画
+  - 仅初始默认 Selected、无障碍进入/移动及方向键/手柄导航改变 Selected 时，若卡片显示不全则最小滚动使其完整可见，不带动画
 - Disabled
 
 ## 2.12 Player Controls

@@ -465,6 +465,7 @@
 #### States
 
 - Default
+- Selected
 - Disabled
 
 ### L-04.3 Library Folder Detail Layout
