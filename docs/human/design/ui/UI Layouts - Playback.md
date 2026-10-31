@@ -276,8 +276,7 @@
 
 #### Keyboard
 
-- Focused Tab：None
-- `Tab`：Switch Current / Playlist
+- `Tab` / `Shift + Tab`：按无障碍顺序遍历组件（详见 [`UI Accessibility Rules.md`](UI%20Accessibility%20Rules.md)）
 
 #### States
 

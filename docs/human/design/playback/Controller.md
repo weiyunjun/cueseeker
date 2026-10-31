@@ -24,8 +24,8 @@ Options键：相当于键盘的打开Command Panel的按键，相当于键盘的
 方向右键：相当于键盘的方向右键。
 左摇杆往右拨：相当于键盘的方向右键。
 
-L1：在Playback Overlay界面中，切换到上一个标签。
-R1：在Playback Overlay界面中，切换到下一个标签，相当于键盘的Tab键。
+L1：无障碍逆序开启或移向上一个无障碍组件，相当于键盘的Shift + Tab键。
+R1：无障碍正序开启或移向下一个无障碍组件，相当于键盘的Tab键。
 L2：在视频播放界面，切换到上一个结果，相当于键盘的A键。
 R2：在视频播放界面，切换到下一个结果，相当于键盘的D键。
 L3：在视频播放界面，显示/隐藏字幕，相当于键盘的Q键。
@@ -38,4 +38,3 @@ R3：在视频播放界面，进入/退出全屏，相当于键盘的F键。
 4. 左摇杆往上拨或往下拨，在Playback Overlay，Command Panel，Collage界面，长按像键盘方向键一样连续移动。
 5. 左摇杆往上拨或往下拨，在Playback Overlay，Command Panel，Collage界面，斜向输入按主轴处理。
 6. 左摇杆往上拨或往下拨，在Playback Overlay，Command Panel，Collage界面，回到死区后才能重新触发。
-7. L1和R1允许循环切换标签。

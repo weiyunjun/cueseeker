@@ -123,7 +123,7 @@ main
 ### Step 4：播放页主界面、播放浮层与命令面板（`L-07` ~ `L-09`）
 1. **播放页主界面（`L-07 Player`）**：
    - 实现 `Player UI` 开启无障碍唤醒（保持已隐藏鼠标指针不唤出）、无障碍存续期间最高优先级常驻 `Visible`（忽略 3 秒静止、移出窗口、窗口失焦、进入全屏）、以及退出无障碍后按当时条件立即隐藏或重计 3 秒的完整联动；
-   - 遍历顺序：顶栏（返回按钮 → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口） → 台词队列控制栏（仅台词队列播放显示时：`Auto Pause` → `Auto Switch` → 步进器 `-` → 步进器 `+`，含 `Disabled` 态按钮，跳过中间毫秒数文本） → 底栏控制行（左侧播控按钮组从左到右 → 音量控件左侧静音喇叭按钮［不展开右侧音量滑块、不显示 Hover 背景，跳过音量滑块轨道］ → 右侧字幕菜单按钮 → 倍速菜单按钮 → 更多菜单按钮 → 全屏按钮；跳过顶部播放进度条 `Player Progress Scrubber`）。
+   - 遍历顺序：顶栏（返回按钮 → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口） → 台词队列控制栏（仅台词队列播放显示时：`Auto Pause` → `Auto Switch` → 步进器 `-` → 步进器 `+`，含 `Disabled` 态按钮，跳过中间毫秒数文本） → 底栏控制行（左侧控制组：播放/暂停按钮 → 上一项按钮 → 下一项按钮 → 音量控件左侧静音喇叭按钮［不展开右侧音量滑块、不显示 Hover 背景，跳过音量滑块轨道］ → 右侧控制组：`Playback Overlay` 入口按钮 → 单句循环按钮 → 复制截图按钮 → 字幕菜单按钮 → 倍速菜单按钮 → 更多菜单按钮 → 全屏按钮；跳过顶部播放进度条 `Player Progress Scrubber`）。
 2. **播放页浮层（`L-08 Playback Overlay`）**：
    - **移除原有的 `Tab` 与手柄 `L1` / `R1` 直接切换 `Current / Playlist` 标签页功能**，统一改为无障碍焦点遍历；
    - **`Current` 与 `Subtitle Playlist` 视图**：顶栏（返回按钮 → `Current` Tab → `Playlist` Tab［存在时］ → `Collage` 按钮［仅 `Current`］ → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口） →（中间字幕流 `Reel` 跳过） → 底栏右侧各 `Shortcut Action Button`（从左到右）；
