@@ -72,7 +72,7 @@ extension AppCoordinator {
                         path: standardizedPath,
                         name: name,
                         isRootFolder: false,
-                        folderCount: 1,
+                        folderCount: 0,
                         videoCount: 0,
                         subtitleCount: 0,
                         addedAt: nil,

@@ -150,7 +150,7 @@
 "library.mark_all_watching" = "全部標示為觀看中";
 "library.episode_count.one" = "1 集";
 "library.episode_count.other" = "%d 集";
-"library.folder_summary" = "%1$d 個資料夾 · %2$d 部影片 · ";
+"library.folder_summary" = "%1$d 個資料夾  %2$d 部影片  ";
 "library.subtitle_count" = "%d 個字幕";
 "library.video_subtitle_count" = "%1$d 部影片  %2$d 個字幕";
 "library.view_in_file" = "在檔案中檢視";
@@ -343,9 +343,9 @@
 "file.status.removed" = "已移除：%@";
 "file.status.removal_failed" = "移除失敗：%@";
 "file.status.last_indexed" = "上次索引：%@";
-"file.status.last_indexed_never" = "上次索引：--";
+"file.status.last_indexed_never" = "上次索引：-";
 "file.status.last_updated" = "上次更新：%@";
-"file.status.last_updated_never" = "上次更新：--";
+"file.status.last_updated_never" = "上次更新：-";
 "file.description" = "字幕檔案與同名的影片檔案配對。同一個資料夾下的影片與字幕算作一組，並以該資料夾的名稱作為組名，子資料夾不計入其中。";
 "file.empty_folder_items" = "此資料夾中沒有仍在媒體庫中的項目。";
 "file.direct_content_suffix" = "（根目錄直屬內容）";
@@ -678,8 +678,8 @@
 "file_detail.track_title" = "音軌名稱";
 "file_detail.encoding" = "字元編碼";
 "file_detail.cue_count" = "行數";
-"file_detail.raw_lines" = "原始行數";
-"file_detail.valid_lines" = "有效行數";
+"file_detail.raw_lines" = "原始台詞數";
+"file_detail.valid_lines" = "有效台詞數";
 "file_detail.lines_count" = "%lld 行";
 "file_detail.file_size" = "檔案大小";
 "file_detail.format" = "格式";
@@ -707,7 +707,7 @@
 "task_detail.file_count" = "檔案數量";
 "task_detail.path" = "位置";
 "task_detail.folder_count" = "資料夾數量";
-"task_detail.indexed_subtitles" = "已索引字幕";
+"task_detail.indexed_subtitles" = "字幕數量";
 "task_detail.status" = "狀態";
 "task_detail.status.in_progress" = "進行中";
 "task_detail.status.queued" = "排隊中";

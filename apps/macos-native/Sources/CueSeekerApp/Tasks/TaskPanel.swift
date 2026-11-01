@@ -991,6 +991,15 @@ struct TaskDetailDialog: View {
         }
     }
 
+    private static func decodedPathOrDash(_ path: String?) -> String {
+        guard let path = path?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !path.isEmpty,
+              path != "-" else {
+            return "-"
+        }
+        return RemoteAddressParser.decodedDisplayAddress(path)
+    }
+
     @ViewBuilder
     private var businessGroups: some View {
         switch record.kind {
@@ -998,7 +1007,10 @@ struct TaskDetailDialog: View {
             SettingsGroup(title: L("task_detail.section.export_info")) {
                 FileDetailRow(label: L("task_detail.file_name"), value: record.fileName)
                 SettingsRowDivider()
-                FileDetailRow(label: L("task_detail.location"), value: record.folderPath)
+                FileDetailRow(
+                    label: L("task_detail.location"),
+                    value: Self.decodedPathOrDash(record.folderPath)
+                )
                 SettingsRowDivider()
                 FileDetailRow(label: L("task_detail.card_count"), value: "\(record.itemCount)")
             }
@@ -1006,19 +1018,19 @@ struct TaskDetailDialog: View {
             SettingsGroup(title: L("task_detail.section.rename_info")) {
                 FileDetailRow(
                     label: L("task_detail.original_path"),
-                    value: record.oldPaths.first ?? "-"
+                    value: Self.decodedPathOrDash(record.oldPaths.first)
                 )
                 SettingsRowDivider()
                 FileDetailRow(
                     label: L("task_detail.new_path"),
-                    value: record.newPaths.first ?? "-"
+                    value: Self.decodedPathOrDash(record.newPaths.first)
                 )
             }
         case .renameFiles:
             SettingsGroup(title: L("task_detail.section.rename_info")) {
                 FileDetailRow(
                     label: L("task_detail.location"),
-                    value: record.renameFilesLocation
+                    value: Self.decodedPathOrDash(record.renameFilesLocation)
                 )
                 SettingsRowDivider()
                 FileDetailRow(
@@ -1043,7 +1055,7 @@ struct TaskDetailDialog: View {
                 SettingsGroup(title: L("task_detail.section.index_info")) {
                     FileDetailRow(
                         label: L("task_detail.path"),
-                        value: record.oldPaths.first ?? "-"
+                        value: Self.decodedPathOrDash(record.oldPaths.first)
                     )
                     if record.state == .completed {
                         SettingsRowDivider()
@@ -1069,14 +1081,16 @@ struct TaskDetailDialog: View {
                 }
 
                 SettingsGroup(title: L("task_detail.section.target_folders")) {
-                    WorkbenchDetailIndexedRows(values: record.oldPaths)
+                    WorkbenchDetailIndexedRows(
+                        values: record.oldPaths.map { RemoteAddressParser.decodedDisplayAddress($0) }
+                    )
                 }
             }
         case .addFolder:
             SettingsGroup(title: L("task_detail.section.folder_info")) {
                 FileDetailRow(
                     label: L("task_detail.path"),
-                    value: record.oldPaths.first ?? "-"
+                    value: Self.decodedPathOrDash(record.oldPaths.first)
                 )
                 if record.state == .completed {
                     SettingsRowDivider()
@@ -1090,7 +1104,7 @@ struct TaskDetailDialog: View {
             SettingsGroup(title: L("task_detail.section.folder_info")) {
                 FileDetailRow(
                     label: L("task_detail.path"),
-                    value: record.oldPaths.first ?? "-"
+                    value: Self.decodedPathOrDash(record.oldPaths.first)
                 )
             }
         }

@@ -134,7 +134,7 @@ struct TaskIndexProgress: Equatable, Sendable {
         if stage != .scanningFiles, stageTotal > 0 {
             parts.append("\(stageCompleted) / \(stageTotal)")
         }
-        return parts.joined(separator: " · ")
+        return parts.joined(separator: "  ")
     }
 
     private var stageFraction: Double {

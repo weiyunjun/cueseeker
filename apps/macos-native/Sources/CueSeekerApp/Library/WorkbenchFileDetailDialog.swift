@@ -415,11 +415,6 @@ struct WorkbenchFileDetailDialog: View {
             )
             SettingsRowDivider()
             FileDetailRow(
-                label: L("file_detail.bitrate"),
-                value: Self.bitrateText(fileSize: info.fileSize, duration: info.duration)
-            )
-            SettingsRowDivider()
-            FileDetailRow(
                 label: L("file_detail.duration"),
                 value: Self.durationText(info.duration)
             )
@@ -446,8 +441,8 @@ struct WorkbenchFileDetailDialog: View {
         fileDetailsSection(
             path: info.path,
             fileSize: info.fileSize,
+            bitrate: Self.bitrateText(fileSize: info.fileSize, duration: info.duration),
             containerFormat: info.containerFormat,
-            createdAt: info.createdAt,
             modifiedAt: info.modifiedAt
         )
     }
@@ -490,7 +485,6 @@ struct WorkbenchFileDetailDialog: View {
         fileDetailsSection(
             path: info.path,
             fileSize: info.fileSize,
-            createdAt: info.createdAt,
             modifiedAt: info.modifiedAt
         )
     }
@@ -500,21 +494,26 @@ struct WorkbenchFileDetailDialog: View {
     private func fileDetailsSection(
         path: String,
         fileSize: Int64,
+        bitrate: String? = nil,
         containerFormat: String? = nil,
-        createdAt: Date?,
         modifiedAt: Date?
     ) -> some View {
         SettingsGroup(title: L("file_detail.file_details")) {
             FileDetailRow(label: L("file_detail.file_size"), value: Self.fileSizeText(fileSize))
+            if let bitrate {
+                SettingsRowDivider()
+                FileDetailRow(label: L("file_detail.bitrate"), value: bitrate)
+            }
             SettingsRowDivider()
             FileDetailRow(
                 label: L("file_detail.format"),
                 value: Self.fileFormatText(path: path, containerFormat: containerFormat)
             )
             SettingsRowDivider()
-            FileDetailRow(label: L("file_detail.path"), value: path)
-            SettingsRowDivider()
-            FileDetailRow(label: L("file_detail.created"), value: Self.dateText(createdAt))
+            FileDetailRow(
+                label: L("file_detail.path"),
+                value: RemoteAddressParser.decodedDisplayAddress(path)
+            )
             SettingsRowDivider()
             FileDetailRow(label: L("file_detail.modified"), value: Self.dateText(modifiedAt))
         }
@@ -559,7 +558,7 @@ struct WorkbenchFileDetailDialog: View {
     }
 
     static func channelsText(_ channels: Int?) -> String? {
-        MediaDetailFormatter.channelsText(channels)
+        MediaDetailFormatter.channelsText(channels, locale: AppLocalization.locale)
     }
 
     static func sampleRateText(_ sampleRate: Int?) -> String? {

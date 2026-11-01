@@ -1161,10 +1161,7 @@ final class AppCoordinator: ObservableObject {
     }
 
     static func formattedBytes(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useKB, .useMB, .useGB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
+        FileSizeFormatter.format(bytes: bytes)
     }
 
     nonisolated static func errorMessage(for error: Error) -> String {

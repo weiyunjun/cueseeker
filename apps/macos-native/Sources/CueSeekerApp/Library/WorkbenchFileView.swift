@@ -1417,7 +1417,8 @@ enum FileStatusInfo: Equatable {
 enum FileStatusResolver {
     static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yy-MM-dd HH:mm"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return formatter
     }()
 

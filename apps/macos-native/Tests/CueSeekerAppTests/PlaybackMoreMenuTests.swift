@@ -13,14 +13,14 @@ func audioTrackNamesListWhatTheFileRecordsSeparatedByCommas() {
             for: VideoAudioTrack(language: "jpn", title: nil, codec: "opus", channels: 2),
             at: 0,
             locale: chinese
-        ) == "#1 日语, opus, 2ch"
+        ) == "#1 日语, Opus, 2ch"
     )
     #expect(
         PlaybackAudioTrackName.name(
             for: VideoAudioTrack(language: "jpn", title: "Commentary", codec: "aac", channels: 2),
             at: 1,
             locale: Locale(identifier: "en")
-        ) == "#2 Japanese, Commentary, aac, 2ch"
+        ) == "#2 Japanese, Commentary, AAC, 2ch"
     )
     // A language the system cannot name keeps its tag; nothing recorded
     // leaves the number alone.

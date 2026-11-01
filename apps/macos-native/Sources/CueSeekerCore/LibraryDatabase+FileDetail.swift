@@ -341,7 +341,7 @@ extension LibraryDatabase {
         let (standardizedPath, defaultName, variants, pathPrefixes) = Self.folderScopeStrings(for: folderPath)
         let resolvedName = name ?? defaultName
 
-        var folderCount = isRootFolder ? 0 : 1
+        var folderCount = 0
         var videoCount = 0
         var subtitleCount = 0
 
@@ -351,9 +351,22 @@ extension LibraryDatabase {
             }.joined(separator: " OR ")
 
             if isRootFolder {
+                let folderCountExpression: String
+                if variants.isEmpty {
+                    folderCountExpression = "COALESCE(CAST(vf.folder_id AS TEXT), rtrim(substr(vf.path, 1, length(vf.path) - length(vf.video_name)), '/'))"
+                } else {
+                    let variantPlaceholders = variants.map { _ in "?" }.joined(separator: ", ")
+                    folderCountExpression = """
+                    CASE
+                        WHEN rtrim(substr(vf.path, 1, length(vf.path) - length(vf.video_name)), '/') IN (\(variantPlaceholders))
+                        THEN NULL
+                        ELSE COALESCE(CAST(vf.folder_id AS TEXT), rtrim(substr(vf.path, 1, length(vf.path) - length(vf.video_name)), '/'))
+                    END
+                    """
+                }
                 let statement = try database.prepare(
                     """
-                    SELECT COUNT(DISTINCT COALESCE(CAST(vf.folder_id AS TEXT), rtrim(substr(vf.path, 1, length(vf.path) - length(vf.video_name)), '/'))),
+                    SELECT COUNT(DISTINCT \(folderCountExpression)),
                            COUNT(DISTINCT vf.id),
                            COUNT(DISTINCT sf.id)
                     FROM subtitle_files sf INDEXED BY idx_subtitle_files_subtitle_path
@@ -363,6 +376,10 @@ extension LibraryDatabase {
                     """
                 )
                 var bindIndex: Int32 = 1
+                for variant in variants {
+                    try statement.bind(variant, at: bindIndex)
+                    bindIndex += 1
+                }
                 for prefix in pathPrefixes {
                     try statement.bind(prefix, at: bindIndex)
                     bindIndex += 1
@@ -439,7 +456,33 @@ public enum MediaDetailFormatter {
         (["hevc", "h265", "h.265"], "HEVC / H.265"),
         (["h264", "avc", "h.264"], "H.264 / AVC"),
         (["av1"], "AV1"),
-        (["vp9"], "VP9")
+        (["vp9"], "VP9"),
+        (["vp8"], "VP8"),
+        (["mpeg4"], "MPEG-4"),
+        (["mpeg2video", "mpeg2"], "MPEG-2"),
+        (["mpeg1video", "mpeg1"], "MPEG-1"),
+        (["prores"], "ProRes"),
+        (["wmv3", "wmv2", "wmv1"], "WMV"),
+        (["vc1"], "VC-1"),
+        (["theora"], "Theora"),
+        (["rv40", "rv30"], "RealVideo")
+    ]
+
+    private static let audioCodecMappings: [(tokens: [String], displayName: String)] = [
+        (["flac"], "FLAC"),
+        (["aac", "aac_latm"], "AAC"),
+        (["opus"], "Opus"),
+        (["vorbis"], "Vorbis"),
+        (["mp3", "mp3float"], "MP3"),
+        (["mp2", "mp2float"], "MP2"),
+        (["alac"], "ALAC"),
+        (["ac3", "ac-3"], "AC-3"),
+        (["eac3", "e-ac-3"], "E-AC-3"),
+        (["truehd"], "TrueHD"),
+        (["mlp"], "MLP"),
+        (["dts", "dca"], "DTS"),
+        (["wmav1", "wmav2", "wmapro", "wmalossless"], "WMA"),
+        (["amr_nb", "amr_wb"], "AMR")
     ]
 
     private static let fileFormatDisplayNames: [String: String] = [
@@ -476,14 +519,17 @@ public enum MediaDetailFormatter {
         return formatter
     }()
 
-    private static let decimalGroupingFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.groupingSeparator = ","
-        formatter.usesGroupingSeparator = true
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return formatter
-    }()
+    private static func trimTrailingFractionZeros(_ text: String) -> String {
+        guard text.contains(".") else { return text }
+        var result = text
+        while result.hasSuffix("0") {
+            result.removeLast()
+        }
+        if result.hasSuffix(".") {
+            result.removeLast()
+        }
+        return result
+    }
 
     public static func fileSizeText(_ bytes: Int64) -> String {
         FileSizeFormatter.format(bytes: bytes)
@@ -500,7 +546,10 @@ public enum MediaDetailFormatter {
         let hours = totalSeconds / 3600
         let minutes = (totalSeconds % 3600) / 60
         let seconds = totalSeconds % 60
-        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+        if hours > 0 {
+            return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 
     public static func resolutionText(width: Int?, height: Int?) -> String {
@@ -511,18 +560,22 @@ public enum MediaDetailFormatter {
     public static func frameRateText(_ fps: Double?) -> String {
         guard let fps, fps > 0 else { return "-" }
         let rounded = (fps * 1000).rounded() / 1000
-        if rounded == rounded.rounded() {
-            return "\(Int(rounded)) fps"
-        }
-        return String(format: "%.3f fps", rounded)
+        let formatted = trimTrailingFractionZeros(String(format: "%.3f", rounded))
+        return "\(formatted) fps"
     }
 
     public static func bitrateText(fileSize: Int64, duration: Double?) -> String {
         guard let duration, duration > 0, fileSize > 0 else { return "-" }
         let bps = Double(fileSize * 8) / duration
-        let kbps = Int((bps / 1000).rounded())
-        let formattedKbps = decimalGroupingFormatter.string(from: NSNumber(value: kbps)) ?? "\(kbps)"
-        return "\(formattedKbps) kbps"
+        let kbps = bps / 1000.0
+        let roundedKbps = Int(kbps.rounded())
+        guard roundedKbps > 0 else { return "-" }
+        if roundedKbps >= 1000 {
+            let mbps = (kbps / 1000.0 * 100).rounded() / 100
+            let formattedMbps = trimTrailingFractionZeros(String(format: "%.2f", mbps))
+            return "\(formattedMbps) Mbps"
+        }
+        return "\(roundedKbps) kbps"
     }
 
     public static func codecText(_ codec: String?) -> String {
@@ -532,6 +585,21 @@ public enum MediaDetailFormatter {
         }
         let lower = trimmed.lowercased()
         for mapping in videoCodecMappings where mapping.tokens.contains(where: { lower.contains($0) }) {
+            return mapping.displayName
+        }
+        return trimmed.uppercased()
+    }
+
+    public static func audioCodecText(_ codec: String?) -> String? {
+        guard let trimmed = codec?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        let lower = trimmed.lowercased()
+        if lower.hasPrefix("pcm_") || lower == "pcm" {
+            return "PCM"
+        }
+        for mapping in audioCodecMappings where mapping.tokens.contains(lower) {
             return mapping.displayName
         }
         return trimmed.uppercased()
@@ -547,18 +615,86 @@ public enum MediaDetailFormatter {
               !trimmed.isEmpty else {
             return "-"
         }
+        let lower = trimmed.lowercased()
+        if lower.contains("420")
+            || lower.hasPrefix("nv12")
+            || lower.hasPrefix("nv21")
+            || lower.hasPrefix("p010")
+            || lower.hasPrefix("p016") {
+            return "YUV 4:2:0"
+        }
+        if lower.contains("422")
+            || lower.hasPrefix("yuyv")
+            || lower.hasPrefix("uyvy")
+            || lower.hasPrefix("nv16")
+            || lower.hasPrefix("p210")
+            || lower.hasPrefix("p216")
+            || lower.hasPrefix("v210") {
+            return "YUV 4:2:2"
+        }
+        if lower.contains("444")
+            || lower.hasPrefix("nv24")
+            || lower.hasPrefix("nv42")
+            || lower.hasPrefix("p410")
+            || lower.hasPrefix("p416")
+            || lower.hasPrefix("ayuv")
+            || lower.hasPrefix("v410") {
+            return "YUV 4:4:4"
+        }
+        if lower.contains("410") {
+            return "YUV 4:1:0"
+        }
+        if lower.contains("411") {
+            return "YUV 4:1:1"
+        }
+        if lower.contains("440") {
+            return "YUV 4:4:0"
+        }
+        if lower.contains("rgb") || lower.contains("bgr") || lower.contains("gbr") {
+            return "RGB"
+        }
+        if lower.hasPrefix("gray") || lower.hasPrefix("ya8") || lower.hasPrefix("ya16") {
+            return "Grayscale"
+        }
         return trimmed
     }
 
-    public static func channelsText(_ channels: Int?) -> String? {
+    public static func channelsText(
+        _ channels: Int?,
+        locale: Locale = Locale(identifier: "en")
+    ) -> String? {
         guard let channels, channels > 0 else { return nil }
-        return "\(channels)ch"
+        let id = locale.identifier.lowercased()
+        let isTraditionalChinese = id.contains("hant") || id.contains("tw") || id.contains("hk")
+        let isSimplifiedChinese = !isTraditionalChinese && id.hasPrefix("zh")
+
+        switch channels {
+        case 1:
+            if isTraditionalChinese { return "單聲道 (1.0)" }
+            if isSimplifiedChinese { return "单声道 (1.0)" }
+            return "Mono (1.0)"
+        case 2:
+            if isTraditionalChinese { return "立體聲 (2.0)" }
+            if isSimplifiedChinese { return "立体声 (2.0)" }
+            return "Stereo (2.0)"
+        case 6:
+            if isTraditionalChinese { return "環繞聲 (5.1)" }
+            if isSimplifiedChinese { return "环绕声 (5.1)" }
+            return "Surround (5.1)"
+        case 8:
+            if isTraditionalChinese { return "環繞聲 (7.1)" }
+            if isSimplifiedChinese { return "环绕声 (7.1)" }
+            return "Surround (7.1)"
+        default:
+            return "\(channels)ch"
+        }
     }
 
     public static func sampleRateText(_ sampleRate: Int?) -> String? {
         guard let sampleRate, sampleRate > 0 else { return nil }
-        let formatted = decimalGroupingFormatter.string(from: NSNumber(value: sampleRate)) ?? "\(sampleRate)"
-        return "\(formatted) Hz"
+        let khz = (Double(sampleRate) / 1000.0 * 100).rounded() / 100
+        let formatted = trimTrailingFractionZeros(String(format: "%.2f", khz))
+        return "\(formatted) kHz"
     }
 
     public static func audioBitDepthText(_ bitDepth: Int?) -> String? {
@@ -707,10 +843,10 @@ public enum MediaDetailFormatter {
         locale: Locale
     ) -> [MediaDetailPropertyItem] {
         var items: [MediaDetailPropertyItem] = []
-        if let codec = track.codec?.trimmingCharacters(in: .whitespacesAndNewlines), !codec.isEmpty {
-            items.append(MediaDetailPropertyItem(labelKey: "file_detail.codec", value: codec.uppercased()))
+        if let codec = audioCodecText(track.codec) {
+            items.append(MediaDetailPropertyItem(labelKey: "file_detail.codec", value: codec))
         }
-        if let channels = channelsText(track.channels) {
+        if let channels = channelsText(track.channels, locale: locale) {
             items.append(MediaDetailPropertyItem(labelKey: "file_detail.channels", value: channels))
         }
         if let sampleRate = sampleRateText(track.sampleRate) {

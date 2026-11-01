@@ -150,7 +150,7 @@
 "library.mark_all_watching" = "全部标记为观看中";
 "library.episode_count.one" = "1 集";
 "library.episode_count.other" = "%d 集";
-"library.folder_summary" = "%1$d 个文件夹 · %2$d 个视频 · ";
+"library.folder_summary" = "%1$d 个文件夹  %2$d 个视频  ";
 "library.subtitle_count" = "%d 个字幕";
 "library.video_subtitle_count" = "%1$d 个视频  %2$d 个字幕";
 "library.view_in_file" = "在文件中查看";
@@ -343,9 +343,9 @@
 "file.status.removed" = "已移除：%@";
 "file.status.removal_failed" = "移除失败：%@";
 "file.status.last_indexed" = "上次索引：%@";
-"file.status.last_indexed_never" = "上次索引：--";
+"file.status.last_indexed_never" = "上次索引：-";
 "file.status.last_updated" = "上次更新：%@";
-"file.status.last_updated_never" = "上次更新：--";
+"file.status.last_updated_never" = "上次更新：-";
 "file.description" = "字幕文件与同名的视频文件配对。同一个文件夹下的视频和字幕算作一组，并以该文件夹的名称作为组名，子文件夹不计入其中。";
 "file.empty_folder_items" = "此文件夹中没有仍在媒体库中的项目。";
 "file.direct_content_suffix" = "（根目录直属内容）";
@@ -678,8 +678,8 @@
 "file_detail.track_title" = "音轨名称";
 "file_detail.encoding" = "字符编码";
 "file_detail.cue_count" = "行数";
-"file_detail.raw_lines" = "原始行数";
-"file_detail.valid_lines" = "有效行数";
+"file_detail.raw_lines" = "原始台词数";
+"file_detail.valid_lines" = "有效台词数";
 "file_detail.lines_count" = "%lld 行";
 "file_detail.file_size" = "文件大小";
 "file_detail.format" = "格式";
@@ -707,7 +707,7 @@
 "task_detail.file_count" = "文件数量";
 "task_detail.path" = "位置";
 "task_detail.folder_count" = "文件夹数量";
-"task_detail.indexed_subtitles" = "已索引字幕";
+"task_detail.indexed_subtitles" = "字幕数量";
 "task_detail.status" = "状态";
 "task_detail.status.in_progress" = "进行中";
 "task_detail.status.queued" = "排队中";

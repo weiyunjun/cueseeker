@@ -696,11 +696,11 @@ func theIndexBarDividesFoldersThenStages() {
             folderName: "Anime",
             stageCompleted: 12,
             stageTotal: 40
-        ).label == "\(L("index.stage.covers")) · Anime · 12 / 40"
+        ).label == "\(L("index.stage.covers"))  Anime  12 / 40"
     )
     #expect(
         TaskIndexProgress(stage: .scanningFiles, folderName: "Anime").label
-            == "\(L("index.stage.scanning")) · Anime"
+            == "\(L("index.stage.scanning"))  Anime"
     )
 }
 
@@ -753,9 +753,9 @@ func taskRecordTitlesAndIconsFollowRedesignSpecification() throws {
         newPaths: ["/Videos/Season 01 [FLAC]"]
     )
     #expect(renameFolderRecord.icon == .pencilSimple)
-    #expect(renameFolderRecord.titleActionPrefix == "Renaming Folder: ")
+    #expect(renameFolderRecord.titleActionPrefix == "Rename Folder: ")
     #expect(renameFolderRecord.titleTargetName == "Season 01 [FLAC]")
-    #expect(renameFolderRecord.displayTitle == "Renaming Folder: Season 01 [FLAC]")
+    #expect(renameFolderRecord.displayTitle == "Rename Folder: Season 01 [FLAC]")
 
     let renameFilesRecord = TaskRecord(
         id: 3,
@@ -771,9 +771,9 @@ func taskRecordTitlesAndIconsFollowRedesignSpecification() throws {
         newPaths: ["/Videos/ep01-remastered.mkv", "/Videos/ep01-remastered.srt"]
     )
     #expect(renameFilesRecord.icon == .pencilSimple)
-    #expect(renameFilesRecord.titleActionPrefix == "Renaming Files: ")
+    #expect(renameFilesRecord.titleActionPrefix == "Rename Files: ")
     #expect(renameFilesRecord.titleTargetName == "ep01-remastered")
-    #expect(renameFilesRecord.displayTitle == "Renaming Files: ep01-remastered")
+    #expect(renameFilesRecord.displayTitle == "Rename Files: ep01-remastered")
 
     let indexRecord = TaskRecord(
         id: 4,

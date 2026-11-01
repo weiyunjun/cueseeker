@@ -387,7 +387,7 @@ struct FileRouteNavigationTests {
             Issue.record("Expected failed for removalFailed notice, got \(removalFailed)")
         }
 
-        // 6. Idle: With last updated timestamp formatted as yy-MM-dd HH:mm
+        // 6. Idle: With last updated timestamp formatted as yyyy-MM-dd HH:mm:ss
         let idleWithDate = FileStatusResolver.resolve(
             indexingStatus: .idle,
             folderRemovalStatus: .idle,
@@ -397,7 +397,7 @@ struct FileRouteNavigationTests {
         if case .idle(let text) = idleWithDate {
             let formattedExpected = FileStatusResolver.dateFormatter.string(from: now)
             #expect(text.contains(formattedExpected))
-            #expect(FileStatusResolver.dateFormatter.dateFormat == "yy-MM-dd HH:mm")
+            #expect(FileStatusResolver.dateFormatter.dateFormat == "yyyy-MM-dd HH:mm:ss")
         } else {
             Issue.record("Expected idle with date, got \(idleWithDate)")
         }
@@ -410,9 +410,10 @@ struct FileRouteNavigationTests {
             lastUpdatedDate: nil
         )
         if case .idle(let text) = idleNever {
-            #expect(text.contains("--"))
+            #expect(text.hasSuffix("-"))
+            #expect(!text.contains("--"))
         } else {
-            Issue.record("Expected idle never with '--', got \(idleNever)")
+            Issue.record("Expected idle never with '-', got \(idleNever)")
         }
     }
 

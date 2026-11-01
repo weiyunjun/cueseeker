@@ -631,7 +631,7 @@ func tableSandboxExcerptDateAddedDisplayText(
     let displayFormatter = DateFormatter()
     displayFormatter.locale = Locale(identifier: "en_US_POSIX")
     displayFormatter.timeZone = timeZone
-    displayFormatter.dateFormat = "yy-MM-dd HH:mm"
+    displayFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
     return displayFormatter.string(from: date)
 }
 

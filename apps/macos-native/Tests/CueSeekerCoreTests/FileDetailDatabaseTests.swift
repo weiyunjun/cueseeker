@@ -308,19 +308,19 @@ func testFileDetailFolderInfoCountsAndDirectVsNestedFiles() throws {
     #expect(twoSubfoldersRootInfo.videoCount == 2)
     #expect(twoSubfoldersRootInfo.subtitleCount == 3)
 
-    // 3. Direct paired video+subtitle at root level plus those 2 subfolders -> folderCount == 3
+    // 3. Direct paired video+subtitle at root level plus those 2 subfolders -> folderCount excludes root itself (still 2)
     try writePairedMedia(in: mediaRoot, baseName: "RootMovie", subtitleExtensions: ["srt"])
     _ = try indexer.index(folder: mediaRoot, into: indexingDatabase)
     let rootWithDirectFilesInfo = try libraryDatabase.fileDetailFolderInfo(
         for: mediaRoot.path,
         isRootFolder: true
     )
-    #expect(rootWithDirectFilesInfo.folderCount == 3)
+    #expect(rootWithDirectFilesInfo.folderCount == 2)
     #expect(rootWithDirectFilesInfo.videoCount == 3)
     #expect(rootWithDirectFilesInfo.subtitleCount == 4)
 
     // 4. Add a nested child folder under ShowB and verify Level 2 subfolder query (isRootFolder: false)
-    // counts only direct paired video+subtitle in ShowB
+    // counts only direct paired video+subtitle in ShowB and sets folderCount == 0
     let showBSpecials = showB.appendingPathComponent("Specials", isDirectory: true)
     try writePairedMedia(in: showBSpecials, baseName: "OVA", subtitleExtensions: ["srt", "ja.srt"])
     _ = try indexer.index(folder: mediaRoot, into: indexingDatabase)
@@ -330,7 +330,7 @@ func testFileDetailFolderInfoCountsAndDirectVsNestedFiles() throws {
         isRootFolder: false
     )
     #expect(!showBInfo.isRootFolder)
-    #expect(showBInfo.folderCount == 1)
+    #expect(showBInfo.folderCount == 0)
     #expect(showBInfo.videoCount == 1)
     #expect(showBInfo.subtitleCount == 1)
     #expect(showBInfo.addedAt != nil)
@@ -340,7 +340,7 @@ func testFileDetailFolderInfoCountsAndDirectVsNestedFiles() throws {
         for: showA.path,
         isRootFolder: false
     )
-    #expect(showAInfo.folderCount == 1)
+    #expect(showAInfo.folderCount == 0)
     #expect(showAInfo.videoCount == 1)
     #expect(showAInfo.subtitleCount == 2)
 }

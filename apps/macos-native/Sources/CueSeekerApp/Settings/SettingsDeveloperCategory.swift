@@ -127,7 +127,7 @@ struct SettingsDeveloperCategory: View {
                         .foregroundStyle(.secondary)
                 }
             case .completed(let date):
-                Text(L("settings.developer.updated", date.formatted(date: .omitted, time: .standard)))
+                Text(L("settings.developer.updated", MediaDetailFormatter.dateText(date)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case .failed(let message):
@@ -197,6 +197,6 @@ struct SettingsDeveloperCategory: View {
     }
 
     private func formattedCount(_ value: Int) -> String {
-        value.formatted(.number)
+        "\(value)"
     }
 }

@@ -150,7 +150,7 @@
 "library.mark_all_watching" = "Mark All as Watching";
 "library.episode_count.one" = "1 episode";
 "library.episode_count.other" = "%d episodes";
-"library.folder_summary" = "%1$d Folders · %2$d Videos · ";
+"library.folder_summary" = "%1$d Folders  %2$d Videos  ";
 "library.subtitle_count" = "%d Subtitles";
 "library.video_subtitle_count" = "%1$d videos  %2$d subtitles";
 "library.view_in_file" = "View in File";
@@ -343,9 +343,9 @@
 "file.status.removed" = "Removed %@";
 "file.status.removal_failed" = "Removal Failed: %@";
 "file.status.last_indexed" = "Last Indexed: %@";
-"file.status.last_indexed_never" = "Last Indexed: --";
+"file.status.last_indexed_never" = "Last Indexed: -";
 "file.status.last_updated" = "Last Updated: %@";
-"file.status.last_updated_never" = "Last Updated: --";
+"file.status.last_updated_never" = "Last Updated: -";
 "file.description" = "A subtitle file is paired with the video that shares its file name. Videos and subtitles in the same folder form one group, named after that folder; subfolders are not included.";
 "file.empty_folder_items" = "No items in this folder are in the library.";
 "file.direct_content_suffix" = " (Direct Content)";
@@ -570,8 +570,8 @@
 "task.files_count" = "%d files";
 "task.progress.removing" = "Removing folder";
 "task.title.anki_export" = "Export to Anki: ";
-"task.title.rename_folder" = "Renaming Folder: ";
-"task.title.rename_files" = "Renaming Files: ";
+"task.title.rename_folder" = "Rename Folder: ";
+"task.title.rename_files" = "Rename Files: ";
 "task.title.index" = "Index All";
 "task.title.index_folder" = "Index: ";
 "task.title.add_folder" = "Add Folder: ";
@@ -660,9 +660,9 @@
 "file_detail.added" = "Added";
 "file_detail.updated" = "Updated";
 "file_detail.video" = "Video";
-"file_detail.associated_video" = "Video";
+"file_detail.associated_video" = "Associated Video";
 "file_detail.audio" = "Audio";
-"file_detail.subtitles" = "Subtitles";
+"file_detail.subtitles" = "Associated Subtitles";
 "file_detail.file_details" = "File Details";
 "file_detail.subtitle_specs" = "Subtitle Specifications";
 "file_detail.resolution" = "Resolution";
@@ -678,8 +678,8 @@
 "file_detail.track_title" = "Title";
 "file_detail.encoding" = "Encoding";
 "file_detail.cue_count" = "Cue Count";
-"file_detail.raw_lines" = "Raw Lines";
-"file_detail.valid_lines" = "Valid Lines";
+"file_detail.raw_lines" = "Raw Cues";
+"file_detail.valid_lines" = "Valid Cues";
 "file_detail.lines_count" = "%lld lines";
 "file_detail.file_size" = "File Size";
 "file_detail.format" = "Format";
@@ -707,7 +707,7 @@
 "task_detail.file_count" = "File Count";
 "task_detail.path" = "Path";
 "task_detail.folder_count" = "Folder Count";
-"task_detail.indexed_subtitles" = "Indexed Subtitles";
+"task_detail.indexed_subtitles" = "Subtitle Count";
 "task_detail.status" = "Status";
 "task_detail.status.in_progress" = "In Progress";
 "task_detail.status.queued" = "Queued";

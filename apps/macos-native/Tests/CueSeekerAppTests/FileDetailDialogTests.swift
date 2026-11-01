@@ -91,6 +91,11 @@ struct FileDetailDialogTests {
         #expect(L("file_detail.subtitle_count") == "Subtitle Count")
         #expect(L("file_detail.added") == "Added")
         #expect(L("file_detail.updated") == "Updated")
+        #expect(L("file_detail.subtitles") == "Associated Subtitles")
+        #expect(L("file_detail.associated_video") == "Associated Video")
+        #expect(L("file_detail.raw_lines") == "Raw Cues")
+        #expect(L("file_detail.valid_lines") == "Valid Cues")
+        #expect(L("task_detail.indexed_subtitles") == "Subtitle Count")
 
         AppLocalization.apply(.simplifiedChinese)
         #expect(L("file_detail.get_info") == "查看详情")
@@ -103,6 +108,11 @@ struct FileDetailDialogTests {
         #expect(L("file_detail.path") == "位置")
         #expect(L("file_detail.added") == "添加时间")
         #expect(L("file_detail.updated") == "更新时间")
+        #expect(L("file_detail.subtitles") == "关联字幕")
+        #expect(L("file_detail.associated_video") == "关联视频")
+        #expect(L("file_detail.raw_lines") == "原始台词数")
+        #expect(L("file_detail.valid_lines") == "有效台词数")
+        #expect(L("task_detail.indexed_subtitles") == "字幕数量")
 
         AppLocalization.apply(.traditionalChinese)
         #expect(L("file_detail.get_info") == "查看詳情")
@@ -115,6 +125,11 @@ struct FileDetailDialogTests {
         #expect(L("file_detail.path") == "位置")
         #expect(L("file_detail.added") == "加入時間")
         #expect(L("file_detail.updated") == "更新時間")
+        #expect(L("file_detail.subtitles") == "關聯字幕")
+        #expect(L("file_detail.associated_video") == "關聯影片")
+        #expect(L("file_detail.raw_lines") == "原始台詞數")
+        #expect(L("file_detail.valid_lines") == "有效台詞數")
+        #expect(L("task_detail.indexed_subtitles") == "字幕數量")
     }
 
     @Test
@@ -144,37 +159,63 @@ struct FileDetailDialogTests {
         #expect(WorkbenchFileDetailDialog.bitDepthText(10) == "10 bit")
         #expect(WorkbenchFileDetailDialog.bitDepthText(nil) == "-")
 
-        #expect(WorkbenchFileDetailDialog.pixelFormatText("yuv420p") == "yuv420p")
+        defer {
+            AppLocalization.apply(.english)
+        }
+        AppLocalization.apply(.english)
+        #expect(WorkbenchFileDetailDialog.pixelFormatText("yuv420p") == "YUV 4:2:0")
+        #expect(WorkbenchFileDetailDialog.pixelFormatText("yuv420p10le") == "YUV 4:2:0")
+        #expect(WorkbenchFileDetailDialog.pixelFormatText("yuv422p10le") == "YUV 4:2:2")
+        #expect(WorkbenchFileDetailDialog.pixelFormatText("yuv444p") == "YUV 4:4:4")
+        #expect(WorkbenchFileDetailDialog.pixelFormatText("rgb24") == "RGB")
         #expect(WorkbenchFileDetailDialog.pixelFormatText(nil) == "-")
 
-        #expect(WorkbenchFileDetailDialog.channelsText(1) == "1ch")
-        #expect(WorkbenchFileDetailDialog.channelsText(2) == "2ch")
-        #expect(WorkbenchFileDetailDialog.channelsText(6) == "6ch")
-        #expect(WorkbenchFileDetailDialog.channelsText(8) == "8ch")
+        #expect(WorkbenchFileDetailDialog.channelsText(1) == "Mono (1.0)")
+        #expect(WorkbenchFileDetailDialog.channelsText(2) == "Stereo (2.0)")
+        #expect(WorkbenchFileDetailDialog.channelsText(6) == "Surround (5.1)")
+        #expect(WorkbenchFileDetailDialog.channelsText(8) == "Surround (7.1)")
         #expect(WorkbenchFileDetailDialog.channelsText(nil) == nil)
 
-        #expect(WorkbenchFileDetailDialog.sampleRateText(48_000) == "48,000 Hz")
-        #expect(WorkbenchFileDetailDialog.sampleRateText(44_100) == "44,100 Hz")
+        #expect(WorkbenchFileDetailDialog.sampleRateText(48_000) == "48 kHz")
+        #expect(WorkbenchFileDetailDialog.sampleRateText(44_100) == "44.1 kHz")
+        #expect(WorkbenchFileDetailDialog.sampleRateText(22_050) == "22.05 kHz")
         #expect(WorkbenchFileDetailDialog.sampleRateText(nil) == nil)
+
+        #expect(WorkbenchFileDetailDialog.frameRateText(23.9760239) == "23.976 fps")
+        #expect(WorkbenchFileDetailDialog.frameRateText(29.97) == "29.97 fps")
+        #expect(WorkbenchFileDetailDialog.frameRateText(24.0) == "24 fps")
+
+        #expect(WorkbenchFileDetailDialog.durationText(1422) == "23:42")
+        #expect(WorkbenchFileDetailDialog.durationText(3661) == "01:01:01")
+
+        #expect(WorkbenchFileDetailDialog.bitrateText(fileSize: 831_660_000, duration: 1422) == "4.68 Mbps")
+        #expect(WorkbenchFileDetailDialog.bitrateText(fileSize: 500_000, duration: 5.0) == "800 kbps")
 
         #expect(WorkbenchFileDetailDialog.audioBitDepthText(24) == "24 bit")
         #expect(WorkbenchFileDetailDialog.audioBitDepthText(nil) == nil)
         #expect(WorkbenchFileDetailDialog.audioBitDepthText(0) == nil)
 
-        defer {
-            AppLocalization.apply(.english)
-        }
-        AppLocalization.apply(.english)
         #expect(WorkbenchFileDetailDialog.languageText("eng") == "English")
         #expect(WorkbenchFileDetailDialog.languageText("jpn") == "Japanese")
 
         AppLocalization.apply(.simplifiedChinese)
         #expect(WorkbenchFileDetailDialog.languageText("eng") == "英语")
         #expect(WorkbenchFileDetailDialog.languageText("jpn") == "日语")
+        #expect(WorkbenchFileDetailDialog.channelsText(1) == "单声道 (1.0)")
+        #expect(WorkbenchFileDetailDialog.channelsText(2) == "立体声 (2.0)")
+        #expect(WorkbenchFileDetailDialog.channelsText(6) == "环绕声 (5.1)")
+        #expect(WorkbenchFileDetailDialog.channelsText(8) == "环绕声 (7.1)")
 
-        // 1024-based binary file size formatting aligned with File cards
-        #expect(WorkbenchFileDetailDialog.fileSizeText(1024 * 1024 * 100) == "100.00 MB")
-        #expect(WorkbenchFileDetailDialog.fileSizeText(1_536 * 1024 * 1024) == "1.50 GB")
+        AppLocalization.apply(.traditionalChinese)
+        #expect(WorkbenchFileDetailDialog.channelsText(1) == "單聲道 (1.0)")
+        #expect(WorkbenchFileDetailDialog.channelsText(2) == "立體聲 (2.0)")
+        #expect(WorkbenchFileDetailDialog.channelsText(6) == "環繞聲 (5.1)")
+        #expect(WorkbenchFileDetailDialog.channelsText(8) == "環繞聲 (7.1)")
+        AppLocalization.apply(.english)
+
+        // 1000-based decimal file size formatting aligned with File cards
+        #expect(WorkbenchFileDetailDialog.fileSizeText(100_000_000) == "100.00 MB")
+        #expect(WorkbenchFileDetailDialog.fileSizeText(1_500_000_000) == "1.50 GB")
         #expect(WorkbenchFileDetailDialog.fileSizeText(0) == "0 B")
 
         // Centralized dictionary mappings in MediaDetailFormatter
@@ -182,6 +223,13 @@ struct FileDetailDialogTests {
         #expect(MediaDetailFormatter.codecText("h264") == "H.264 / AVC")
         #expect(MediaDetailFormatter.codecText("flac") == "FLAC")
         #expect(MediaDetailFormatter.codecText(nil) == "-")
+        #expect(MediaDetailFormatter.audioCodecText("pcm_s16le") == "PCM")
+        #expect(MediaDetailFormatter.audioCodecText("pcm_s24le") == "PCM")
+        #expect(MediaDetailFormatter.audioCodecText("eac3") == "E-AC-3")
+        #expect(MediaDetailFormatter.audioCodecText("ac3") == "AC-3")
+        #expect(MediaDetailFormatter.audioCodecText("truehd") == "TrueHD")
+        #expect(MediaDetailFormatter.audioCodecText("opus") == "Opus")
+        #expect(MediaDetailFormatter.audioCodecText("vorbis") == "Vorbis")
 
         #expect(MediaDetailFormatter.fileFormatText(path: "/Videos/ep01.mkv") == "Matroska Video (.mkv)")
         #expect(MediaDetailFormatter.fileFormatText(path: "/Videos/ep01.mp4") == "MPEG-4 Video (.mp4)")

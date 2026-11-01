@@ -118,7 +118,7 @@ enum PlaybackAudioTrackName {
         let details = [
             track.language.map { locale.localizedString(forLanguageCode: $0) ?? $0 },
             track.title,
-            track.codec,
+            MediaDetailFormatter.audioCodecText(track.codec),
             track.channels.map { "\($0)ch" },
         ].compactMap { $0 }
         let number = "#\(index + 1)"

@@ -11,7 +11,7 @@ func tableSandboxExcerptDateAddedDisplayConvertsUTCToLocalTime() throws {
         tableSandboxExcerptDateAddedDisplayText(
             for: "2026-07-23T18:20:49Z",
             timeZone: shanghaiTimeZone
-        ) == "26-07-24 02:20"
+        ) == "2026-07-24 02:20:49"
     )
 }
 
