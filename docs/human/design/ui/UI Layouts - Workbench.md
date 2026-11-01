@@ -587,8 +587,8 @@
   - 已完成（Completed）：`check-circle`（18px 1.30px `--color-success-text`）+ `--color-success-text`（`Indexed [Folder]`、`Indexed All Folders`、`Removed [Folder]`）
   - 进行中（In Progress）：`Spinner` + `--color-text-secondary`（`Indexing [Folder]`、`Indexing All Folders`、`Removing [Folder]`）
   - 失败（Failed）：`warning`（18px 1.30px `--color-danger-text`）+ `--color-danger-text`（`Index Failed: [Folder]`、`Removal Failed: [Folder]`）
-  - 闲置（Idle）：无左侧图标，`--color-text-secondary`（`Last Updated: yy-MM-dd HH:mm` / `Last Updated: --`）。层级切换或重新进入时若无进行中操作则恢复闲置状态。
-- 点击交互：从未索引（`Last Updated: --`）时为静态文本；其余状态下仅状态文字可点击（Hover 显示与当前文字同色下划线，Pointer 为 Grab），点击直接打开对应任务（`Index All`、`Index`、`Add Folder`、`Remove Folder`）的 `Task Info` 详情弹窗（若该任务记录已被删除则弹出 Toast 提示）。
+  - 闲置（Idle）：无左侧图标，`--color-text-secondary`（`Last Updated: yyyy-MM-dd HH:mm:ss` / `Last Updated: -`）。层级切换或重新进入时若无进行中操作则恢复闲置状态。
+- 点击交互：从未索引（`Last Updated: -`）时为静态文本；其余状态下仅状态文字可点击（Hover 显示与当前文字同色下划线，Pointer 为 Grab），点击直接打开对应任务（`Index All`、`Index`、`Add Folder`、`Remove Folder`）的 `Task Info` 详情弹窗（若该任务记录已被删除则弹出 Toast 提示）。
 
 ### L-04.6 File Card Layout
 
@@ -1186,8 +1186,8 @@
       - `File Info`：与 Header 一起固定在顶部不随下方滚动的配对文件下拉触发器（撑满内容宽，圆角 `--radius-settings-group`，边框 `--border-width-control`，内边距纵向 `--spacing-3`、横向 `--spacing-4`；Default 背景 `--color-table-bg`、边框 `--color-border-control`，Hover / Open 背景 `--color-bg-hover`、边框 `--color-border-control-hover`，Pressed 背景 `--color-bg-pressed`、边框 `--color-border-control-hover`），内部依次为文件大图标、文件名（最多 2 行，超出省略）与右侧 `caret-down`（`--size-card-chevron`，`--color-text-secondary`）。点击在正下方（间距 `--spacing-1`）弹出等宽下拉菜单，按「视频在上、配对字幕在下」列出全部配对文件（包含当前文件；菜单项复用 `Action Menu Item`，无勾选标记，左侧 `18px` `video` / `subtitles` 图标对齐首行，右侧完整文件名多行自然折行、上下内边距 `--padding-settings-row-y`）；选择后切换详情并使下方滚动区回到顶部，弹窗打开期间配对列表与各文件详情保持冻结快照不变
    2. Property Groups：Settings 风格卡片组
       - Folder（Root Folder / Subfolder）：`Folder Info`（Path、Folder Count、Video Count、Subtitle Count）、`Index Info`（Added、Updated）
-      - Video File：`Video`（Resolution `W × H`、Frame Rate、Codec、Bit Depth、Pixel Format、Bitrate、Duration）、`Audio #N`（无有效音轨时不显示此分组；Codec、Channels `<N>ch`、Sample Rate、Bit Depth、Language、Title，仅展示有效项）、`Subtitles`、`File Details`（File Size、Format 按内部实际容器格式展示且同容器家族保持原后缀对应名称、Path、Created、Modified）
-      - Subtitle File：`Subtitle Specifications`（Encoding、Raw Lines、Valid Lines）、`Video`、`File Details`（File Size、Format、Path、Created、Modified）
+      - Video File：`Video`（Resolution `W × H`、Frame Rate、Codec、Bit Depth、Pixel Format、Duration）、`Audio #N`（无有效音轨时不显示此分组；Codec、Channels、Sample Rate、Bit Depth、Language、Title，仅展示有效项）、`Associated Subtitles`、`File Details`（File Size、Bitrate、Format 按内部实际容器格式展示且同容器家族保持原后缀对应名称、Path、Modified）
+      - Subtitle File：`Subtitle Specifications`（Encoding、Raw Cues、Valid Cues）、`Associated Video`、`File Details`（File Size、Format、Path、Modified）
 
 #### Sizes
 
@@ -1322,8 +1322,8 @@
       - Export to Anki：`Export Info`（File Name、Location、Card Count）
       - Rename Folder：`Rename Info`（Original Path、New Path）
       - Rename Files：`Rename Info`（Location、File Count）、`Original File Names`（`#1`、`#2`... 完整文件名含扩展名）、`New File Names`（`#1`、`#2`... 完整文件名含扩展名）
-      - Index：单文件夹为 `Index Info`（Path，以及仅 Completed 展示 Indexed Subtitles）；Index All 为 `Index Info`（Folder Count，以及仅 Completed 展示 Indexed Subtitles）、`Target Folders`（`#1`、`#2`... 完整文件夹路径）
-      - Add Folder：`Folder Info`（Path，以及仅 Completed 展示 Indexed Subtitles）
+      - Index：单文件夹为 `Index Info`（Path，以及仅 Completed 展示 Subtitle Count）；Index All 为 `Index Info`（Folder Count，以及仅 Completed 展示 Subtitle Count）、`Target Folders`（`#1`、`#2`... 完整文件夹路径）
+      - Add Folder：`Folder Info`（Path，以及仅 Completed 展示 Subtitle Count）
       - Remove Folder：`Folder Info`（Path）
       - Task Status：
         - In Progress：Status、Current Stage、Progress（胶囊进度条与百分比，Remove Folder 无此行）、Created、Started
