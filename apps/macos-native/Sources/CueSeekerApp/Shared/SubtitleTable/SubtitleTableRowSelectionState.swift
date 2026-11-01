@@ -268,6 +268,41 @@ struct TableSandboxRowSelectionState: Equatable {
         anchorRow = lastSelectedRow(rowCount: safeRowCount)
     }
 
+    mutating func remap(
+        from previousEntryIDs: [Int],
+        to remainingEntryIDs: [Int]
+    ) {
+        let previousSelectedRows = selectedRows(rowCount: previousEntryIDs.count)
+        guard !previousSelectedRows.isEmpty, !remainingEntryIDs.isEmpty else {
+            reset()
+            return
+        }
+        let selectedEntryIDSet = Set(
+            previousSelectedRows.compactMap { row in
+                previousEntryIDs.indices.contains(row) ? previousEntryIDs[row] : nil
+            }
+        )
+        let previousAnchorEntryID: Int? = anchorRow.flatMap { row in
+            previousEntryIDs.indices.contains(row) ? previousEntryIDs[row] : nil
+        }
+        var newSelectedRows = Set<Int>()
+        var newAnchorRow: Int?
+        for (newIndex, entryID) in remainingEntryIDs.enumerated() {
+            if selectedEntryIDSet.contains(entryID) {
+                newSelectedRows.insert(newIndex)
+            }
+            if entryID == previousAnchorEntryID {
+                newAnchorRow = newIndex
+            }
+        }
+        guard !newSelectedRows.isEmpty else {
+            reset()
+            return
+        }
+        storage = .explicit(newSelectedRows)
+        anchorRow = newAnchorRow ?? newSelectedRows.max()
+    }
+
     var trackedIndexCountForTesting: Int {
         switch storage {
         case .explicit(let selectedRows), .allExcept(let selectedRows):

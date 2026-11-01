@@ -57,6 +57,7 @@ private struct WorkbenchExcerptTableContent: View {
     @State private var summaryMoreMenuAnchor = MenuAnchorHandle()
     @State private var sortButtonAnchor = MenuAnchorHandle()
     @State private var isSortMenuOpen = false
+    @StateObject private var selectionMenuController = SchemaWorkbenchSelectionMenuController()
 
     var body: some View {
         let _ = UIInvalidationProbe.count(
@@ -86,6 +87,7 @@ private struct WorkbenchExcerptTableContent: View {
             },
             sortButtonAnchor: sortButtonAnchor,
             isSortMenuOpen: $isSortMenuOpen,
+            selectionMenuController: selectionMenuController,
             selectionOverlayAnchor: selectionOverlayAnchor
         ) { tableColumns in
             ZStack {
@@ -349,6 +351,7 @@ private struct WorkbenchExcerptTableContent: View {
 
     private var excerptDetailPageChrome: SubtitleTablePageChrome? {
         guard let coverSummary else { return nil }
+        let actions = selectedSummaryActions ?? []
         let pinnedContent = AnyView(
             VStack(spacing: 0) {
                 SchemaWorkbenchSearchToolbar(
@@ -359,7 +362,8 @@ private struct WorkbenchExcerptTableContent: View {
                         selectedRowCount: tableSummary.selectedRowCount,
                         selectableRowCount: tableSummary.selectableRowCount
                     ),
-                    selectionActions: selectedSummaryActions ?? [],
+                    selectionActions: actions,
+                    selectionMenuController: selectionMenuController,
                     isSelectionMode: isSelectionMode,
                     isFilterDialogOpen: isFilterDialogOpen,
                     filterSelectionCount: excerptFacetFilter.selectedOptionCount(
@@ -385,6 +389,7 @@ private struct WorkbenchExcerptTableContent: View {
             .environment(\.workbenchAccessibility, appState.workbenchAccessibility)
         )
 
+        let inSelectionMode = isSelectionMode
         return SubtitleTablePageChrome(
             scrollableHeader: AnyView(
                 coverSummary
@@ -404,6 +409,13 @@ private struct WorkbenchExcerptTableContent: View {
                     + WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
             },
             pinnedHeaderHeight: pinnedHeaderHeight,
+            pinnedHeaderHeightForWidth: { contentWidth in
+                SchemaWorkbenchStyle.pinnedToolbarHeight(
+                    forWidth: contentWidth,
+                    isSelectionMode: inSelectionMode,
+                    selectionActions: actions
+                )
+            },
             leadingInset:
                 WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding,
             trailingInset:
@@ -442,10 +454,15 @@ private struct WorkbenchExcerptTableContent: View {
                     - WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
                     - WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding
             )
+            let toolbarHeight = SchemaWorkbenchStyle.pinnedToolbarHeight(
+                forWidth: contentWidth,
+                isSelectionMode: isSelectionMode,
+                selectionActions: selectedSummaryActions ?? []
+            )
             let topChromeHeight = WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
                 + CoverSummaryCardLayout.height(forCardWidth: contentWidth)
                 + WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
-                + pinnedHeaderHeight
+                + toolbarHeight
 
             VStack(spacing: 0) {
                 Spacer()
@@ -488,10 +505,20 @@ private struct WorkbenchExcerptTableContent: View {
     }
 
     private var selectedSummaryActions: [SchemaWorkbenchSelectionAction]? {
-        SchemaWorkbenchSelectionAction.exportActions(
+        SchemaWorkbenchSelectionAction.excerptActions(
             exportToAnki: exportSelectedRowsToAnki,
             copyDeepLinks: copySelectedRowsAsDeepLinks,
-            copyTable: copySelectedRowsAsTable
+            copyTable: copySelectedRowsAsTable,
+            destinations: rowActionDestinations,
+            moveToExcerptList: moveSelectedRowsToExcerptList,
+            createListForMove: {
+                createExcerptListForSelectedRows(for: .moveToList)
+            },
+            duplicateToExcerptList: duplicateSelectedRowsToExcerptList,
+            createListForDuplicate: {
+                createExcerptListForSelectedRows(for: .duplicateToList)
+            },
+            removeExcerpts: requestRemoveSelectedExcerpts
         )
     }
 
@@ -887,6 +914,109 @@ private struct WorkbenchExcerptTableContent: View {
         appState.toast.show(TableToastRequest.copyDeepLinks)
     }
 
+    private func selectedValidExcerptsForBatchAction() -> (selectedCount: Int, validItems: [Excerpt])? {
+        let selectedRows = rowSelection.selectedRows(
+            rowCount: rowStore.snapshot.totalRowCount
+        )
+        guard !selectedRows.isEmpty else { return nil }
+        let pairs = selectedRows.compactMap { row -> (excerpt: Excerpt, row: SubtitleTableRow)? in
+            guard let tableRow = rowStore.snapshot.row(at: row),
+                  let excerpt = rowStore.snapshot.excerpt(entryID: tableRow.id)
+            else {
+                return nil
+            }
+            return (excerpt, tableRow)
+        }
+        let validExcerptIDs = appState.excerptIDsInLibrary(among: pairs.map(\.excerpt.id))
+        let validItems = pairs.compactMap { pair -> Excerpt? in
+            guard pair.excerpt.isValid,
+                  !pair.row.cueState.isUnavailable,
+                  validExcerptIDs.contains(pair.excerpt.id)
+            else {
+                return nil
+            }
+            return pair.excerpt
+        }
+        return (selectedRows.count, validItems)
+    }
+
+    private func moveSelectedRowsToExcerptList(_ destination: SubtitleTableRowActionDestination) {
+        guard let selection = selectedValidExcerptsForBatchAction() else { return }
+        guard !selection.validItems.isEmpty else {
+            appState.toast.show(TableToastRequest.cueNotInLibrary(count: selection.selectedCount))
+            return
+        }
+        _ = appState.moveExcerpts(
+            selection.validItems,
+            toListID: destination.id,
+            listName: destination.title
+        )
+    }
+
+    private func duplicateSelectedRowsToExcerptList(_ destination: SubtitleTableRowActionDestination) {
+        guard let selection = selectedValidExcerptsForBatchAction() else { return }
+        guard !selection.validItems.isEmpty else {
+            appState.toast.show(TableToastRequest.cueNotInLibrary(count: selection.selectedCount))
+            return
+        }
+        _ = appState.duplicateExcerpts(
+            selection.validItems,
+            toListID: destination.id,
+            listName: destination.title
+        )
+    }
+
+    private func createExcerptListForSelectedRows(for action: SubtitleTableRowAction) {
+        guard let selection = selectedValidExcerptsForBatchAction() else { return }
+        guard !selection.validItems.isEmpty else {
+            appState.toast.show(TableToastRequest.cueNotInLibrary(count: selection.selectedCount))
+            return
+        }
+        appState.beginCreatingExcerptList(
+            pendingTransfer: ExcerptListEditorPendingTransfer(
+                action: action,
+                target: .excerpts(selection.validItems)
+            )
+        )
+    }
+
+    private func requestRemoveSelectedExcerpts() {
+        let selectedRows = rowSelection.selectedRows(
+            rowCount: rowStore.snapshot.totalRowCount
+        )
+        guard !selectedRows.isEmpty else { return }
+        let items = selectedRows.compactMap { row -> Excerpt? in
+            guard let tableRow = rowStore.snapshot.row(at: row) else { return nil }
+            return rowStore.snapshot.excerpt(entryID: tableRow.id)
+        }
+        guard !items.isEmpty else { return }
+        let listName = excerptStore.activeListSummary?.list.name
+            ?? excerptStore.activeListID.map { excerptStore.listName(id: $0) }
+            ?? ""
+        let message = items.count == 1
+            ? L("excerpt.remove.batch_message.one", listName)
+            : L("excerpt.remove.batch_message.other", items.count, listName)
+        appState.confirmation.session = WorkbenchConfirmationSession(
+            title: L("excerpt.remove.title"),
+            message: message,
+            destructiveTitle: L("common.remove"),
+            cancelTitle: L("common.cancel"),
+            onDestructive: {
+                confirmRemoveSelectedExcerpts(items)
+            },
+            onCancel: {
+                appState.confirmation.session = nil
+            }
+        )
+    }
+
+    private func confirmRemoveSelectedExcerpts(_ items: [Excerpt]) {
+        appState.confirmation.session = nil
+        guard appState.removeExcerpts(items, reloadPresentation: false) else {
+            return
+        }
+    }
+
     private func selectedExcerpts(
         for selectedRows: [Int]
     ) async -> [(excerpt: Excerpt, row: SubtitleTableRow)] {
@@ -1038,6 +1168,10 @@ private struct WorkbenchExcerptTableContent: View {
         guard entryIDs == excerptStore.tableSelectionEntryIDs else { return }
         rowSelection = excerptStore.tableSelectionState
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+        if isSelectionMode,
+           rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount) == 0 {
+            exitSelectionMode()
+        }
     }
 }
 

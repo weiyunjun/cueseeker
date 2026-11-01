@@ -123,6 +123,58 @@ public final class ExcerptDatabase: @unchecked Sendable {
         return savedExcerpt
     }
 
+    @discardableResult
+    public func upsertExcerpts(
+        cueIDs: [Int64],
+        listID requestedListID: Int64? = nil,
+        createdAt: Date = Date()
+    ) throws -> ExcerptBatchSaveResult {
+        var seen = Set<Int64>()
+        let orderedCueIDs = cueIDs.filter { seen.insert($0).inserted }
+        guard !orderedCueIDs.isEmpty else {
+            return ExcerptBatchSaveResult(insertedCueIDs: [], skippedDuplicateCueIDs: [])
+        }
+        return try database.withImmediateTransaction {
+            guard let listID = try requestedListID ?? firstExcerptListID(),
+                  try excerptList(id: listID) != nil
+            else {
+                throw ExcerptTransferError.destinationUnavailable
+            }
+            let existing = try existingCueIDs(inListID: listID, among: orderedCueIDs)
+            let insertedCueIDs = orderedCueIDs.filter { !existing.contains($0) }
+            let skippedDuplicateCueIDs = orderedCueIDs.filter { existing.contains($0) }
+            guard !insertedCueIDs.isEmpty else {
+                return ExcerptBatchSaveResult(
+                    insertedCueIDs: [],
+                    skippedDuplicateCueIDs: skippedDuplicateCueIDs
+                )
+            }
+            let createdAtText = ISO8601DateFormatter().string(from: createdAt)
+            for start in stride(from: 0, to: insertedCueIDs.count, by: 250) {
+                let batch = insertedCueIDs[start..<min(start + 250, insertedCueIDs.count)]
+                let valuesSQL = batch.map { _ in "(?, ?, ?)" }.joined(separator: ", ")
+                let statement = try database.prepare(
+                    """
+                    INSERT INTO excerpts(list_id, cue_id, created_at)
+                    VALUES \(valuesSQL)
+                    ON CONFLICT(list_id, cue_id) DO NOTHING;
+                    """
+                )
+                for (offset, cueID) in batch.enumerated() {
+                    let base = Int32(offset * 3)
+                    try statement.bind(listID, at: base + 1)
+                    try statement.bind(cueID, at: base + 2)
+                    try statement.bind(createdAtText, at: base + 3)
+                }
+                try statement.run()
+            }
+            return ExcerptBatchSaveResult(
+                insertedCueIDs: insertedCueIDs,
+                skippedDuplicateCueIDs: skippedDuplicateCueIDs
+            )
+        }
+    }
+
     public func excerpt(
         cueID: Int64,
         listID requestedListID: Int64? = nil
@@ -154,16 +206,39 @@ public final class ExcerptDatabase: @unchecked Sendable {
 
     @discardableResult
     public func removeExcerpt(id: Int64) throws -> Bool {
-        guard let relation = try excerptRelation(id: id) else {
-            return false
+        try removeExcerpts(ids: [id]) > 0
+    }
+
+    @discardableResult
+    public func removeExcerpts(ids: [Int64]) throws -> Int {
+        var seen = Set<Int64>()
+        let uniqueIDs = ids.filter { seen.insert($0).inserted }
+        guard !uniqueIDs.isEmpty else {
+            return 0
         }
         return try database.withImmediateTransaction {
-            let statement = try database.prepare("DELETE FROM excerpts WHERE id = ?;")
-            try statement.bind(id, at: 1)
-            try statement.run()
-            try deleteUnreferencedTombstone(cueID: relation.cueID)
-            try reconcileRecentExcerptPlayback(forListID: relation.listID)
-            return true
+            let relations = try excerptRelations(ids: uniqueIDs)
+            guard !relations.isEmpty else {
+                return 0
+            }
+            let existingIDs = relations.map(\.id)
+            for start in stride(from: 0, to: existingIDs.count, by: 500) {
+                let batch = existingIDs[start..<min(start + 500, existingIDs.count)]
+                let placeholders = batch.map { _ in "?" }.joined(separator: ", ")
+                let statement = try database.prepare(
+                    "DELETE FROM excerpts WHERE id IN (\(placeholders));"
+                )
+                for (offset, id) in batch.enumerated() {
+                    try statement.bind(id, at: Int32(offset + 1))
+                }
+                try statement.run()
+            }
+            try deleteUnreferencedTombstones(cueIDs: Array(Set(relations.map(\.cueID))))
+            let affectedListIDs = Set(relations.map(\.listID)).sorted()
+            for listID in affectedListIDs {
+                try reconcileRecentExcerptPlayback(forListID: listID)
+            }
+            return relations.count
         }
     }
 
@@ -180,12 +255,36 @@ public final class ExcerptDatabase: @unchecked Sendable {
     }
 
     @discardableResult
+    public func moveExcerpts(
+        ids: [Int64],
+        toListID destinationListID: Int64
+    ) throws -> ExcerptBatchTransferResult {
+        try transferExcerpts(
+            ids: ids,
+            toListID: destinationListID,
+            removesSource: true
+        )
+    }
+
+    @discardableResult
     public func duplicateExcerpt(
         id: Int64,
         toListID destinationListID: Int64
     ) throws -> ExcerptRelation {
         try transferExcerpt(
             id: id,
+            toListID: destinationListID,
+            removesSource: false
+        )
+    }
+
+    @discardableResult
+    public func duplicateExcerpts(
+        ids: [Int64],
+        toListID destinationListID: Int64
+    ) throws -> ExcerptBatchTransferResult {
+        try transferExcerpts(
+            ids: ids,
             toListID: destinationListID,
             removesSource: false
         )
@@ -702,6 +801,64 @@ public final class ExcerptDatabase: @unchecked Sendable {
         return try statement.step() ? excerptRelation(from: statement) : nil
     }
 
+    public func excerptRelations(ids: [Int64]) throws -> [ExcerptRelation] {
+        var seen = Set<Int64>()
+        let orderedIDs = ids.filter { seen.insert($0).inserted }
+        guard !orderedIDs.isEmpty else {
+            return []
+        }
+        var relationsByID: [Int64: ExcerptRelation] = [:]
+        for start in stride(from: 0, to: orderedIDs.count, by: 500) {
+            let batch = orderedIDs[start..<min(start + 500, orderedIDs.count)]
+            let placeholders = batch.map { _ in "?" }.joined(separator: ", ")
+            let statement = try database.prepare(
+                """
+                SELECT id, list_id, cue_id, created_at
+                FROM excerpts
+                WHERE id IN (\(placeholders));
+                """
+            )
+            for (offset, id) in batch.enumerated() {
+                try statement.bind(id, at: Int32(offset + 1))
+            }
+            while try statement.step() {
+                let relation = excerptRelation(from: statement)
+                relationsByID[relation.id] = relation
+            }
+        }
+        return orderedIDs.compactMap { relationsByID[$0] }
+    }
+
+    public func existingCueIDs(
+        inListID listID: Int64,
+        among cueIDs: [Int64]
+    ) throws -> Set<Int64> {
+        let uniqueCueIDs = Array(Set(cueIDs))
+        guard !uniqueCueIDs.isEmpty else {
+            return []
+        }
+        var existing = Set<Int64>()
+        for start in stride(from: 0, to: uniqueCueIDs.count, by: 450) {
+            let batch = uniqueCueIDs[start..<min(start + 450, uniqueCueIDs.count)]
+            let placeholders = batch.map { _ in "?" }.joined(separator: ", ")
+            let statement = try database.prepare(
+                """
+                SELECT cue_id
+                FROM excerpts
+                WHERE list_id = ? AND cue_id IN (\(placeholders));
+                """
+            )
+            try statement.bind(listID, at: 1)
+            for (offset, cueID) in batch.enumerated() {
+                try statement.bind(cueID, at: Int32(offset + 2))
+            }
+            while try statement.step() {
+                existing.insert(statement.int64Column(0))
+            }
+        }
+        return existing
+    }
+
     public func cueID(forExcerptID excerptID: Int64) throws -> Int64? {
         let statement = try database.prepare("SELECT cue_id FROM excerpts WHERE id = ?;")
         try statement.bind(excerptID, at: 1)
@@ -882,6 +1039,92 @@ public final class ExcerptDatabase: @unchecked Sendable {
         }
     }
 
+    private func transferExcerpts(
+        ids: [Int64],
+        toListID destinationListID: Int64,
+        removesSource: Bool
+    ) throws -> ExcerptBatchTransferResult {
+        var seen = Set<Int64>()
+        let orderedIDs = ids.filter { seen.insert($0).inserted }
+        guard !orderedIDs.isEmpty else {
+            throw ExcerptTransferError.sourceUnavailable
+        }
+        return try database.withImmediateTransaction {
+            guard try excerptList(id: destinationListID) != nil else {
+                throw ExcerptTransferError.destinationUnavailable
+            }
+            let sources = try excerptRelations(ids: orderedIDs)
+            let validIDs = try validExcerptIDs(among: sources.map(\.id))
+            let validSources = sources.filter { validIDs.contains($0.id) }
+            guard !validSources.isEmpty else {
+                throw ExcerptTransferError.sourceUnavailable
+            }
+            let existingDestinationCueIDs = try existingCueIDs(
+                inListID: destinationListID,
+                among: validSources.map(\.cueID)
+            )
+            var seenCueIDs = existingDestinationCueIDs
+            var transferredSources: [ExcerptRelation] = []
+            var skippedDuplicateSourceIDs: [Int64] = []
+            transferredSources.reserveCapacity(validSources.count)
+            for source in validSources {
+                if seenCueIDs.insert(source.cueID).inserted {
+                    transferredSources.append(source)
+                } else {
+                    skippedDuplicateSourceIDs.append(source.id)
+                }
+            }
+            guard !transferredSources.isEmpty else {
+                throw ExcerptTransferError.destinationAlreadyContainsCue(
+                    listID: destinationListID
+                )
+            }
+
+            for start in stride(from: 0, to: transferredSources.count, by: 250) {
+                let batch = transferredSources[start..<min(start + 250, transferredSources.count)]
+                let valuesSQL = batch.map { _ in "(?, ?, ?)" }.joined(separator: ", ")
+                let insert = try database.prepare(
+                    """
+                    INSERT INTO excerpts(list_id, cue_id, created_at)
+                    VALUES \(valuesSQL);
+                    """
+                )
+                for (offset, source) in batch.enumerated() {
+                    let base = Int32(offset * 3)
+                    try insert.bind(destinationListID, at: base + 1)
+                    try insert.bind(source.cueID, at: base + 2)
+                    try insert.bind(source.createdAt, at: base + 3)
+                }
+                try insert.run()
+            }
+
+            if removesSource {
+                let transferredIDs = transferredSources.map(\.id)
+                for start in stride(from: 0, to: transferredIDs.count, by: 500) {
+                    let batch = transferredIDs[start..<min(start + 500, transferredIDs.count)]
+                    let placeholders = batch.map { _ in "?" }.joined(separator: ", ")
+                    let delete = try database.prepare(
+                        "DELETE FROM excerpts WHERE id IN (\(placeholders));"
+                    )
+                    for (offset, id) in batch.enumerated() {
+                        try delete.bind(id, at: Int32(offset + 1))
+                    }
+                    try delete.run()
+                }
+                let affectedSourceListIDs = Set(transferredSources.map(\.listID)).sorted()
+                for listID in affectedSourceListIDs {
+                    try reconcileRecentExcerptPlayback(forListID: listID)
+                }
+            }
+
+            return ExcerptBatchTransferResult(
+                transferredSourceIDs: transferredSources.map(\.id),
+                transferredCueIDs: transferredSources.map(\.cueID),
+                skippedDuplicateSourceIDs: skippedDuplicateSourceIDs
+            )
+        }
+    }
+
     public func excerptRelationExists(cueID: Int64, listID: Int64) throws -> Bool {
         let statement = try database.prepare(
             """
@@ -934,18 +1177,28 @@ public final class ExcerptDatabase: @unchecked Sendable {
     }
 
     private func deleteUnreferencedTombstone(cueID: Int64) throws {
-        let statement = try database.prepare(
-            """
-            DELETE FROM cue_tombstones
-            WHERE cue_id = ?
-              AND NOT EXISTS (
-                SELECT 1 FROM excerpts WHERE cue_id = ?
-              );
-            """
-        )
-        try statement.bind(cueID, at: 1)
-        try statement.bind(cueID, at: 2)
-        try statement.run()
+        try deleteUnreferencedTombstones(cueIDs: [cueID])
+    }
+
+    private func deleteUnreferencedTombstones(cueIDs: [Int64]) throws {
+        guard !cueIDs.isEmpty else { return }
+        for start in stride(from: 0, to: cueIDs.count, by: 500) {
+            let batch = cueIDs[start..<min(start + 500, cueIDs.count)]
+            let placeholders = batch.map { _ in "?" }.joined(separator: ", ")
+            let statement = try database.prepare(
+                """
+                DELETE FROM cue_tombstones
+                WHERE cue_id IN (\(placeholders))
+                  AND NOT EXISTS (
+                    SELECT 1 FROM excerpts WHERE excerpts.cue_id = cue_tombstones.cue_id
+                  );
+                """
+            )
+            for (offset, cueID) in batch.enumerated() {
+                try statement.bind(cueID, at: Int32(offset + 1))
+            }
+            try statement.run()
+        }
     }
 
     private func excerptRelation(from statement: SQLiteStatement) -> ExcerptRelation {

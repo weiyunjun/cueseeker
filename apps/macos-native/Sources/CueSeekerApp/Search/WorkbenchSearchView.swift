@@ -434,10 +434,13 @@ struct WorkbenchSearchView: View {
     }
 
     private var selectedSummaryActions: [SchemaWorkbenchSelectionAction]? {
-        SchemaWorkbenchSelectionAction.exportActions(
+        SchemaWorkbenchSelectionAction.searchActions(
             exportToAnki: exportSelectedRowsToAnki,
             copyDeepLinks: copySelectedRowsAsDeepLinks,
-            copyTable: copySelectedRowsAsTable
+            copyTable: copySelectedRowsAsTable,
+            saveDestinations: rowActionDestinations,
+            saveToExcerptList: saveSelectedRowsToExcerptList,
+            createListForSave: createExcerptListForSelectedRows
         )
     }
 
@@ -644,6 +647,45 @@ struct WorkbenchSearchView: View {
 
         SubtitleTableClipboard.copyDeepLinks(rows: validRows)
         appState.toast.show(TableToastRequest.copyDeepLinks)
+    }
+
+    private func selectedCueIDsForBatchAction() -> (selectedCount: Int, cueIDs: [Int64])? {
+        let selectedRows = rowSelection.selectedRows(
+            rowCount: tableSummaryTotalRowCount
+        )
+        guard !selectedRows.isEmpty else { return nil }
+        let rows = selectedRows.compactMap { rowStore.snapshot.row(at: $0) }
+        guard !rows.isEmpty else { return nil }
+        return (selectedRows.count, rows.compactMap(\.primaryCueID))
+    }
+
+    private func saveSelectedRowsToExcerptList(_ destination: SubtitleTableRowActionDestination) {
+        guard let selection = selectedCueIDsForBatchAction() else { return }
+        guard !selection.cueIDs.isEmpty else {
+            appState.toast.show(TableToastRequest.cueNotInLibrary(count: selection.selectedCount))
+            return
+        }
+        _ = appState.saveExcerpts(
+            cueIDs: selection.cueIDs,
+            toListID: destination.id,
+            listName: destination.title,
+            report: .toast
+        )
+    }
+
+    private func createExcerptListForSelectedRows() {
+        guard let selection = selectedCueIDsForBatchAction() else { return }
+        let validCueIDs = appState.cueIDsInLibrary(among: selection.cueIDs)
+        guard !validCueIDs.isEmpty else {
+            appState.toast.show(TableToastRequest.cueNotInLibrary(count: selection.selectedCount))
+            return
+        }
+        appState.beginCreatingExcerptList(
+            pendingTransfer: ExcerptListEditorPendingTransfer(
+                action: .saveToExcerpt,
+                target: .cues(selection.cueIDs)
+            )
+        )
     }
 
     private func selectedSearchResults(

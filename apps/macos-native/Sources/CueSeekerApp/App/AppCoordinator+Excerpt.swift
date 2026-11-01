@@ -143,8 +143,14 @@ extension AppCoordinator {
             isExcerptInLibrary: { [weak self] id in
                 self?.excerptIDsInLibrary(among: [id]).contains(id) == true
             },
-            onCueNotInLibrary: { [weak self] in
-                self?.toast.show(TableToastRequest.cueNotInLibrary)
+            validExcerptIDsInLibrary: { [weak self] ids in
+                self?.excerptIDsInLibrary(among: ids) ?? []
+            },
+            validCueIDsInLibrary: { [weak self] cueIDs in
+                self?.cueIDsInLibrary(among: cueIDs) ?? []
+            },
+            onCueNotInLibrary: { [weak self] count in
+                self?.toast.show(TableToastRequest.cueNotInLibrary(count: count))
             }
         )
     }
@@ -322,15 +328,34 @@ extension AppCoordinator {
                 listName: listName,
                 report: transfer.report
             )
+        case (.saveToExcerpt, .cues(let cueIDs)):
+            saveExcerpts(
+                cueIDs: cueIDs,
+                toListID: destinationListID,
+                listName: listName,
+                report: transfer.report
+            )
         case (.moveToList, .excerpt(let item)):
             _ = moveExcerpt(
                 item,
                 toListID: destinationListID,
                 listName: listName
             )
+        case (.moveToList, .excerpts(let items)):
+            _ = moveExcerpts(
+                items,
+                toListID: destinationListID,
+                listName: listName
+            )
         case (.duplicateToList, .excerpt(let item)):
             _ = duplicateExcerpt(
                 item,
+                toListID: destinationListID,
+                listName: listName
+            )
+        case (.duplicateToList, .excerpts(let items)):
+            _ = duplicateExcerpts(
+                items,
                 toListID: destinationListID,
                 listName: listName
             )
@@ -389,6 +414,35 @@ extension AppCoordinator {
     }
 
     @discardableResult
+    func saveExcerpts(
+        cueIDs: [Int64],
+        toListID destinationListID: Int64,
+        listName: String,
+        report: ExcerptSaveReport = .toast
+    ) -> Bool {
+        excerpt.saveExcerpts(
+            cueIDs: cueIDs,
+            toListID: destinationListID,
+            listName: listName,
+            validCueIDsInLibrary: { [weak self] ids in
+                self?.cueIDsInLibrary(among: ids) ?? []
+            },
+            onCueNotInLibrary: { [weak self] count in
+                guard let self else { return }
+                switch report {
+                case .toast:
+                    self.toast.show(TableToastRequest.cueNotInLibrary(count: count))
+                case .playbackFeedback:
+                    self.playback.playbackViewModel?.showNotInLibraryFeedback()
+                }
+            },
+            onReportToast: { [weak self] request in
+                self?.reportExcerptSave(request, report)
+            }
+        )
+    }
+
+    @discardableResult
     func moveExcerpt(
         _ item: Excerpt,
         toListID destinationListID: Int64,
@@ -406,6 +460,31 @@ extension AppCoordinator {
             },
             onItemRemovedFromCurrentList: { [weak self] removed in
                 self?.handleExcerptRemovedFromCurrentList(removed)
+            },
+            onReloadTableRows: { [weak self] in
+                self?.reloadExcerptTableRows()
+            }
+        )
+    }
+
+    @discardableResult
+    func moveExcerpts(
+        _ items: [Excerpt],
+        toListID destinationListID: Int64,
+        listName: String
+    ) -> Bool {
+        excerpt.moveExcerpts(
+            items,
+            toListID: destinationListID,
+            listName: listName,
+            validExcerptIDsInLibrary: { [weak self] ids in
+                self?.excerptIDsInLibrary(among: ids) ?? []
+            },
+            onToast: { [weak self] request in
+                self?.toast.show(request)
+            },
+            onItemsRemovedFromCurrentList: { [weak self] removed in
+                self?.handleExcerptsRemovedFromCurrentList(removed)
             },
             onReloadTableRows: { [weak self] in
                 self?.reloadExcerptTableRows()
@@ -433,15 +512,39 @@ extension AppCoordinator {
     }
 
     @discardableResult
+    func duplicateExcerpts(
+        _ items: [Excerpt],
+        toListID destinationListID: Int64,
+        listName: String
+    ) -> Bool {
+        excerpt.duplicateExcerpts(
+            items,
+            toListID: destinationListID,
+            listName: listName,
+            validExcerptIDsInLibrary: { [weak self] ids in
+                self?.excerptIDsInLibrary(among: ids) ?? []
+            },
+            onToast: { [weak self] request in
+                self?.toast.show(request)
+            }
+        )
+    }
+
+    @discardableResult
     func removeExcerpt(_ item: Excerpt, reloadPresentation: Bool = true) -> Bool {
-        excerpt.removeExcerpt(
-            item,
+        removeExcerpts([item], reloadPresentation: reloadPresentation)
+    }
+
+    @discardableResult
+    func removeExcerpts(_ items: [Excerpt], reloadPresentation: Bool = true) -> Bool {
+        excerpt.removeExcerpts(
+            items,
             reloadPresentation: reloadPresentation,
             onFeedback: { [weak self] state in
                 self?.playback.playbackViewModel?.showExcerptFeedback(state)
             },
-            onItemRemovedFromCurrentList: { [weak self] removed in
-                self?.handleExcerptRemovedFromCurrentList(removed)
+            onItemsRemovedFromCurrentList: { [weak self] removed in
+                self?.handleExcerptsRemovedFromCurrentList(removed)
             },
             onReloadTableRows: { [weak self] in
                 self?.reloadExcerptTableRows()
@@ -450,9 +553,16 @@ extension AppCoordinator {
     }
 
     private func handleExcerptRemovedFromCurrentList(_ item: Excerpt) {
-        excerpt.removeExcerptFromCurrentProjection(id: item.id)
-        excerpt.removeExcerptFromPlaybackNavigationScope(item.id)
-        if excerpt.selectedExcerpt?.id == item.id {
+        handleExcerptsRemovedFromCurrentList([item])
+    }
+
+    private func handleExcerptsRemovedFromCurrentList(_ items: [Excerpt]) {
+        let removedIDs = Set(items.map(\.id))
+        guard !removedIDs.isEmpty else { return }
+        excerpt.removeExcerptsFromCurrentProjection(ids: removedIDs)
+        excerpt.removeExcerptsFromPlaybackNavigationScope(removedIDs)
+        if let selectedID = excerpt.selectedExcerpt?.id,
+           removedIDs.contains(selectedID) {
             excerpt.selectedExcerpt = nil
             excerptPlaybackNavigationSnapshot = nil
             clearPlaybackChromeSnapshot()

@@ -459,12 +459,29 @@ final class TableSandboxRowModelStore: ObservableObject {
         probeSurface: SubtitleTableProbeSurface? = nil,
         probeScope: String? = nil
     ) {
-        guard snapshot.excerptRelations.contains(where: { $0.id == id }) else {
+        removeResidentExcerpts(
+            ids: [id],
+            tableName: tableName,
+            probeSurface: probeSurface,
+            probeScope: probeScope
+        )
+    }
+
+    func removeResidentExcerpts(
+        ids: Set<Int64>,
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
+    ) {
+        guard !ids.isEmpty,
+              snapshot.excerptRelations.contains(where: { ids.contains($0.id) })
+        else {
             return
         }
-        let relations = snapshot.excerptRelations.filter { $0.id != id }
+        let entryIDSet = Set(ids.map(Int.init))
+        let relations = snapshot.excerptRelations.filter { !ids.contains($0.id) }
         publishSnapshot(TableSandboxRowsSnapshot(
-            excerptsByEntryID: snapshot.excerptsByEntryID.filter { $0.key != Int(id) },
+            excerptsByEntryID: snapshot.excerptsByEntryID.filter { !entryIDSet.contains($0.key) },
             excerptRelations: relations,
             cueContentProvider: snapshot.cueContentProvider,
             cueContentRevision: snapshot.cueContentRevision,

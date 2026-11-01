@@ -199,6 +199,35 @@ public enum ExcerptTransferError: Error, Equatable, Sendable {
     case destinationAlreadyContainsCue(listID: Int64)
 }
 
+public struct ExcerptBatchSaveResult: Equatable, Sendable {
+    public let insertedCueIDs: [Int64]
+    public let skippedDuplicateCueIDs: [Int64]
+
+    public init(
+        insertedCueIDs: [Int64],
+        skippedDuplicateCueIDs: [Int64]
+    ) {
+        self.insertedCueIDs = insertedCueIDs
+        self.skippedDuplicateCueIDs = skippedDuplicateCueIDs
+    }
+}
+
+public struct ExcerptBatchTransferResult: Equatable, Sendable {
+    public let transferredSourceIDs: [Int64]
+    public let transferredCueIDs: [Int64]
+    public let skippedDuplicateSourceIDs: [Int64]
+
+    public init(
+        transferredSourceIDs: [Int64],
+        transferredCueIDs: [Int64],
+        skippedDuplicateSourceIDs: [Int64]
+    ) {
+        self.transferredSourceIDs = transferredSourceIDs
+        self.transferredCueIDs = transferredCueIDs
+        self.skippedDuplicateSourceIDs = skippedDuplicateSourceIDs
+    }
+}
+
 public enum ExcerptUnavailableReason: String, Equatable, Sendable {
     case libraryUnavailable = "library_unavailable"
     case videoMissing = "video_missing"

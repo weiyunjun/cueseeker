@@ -1048,9 +1048,14 @@ struct SubtitleTablePageChrome {
     /// scrollable header keeps the page scroll geometry in step with it.
     let scrollableHeaderHeight: (CGFloat) -> CGFloat
     let pinnedHeaderHeight: CGFloat
+    var pinnedHeaderHeightForWidth: ((CGFloat) -> CGFloat)? = nil
     let leadingInset: CGFloat
     let trailingInset: CGFloat
     let bottomInset: CGFloat
+
+    func resolvedPinnedHeaderHeight(forContentWidth contentWidth: CGFloat) -> CGFloat {
+        pinnedHeaderHeightForWidth?(contentWidth) ?? pinnedHeaderHeight
+    }
 }
 
 struct SubtitleTablePageScrollGeometry: Equatable {

@@ -50,7 +50,10 @@ enum SchemaWorkbenchSelectionActionID: String, Hashable {
     case exportToAnki = "anki"
     case copyDeepLinks = "copy-deep-links"
     case copyTable = "copy-table"
+    case saveToExcerpt = "save-to-excerpt"
     case moveTo = "move-to"
+    case duplicateTo = "duplicate-to"
+    case removeExcerpt = "remove-excerpt"
     case delete = "delete"
 }
 

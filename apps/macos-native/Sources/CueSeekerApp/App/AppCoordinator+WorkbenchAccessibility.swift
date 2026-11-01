@@ -261,6 +261,7 @@ extension AppCoordinator {
 
     private func appendSchemaToolbarAndTableTargets(
         searchDraft: String,
+        isExcerptTable: Bool,
         to targets: inout [WorkbenchAccessibilityTarget]
     ) {
         let beforeCount = targets.count
@@ -269,6 +270,13 @@ extension AppCoordinator {
             targets.append(.toolbarSelectionAction(.exportToAnki))
             targets.append(.toolbarSelectionAction(.copyDeepLinks))
             targets.append(.toolbarSelectionAction(.copyTable))
+            if isExcerptTable {
+                targets.append(.toolbarSelectionAction(.moveTo))
+                targets.append(.toolbarSelectionAction(.duplicateTo))
+                targets.append(.toolbarSelectionAction(.removeExcerpt))
+            } else {
+                targets.append(.toolbarSelectionAction(.saveToExcerpt))
+            }
         } else {
             targets.append(.toolbarSearchField)
             if !searchDraft.isEmpty {
@@ -305,6 +313,7 @@ extension AppCoordinator {
         }
         appendSchemaToolbarAndTableTargets(
             searchDraft: excerpt.tableSearchDraft,
+            isExcerptTable: true,
             to: &targets
         )
     }
@@ -312,6 +321,7 @@ extension AppCoordinator {
     private func appendSearchAccessibilityTargets(to targets: inout [WorkbenchAccessibilityTarget]) {
         appendSchemaToolbarAndTableTargets(
             searchDraft: search.searchQuery,
+            isExcerptTable: false,
             to: &targets
         )
     }

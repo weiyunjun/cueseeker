@@ -383,6 +383,212 @@ struct ExcerptLifecycleAndInvalidItemsTests {
             #expect(app.playback.isPlaybackSurfaceExpanded == true)
         }
     }
+
+    @Test
+    func batchSaveMoveDuplicateAndRemoveExcerptsHandlePartialDuplicatesStrictSkipAndSelectionRemap() async throws {
+        try await withExcerptTestApp { app, database in
+            try indexExcerptVideo("Episode1", in: database)
+            try indexExcerptVideo("Episode2", in: database)
+            try indexExcerptVideo("Episode3", in: database)
+            let excerptDB = try #require(app.excerptDatabase)
+            let listA = try excerptDB.createExcerptList(name: "ListA", description: "")
+            let listB = try excerptDB.createExcerptList(name: "ListB", description: "")
+            let listC = try excerptDB.createExcerptList(name: "ListC", description: "")
+
+            let searchDB = try SearchDatabase(path: database.path)
+            let cue1 = try #require(try searchDB.search("Episode1").first)
+            let cue2 = try #require(try searchDB.search("Episode2").first)
+            let cue3 = try #require(try searchDB.search("Episode3").first)
+
+            app.reloadExcerptListOverview()
+            await app.excerptListOverviewTask?.value
+
+            // 1. Batch save cue1, cue2, cue3 to ListA
+            #expect(app.saveExcerpts(
+                cueIDs: [cue1.entryID, cue2.entryID, cue3.entryID],
+                toListID: listA.id,
+                listName: listA.name
+            ))
+            await app.excerptMutationTask?.value
+            #expect(app.toast.visibleItems.last?.request == ExcerptToastRequest.saveSucceeded(listName: listA.name))
+            #expect(try excerptDB.excerptRelations(listID: listA.id).map(\.cueID) == [cue1.entryID, cue2.entryID, cue3.entryID])
+
+            // Saving the exact same 3 cues again to ListA shows already-exists warning
+            #expect(!app.saveExcerpts(
+                cueIDs: [cue1.entryID, cue2.entryID, cue3.entryID],
+                toListID: listA.id,
+                listName: listA.name
+            ))
+            #expect(app.toast.visibleItems.last?.request == ExcerptToastRequest.destinationAlreadyContainsCue(listName: listA.name))
+
+            // Pre-populate cue2 into ListB so moving [cue1, cue2, cue3] from ListA -> ListB has a partial duplicate
+            _ = try excerptDB.upsertExcerpt(cueID: cue2.entryID, listID: listB.id)
+            app.reloadExcerptListOverview()
+            await app.excerptListOverviewTask?.value
+
+            app.excerpt.setActiveListID(listA.id)
+            app.reloadExcerptTableRows()
+            await app.excerptTableRowsTask?.value
+
+            let itemsInA = try excerptDB.excerpts(listID: listA.id)
+            #expect(itemsInA.count == 3)
+
+            // Select all 3 rows in ListA
+            var selection = TableSandboxRowSelectionState()
+            selection.toggleAll(rowCount: 3)
+            app.excerpt.tableSelectionState = selection
+            app.excerpt.tableSelectionEntryIDs = app.excerpt.tableRowStore.snapshot.orderedEntryIDs
+
+            // 2. Batch duplicate [item1, item2] to ListB -> partial duplicate succeeds and skips item2
+            #expect(app.duplicateExcerpts(
+                [itemsInA[0], itemsInA[1]],
+                toListID: listC.id,
+                listName: listC.name
+            ))
+            await app.excerptMutationTask?.value
+            #expect(app.toast.visibleItems.last?.request == ExcerptToastRequest.duplicateSucceeded(listName: listC.name))
+            #expect(try excerptDB.excerptRelations(listID: listC.id).map(\.cueID) == [cue1.entryID, cue2.entryID])
+
+            // 3. Batch move all 3 items from ListA to ListB -> strict skip keeps cue2 in ListA and checked at row 0!
+            #expect(app.moveExcerpts(
+                itemsInA,
+                toListID: listB.id,
+                listName: listB.name
+            ))
+            await app.excerptMutationTask?.value
+            #expect(app.toast.visibleItems.last?.request == ExcerptToastRequest.moveSucceeded(listName: listB.name))
+            #expect(try excerptDB.excerptRelations(listID: listA.id).map(\.cueID) == [cue2.entryID])
+            #expect(try excerptDB.excerptRelations(listID: listB.id).map(\.cueID) == [cue2.entryID, cue1.entryID, cue3.entryID])
+
+            // Remaining row in ListA (cue2) stays checked at its new row index 0
+            #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 1)
+            #expect(app.excerpt.tableSelectionState.selectedRows(rowCount: 1) == [0])
+
+            // Attempting to move the remaining duplicate item to ListB again shows already-exists warning and leaves it in ListA
+            let survivingItem = try #require(try excerptDB.excerpts(listID: listA.id).first)
+            #expect(!app.moveExcerpts(
+                [survivingItem],
+                toListID: listB.id,
+                listName: listB.name
+            ))
+            #expect(app.toast.visibleItems.last?.request == ExcerptToastRequest.destinationAlreadyContainsCue(listName: listB.name))
+            #expect(try excerptDB.excerptRelations(listID: listA.id).count == 1)
+
+            // 4. Batch remove from ListB removes all items and clears selection
+            app.excerpt.setActiveListID(listB.id)
+            app.reloadExcerptTableRows()
+            await app.excerptTableRowsTask?.value
+            let itemsInB = try excerptDB.excerpts(listID: listB.id)
+            #expect(itemsInB.count == 3)
+
+            var selectionB = TableSandboxRowSelectionState()
+            selectionB.toggleAll(rowCount: 3)
+            app.excerpt.tableSelectionState = selectionB
+            app.excerpt.tableSelectionEntryIDs = app.excerpt.tableRowStore.snapshot.orderedEntryIDs
+
+            #expect(app.removeExcerpts(itemsInB, reloadPresentation: false))
+            await app.excerptMutationTask?.value
+            #expect(try excerptDB.excerptRelations(listID: listB.id).isEmpty)
+            #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 0)
+            #expect(app.excerpt.tableSelectionState.selectedCount(rowCount: 0) == 0)
+        }
+    }
+
+    @Test
+    func batchNewListPendingTransferSavesOrMovesSelectedItemsToNewlyCreatedList() async throws {
+        try await withExcerptTestApp { app, database in
+            try indexExcerptVideo("Episode1", in: database)
+            try indexExcerptVideo("Episode2", in: database)
+            let excerptDB = try #require(app.excerptDatabase)
+            let searchDB = try SearchDatabase(path: database.path)
+            let cue1 = try #require(try searchDB.search("Episode1").first)
+            let cue2 = try #require(try searchDB.search("Episode2").first)
+
+            app.reloadExcerptListOverview()
+            await app.excerptListOverviewTask?.value
+
+            // Create new list from batch Save to Excerpt List (.cues)
+            app.beginCreatingExcerptList(
+                pendingTransfer: ExcerptListEditorPendingTransfer(
+                    action: .saveToExcerpt,
+                    target: .cues([cue1.entryID, cue2.entryID])
+                )
+            )
+            let session = try #require(app.excerpt.listEditorSession)
+            session.name = "BatchSavedList"
+            app.saveExcerptListEditor(session)
+            await app.excerptListSaveTask?.value
+            await app.excerptMutationTask?.value
+
+            let savedList = try #require(try excerptDB.excerptLists().first(where: { $0.name == "BatchSavedList" }))
+            #expect(try excerptDB.excerptRelations(listID: savedList.id).map(\.cueID) == [cue1.entryID, cue2.entryID])
+
+            // Create new list from batch Move to ... (.excerpts)
+            let savedItems = try excerptDB.excerpts(listID: savedList.id)
+            app.excerpt.setActiveListID(savedList.id)
+            app.reloadExcerptTableRows()
+            await app.excerptTableRowsTask?.value
+
+            app.beginCreatingExcerptList(
+                pendingTransfer: ExcerptListEditorPendingTransfer(
+                    action: .moveToList,
+                    target: .excerpts(savedItems)
+                )
+            )
+            let moveSession = try #require(app.excerpt.listEditorSession)
+            moveSession.name = "BatchMovedList"
+            app.saveExcerptListEditor(moveSession)
+            await app.excerptListSaveTask?.value
+            await app.excerptMutationTask?.value
+
+            let movedList = try #require(try excerptDB.excerptLists().first(where: { $0.name == "BatchMovedList" }))
+            #expect(try excerptDB.excerptRelations(listID: savedList.id).isEmpty)
+            #expect(try excerptDB.excerptRelations(listID: movedList.id).map(\.cueID) == [cue1.entryID, cue2.entryID])
+        }
+    }
+
+    @Test
+    func selectionToolbarActionsAndWrappingHeightFollowSpec() {
+        let searchActions = SchemaWorkbenchSelectionAction.searchActions(
+            exportToAnki: {},
+            copyDeepLinks: {},
+            copyTable: {},
+            saveDestinations: [],
+            saveToExcerptList: { _ in },
+            createListForSave: {}
+        )
+        #expect(searchActions.map(\.id) == ["anki", "copy-deep-links", "copy-table", "save-to-excerpt"])
+        #expect(searchActions.map(\.keyLabel) == ["A", "D", "T", "S"])
+        #expect(searchActions.last?.destinationMenu != nil)
+
+        let excerptActions = SchemaWorkbenchSelectionAction.excerptActions(
+            exportToAnki: {},
+            copyDeepLinks: {},
+            copyTable: {},
+            destinations: [],
+            moveToExcerptList: { _ in },
+            createListForMove: {},
+            duplicateToExcerptList: { _ in },
+            createListForDuplicate: {},
+            removeExcerpts: {}
+        )
+        #expect(excerptActions.map(\.id) == ["anki", "copy-deep-links", "copy-table", "move-to", "duplicate-to", "remove-excerpt"])
+        #expect(excerptActions.map(\.keyLabel) == ["A", "D", "T", "M", "C", "R"])
+        #expect(excerptActions.last?.style == .destructive)
+
+        let wideHeight = SchemaWorkbenchStyle.pinnedToolbarHeight(
+            forWidth: 1_400,
+            isSelectionMode: true,
+            selectionActions: excerptActions
+        )
+        let narrowHeight = SchemaWorkbenchStyle.pinnedToolbarHeight(
+            forWidth: 420,
+            isSelectionMode: true,
+            selectionActions: excerptActions
+        )
+        #expect(wideHeight == SchemaWorkbenchStyle.pinnedToolbarHeight)
+        #expect(narrowHeight > wideHeight)
+    }
 }
 
 // MARK: - Test Fixture

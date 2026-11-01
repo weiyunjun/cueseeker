@@ -133,6 +133,8 @@
 "excerpt.table.no_results" = "No matching excerpts found.";
 "excerpt.remove.title" = "Remove Excerpt";
 "excerpt.remove.message" = "This cue will be removed from this list. The original cue will not be deleted.";
+"excerpt.remove.batch_message.one" = "Remove this excerpt from “%@”?";
+"excerpt.remove.batch_message.other" = "Remove %1$d excerpts from “%2$@”?";
 
 /* Library */
 "library.play" = "Play";

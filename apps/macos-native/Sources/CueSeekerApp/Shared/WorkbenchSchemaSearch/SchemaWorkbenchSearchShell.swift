@@ -145,6 +145,39 @@ enum SchemaWorkbenchSearchDefaults {
     }
 }
 
+@MainActor
+final class SchemaWorkbenchSelectionMenuController: ObservableObject {
+    @Published var activeActionID: String?
+    private var buttonAnchors: [String: MenuAnchorHandle] = [:]
+
+    func anchor(for actionID: String) -> MenuAnchorHandle {
+        if let existing = buttonAnchors[actionID] {
+            return existing
+        }
+        let handle = MenuAnchorHandle()
+        buttonAnchors[actionID] = handle
+        return handle
+    }
+
+    func isMenuOpen(for actionID: String) -> Bool {
+        activeActionID == actionID
+    }
+
+    func toggleMenu(for actionID: String) {
+        if activeActionID == actionID {
+            activeActionID = nil
+        } else {
+            activeActionID = actionID
+        }
+    }
+
+    func dismiss() {
+        if activeActionID != nil {
+            activeActionID = nil
+        }
+    }
+}
+
 struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     @Environment(\.isWorkbenchPageCovered) private var isWorkbenchPageCovered
     // Observed so the copy below is re-read when the language changes.
@@ -171,6 +204,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let onSelectSortOption: (String) -> Void
     let externalSortButtonAnchor: MenuAnchorHandle?
     let externalIsSortMenuOpen: Binding<Bool>?
+    let externalSelectionMenuController: SchemaWorkbenchSelectionMenuController?
     /// Registered with the Selection Action Overlay's own area, so the table
     /// can tell when the pointer is over it.
     let selectionOverlayAnchor: MenuAnchorHandle?
@@ -179,6 +213,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     @StateObject private var externalTextSelectionSession = SubtitleTableExternalTextSelectionSession()
     @StateObject private var pageScrollbar = WorkbenchPageScrollbar()
+    @StateObject private var internalSelectionMenuController = SchemaWorkbenchSelectionMenuController()
 
     init(
         searchDraft: Binding<String>,
@@ -201,6 +236,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         onSelectSortOption: @escaping (String) -> Void = { _ in },
         sortButtonAnchor: MenuAnchorHandle? = nil,
         isSortMenuOpen: Binding<Bool>? = nil,
+        selectionMenuController: SchemaWorkbenchSelectionMenuController? = nil,
         selectionOverlayAnchor: MenuAnchorHandle? = nil,
         onSearchSubmit: (() -> Void)? = nil,
         @ViewBuilder tableContent: @escaping ([WorkbenchTableColumn]) -> TableContent
@@ -225,9 +261,14 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         self.onSelectSortOption = onSelectSortOption
         self.externalSortButtonAnchor = sortButtonAnchor
         self.externalIsSortMenuOpen = isSortMenuOpen
+        self.externalSelectionMenuController = selectionMenuController
         self.selectionOverlayAnchor = selectionOverlayAnchor
         self.onSearchSubmit = onSearchSubmit
         self.tableContent = tableContent
+    }
+
+    private var resolvedSelectionMenuController: SchemaWorkbenchSelectionMenuController {
+        externalSelectionMenuController ?? internalSelectionMenuController
     }
 
     var body: some View {
@@ -235,6 +276,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             sortOptions: sortOptions,
             selectedSortOptionID: selectedSortOptionID,
             onSelectSortOption: onSelectSortOption,
+            selectionActions: selectionActions ?? [],
+            selectionMenuController: resolvedSelectionMenuController,
             isFilterDialogOpen: isFilterDialogOpen,
             isSelectionMode: isSelectionMode,
             externalSortButtonAnchor: externalSortButtonAnchor,
@@ -358,6 +401,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             autofocusSearchOnAppear: autofocusSearchOnAppear,
             selectedCountText: selectedCountText,
             selectionActions: selectionActions ?? [],
+            selectionMenuController: resolvedSelectionMenuController,
             isSelectionMode: isSelectionMode,
             isFilterDialogOpen: isFilterDialogOpen,
             filterSelectionCount: filterSelectionCount,
@@ -390,6 +434,57 @@ enum SchemaWorkbenchStyle {
         WorkbenchControlMetrics.redesignHeight * 2
             + toolbarRowSpacing
             + toolbarBottomGap
+
+    @MainActor
+    private static var cachedSelectionButtonWidths: [String: CGFloat] = [:]
+
+    @MainActor
+    static func selectionButtonWidth(for action: SchemaWorkbenchSelectionAction) -> CGFloat {
+        let key = "\(action.icon.rawValue)|\(action.title)"
+        if let cached = cachedSelectionButtonWidths[key] {
+            return cached
+        }
+        let host = NSHostingView(
+            rootView: WorkbenchButton(
+                title: action.title,
+                icon: action.icon,
+                action: {}
+            )
+        )
+        let width = ceil(host.fittingSize.width)
+        cachedSelectionButtonWidths[key] = width
+        return width
+    }
+
+    @MainActor
+    static func pinnedToolbarHeight(
+        forWidth width: CGFloat,
+        isSelectionMode: Bool,
+        selectionActions: [SchemaWorkbenchSelectionAction]
+    ) -> CGFloat {
+        guard isSelectionMode, !selectionActions.isEmpty, width > 0 else {
+            return pinnedToolbarHeight
+        }
+        let availableWidth = max(1, width - selectionActionRowLeadingPadding)
+        let horizontalSpacing = WorkbenchControlMetrics.redesignSpacing4
+        var lineCount = 1
+        var currentX: CGFloat = 0
+        for action in selectionActions {
+            let itemWidth = selectionButtonWidth(for: action)
+            if currentX > 0, currentX + itemWidth > availableWidth {
+                lineCount += 1
+                currentX = itemWidth + horizontalSpacing
+            } else {
+                currentX += itemWidth + horizontalSpacing
+            }
+        }
+        let actionRowsHeight = CGFloat(lineCount) * WorkbenchControlMetrics.redesignHeight
+            + CGFloat(max(0, lineCount - 1)) * toolbarRowSpacing
+        return WorkbenchControlMetrics.redesignHeight
+            + toolbarRowSpacing
+            + actionRowsHeight
+            + toolbarBottomGap
+    }
 }
 
 struct SchemaWorkbenchSearchToolbar: View {
@@ -402,6 +497,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     var autofocusSearchOnAppear: Bool = false
     var selectedCountText: String? = nil
     var selectionActions: [SchemaWorkbenchSelectionAction] = []
+    var selectionMenuController: SchemaWorkbenchSelectionMenuController? = nil
     var isSelectionMode: Bool = false
     var isFilterDialogOpen: Bool = false
     /// The options the table's selection holds; nothing is drawn at zero.
@@ -416,6 +512,11 @@ struct SchemaWorkbenchSearchToolbar: View {
     var onToggleSelectionMode: () -> Void
 
     @State private var hasConsumedInitialAutofocus = false
+    @StateObject private var defaultSelectionMenuController = SchemaWorkbenchSelectionMenuController()
+
+    private var resolvedSelectionMenuController: SchemaWorkbenchSelectionMenuController {
+        selectionMenuController ?? defaultSelectionMenuController
+    }
 
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
@@ -426,7 +527,12 @@ struct SchemaWorkbenchSearchToolbar: View {
             VStack(spacing: SchemaWorkbenchStyle.toolbarRowSpacing) {
                 if isSelectionMode {
                     selectionSummaryRow(accessibility: accessibility)
-                    selectionActionsRow(accessibility: accessibility)
+                    SchemaWorkbenchSelectionActionsRow(
+                        selectionActions: selectionActions,
+                        selectionMenuController: resolvedSelectionMenuController,
+                        focusedTarget: accessibility?.focusedTarget,
+                        onTriggerAction: triggerSelectionAction
+                    )
                 } else {
                     topInputAndActionsRow(accessibility: accessibility)
                     defaultResultCountRow
@@ -444,6 +550,8 @@ struct SchemaWorkbenchSearchToolbar: View {
                 )
                 if inSelectionMode {
                     hasConsumedInitialAutofocus = true
+                } else {
+                    resolvedSelectionMenuController.dismiss()
                 }
                 accessibility?.isTableInSelectionMode = inSelectionMode
             }
@@ -451,6 +559,7 @@ struct SchemaWorkbenchSearchToolbar: View {
                 WorkbenchAccessibilityDebugLog.log(
                     "SchemaWorkbenchSearchToolbar.onDisappear isSelectionMode=\(isSelectionMode) a11yExists=\(accessibility != nil)"
                 )
+                resolvedSelectionMenuController.dismiss()
                 accessibility?.isTableInSelectionMode = false
                 accessibility?.onOpenToolbarFilterDialog = nil
                 accessibility?.onToggleToolbarSortMenu = nil
@@ -488,7 +597,18 @@ struct SchemaWorkbenchSearchToolbar: View {
             WorkbenchAccessibilityDebugLog.log(
                 "SchemaWorkbenchSearchToolbar.onPerformSelectionAction(\(actionID.rawValue)) matched=\(matched != nil) capturedActionIDs=\(selectionActions.map(\.id))"
             )
-            matched?.perform()
+            if let matched {
+                triggerSelectionAction(matched)
+            }
+        }
+    }
+
+    private func triggerSelectionAction(_ action: SchemaWorkbenchSelectionAction) {
+        if action.destinationMenu != nil {
+            resolvedSelectionMenuController.toggleMenu(for: action.id)
+        } else {
+            resolvedSelectionMenuController.dismiss()
+            action.perform()
         }
     }
 
@@ -587,44 +707,6 @@ struct SchemaWorkbenchSearchToolbar: View {
         .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 
-    private func selectionActionsRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
-        let focusedTarget = accessibility?.focusedTarget
-        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            if let ankiAction = selectionAction(for: .exportToAnki) {
-                SchemaWorkbenchSelectionActionButton(
-                    action: ankiAction,
-                    isFocused: focusedTarget == .toolbarSelectionAction(.exportToAnki)
-                )
-                .layoutPriority(1)
-            }
-            if let deepLinksAction = selectionAction(for: .copyDeepLinks) {
-                SchemaWorkbenchSelectionActionButton(
-                    action: deepLinksAction,
-                    isFocused: focusedTarget == .toolbarSelectionAction(.copyDeepLinks)
-                )
-                .layoutPriority(1)
-            }
-            if let copyTableAction = selectionAction(for: .copyTable) {
-                SchemaWorkbenchSelectionActionButton(
-                    action: copyTableAction,
-                    isFocused: focusedTarget == .toolbarSelectionAction(.copyTable)
-                )
-                .layoutPriority(1)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.leading, SchemaWorkbenchStyle.selectionActionRowLeadingPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: WorkbenchControlMetrics.redesignHeight)
-    }
-
-    private func selectionAction(
-        for id: SchemaWorkbenchSelectionActionID
-    ) -> SchemaWorkbenchSelectionAction? {
-        selectionActions.first(where: { $0.id == id.rawValue })
-    }
-
     private func handleSelectionShortcut(_ event: NSEvent) -> Bool {
         guard isSelectionMode,
               !layerContext.isFrozen,
@@ -648,9 +730,42 @@ struct SchemaWorkbenchSearchToolbar: View {
             return false
         }
         if !event.isARepeat {
-            action.perform()
+            triggerSelectionAction(action)
         }
         return true
+    }
+}
+
+private struct SchemaWorkbenchSelectionActionsRow: View {
+    let selectionActions: [SchemaWorkbenchSelectionAction]
+    @ObservedObject var selectionMenuController: SchemaWorkbenchSelectionMenuController
+    let focusedTarget: WorkbenchAccessibilityTarget?
+    let onTriggerAction: (SchemaWorkbenchSelectionAction) -> Void
+
+    var body: some View {
+        WrappingFlowLayout(
+            alignment: .leading,
+            horizontalSpacing: WorkbenchControlMetrics.redesignSpacing4,
+            verticalSpacing: SchemaWorkbenchStyle.toolbarRowSpacing
+        ) {
+            ForEach(selectionActions) { action in
+                let actionID = SchemaWorkbenchSelectionActionID(rawValue: action.id)
+                let isFocused = actionID.map { focusedTarget == .toolbarSelectionAction($0) } ?? false
+                let hasMenu = action.destinationMenu != nil
+                let isOpen = hasMenu && selectionMenuController.isMenuOpen(for: action.id)
+                SchemaWorkbenchSelectionActionButton(
+                    action: action,
+                    isOpen: isOpen,
+                    isFocused: isFocused,
+                    anchor: hasMenu ? selectionMenuController.anchor(for: action.id) : nil,
+                    onTrigger: {
+                        onTriggerAction(action)
+                    }
+                )
+            }
+        }
+        .padding(.leading, SchemaWorkbenchStyle.selectionActionRowLeadingPadding)
+        .frame(maxWidth: .infinity, minHeight: WorkbenchControlMetrics.redesignHeight, alignment: .leading)
     }
 }
 
@@ -725,6 +840,8 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
     let sortOptions: [SchemaWorkbenchSortOption]
     let selectedSortOptionID: String
     let onSelectSortOption: (String) -> Void
+    var selectionActions: [SchemaWorkbenchSelectionAction] = []
+    @ObservedObject var selectionMenuController: SchemaWorkbenchSelectionMenuController
     var isFilterDialogOpen: Bool = false
     var isSelectionMode: Bool = false
     var externalSortButtonAnchor: MenuAnchorHandle? = nil
@@ -734,7 +851,34 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
     @State private var internalSortButtonAnchor = MenuAnchorHandle()
     @State private var sortMenuHostAnchor = MenuAnchorHandle()
     @State private var activeSortMenu: SchemaWorkbenchSortMenuState?
+    @State private var activeSelectionMenu: SchemaWorkbenchSelectionDestinationMenuState?
     @StateObject private var sortMenuHighlight = MenuHighlightModel()
+    @StateObject private var selectionMenuHighlight = MenuHighlightModel()
+
+    @MainActor
+    init(
+        sortOptions: [SchemaWorkbenchSortOption],
+        selectedSortOptionID: String,
+        onSelectSortOption: @escaping (String) -> Void,
+        selectionActions: [SchemaWorkbenchSelectionAction] = [],
+        selectionMenuController: SchemaWorkbenchSelectionMenuController? = nil,
+        isFilterDialogOpen: Bool = false,
+        isSelectionMode: Bool = false,
+        externalSortButtonAnchor: MenuAnchorHandle? = nil,
+        externalIsSortMenuOpen: Binding<Bool>? = nil,
+        @ViewBuilder content: @escaping (SchemaWorkbenchSortMenuTriggerContext) -> Content
+    ) {
+        self.sortOptions = sortOptions
+        self.selectedSortOptionID = selectedSortOptionID
+        self.onSelectSortOption = onSelectSortOption
+        self.selectionActions = selectionActions
+        self.selectionMenuController = selectionMenuController ?? SchemaWorkbenchSelectionMenuController()
+        self.isFilterDialogOpen = isFilterDialogOpen
+        self.isSelectionMode = isSelectionMode
+        self.externalSortButtonAnchor = externalSortButtonAnchor
+        self.externalIsSortMenuOpen = externalIsSortMenuOpen
+        self.content = content
+    }
 
     var body: some View {
         content(
@@ -789,6 +933,53 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
                 }
                 .zIndex(1001)
             }
+
+            if let activeSelectionMenu,
+               let action = selectionActions.first(where: { $0.id == activeSelectionMenu.actionID }),
+               let destinationMenu = action.destinationMenu {
+                let menuFrame = activeSelectionMenu.menuFrame
+                ZStack(alignment: .topLeading) {
+                    MenuGateClientView(
+                        gate: interfaceLayers?.menuGate,
+                        owner: layerContext.layer,
+                        kind: .excerptDestinationMenu,
+                        menuFrame: menuFrame,
+                        anchorFrame: activeSelectionMenu.anchorFrame,
+                        handleKey: { keyCode, isRepeat in
+                            handleSelectionDestinationMenuKey(
+                                keyCode,
+                                isRepeat: isRepeat,
+                                action: action,
+                                destinationMenu: destinationMenu
+                            )
+                        },
+                        dismiss: { _ in
+                            dismissSelectionDestinationMenu()
+                        }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+
+                    SchemaWorkbenchSelectionDestinationMenuSurfaceHost(
+                        menu: ExcerptDestinationMenu(
+                            destinations: destinationMenu.destinations,
+                            highlight: selectionMenuHighlight,
+                            maximumHeight: activeSelectionMenu.maximumHeight,
+                            onSelect: { destination in
+                                dismissSelectionDestinationMenu()
+                                destinationMenu.onSelect(destination)
+                            },
+                            onCreateList: {
+                                dismissSelectionDestinationMenu()
+                                destinationMenu.onCreateList()
+                            }
+                        )
+                    )
+                    .frame(width: menuFrame.width, height: menuFrame.height)
+                    .offset(x: menuFrame.minX, y: menuFrame.minY)
+                }
+                .zIndex(1001)
+            }
         }
         .onChange(of: externalIsSortMenuOpen?.wrappedValue ?? false) { isOpen in
             if isOpen {
@@ -799,23 +990,35 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
                 dismissSortMenu()
             }
         }
+        .onChange(of: selectionMenuController.activeActionID) { actionID in
+            if let actionID {
+                openSelectionDestinationMenu(for: actionID)
+            } else if activeSelectionMenu != nil {
+                dismissSelectionDestinationMenu()
+            }
+        }
         .onChange(of: isSelectionMode) { inSelectionMode in
             if inSelectionMode {
                 dismissSortMenu()
+            } else {
+                dismissSelectionDestinationMenu()
             }
         }
         .onChange(of: isFilterDialogOpen) { isOpen in
             if isOpen {
                 dismissSortMenu()
+                dismissSelectionDestinationMenu()
             }
         }
         .onChange(of: isHostCovered) { isCovered in
             if isCovered {
                 dismissSortMenu()
+                dismissSelectionDestinationMenu()
             }
         }
         .onDisappear {
             dismissSortMenu()
+            dismissSelectionDestinationMenu()
         }
     }
 
@@ -886,6 +1089,117 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
         sortMenuHighlight.close()
     }
 
+    private func openSelectionDestinationMenu(for actionID: String) {
+        guard isSelectionMode,
+              let action = selectionActions.first(where: { $0.id == actionID }),
+              let destinationMenu = action.destinationMenu
+        else {
+            dismissSelectionDestinationMenu()
+            return
+        }
+        dismissSortMenu()
+        let viewportSize = sortMenuHostAnchor.bounds?.size ?? CGSize(width: 900, height: 600)
+        let buttonAnchor = selectionMenuController.anchor(for: actionID)
+        let anchorFrame = buttonAnchor.frame(in: sortMenuHostAnchor)
+            ?? buttonAnchor.bounds
+            ?? CGRect(x: 0, y: 0, width: 120, height: WorkbenchControlMetrics.redesignHeight)
+        let naturalSize = measuredSelectionDestinationMenuSize(
+            destinations: destinationMenu.destinations,
+            maximumHeight: MenuMetrics.maximumHeight
+        )
+        let scrollingWidth = measuredSelectionDestinationMenuSize(
+            destinations: destinationMenu.destinations,
+            maximumHeight: 0
+        ).width
+        let container = CGRect(origin: .zero, size: viewportSize)
+        let initialFrame = MenuPlacement.openingFrame(
+            anchor: anchorFrame,
+            menuSize: naturalSize,
+            in: container,
+            gap: WorkbenchControlMetrics.redesignSpacing1,
+            shrinksToFit: true
+        )
+        let openingFrame: CGRect
+        let maximumHeight: CGFloat
+        if initialFrame.height < naturalSize.height {
+            openingFrame = MenuPlacement.openingFrame(
+                anchor: anchorFrame,
+                menuSize: CGSize(width: scrollingWidth, height: initialFrame.height),
+                in: container,
+                gap: WorkbenchControlMetrics.redesignSpacing1,
+                shrinksToFit: true
+            )
+            maximumHeight = initialFrame.height
+        } else {
+            openingFrame = initialFrame
+            maximumHeight = MenuMetrics.maximumHeight
+        }
+        activeSelectionMenu = SchemaWorkbenchSelectionDestinationMenuState(
+            actionID: actionID,
+            anchorFrame: anchorFrame,
+            menuFrame: openingFrame,
+            maximumHeight: maximumHeight
+        )
+        selectionMenuHighlight.open(
+            selectablePositions: ExcerptDestinationMenu.selectablePositions(
+                destinationCount: destinationMenu.destinations.count
+            ),
+            defaultPosition: ExcerptDestinationMenu.defaultPosition(
+                destinations: destinationMenu.destinations
+            )
+        )
+    }
+
+    private func dismissSelectionDestinationMenu() {
+        activeSelectionMenu = nil
+        selectionMenuController.dismiss()
+        selectionMenuHighlight.close()
+    }
+
+    private func handleSelectionDestinationMenuKey(
+        _ keyCode: UInt16,
+        isRepeat: Bool,
+        action: SchemaWorkbenchSelectionAction,
+        destinationMenu: SchemaWorkbenchSelectionDestinationMenu
+    ) -> Bool {
+        if keyCode == action.keyCode {
+            if !isRepeat {
+                dismissSelectionDestinationMenu()
+            }
+            return true
+        }
+        return selectionMenuHighlight.handleStandardMenuKey(
+            keyCode: keyCode,
+            onActivate: {
+                guard !isRepeat,
+                      let position = selectionMenuHighlight.activeTriggerPosition
+                else {
+                    return
+                }
+                activateSelectionDestination(at: position, destinationMenu: destinationMenu)
+            },
+            onDismiss: {
+                if !isRepeat {
+                    dismissSelectionDestinationMenu()
+                }
+            }
+        )
+    }
+
+    private func activateSelectionDestination(
+        at position: Int,
+        destinationMenu: SchemaWorkbenchSelectionDestinationMenu
+    ) {
+        if destinationMenu.destinations.indices.contains(position) {
+            let destination = destinationMenu.destinations[position]
+            dismissSelectionDestinationMenu()
+            destinationMenu.onSelect(destination)
+        } else if position == destinationMenu.destinations.count {
+            dismissSelectionDestinationMenu()
+            destinationMenu.onCreateList()
+        }
+    }
+
     private func activateHighlightedSortItem() {
         guard let position = sortMenuHighlight.activeTriggerPosition,
               sortOptions.indices.contains(position)
@@ -917,6 +1231,23 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
         host.layoutSubtreeIfNeeded()
         return host.fittingSize
     }
+
+    private func measuredSelectionDestinationMenuSize(
+        destinations: [SubtitleTableRowActionDestination],
+        maximumHeight: CGFloat
+    ) -> CGSize {
+        let host = NSHostingView(
+            rootView: ExcerptDestinationMenu(
+                destinations: destinations,
+                highlight: selectionMenuHighlight,
+                maximumHeight: maximumHeight,
+                onSelect: { _ in },
+                onCreateList: {}
+            )
+        )
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize
+    }
 }
 
 private struct SchemaWorkbenchSortMenuSurfaceHost: NSViewRepresentable {
@@ -931,10 +1262,30 @@ private struct SchemaWorkbenchSortMenuSurfaceHost: NSViewRepresentable {
     }
 }
 
+private struct SchemaWorkbenchSelectionDestinationMenuSurfaceHost: NSViewRepresentable {
+    let menu: ExcerptDestinationMenu
+
+    func makeNSView(context _: Context) -> MenuHostingView {
+        MenuHostingView(rootView: AnyView(menu))
+    }
+
+    func updateNSView(_ nsView: MenuHostingView, context _: Context) {
+        nsView.rootView = AnyView(menu)
+    }
+}
+
 struct SchemaWorkbenchSortMenuState: Identifiable {
     let id = UUID()
     let anchorFrame: CGRect
     let menuFrame: CGRect
+}
+
+struct SchemaWorkbenchSelectionDestinationMenuState: Identifiable {
+    let id = UUID()
+    let actionID: String
+    let anchorFrame: CGRect
+    let menuFrame: CGRect
+    let maximumHeight: CGFloat
 }
 
 struct SchemaWorkbenchSortMenuPopover: View {

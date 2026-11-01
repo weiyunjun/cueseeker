@@ -126,12 +126,31 @@ extension ExcerptStore {
     func presentCreateExcerptListEditor(
         pendingTransfer: ExcerptListEditorPendingTransfer? = nil,
         isExcerptInLibrary: (Int64) -> Bool,
-        onCueNotInLibrary: () -> Void
+        validExcerptIDsInLibrary: ([Int64]) -> Set<Int64> = { _ in [] },
+        validCueIDsInLibrary: ([Int64]) -> Set<Int64> = { _ in [] },
+        onCueNotInLibrary: (Int) -> Void
     ) {
-        if let pendingTransfer, case .excerpt(let item) = pendingTransfer.target {
-            guard item.isValid, isExcerptInLibrary(item.id) else {
-                onCueNotInLibrary()
-                return
+        if let pendingTransfer {
+            switch pendingTransfer.target {
+            case .excerpt(let item):
+                guard item.isValid, isExcerptInLibrary(item.id) else {
+                    onCueNotInLibrary(1)
+                    return
+                }
+            case .excerpts(let items):
+                let validIDs = validExcerptIDsInLibrary(items.map(\.id))
+                guard items.contains(where: { $0.isValid && validIDs.contains($0.id) }) else {
+                    onCueNotInLibrary(max(1, items.count))
+                    return
+                }
+            case .cue:
+                break
+            case .cues(let cueIDs):
+                let validIDs = validCueIDsInLibrary(cueIDs)
+                guard !validIDs.isEmpty else {
+                    onCueNotInLibrary(max(1, cueIDs.count))
+                    return
+                }
             }
         }
         guard listEditorSession == nil else {
@@ -1141,6 +1160,126 @@ extension ExcerptStore {
     }
 
     @discardableResult
+    func saveExcerpts(
+        cueIDs: [Int64],
+        toListID destinationListID: Int64,
+        listName: String,
+        validCueIDsInLibrary: ([Int64]) -> Set<Int64>,
+        onCueNotInLibrary: (Int) -> Void,
+        onReportToast: @escaping @MainActor (ToastRequest) -> Void
+    ) -> Bool {
+        let inLibrarySet = validCueIDsInLibrary(cueIDs)
+        var seenCueIDs = Set<Int64>()
+        let validCueIDs = cueIDs.filter {
+            inLibrarySet.contains($0) && seenCueIDs.insert($0).inserted
+        }
+        guard !validCueIDs.isEmpty else {
+            onCueNotInLibrary(max(1, cueIDs.count))
+            return false
+        }
+        guard let database, let databaseURL else {
+            onReportToast(ExcerptToastRequest.saveFailed(listName: listName))
+            return false
+        }
+        let destination: ExcerptList
+        do {
+            guard let availableDestination = try database.excerptList(
+                id: destinationListID
+            ) else {
+                onReportToast(
+                    ExcerptToastRequest.destinationUnavailable(
+                        listName: listName
+                    )
+                )
+                return false
+            }
+            destination = availableDestination
+        } catch {
+            AppLogger.shared.error(
+                .database,
+                "Failed to resolve Excerpt batch save destination",
+                fields: [("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+            )
+            onReportToast(ExcerptToastRequest.saveFailed(listName: listName))
+            return false
+        }
+
+        do {
+            let existingSet = try database.existingCueIDs(
+                inListID: destinationListID,
+                among: validCueIDs
+            )
+            let insertedCueIDs = validCueIDs.filter { !existingSet.contains($0) }
+            guard !insertedCueIDs.isEmpty else {
+                onReportToast(
+                    ExcerptToastRequest.destinationAlreadyContainsCue(
+                        listName: destination.name
+                    )
+                )
+                return false
+            }
+            markTableRowsStale()
+            if !adjustListCueCounts(
+                [destinationListID: insertedCueIDs.count],
+                addedCueIDsByListID: [destinationListID: Set(insertedCueIDs)]
+            ) {
+                reloadListOverview()
+            }
+            setRecentSaveListID(destinationListID)
+            onReportToast(
+                ExcerptToastRequest.saveSucceeded(listName: destination.name)
+            )
+            AppLogger.shared.info(
+                .excerpt,
+                "Excerpts saved to list",
+                fields: [
+                    ("count", "\(insertedCueIDs.count)"),
+                    ("skipped", "\(validCueIDs.count - insertedCueIDs.count)"),
+                    ("list_id", "\(destinationListID)"),
+                    ("list", destination.name)
+                ]
+            )
+
+            mutationTask?.cancel()
+            mutationTask = Task { @MainActor [weak self] in
+                defer { self?.mutationTask = nil }
+                do {
+                    let (uniqueCueCount, recentSummaries) = try await Self.runCancellableDetached(priority: .userInitiated) {
+                        let db = try ExcerptDatabase(path: databaseURL)
+                        _ = try db.upsertExcerpts(cueIDs: insertedCueIDs, listID: destinationListID)
+                        return (try db.uniqueExcerptCueCount(), try db.recentExcerptListSummaries())
+                    }
+                    guard let self, !self.needsReloadAfterIndexedContentMutation else { return }
+                    _ = self.adjustListCueCounts([destinationListID: 0], uniqueCueCount: uniqueCueCount)
+                    self.installRecentListSummaries(recentSummaries)
+                } catch {
+                    AppLogger.shared.error(
+                        .database,
+                        "Failed to save Excerpts in background",
+                        fields: [("count", "\(insertedCueIDs.count)"), ("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+                    )
+                    guard let self else { return }
+                    onReportToast(
+                        ExcerptToastRequest.saveFailed(listName: destination.name)
+                    )
+                    self.reloadListOverview()
+                }
+            }
+            return true
+        } catch {
+            AppLogger.shared.error(
+                .database,
+                "Failed to save Excerpts",
+                fields: [("count", "\(validCueIDs.count)"), ("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+            )
+            onReportToast(
+                ExcerptToastRequest.saveFailed(listName: destination.name)
+            )
+        }
+        return false
+    }
+
+    @discardableResult
     func moveExcerpt(
         _ item: Excerpt,
         toListID destinationListID: Int64,
@@ -1194,6 +1333,7 @@ extension ExcerptStore {
             return false
         }
 
+        invalidateCachedResidentSnapshot(forListID: destinationListID)
         let sourceListID = activeListID
         onItemRemovedFromCurrentList(item)
         let didUpdateOverview = sourceListID.map { sourceID in
@@ -1258,6 +1398,147 @@ extension ExcerptStore {
     }
 
     @discardableResult
+    func moveExcerpts(
+        _ items: [Excerpt],
+        toListID destinationListID: Int64,
+        listName: String,
+        validExcerptIDsInLibrary: ([Int64]) -> Set<Int64>,
+        onToast: @escaping @MainActor (ToastRequest) -> Void,
+        onItemsRemovedFromCurrentList: ([Excerpt]) -> Void,
+        onReloadTableRows: @escaping @MainActor () -> Void
+    ) -> Bool {
+        let inLibrarySet = validExcerptIDsInLibrary(items.map(\.id))
+        var seenIDs = Set<Int64>()
+        let validItems = items.filter {
+            $0.isValid && inLibrarySet.contains($0.id) && seenIDs.insert($0.id).inserted
+        }
+        guard !validItems.isEmpty else {
+            onToast(TableToastRequest.cueNotInLibrary(count: max(1, items.count)))
+            return false
+        }
+        guard let database, let databaseURL else {
+            onToast(ExcerptToastRequest.moveFailed)
+            return false
+        }
+        let destination: ExcerptList
+        do {
+            guard let availableDestination = try database.excerptList(
+                id: destinationListID
+            ) else {
+                onToast(
+                    ExcerptToastRequest.destinationUnavailable(
+                        listName: listName
+                    )
+                )
+                return false
+            }
+            destination = availableDestination
+        } catch {
+            AppLogger.shared.error(
+                .database,
+                "Failed to resolve Excerpt batch move destination",
+                fields: [("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+            )
+            onToast(ExcerptToastRequest.moveFailed)
+            return false
+        }
+
+        let relationByID = resolvedRelationsByID(for: validItems.map(\.id), database: database)
+        let candidateCueIDs = validItems.compactMap { relationByID[$0.id]?.cueID }
+        let existingDestinationCueIDs = (try? database.existingCueIDs(
+            inListID: destinationListID,
+            among: candidateCueIDs
+        )) ?? []
+
+        var plannedCueIDs = existingDestinationCueIDs
+        var itemsToMove: [Excerpt] = []
+        var movedCueIDs = Set<Int64>()
+        for item in validItems {
+            if let relation = relationByID[item.id] {
+                guard plannedCueIDs.insert(relation.cueID).inserted else {
+                    continue
+                }
+                itemsToMove.append(item)
+                movedCueIDs.insert(relation.cueID)
+            } else {
+                itemsToMove.append(item)
+            }
+        }
+        guard !itemsToMove.isEmpty else {
+            onToast(
+                ExcerptToastRequest.destinationAlreadyContainsCue(
+                    listName: destination.name
+                )
+            )
+            return false
+        }
+
+        invalidateCachedResidentSnapshot(forListID: destinationListID)
+        let sourceListID = activeListID
+        onItemsRemovedFromCurrentList(itemsToMove)
+        let moveCount = itemsToMove.count
+        let didUpdateOverview = sourceListID.map { sourceID in
+            adjustListCueCounts(
+                [
+                    sourceID: -moveCount,
+                    destinationListID: moveCount,
+                ],
+                addedCueIDsByListID: movedCueIDs.isEmpty ? [:] : [destinationListID: movedCueIDs],
+                removedCueIDsByListID: movedCueIDs.isEmpty ? [:] : [sourceID: movedCueIDs]
+            )
+        } ?? false
+        if !didUpdateOverview {
+            reloadListOverview()
+        }
+        onToast(ExcerptToastRequest.moveSucceeded(listName: destination.name))
+        AppLogger.shared.info(
+            .excerpt,
+            "Excerpts moved to list",
+            fields: [
+                ("count", "\(moveCount)"),
+                ("skipped", "\(validItems.count - moveCount)"),
+                ("from_list_id", sourceListID.map { "\($0)" }),
+                ("to_list_id", "\(destinationListID)"),
+                ("to_list", destination.name)
+            ]
+        )
+
+        let moveIDs = itemsToMove.map(\.id)
+        let destinationName = destination.name
+        mutationTask?.cancel()
+        mutationTask = Task { @MainActor [weak self] in
+            defer { self?.mutationTask = nil }
+            do {
+                let recentSummaries = try await Self.runCancellableDetached(priority: .userInitiated) {
+                    let db = try ExcerptDatabase(path: databaseURL)
+                    _ = try db.moveExcerpts(ids: moveIDs, toListID: destinationListID)
+                    return try db.recentExcerptListSummaries()
+                }
+                guard let self, !self.needsReloadAfterIndexedContentMutation else { return }
+                self.installRecentListSummaries(recentSummaries)
+            } catch ExcerptTransferError.destinationUnavailable {
+                onToast(ExcerptToastRequest.destinationUnavailable(listName: destinationName))
+                self?.reloadListOverview()
+                onReloadTableRows()
+            } catch ExcerptTransferError.destinationAlreadyContainsCue {
+                onToast(ExcerptToastRequest.destinationAlreadyContainsCue(listName: destinationName))
+                self?.reloadListOverview()
+                onReloadTableRows()
+            } catch {
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to move Excerpts in background",
+                    fields: [("count", "\(moveIDs.count)"), ("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+                )
+                onToast(ExcerptToastRequest.moveFailed)
+                self?.reloadListOverview()
+                onReloadTableRows()
+            }
+        }
+        return true
+    }
+
+    @discardableResult
     func duplicateExcerpt(
         _ item: Excerpt,
         toListID destinationListID: Int64,
@@ -1309,6 +1590,7 @@ extension ExcerptStore {
             return false
         }
 
+        invalidateCachedResidentSnapshot(forListID: destinationListID)
         let addedCueIDs: [Int64: Set<Int64>] = relation.map { [destinationListID: [$0.cueID]] } ?? [:]
         if !adjustListCueCounts(
             [destinationListID: 1],
@@ -1360,6 +1642,135 @@ extension ExcerptStore {
     }
 
     @discardableResult
+    func duplicateExcerpts(
+        _ items: [Excerpt],
+        toListID destinationListID: Int64,
+        listName: String,
+        validExcerptIDsInLibrary: ([Int64]) -> Set<Int64>,
+        onToast: @escaping @MainActor (ToastRequest) -> Void
+    ) -> Bool {
+        let inLibrarySet = validExcerptIDsInLibrary(items.map(\.id))
+        var seenIDs = Set<Int64>()
+        let validItems = items.filter {
+            $0.isValid && inLibrarySet.contains($0.id) && seenIDs.insert($0.id).inserted
+        }
+        guard !validItems.isEmpty else {
+            onToast(TableToastRequest.cueNotInLibrary(count: max(1, items.count)))
+            return false
+        }
+        guard let database, let databaseURL else {
+            onToast(ExcerptToastRequest.duplicateFailed)
+            return false
+        }
+        let destination: ExcerptList
+        do {
+            guard let availableDestination = try database.excerptList(
+                id: destinationListID
+            ) else {
+                onToast(
+                    ExcerptToastRequest.destinationUnavailable(
+                        listName: listName
+                    )
+                )
+                return false
+            }
+            destination = availableDestination
+        } catch {
+            AppLogger.shared.error(
+                .database,
+                "Failed to resolve Excerpt batch duplicate destination",
+                fields: [("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+            )
+            onToast(ExcerptToastRequest.duplicateFailed)
+            return false
+        }
+
+        let relationByID = resolvedRelationsByID(for: validItems.map(\.id), database: database)
+        let candidateCueIDs = validItems.compactMap { relationByID[$0.id]?.cueID }
+        let existingDestinationCueIDs = (try? database.existingCueIDs(
+            inListID: destinationListID,
+            among: candidateCueIDs
+        )) ?? []
+
+        var plannedCueIDs = existingDestinationCueIDs
+        var itemsToDuplicate: [Excerpt] = []
+        var duplicatedCueIDs = Set<Int64>()
+        for item in validItems {
+            if let relation = relationByID[item.id] {
+                guard plannedCueIDs.insert(relation.cueID).inserted else {
+                    continue
+                }
+                itemsToDuplicate.append(item)
+                duplicatedCueIDs.insert(relation.cueID)
+            } else {
+                itemsToDuplicate.append(item)
+            }
+        }
+        guard !itemsToDuplicate.isEmpty else {
+            onToast(
+                ExcerptToastRequest.destinationAlreadyContainsCue(
+                    listName: destination.name
+                )
+            )
+            return false
+        }
+
+        invalidateCachedResidentSnapshot(forListID: destinationListID)
+        let duplicateCount = itemsToDuplicate.count
+        let addedCueIDs: [Int64: Set<Int64>] = duplicatedCueIDs.isEmpty
+            ? [:]
+            : [destinationListID: duplicatedCueIDs]
+        if !adjustListCueCounts(
+            [destinationListID: duplicateCount],
+            addedCueIDsByListID: addedCueIDs
+        ) {
+            reloadListOverview()
+        }
+        onToast(ExcerptToastRequest.duplicateSucceeded(listName: destination.name))
+        AppLogger.shared.info(
+            .excerpt,
+            "Excerpts duplicated to list",
+            fields: [
+                ("count", "\(duplicateCount)"),
+                ("skipped", "\(validItems.count - duplicateCount)"),
+                ("to_list_id", "\(destinationListID)"),
+                ("to_list", destination.name)
+            ]
+        )
+
+        let duplicateIDs = itemsToDuplicate.map(\.id)
+        let destinationName = destination.name
+        mutationTask?.cancel()
+        mutationTask = Task { @MainActor [weak self] in
+            defer { self?.mutationTask = nil }
+            do {
+                let recentSummaries = try await Self.runCancellableDetached(priority: .userInitiated) {
+                    let db = try ExcerptDatabase(path: databaseURL)
+                    _ = try db.duplicateExcerpts(ids: duplicateIDs, toListID: destinationListID)
+                    return try db.recentExcerptListSummaries()
+                }
+                guard let self, !self.needsReloadAfterIndexedContentMutation else { return }
+                self.installRecentListSummaries(recentSummaries)
+            } catch ExcerptTransferError.destinationUnavailable {
+                onToast(ExcerptToastRequest.destinationUnavailable(listName: destinationName))
+                self?.reloadListOverview()
+            } catch ExcerptTransferError.destinationAlreadyContainsCue {
+                onToast(ExcerptToastRequest.destinationAlreadyContainsCue(listName: destinationName))
+                self?.reloadListOverview()
+            } catch {
+                AppLogger.shared.error(
+                    .database,
+                    "Failed to duplicate Excerpts in background",
+                    fields: [("count", "\(duplicateIDs.count)"), ("list_id", "\(destinationListID)"), ("error", error.localizedDescription)]
+                )
+                onToast(ExcerptToastRequest.duplicateFailed)
+                self?.reloadListOverview()
+            }
+        }
+        return true
+    }
+
+    @discardableResult
     func removeExcerpt(
         _ item: Excerpt,
         reloadPresentation: Bool = true,
@@ -1367,21 +1778,49 @@ extension ExcerptStore {
         onItemRemovedFromCurrentList: (Excerpt) -> Void,
         onReloadTableRows: @escaping @MainActor () -> Void
     ) -> Bool {
-        guard database != nil, let databaseURL else {
+        removeExcerpts(
+            [item],
+            reloadPresentation: reloadPresentation,
+            onFeedback: onFeedback,
+            onItemsRemovedFromCurrentList: { items in
+                for removed in items {
+                    onItemRemovedFromCurrentList(removed)
+                }
+            },
+            onReloadTableRows: onReloadTableRows
+        )
+    }
+
+    @discardableResult
+    func removeExcerpts(
+        _ items: [Excerpt],
+        reloadPresentation: Bool = true,
+        onFeedback: @escaping @MainActor (ExcerptFeedbackState) -> Void,
+        onItemsRemovedFromCurrentList: ([Excerpt]) -> Void,
+        onReloadTableRows: @escaping @MainActor () -> Void
+    ) -> Bool {
+        var seenIDs = Set<Int64>()
+        let uniqueItems = items.filter { seenIDs.insert($0.id).inserted }
+        guard !uniqueItems.isEmpty else {
+            return false
+        }
+        guard let database, let databaseURL else {
             onFeedback(.unavailable)
             return false
         }
 
         _ = reloadPresentation
         let sourceListID = activeListID
-        let removedCueID = residentRelations.first(where: { $0.id == item.id })?.cueID
-            ?? (try? database?.excerptRelation(id: item.id))?.cueID
-        let cueCountDelta = item.isValid ? -1 : 0
-        onItemRemovedFromCurrentList(item)
+        let validItems = uniqueItems.filter(\.isValid)
+        let relationByID = resolvedRelationsByID(for: validItems.map(\.id), database: database)
+        let removedCueIDSet = Set(validItems.compactMap { relationByID[$0.id]?.cueID })
+        let cueCountDelta = -validItems.count
+
+        onItemsRemovedFromCurrentList(uniqueItems)
         if let sourceListID {
-            let removedCueIDs: [Int64: Set<Int64>] = (item.isValid && removedCueID != nil)
-                ? [sourceListID: [removedCueID!]]
-                : [:]
+            let removedCueIDs: [Int64: Set<Int64>] = removedCueIDSet.isEmpty
+                ? [:]
+                : [sourceListID: removedCueIDSet]
             _ = adjustListCueCounts(
                 [sourceListID: cueCountDelta],
                 removedCueIDsByListID: removedCueIDs
@@ -1392,21 +1831,21 @@ extension ExcerptStore {
         onFeedback(.removed)
         AppLogger.shared.info(
             .excerpt,
-            "Excerpt removed from list",
+            uniqueItems.count == 1 ? "Excerpt removed from list" : "Excerpts removed from list",
             fields: [
-                ("excerpt_id", "\(item.id)"),
+                ("count", "\(uniqueItems.count)"),
                 ("list_id", sourceListID.map { "\($0)" })
             ]
         )
 
-        let itemID = item.id
+        let itemIDs = uniqueItems.map(\.id)
         mutationTask?.cancel()
         mutationTask = Task { @MainActor [weak self] in
             defer { self?.mutationTask = nil }
             do {
                 let (uniqueCueCount, recentSummaries) = try await Self.runCancellableDetached(priority: .userInitiated) {
                     let database = try ExcerptDatabase(path: databaseURL)
-                    _ = try database.removeExcerpt(id: itemID)
+                    _ = try database.removeExcerpts(ids: itemIDs)
                     return (try database.uniqueExcerptCueCount(), try database.recentExcerptListSummaries())
                 }
                 guard let self, !self.needsReloadAfterIndexedContentMutation else { return }
@@ -1418,7 +1857,7 @@ extension ExcerptStore {
                 AppLogger.shared.error(
                     .database,
                     "Failed to remove Excerpt in background",
-                    fields: [("excerpt_id", "\(itemID)"), ("error", error.localizedDescription)]
+                    fields: [("count", "\(itemIDs.count)"), ("error", error.localizedDescription)]
                 )
                 guard let self else { return }
                 onFeedback(.unavailable)
@@ -1427,6 +1866,24 @@ extension ExcerptStore {
             }
         }
         return true
+    }
+
+    private func resolvedRelationsByID(
+        for excerptIDs: [Int64],
+        database: ExcerptDatabase
+    ) -> [Int64: ExcerptRelation] {
+        guard !excerptIDs.isEmpty else { return [:] }
+        var map = Dictionary(
+            uniqueKeysWithValues: residentRelations.map { ($0.id, $0) }
+        )
+        let missingIDs = excerptIDs.filter { map[$0] == nil }
+        if !missingIDs.isEmpty,
+           let fetched = try? database.excerptRelations(ids: missingIDs) {
+            for relation in fetched {
+                map[relation.id] = relation
+            }
+        }
+        return map
     }
 
     func recordRecentExcerptPlayback(for item: Excerpt) {
@@ -1625,10 +2082,14 @@ extension ExcerptStore {
     }
 
     func removeExcerptFromPlaybackNavigationScope(_ id: Int64) {
-        guard var scopeIDs = playbackNavigationScopeIDs else {
+        removeExcerptsFromPlaybackNavigationScope([id])
+    }
+
+    func removeExcerptsFromPlaybackNavigationScope(_ ids: Set<Int64>) {
+        guard !ids.isEmpty, var scopeIDs = playbackNavigationScopeIDs else {
             return
         }
-        scopeIDs.removeAll { $0 == id }
+        scopeIDs.removeAll { ids.contains($0) }
         playbackNavigationScopeIDs = scopeIDs.isEmpty ? nil : scopeIDs
     }
 

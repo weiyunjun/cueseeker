@@ -165,11 +165,12 @@ struct WorkbenchAccessibilityStep1Tests {
         }
 
         let selectModeTargets = app.currentWorkbenchAccessibilityTargets()
-        #expect(selectModeTargets.suffix(6) == [
+        #expect(selectModeTargets.suffix(7) == [
             .toolbarExitSelectButton,
             .toolbarSelectionAction(.exportToAnki),
             .toolbarSelectionAction(.copyDeepLinks),
             .toolbarSelectionAction(.copyTable),
+            .toolbarSelectionAction(.saveToExcerpt),
             .tableHeaderCheckbox,
             .tableRowCheckbox(0),
         ])
@@ -608,6 +609,14 @@ struct WorkbenchAccessibilityStep1Tests {
                             keyCode: 8,
                             perform: { box.triggeredSelectionActionIDs.append("copy-table") }
                         ),
+                        SchemaWorkbenchSelectionAction(
+                            id: "save-to-excerpt",
+                            title: "Save to Excerpt List",
+                            icon: .arrowRight,
+                            keyLabel: "S",
+                            keyCode: 1,
+                            perform: { box.triggeredSelectionActionIDs.append("save-to-excerpt") }
+                        ),
                     ],
                     isSelectionMode: box.isSelectionMode,
                     onFilter: {
@@ -647,11 +656,12 @@ struct WorkbenchAccessibilityStep1Tests {
         host.layoutSubtreeIfNeeded()
 
         #expect(app.workbenchAccessibility.isTableInSelectionMode)
-        #expect(app.currentWorkbenchAccessibilityTargets().suffix(4) == [
+        #expect(app.currentWorkbenchAccessibilityTargets().suffix(5) == [
             .toolbarExitSelectButton,
             .toolbarSelectionAction(.exportToAnki),
             .toolbarSelectionAction(.copyDeepLinks),
             .toolbarSelectionAction(.copyTable),
+            .toolbarSelectionAction(.saveToExcerpt),
         ])
 
         app.workbenchAccessibility.setFocus(.toolbarSelectionAction(.copyTable))
@@ -670,7 +680,8 @@ struct WorkbenchAccessibilityStep1Tests {
         #expect(app.activateWorkbenchAccessibilityTarget(.toolbarSelectionAction(.exportToAnki)))
         #expect(app.activateWorkbenchAccessibilityTarget(.toolbarSelectionAction(.copyDeepLinks)))
         #expect(app.activateWorkbenchAccessibilityTarget(.toolbarSelectionAction(.copyTable)))
-        #expect(box.triggeredSelectionActionIDs == ["anki", "copy-deep-links", "copy-table"])
+        #expect(app.activateWorkbenchAccessibilityTarget(.toolbarSelectionAction(.saveToExcerpt)))
+        #expect(box.triggeredSelectionActionIDs == ["anki", "copy-deep-links", "copy-table", "save-to-excerpt"])
 
         // Activate Exit Selection button -> exits Selection Mode and restores normal toolbar targets.
         #expect(app.activateWorkbenchAccessibilityTarget(.toolbarExitSelectButton))

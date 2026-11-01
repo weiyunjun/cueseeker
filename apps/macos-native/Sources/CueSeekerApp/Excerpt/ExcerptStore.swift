@@ -473,23 +473,30 @@ final class ExcerptStore: ObservableObject {
     }
 
     func removeExcerptFromCurrentProjection(id: Int64) {
-        guard residentDataRevision != nil,
+        removeExcerptsFromCurrentProjection(ids: [id])
+    }
+
+    func removeExcerptsFromCurrentProjection(ids: Set<Int64>) {
+        guard !ids.isEmpty,
+              residentDataRevision != nil,
               residentListID == activeListID,
-              residentRelations.contains(where: { $0.id == id })
+              residentRelations.contains(where: { ids.contains($0.id) })
         else {
             return
         }
         let removedCueIDs = Set(
-            residentRelations.lazy.filter { $0.id == id }.map(\.cueID)
+            residentRelations.lazy.filter { ids.contains($0.id) }.map(\.cueID)
         )
-        residentRelations.removeAll { $0.id == id }
-        residentExcerptsByID[id] = nil
+        residentRelations.removeAll { ids.contains($0.id) }
+        for id in ids {
+            residentExcerptsByID[id] = nil
+        }
         residentFacetSnapshot = residentFacetSnapshot?.removingCueIDs(
             removedCueIDs
         )
         if let listID = activeListID, let cached = residentSnapshotsByListID[listID] {
-            let updatedRelations = cached.relations.filter { $0.id != id }
-            let updatedResolved = cached.resolvedExcerpts.filter { $0.id != id }
+            let updatedRelations = cached.relations.filter { !ids.contains($0.id) }
+            let updatedResolved = cached.resolvedExcerpts.filter { !ids.contains($0.id) }
             let updatedFacet = cached.facetSnapshot.removingCueIDs(removedCueIDs)
             residentSnapshotsByListID[listID] = ExcerptResidentSnapshot(
                 relations: updatedRelations,
@@ -500,19 +507,36 @@ final class ExcerptStore: ObservableObject {
         }
         tableTotalSavedRowCount = residentRelations.count
         if let tableResultExcerptIDs {
-            let remainingIDs = tableResultExcerptIDs.filter { $0 != id }
+            let previousEntryIDs = tableSelectionEntryIDs.isEmpty
+                ? tableResultExcerptIDs.map(Int.init)
+                : tableSelectionEntryIDs
+            let remainingIDs = tableResultExcerptIDs.filter { !ids.contains($0) }
+            let remainingEntryIDs = remainingIDs.map(Int.init)
             self.tableResultExcerptIDs = remainingIDs
             tableResultRowCount = remainingIDs.count
             tableResultSnapshotID = UUID()
-            tableSelectionState.reset()
-            tableSelectionEntryIDs = remainingIDs.map(Int.init)
+            tableSelectionState.remap(
+                from: previousEntryIDs,
+                to: remainingEntryIDs
+            )
+            tableSelectionEntryIDs = remainingEntryIDs
         }
-        tableRowStore.removeResidentExcerpt(
-            id: id,
+        tableRowStore.removeResidentExcerpts(
+            ids: ids,
             tableName: "excerpt",
             probeSurface: .excerpt,
             probeScope: uiProbeScope
         )
+    }
+
+    func invalidateCachedResidentSnapshot(forListID listID: Int64) {
+        residentSnapshotsByListID[listID] = nil
+        residentDataRevisionsByListID[listID] = nil
+        if activeListID == listID {
+            tableRowsNeedReload = true
+            residentFacetSnapshot = nil
+            tableDataRevision += 1
+        }
     }
 
     func invalidateTableRows(tableName: String = "excerpt") {

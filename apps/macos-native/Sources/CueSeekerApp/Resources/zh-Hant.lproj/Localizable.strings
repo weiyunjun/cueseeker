@@ -133,6 +133,8 @@
 "excerpt.table.no_results" = "未找到相符的摘錄。";
 "excerpt.remove.title" = "移除摘錄";
 "excerpt.remove.message" = "此台詞將從目前的摘錄集中移除。原始台詞不會被刪除。";
+"excerpt.remove.batch_message.one" = "確定要從「%@」中移除這條摘錄嗎？";
+"excerpt.remove.batch_message.other" = "確定要從「%2$@」中移除這 %1$d 條摘錄嗎？";
 
 /* Library */
 "library.play" = "播放";

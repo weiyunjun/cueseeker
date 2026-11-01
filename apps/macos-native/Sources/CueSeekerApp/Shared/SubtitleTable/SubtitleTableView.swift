@@ -747,18 +747,18 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func updatePageChrome(_ pageChrome: SubtitleTablePageChrome?) {
+            let previousPinnedHeaderHeight = pinnedHeaderHeight(for: self.pageChrome)
+            let nextPinnedHeaderHeight = pinnedHeaderHeight(for: pageChrome)
             let geometryChanged = scrollableHeaderHeight(for: self.pageChrome)
                 != scrollableHeaderHeight(for: pageChrome)
-                || self.pageChrome?.pinnedHeaderHeight
-                    != pageChrome?.pinnedHeaderHeight
+                || previousPinnedHeaderHeight != nextPinnedHeaderHeight
                 || self.pageChrome?.bottomInset != pageChrome?.bottomInset
-            let previousPinnedHeaderHeight = self.pageChrome?.pinnedHeaderHeight
             self.pageChrome = pageChrome
             updatePageChromeHosts()
             if geometryChanged {
                 resizeDocument()
                 if let previousPinnedHeaderHeight,
-                   let nextPinnedHeaderHeight = pageChrome?.pinnedHeaderHeight,
+                   let nextPinnedHeaderHeight,
                    let scrollView {
                     let offset = scrollView.contentView.bounds.minY
                     let pinThreshold = scrollableHeaderHeight(for: pageChrome) ?? 0
@@ -800,13 +800,21 @@ struct SubtitleTableView: NSViewRepresentable {
             )
         }
 
+        func pinnedHeaderHeight(
+            for pageChrome: SubtitleTablePageChrome?
+        ) -> CGFloat? {
+            guard let pageChrome else { return nil }
+            return pageChrome.resolvedPinnedHeaderHeight(
+                forContentWidth: pageChromeContentWidth(for: pageChrome)
+            )
+        }
+
         var pageScrollGeometry: SubtitleTablePageScrollGeometry? {
             guard let pageChrome else { return nil }
+            let contentWidth = pageChromeContentWidth(for: pageChrome)
             return SubtitleTablePageScrollGeometry(
-                scrollableHeaderHeight: pageChrome.scrollableHeaderHeight(
-                    pageChromeContentWidth(for: pageChrome)
-                ),
-                pinnedHeaderHeight: pageChrome.pinnedHeaderHeight,
+                scrollableHeaderHeight: pageChrome.scrollableHeaderHeight(contentWidth),
+                pinnedHeaderHeight: pageChrome.resolvedPinnedHeaderHeight(forContentWidth: contentWidth),
                 tableHeaderHeight: currentHeaderHeight,
                 bottomInset: pageChrome.bottomInset
             )
@@ -914,12 +922,12 @@ struct SubtitleTableView: NSViewRepresentable {
                 x: inset,
                 y: pinnedOriginY,
                 width: contentWidth,
-                height: pageChrome.pinnedHeaderHeight
+                height: geometry.pinnedHeaderHeight
             )
             headerView.isHidden = !showsHeader
             headerView.frame = CGRect(
                 x: inset,
-                y: pinnedOriginY + pageChrome.pinnedHeaderHeight,
+                y: pinnedOriginY + geometry.pinnedHeaderHeight,
                 width: contentWidth,
                 height: currentHeaderHeight
             )

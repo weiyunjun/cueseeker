@@ -45,7 +45,9 @@ struct ExcerptListEditorPendingTransfer {
     /// has only the Cue.
     enum Target {
         case excerpt(Excerpt)
+        case excerpts([Excerpt])
         case cue(Int64)
+        case cues([Int64])
     }
 }
 
