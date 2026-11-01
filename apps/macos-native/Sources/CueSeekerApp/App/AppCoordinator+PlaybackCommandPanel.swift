@@ -2,6 +2,21 @@ import AppKit
 import CueSeekerCore
 import Foundation
 
+extension PlaybackCommandPanelPage {
+    var diagnosticLabel: String {
+        switch self {
+        case .root:
+            return "command_panel_root"
+        case .searchResults:
+            return "command_panel_search_results"
+        case .recentVideos:
+            return "command_panel_recent_videos"
+        case .recentExcerpts:
+            return "command_panel_recent_excerpts"
+        }
+    }
+}
+
 @MainActor
 extension AppCoordinator {
     func copyPlaybackSelectedText(_ text: String) {
@@ -19,9 +34,17 @@ extension AppCoordinator {
 
     @discardableResult
     func presentPlaybackCommandPanel() -> Bool {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard isPlaybackPageVisible else {
             return false
         }
+        DebugInteractionLatencyProbe.beginNavigation(
+            domain: "command_panel",
+            from: "closed",
+            to: PlaybackCommandPanelPage.root.diagnosticLabel,
+            trigger: "open_command_panel",
+            startedAt: startedAt
+        )
         guard preparePlaybackCommandPanelPresentation() else {
             return false
         }
@@ -48,6 +71,7 @@ extension AppCoordinator {
             startPlaybackCommandPanelLiveSearch(query: presentation.query)
         }
         preparePlaybackKeyboardFocus()
+        DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "command_panel")
         return true
     }
 
@@ -56,6 +80,8 @@ extension AppCoordinator {
         query: String,
         startsSearch: Bool
     ) -> Bool {
+        let startedAt = DebugInteractionLatencyProbe.now()
+        let previousPageLabel = playback.commandPanelPresentation?.page.diagnosticLabel ?? "closed"
         let normalizedQuery = SearchInputNormalizer.singleLine(query)
         let trimmedQuery = normalizedQuery.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -63,6 +89,13 @@ extension AppCoordinator {
         guard isPlaybackPageVisible, !trimmedQuery.isEmpty else {
             return false
         }
+        DebugInteractionLatencyProbe.beginNavigation(
+            domain: "command_panel",
+            from: previousPageLabel,
+            to: PlaybackCommandPanelPage.searchResults.diagnosticLabel,
+            trigger: "command_panel_search",
+            startedAt: startedAt
+        )
         guard preparePlaybackCommandPanelPresentation() else {
             return false
         }
@@ -105,6 +138,7 @@ extension AppCoordinator {
         )
         synchronizePlaybackCommandPanelSearchResults()
         preparePlaybackKeyboardFocus()
+        DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "command_panel")
         return true
     }
 
@@ -225,12 +259,20 @@ extension AppCoordinator {
     func presentPlaybackCommandPanelPage(
         _ page: PlaybackCommandPanelPage
     ) -> Bool {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard var presentation = playback.commandPanelPresentation,
               presentation.page == .root,
               page == .recentVideos || page == .recentExcerpts
         else {
             return false
         }
+        DebugInteractionLatencyProbe.beginNavigation(
+            domain: "command_panel",
+            from: PlaybackCommandPanelPage.root.diagnosticLabel,
+            to: page.diagnosticLabel,
+            trigger: "command_panel_page_select",
+            startedAt: startedAt
+        )
 
         switch page {
         case .recentVideos:
@@ -247,6 +289,7 @@ extension AppCoordinator {
             playbackCommandPanelItemCount(for: page) > 0 ? 0 : nil
         playback.presentCommandPanel(presentation)
         preparePlaybackKeyboardFocus()
+        DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "command_panel")
         return true
     }
 
@@ -617,21 +660,31 @@ extension AppCoordinator {
 
     @discardableResult
     func returnPlaybackCommandPanelToRoot() -> Bool {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard let presentation = playback.commandPanelPresentation,
               presentation.page != .root
         else {
             return false
         }
+        DebugInteractionLatencyProbe.beginNavigation(
+            domain: "command_panel",
+            from: presentation.page.diagnosticLabel,
+            to: PlaybackCommandPanelPage.root.diagnosticLabel,
+            trigger: "command_panel_back",
+            startedAt: startedAt
+        )
         var updated = presentation
         updated.page = .root
         updated.selectedOrdinal = 0
         playback.presentCommandPanel(updated)
         preparePlaybackKeyboardFocus()
+        DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "command_panel")
         return true
     }
 
     @discardableResult
     func dismissPlaybackCommandPanelFromUser() -> Bool {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard let presentation = playback.dismissCommandPanel() else {
             return false
         }
@@ -639,6 +692,13 @@ extension AppCoordinator {
            playback.subtitleFocusSession == nil {
             resumePlayback()
         }
+        DebugInteractionLatencyProbe.completeImmediateNavigation(
+            domain: "command_panel",
+            from: presentation.page.diagnosticLabel,
+            to: "closed",
+            trigger: "command_panel_dismiss",
+            startedAt: startedAt
+        )
         return true
     }
 
@@ -746,12 +806,13 @@ extension AppCoordinator {
         }
     }
 
+    @discardableResult
     func preparePlaybackCommandPanelPageForPresentation(
         _ page: PlaybackCommandPanelPage
-    ) async {
+    ) async -> (dataReadyAt: UInt64, coverStats: LibraryCoverPrewarmStats) {
         switch page {
         case .root, .searchResults:
-            return
+            return (DebugInteractionLatencyProbe.now(), .zero)
         case .recentVideos:
             if playback.commandPanelHeldPage == nil {
                 if library.testRecentWatchingStatus != .loading,
@@ -761,32 +822,68 @@ extension AppCoordinator {
                     hydrateTestRecentWatchingAsync()
                 }
                 await testRecentWatchingTask?.value
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled else {
+                    return (DebugInteractionLatencyProbe.now(), .zero)
+                }
                 if playback.commandPanelPresentation?.page == .recentVideos {
                     synchronizePlaybackCommandPanelSelection()
                 }
             }
-            await LibraryCoverImagePipeline.shared.prewarm(
+            let dataReadyAt = DebugInteractionLatencyProbe.now()
+            let stats = await LibraryCoverImagePipeline.shared.prewarm(
                 keys: firstScreenCommandPanelRecentVideoCoverKeys(
                     from: playbackCommandPanelRecentVideos
                 )
             )
+            return (dataReadyAt, stats)
         case .recentExcerpts:
             if playback.commandPanelHeldPage == nil {
                 refreshExcerptOnReappearanceIfNeeded()
                 loadExcerptListOverviewIfNeeded()
                 await excerpt.listOverviewTask?.value
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled else {
+                    return (DebugInteractionLatencyProbe.now(), .zero)
+                }
                 if playback.commandPanelPresentation?.page == .recentExcerpts {
                     synchronizePlaybackCommandPanelSelection()
                 }
             }
-            await LibraryCoverImagePipeline.shared.prewarm(
+            let dataReadyAt = DebugInteractionLatencyProbe.now()
+            let stats = await LibraryCoverImagePipeline.shared.prewarm(
                 keys: firstScreenCommandPanelRecentExcerptCoverKeys(
                     from: playbackCommandPanelRecentExcerpts
                 )
             )
+            return (dataReadyAt, stats)
         }
+    }
+
+    func cachedCommandPanelCoverStats(
+        for page: PlaybackCommandPanelPage
+    ) -> LibraryCoverPrewarmStats {
+        let keys: [LibraryCoverImageKey]
+        switch page {
+        case .root, .searchResults:
+            return .zero
+        case .recentVideos:
+            keys = firstScreenCommandPanelRecentVideoCoverKeys(
+                from: playbackCommandPanelRecentVideos
+            )
+        case .recentExcerpts:
+            keys = firstScreenCommandPanelRecentExcerptCoverKeys(
+                from: playbackCommandPanelRecentExcerpts
+            )
+        }
+        let boundedKeys = LibraryCoverImagePipeline.boundedUniqueKeys(from: keys)
+        let hits = boundedKeys.filter {
+            LibraryCoverImagePipeline.shared.isReadyForPresentation(for: $0)
+        }.count
+        return LibraryCoverPrewarmStats(
+            totalCount: boundedKeys.count,
+            cacheHitCount: hits,
+            decodedCount: 0,
+            elapsedMilliseconds: 0
+        )
     }
 
     private static func isCommandPanelLibraryStatusResolved(

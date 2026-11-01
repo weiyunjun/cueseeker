@@ -616,8 +616,17 @@ struct AnkiExportDialog: View {
         anchorFrame: CGRect,
         items: [AnkiCardItem]
     ) {
+        let startedAt = ProcessInfo.processInfo.systemUptime
         workbenchAccessibility?.clearDialog(keepTextInputFocus: false)
+        let measureStartedAt = ProcessInfo.processInfo.systemUptime
         let naturalSize = measuredMenuSize(for: items)
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "anki_add_field_menu_\(side.rawValue)",
+            trigger: "add_button",
+            startedAt: startedAt,
+            measureMs: measureMs
+        )
         let menuFrame = CGRect(
             x: anchorFrame.minX,
             y: anchorFrame.maxY + WorkbenchControlMetrics.redesignSpacing1,

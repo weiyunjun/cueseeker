@@ -119,10 +119,21 @@ struct SettingsView: View {
                 let isAccessibilityFocused = workbenchAccessibility.isSettingsFocused(.sidebarCategory(category))
 
                 Button {
+                    let startedAt = DebugInteractionLatencyProbe.now()
+                    let previousCategory = workbenchAccessibility.selectedSettingsCategory
                     TooltipCenter.shared.dismissFromUserInteraction()
                     workbenchAccessibility.selectedSettingsCategory = category
                     workbenchAccessibility.activeSubtitleColorPopover = nil
                     workbenchAccessibility.unfocusAllSettingsTextInputs()
+                    if previousCategory != category {
+                        DebugInteractionLatencyProbe.completeImmediateNavigation(
+                            domain: "settings",
+                            from: "settings_\(previousCategory.rawValue)",
+                            to: "settings_\(category.rawValue)",
+                            trigger: "settings_sidebar_click",
+                            startedAt: startedAt
+                        )
+                    }
                 } label: {
                     HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                         AppIconImage(

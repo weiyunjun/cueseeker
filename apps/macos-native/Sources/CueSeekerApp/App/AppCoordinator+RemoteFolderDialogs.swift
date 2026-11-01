@@ -342,12 +342,19 @@ extension AppCoordinator {
         _ sessionKeyPath: ReferenceWritableKeyPath<LibraryStore, Session?>,
         makeSession: () -> Session
     ) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard !tasks.hasLibraryTask, !indexing.databaseMaintenanceStatus.isCompacting else {
             return
         }
         let session = makeSession()
         session.existingRootFolders = indexing.selectedFolders
         library[keyPath: sessionKeyPath] = session
+        DebugInteractionLatencyProbe.beginDialogOpen(
+            dialogID: "remote_folder_\(String(describing: Session.self))",
+            trigger: "open_remote_dialog",
+            startedAt: startedAt,
+            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
+        )
     }
 
     private func closeRemoteFolderDialog<Session: RemoteFolderDialogSessionProtocol>(
@@ -373,8 +380,10 @@ extension AppCoordinator {
         sessionKeyPath: ReferenceWritableKeyPath<LibraryStore, Session?>,
         connect: @escaping @Sendable () async throws -> (config: Session.Config, items: [WebDAVBrowserItem])
     ) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         session.validationMessage = nil
         session.isSubmitting = true
+        let syncPrepFinishedAt = DebugInteractionLatencyProbe.now()
         session.validationTask = Task { @MainActor [weak self, weak session] in
             do {
                 let connected = try await connect()
@@ -389,6 +398,14 @@ extension AppCoordinator {
                 session.validationTask = nil
                 session.existingRootFolders = self.indexing.selectedFolders
                 session.enterBrowser(config: connected.config, initialItems: connected.items)
+                DebugInteractionLatencyProbe.recordDialogInternalTransition(
+                    dialogID: "remote_folder_\(String(describing: Session.self))",
+                    transition: "step1_to_step2_browser",
+                    trigger: "connect",
+                    startedAt: startedAt,
+                    syncPrepFinishedAt: syncPrepFinishedAt,
+                    asyncLoadFinishedAt: DebugInteractionLatencyProbe.now()
+                )
                 AppLogger.shared.info(
                     .network,
                     "Remote folder connected",
@@ -408,6 +425,14 @@ extension AppCoordinator {
                 session.validationTask = nil
                 let errorText = Self.errorMessage(for: error)
                 session.validationMessage = errorText
+                DebugInteractionLatencyProbe.recordDialogInternalTransition(
+                    dialogID: "remote_folder_\(String(describing: Session.self))",
+                    transition: "step1_connect_failed",
+                    trigger: "connect",
+                    startedAt: startedAt,
+                    syncPrepFinishedAt: syncPrepFinishedAt,
+                    asyncLoadFinishedAt: DebugInteractionLatencyProbe.now()
+                )
                 AppLogger.shared.warn(
                     .network,
                     "Remote folder connection failed",
@@ -421,10 +446,18 @@ extension AppCoordinator {
         _ session: Session,
         sessionKeyPath: ReferenceWritableKeyPath<LibraryStore, Session?>
     ) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard library[keyPath: sessionKeyPath]?.id == session.id else {
             return
         }
         session.returnToConnection()
+        DebugInteractionLatencyProbe.recordDialogInternalTransition(
+            dialogID: "remote_folder_\(String(describing: Session.self))",
+            transition: "step2_to_step1_connection",
+            trigger: "back_button",
+            startedAt: startedAt,
+            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
+        )
     }
 
     private func openRemoteSubfolder<Session: RemoteFolderDialogSessionProtocol>(
@@ -457,6 +490,7 @@ extension AppCoordinator {
             baseConfig: baseConfig,
             in: session,
             sessionKeyPath: sessionKeyPath,
+            trigger: "open_subfolder",
             browseDirectory: browseDirectory
         )
     }
@@ -482,6 +516,7 @@ extension AppCoordinator {
             baseConfig: baseConfig,
             in: session,
             sessionKeyPath: sessionKeyPath,
+            trigger: "breadcrumb_click",
             browseDirectory: browseDirectory
         )
     }
@@ -491,12 +526,15 @@ extension AppCoordinator {
         baseConfig: Session.Config,
         in session: Session,
         sessionKeyPath: ReferenceWritableKeyPath<LibraryStore, Session?>,
+        trigger: String,
         browseDirectory: @escaping @Sendable (URL, Session.Config) async throws -> [WebDAVBrowserItem]
     ) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         session.directoryTask?.cancel()
         session.selectedFolderPaths.removeAll()
         session.directoryErrorMessage = nil
         session.isLoadingDirectory = true
+        let syncPrepFinishedAt = DebugInteractionLatencyProbe.now()
         let targetID = folderURL.standardizedMediaURL.mediaPath
 
         session.directoryTask = Task { @MainActor [weak self, weak session] in
@@ -515,6 +553,14 @@ extension AppCoordinator {
                 session.isLoadingDirectory = false
                 session.directoryErrorMessage = nil
                 session.directoryTask = nil
+                DebugInteractionLatencyProbe.recordDialogInternalTransition(
+                    dialogID: "remote_folder_\(String(describing: Session.self))",
+                    transition: "browse_directory",
+                    trigger: trigger,
+                    startedAt: startedAt,
+                    syncPrepFinishedAt: syncPrepFinishedAt,
+                    asyncLoadFinishedAt: DebugInteractionLatencyProbe.now()
+                )
             } catch is CancellationError {
                 return
             } catch {
@@ -532,6 +578,14 @@ extension AppCoordinator {
                 let errorText = Self.errorMessage(for: error)
                 session.directoryErrorMessage = errorText
                 session.directoryTask = nil
+                DebugInteractionLatencyProbe.recordDialogInternalTransition(
+                    dialogID: "remote_folder_\(String(describing: Session.self))",
+                    transition: "browse_directory_failed",
+                    trigger: trigger,
+                    startedAt: startedAt,
+                    syncPrepFinishedAt: syncPrepFinishedAt,
+                    asyncLoadFinishedAt: DebugInteractionLatencyProbe.now()
+                )
                 AppLogger.shared.warn(
                     .network,
                     "Remote directory browse failed",

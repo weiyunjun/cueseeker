@@ -299,8 +299,15 @@ struct WorkbenchFileDetailDialog: View {
         if isMenuOpen {
             dismissMenu()
         } else {
+            let startedAt = ProcessInfo.processInfo.systemUptime
             workbenchAccessibility?.clearDialog(keepTextInputFocus: false)
             menuHighlight.open(selectablePositions: Array(session.pairedItems.indices))
+            DebugInteractionLatencyProbe.markMenuTriggerContext(
+                menuID: "file_detail_paired_switcher_menu",
+                trigger: "dropdown_button",
+                startedAt: startedAt,
+                measureMs: 0
+            )
             isMenuOpen = true
         }
     }
@@ -312,9 +319,16 @@ struct WorkbenchFileDetailDialog: View {
     }
 
     func selectPairedItem(at index: Int) {
+        let startedAt = ProcessInfo.processInfo.systemUptime
         dismissMenu()
         session.selectItem(at: index)
         scrollController.scrollToTop()
+        DebugInteractionLatencyProbe.recordDialogInternalTransition(
+            dialogID: "file_detail",
+            action: "switch_paired_item",
+            startedAt: startedAt,
+            itemCount: session.pairedItems.count
+        )
     }
 
     @discardableResult

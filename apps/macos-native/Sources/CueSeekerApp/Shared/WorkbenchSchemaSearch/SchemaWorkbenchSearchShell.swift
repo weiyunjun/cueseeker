@@ -1015,6 +1015,7 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
     }
 
     private func openSortMenu() {
+        let startedAt = ProcessInfo.processInfo.systemUptime
         guard !isSelectionMode,
               !sortOptions.isEmpty,
               let viewportSize = sortMenuHostAnchor.bounds?.size,
@@ -1023,7 +1024,15 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
             externalIsSortMenuOpen?.wrappedValue = false
             return
         }
+        let measureStartedAt = ProcessInfo.processInfo.systemUptime
         let naturalSize = measuredSortMenuSize()
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "toolbar_sort_menu",
+            trigger: "toolbar_sort_button",
+            startedAt: startedAt,
+            measureMs: measureMs
+        )
         let container = CGRect(origin: .zero, size: viewportSize)
         let openingFrame = MenuPlacement.openingFrame(
             anchor: anchorFrame,
@@ -1052,6 +1061,7 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
     }
 
     private func openSelectionDestinationMenu(for actionID: String) {
+        let startedAt = ProcessInfo.processInfo.systemUptime
         guard isSelectionMode,
               let action = selectionActions.first(where: { $0.id == actionID }),
               let destinationMenu = action.destinationMenu
@@ -1065,6 +1075,7 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
         let anchorFrame = buttonAnchor.frame(in: sortMenuHostAnchor)
             ?? buttonAnchor.bounds
             ?? CGRect(x: 0, y: 0, width: 120, height: WorkbenchControlMetrics.redesignHeight)
+        let measureStartedAt = ProcessInfo.processInfo.systemUptime
         let naturalSize = measuredSelectionDestinationMenuSize(
             destinations: destinationMenu.destinations,
             maximumHeight: MenuMetrics.maximumHeight
@@ -1073,6 +1084,13 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
             destinations: destinationMenu.destinations,
             maximumHeight: 0
         ).width
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "selection_destination_menu_\(actionID)",
+            trigger: "selection_bar_button",
+            startedAt: startedAt,
+            measureMs: measureMs
+        )
         let container = CGRect(origin: .zero, size: viewportSize)
         let initialFrame = MenuPlacement.openingFrame(
             anchor: anchorFrame,

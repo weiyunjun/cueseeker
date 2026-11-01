@@ -200,6 +200,7 @@ extension SubtitleTableView.Coordinator {
         clickPointInDocument: CGPoint? = nil,
         usesActionButtonAnchor: Bool = false
     ) {
+        let startedAt = ProcessInfo.processInfo.systemUptime
         guard !isSelectionMode,
               row >= 0,
               row < rowCount,
@@ -299,6 +300,7 @@ extension SubtitleTableView.Coordinator {
             )
         }
 
+        let measureStartedAt = ProcessInfo.processInfo.systemUptime
         setMenuHost(menuView(MenuMetrics.maximumHeight), in: container)
 
         let clipView = ensureMenuClipView(in: container)
@@ -326,6 +328,13 @@ extension SubtitleTableView.Coordinator {
                 menuSize: menuHost?.fittingSize ?? finalMenuFrame.size
             )
         }
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "table_row_menu",
+            trigger: usesActionButtonAnchor ? "button_anchor" : "right_click",
+            startedAt: startedAt,
+            measureMs: measureMs
+        )
         menuPlacementOffset = MenuPlacement.offset(
             from: anchorFrame,
             to: finalMenuFrame

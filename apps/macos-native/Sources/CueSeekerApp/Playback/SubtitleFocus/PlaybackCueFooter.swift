@@ -468,6 +468,7 @@ struct PlaybackCueFooter: View {
             menuScrollingWidth = nil
             return
         }
+        let startedAt = ProcessInfo.processInfo.systemUptime
         menuSize = measuredDestinationMenuSize(
             menu,
             maximumHeight: MenuMetrics.maximumHeight
@@ -478,6 +479,13 @@ struct PlaybackCueFooter: View {
             menu,
             maximumHeight: 0
         ).width
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "footer_excerpt_destination_menu",
+            trigger: "footer_save_to_excerpt",
+            startedAt: startedAt,
+            measureMs: measureMs
+        )
     }
 
     private func measuredDestinationMenuSize(

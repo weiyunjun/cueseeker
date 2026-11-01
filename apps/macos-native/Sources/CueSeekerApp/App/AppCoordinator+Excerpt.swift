@@ -79,11 +79,17 @@ extension AppCoordinator {
     }
 
     func openExcerptList(id: Int64) {
-        navigateWorkbench(to: .excerptList(id: id))
+        navigateWorkbench(
+            to: .excerptList(id: id),
+            trigger: "excerpt_card_click"
+        )
     }
 
     func showExcerptListOverview() {
-        navigateWorkbench(to: .excerpt)
+        navigateWorkbench(
+            to: .excerpt,
+            trigger: "excerpt_back_to_overview"
+        )
     }
 
     func openRecentExcerpt(_ summary: ExcerptListSummary) {
@@ -584,6 +590,8 @@ extension AppCoordinator {
         displayTitle: String? = nil,
         allowsUnavailableTarget: Bool = false
     ) {
+        let startedAt = DebugInteractionLatencyProbe.now()
+        let fromSurface = isPlaybackPageVisible ? "playback" : currentWorkbenchDiagnosticLabel
         guard excerpt.isValid || allowsUnavailableTarget else {
             return
         }
@@ -661,6 +669,13 @@ extension AppCoordinator {
             )
         )
         playback.isPlaybackSurfaceExpanded = true
+        DebugInteractionLatencyProbe.completeImmediateNavigation(
+            domain: "playback",
+            from: fromSurface,
+            to: "playback_excerpt_cue",
+            trigger: "open_excerpt",
+            startedAt: startedAt
+        )
         if !itemInLibrary {
             cancelPendingPlaybackOpenTask()
             playback.clearPlaylistPosition()

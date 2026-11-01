@@ -395,6 +395,8 @@ extension AppCoordinator {
         playbackSearchPromotion: PlaybackSearchPromotion? = nil,
         playlistSourceOverride: PlaybackPlaylistSource? = nil
     ) {
+        let startedAt = DebugInteractionLatencyProbe.now()
+        let fromSurface = isPlaybackPageVisible ? "playback" : currentWorkbenchDiagnosticLabel
         ensurePlayerInitialized()
         clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
@@ -452,6 +454,13 @@ extension AppCoordinator {
             )
         )
         playback.isPlaybackSurfaceExpanded = true
+        DebugInteractionLatencyProbe.completeImmediateNavigation(
+            domain: "playback",
+            from: fromSurface,
+            to: "playback_search_cue",
+            trigger: "open_search_result",
+            startedAt: startedAt
+        )
         if !itemInLibrary {
             cancelPendingPlaybackOpenTask()
             playback.clearPlaylistPosition()
@@ -616,6 +625,7 @@ extension AppCoordinator {
 
 
     func stopPlayback() {
+        let startedAt = DebugInteractionLatencyProbe.now()
         let wasPlayingOrExpanded = activePlaybackSource != .none || playback.isPlaybackSurfaceExpanded
         let stoppedVideoName = currentPlaybackVideoPath.map { URL.fromMediaPath($0).lastPathComponent }
         cancelPendingPlaybackOpenTask()
@@ -644,6 +654,13 @@ extension AppCoordinator {
                     .playback,
                     "Playback stopped",
                     fields: [("video", stoppedVideoName)]
+                )
+                DebugInteractionLatencyProbe.completeImmediateNavigation(
+                    domain: "playback",
+                    from: "playback",
+                    to: currentWorkbenchDiagnosticLabel,
+                    trigger: "stop_playback",
+                    startedAt: startedAt
                 )
             }
             switch workbenchLayout.currentRoute {

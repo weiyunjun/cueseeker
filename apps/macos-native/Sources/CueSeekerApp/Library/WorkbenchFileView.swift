@@ -177,7 +177,16 @@ struct WorkbenchFileView: View {
     }
 
     private func openButtonMenu(for cardID: String, anchorFrame: CGRect, items: [FileCardMenuItem]) {
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        let measureStartedAt = ProcessInfo.processInfo.systemUptime
         let naturalSize = measuredMenuSize(for: items)
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: cardID == Self.addFolderMenuID ? "file_add_folder_menu" : "file_card_button_menu",
+            trigger: "button_anchor",
+            startedAt: startedAt,
+            measureMs: measureMs
+        )
         let container = CGRect(origin: .zero, size: viewportSize)
         let anchorForPlacement = cardID == Self.addFolderMenuID
             ? anchorFrame
@@ -212,7 +221,16 @@ struct WorkbenchFileView: View {
     }
 
     private func openContextMenu(for cardID: String, at point: CGPoint, items: [FileCardMenuItem]) {
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        let measureStartedAt = ProcessInfo.processInfo.systemUptime
         let naturalSize = measuredMenuSize(for: items)
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "file_card_context_menu",
+            trigger: "right_click",
+            startedAt: startedAt,
+            measureMs: measureMs
+        )
         let container = CGRect(origin: .zero, size: viewportSize)
         let openingFrame = MenuPlacement.openingFrame(
             anchor: CGRect(origin: point, size: .zero),
@@ -834,6 +852,7 @@ struct WorkbenchFileView: View {
     }
 
     private func chooseFolder() {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard !isChoosingFolder else {
             return
         }
@@ -845,9 +864,18 @@ struct WorkbenchFileView: View {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
+        let panelPresentedAt = DebugInteractionLatencyProbe.now()
 
         let completion: (NSApplication.ModalResponse) -> Void = { response in
             isChoosingFolder = false
+            DebugInteractionLatencyProbe.recordSystemFilePanel(
+                panelType: "NSOpenPanel",
+                trigger: "file_choose_local_folder",
+                mode: "sheet_or_modal",
+                startedAt: startedAt,
+                panelPresentedAt: panelPresentedAt,
+                didSelect: response == .OK
+            )
             guard response == .OK, let folder = panel.url else {
                 return
             }

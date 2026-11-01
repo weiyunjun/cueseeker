@@ -117,6 +117,7 @@ struct SettingsLanguageCategory: View {
     }
 
     private func openLanguageMenu() {
+        let startedAt = ProcessInfo.processInfo.systemUptime
         _ = workbenchAccessibility?.clearSettings(
             keepTextInputFocus: false,
             keepColorPopoverOpen: false
@@ -143,6 +144,12 @@ struct SettingsLanguageCategory: View {
             in: container,
             gap: WorkbenchControlMetrics.redesignSpacing1,
             shrinksToFit: false
+        )
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "settings_language_menu",
+            trigger: "dropdown_button",
+            startedAt: startedAt,
+            measureMs: 0
         )
         languageHighlight.open(
             selectablePositions: Array(AppLanguage.allCases.indices)

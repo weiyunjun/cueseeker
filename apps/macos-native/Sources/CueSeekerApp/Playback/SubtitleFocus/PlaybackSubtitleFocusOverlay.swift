@@ -162,13 +162,52 @@ struct PlaybackOverlay: View {
         }
     }
 
+    private func overlayModuleDiagnosticLabel(
+        _ module: PlaybackOverlayModule?
+    ) -> String {
+        guard let module else { return "none" }
+        switch module {
+        case .current:
+            return session.isEditingCollage
+                ? "playback_overlay_collage"
+                : "playback_overlay_current"
+        case .playlist:
+            if session.libraryStore != nil {
+                return "playback_overlay_library"
+            }
+            return "playback_overlay_playlist"
+        }
+    }
+
     private func scheduleModulePreparationIfNeeded(
         for module: PlaybackOverlayModule?
     ) {
+        let preparationStartedAt = DebugInteractionLatencyProbe.now()
+        let previousLabel = overlayModuleDiagnosticLabel(
+            moduleTransitionTracker.lastPresentedModule
+        )
+        let targetLabel = overlayModuleDiagnosticLabel(module)
+        let didChangeModule = moduleTransitionTracker.lastPresentedModule != module
         moduleTransitionTracker.preparationTask?.cancel()
         moduleTransitionTracker.preparationTask = nil
         if isModuleReadyForPresentation(module) {
             moduleTransitionTracker.lastPresentedModule = module
+            if didChangeModule, let module {
+                let swapAt = DebugInteractionLatencyProbe.now()
+                let coverStats = module == .playlist
+                    ? (session.libraryStore?.cachedFirstScreenCoverStats ?? .zero)
+                    : .zero
+                DebugInteractionLatencyProbe.recordNavigationPreparation(
+                    domain: "playback_overlay",
+                    from: previousLabel,
+                    to: targetLabel,
+                    fallbackTrigger: "overlay_module_ready",
+                    preparationStartedAt: preparationStartedAt,
+                    dataReadyAt: swapAt,
+                    coverStats: coverStats,
+                    containerSwapAt: swapAt
+                )
+            }
             return
         }
         guard let libraryStore = session.libraryStore else {
@@ -176,15 +215,26 @@ struct PlaybackOverlay: View {
             return
         }
         moduleTransitionTracker.preparationTask = Task { @MainActor in
-            await libraryStore.prepareForPresentation()
+            let metrics = await libraryStore.prepareForPresentation()
             guard !Task.isCancelled else {
                 return
             }
+            let swapAt = DebugInteractionLatencyProbe.now()
             moduleTransitionTracker.preparationTask = nil
             moduleTransitionTracker.lastTargetModule = module
             moduleTransitionTracker.asyncPreparedModule = module
             moduleTransitionTracker.lastPresentedModule = module
             asyncPreparedModuleRevision &+= 1
+            DebugInteractionLatencyProbe.recordNavigationPreparation(
+                domain: "playback_overlay",
+                from: previousLabel,
+                to: targetLabel,
+                fallbackTrigger: "overlay_module_async_prepare",
+                preparationStartedAt: preparationStartedAt,
+                dataReadyAt: metrics.dataReadyAt,
+                coverStats: metrics.coverStats,
+                containerSwapAt: swapAt
+            )
         }
     }
 

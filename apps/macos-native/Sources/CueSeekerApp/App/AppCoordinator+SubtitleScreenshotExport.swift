@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 @MainActor
 enum SubtitleCollageSavePanel {
     static func destinationURL(defaultFileName: String) -> URL? {
+        let startedAt = DebugInteractionLatencyProbe.now()
         let panel = NSSavePanel()
         panel.title = L("playback.collage.export")
         panel.nameFieldStringValue = defaultFileName
@@ -13,8 +14,18 @@ enum SubtitleCollageSavePanel {
         }
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
+        let panelPresentedAt = DebugInteractionLatencyProbe.now()
 
-        guard panel.runModal() == .OK else {
+        let response = panel.runModal()
+        DebugInteractionLatencyProbe.recordSystemFilePanel(
+            panelType: "NSSavePanel",
+            trigger: "export_subtitle_collage",
+            mode: "modal",
+            startedAt: startedAt,
+            panelPresentedAt: panelPresentedAt,
+            didSelect: response == .OK
+        )
+        guard response == .OK else {
             return nil
         }
         return panel.url

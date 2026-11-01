@@ -372,6 +372,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func showSettings(_ sender: Any?) {
+        let startedAt = DebugInteractionLatencyProbe.now()
+        let wasCreated = settingsWindow != nil
+        let targetCategory = appState.workbenchAccessibility.selectedSettingsCategory.rawValue
         AppLogger.shared.info(.app, "Settings window opened")
         appState.workbenchLayout.clearSearchFocus()
         appState.workbenchLayout.isSettingsWindowOpen = true
@@ -386,6 +389,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 settingsWindow.makeKeyAndOrderFront(sender)
             }
             NSApp.activate(ignoringOtherApps: true)
+            DebugInteractionLatencyProbe.completeImmediateNavigation(
+                domain: "settings",
+                from: "closed_cached",
+                to: "settings_\(targetCategory)",
+                trigger: "open_settings_window",
+                startedAt: startedAt
+            )
             return
         }
 
@@ -454,6 +464,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             object: settingsWindow
         )
         NSApp.activate(ignoringOtherApps: true)
+        _ = wasCreated
+        DebugInteractionLatencyProbe.completeImmediateNavigation(
+            domain: "settings",
+            from: "closed_uninitialized",
+            to: "settings_\(targetCategory)",
+            trigger: "open_settings_window",
+            startedAt: startedAt
+        )
     }
 
     @objc private func settingsWindowWillClose(_ notification: Notification) {

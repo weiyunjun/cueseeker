@@ -409,11 +409,13 @@ struct SettingsSubtitleCategory: View {
     }
 
     private func openFontMenu() {
+        let startedAt = ProcessInfo.processInfo.systemUptime
         _ = workbenchAccessibility?.clearSettings(
             keepTextInputFocus: false,
             keepColorPopoverOpen: false
         )
         activeColorPopover = nil
+        let measureStartedAt = ProcessInfo.processInfo.systemUptime
         if availableFonts.isEmpty {
             availableFonts = Self.loadSystemFonts()
         }
@@ -421,6 +423,13 @@ struct SettingsSubtitleCategory: View {
         let metrics = SettingsSubtitleFontMenu.measureMetrics(
             systemFontTitle: systemFontTitle,
             availableFonts: availableFonts
+        )
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "settings_subtitle_font_menu",
+            trigger: "dropdown_button",
+            startedAt: startedAt,
+            measureMs: measureMs
         )
         let anchorFrame = viewportGeometry.anchorFrame(for: fontTriggerAnchor)
             ?? anchorFrames[Self.fontTriggerAnchorID]
@@ -491,8 +500,13 @@ struct SettingsSubtitleCategory: View {
     }
 
     private func selectFontOption(_ option: SettingsSubtitleFontOption) {
-        settingsStore.srtSubtitleStyle.fontName = Self.resolvedFontName(for: option)
-        closeFontMenu()
+        DebugInteractionLatencyProbe.measureMenuItemAction(
+            menuID: "settings_subtitle_font_menu",
+            item: option.title
+        ) {
+            settingsStore.srtSubtitleStyle.fontName = Self.resolvedFontName(for: option)
+            closeFontMenu()
+        }
     }
 
     private func handleFontMenuPointerMove(
@@ -629,11 +643,18 @@ struct SettingsSubtitleCategory: View {
                 get: { activeColorPopover == id },
                 set: { isOpen in
                     if isOpen {
+                        let startedAt = ProcessInfo.processInfo.systemUptime
                         closeFontMenu()
                         activeColorPopover = id
                         if workbenchAccessibility?.activeSubtitleColorPopover != id {
                             workbenchAccessibility?.activeSubtitleColorPopover = id
                         }
+                        DebugInteractionLatencyProbe.recordPopoverOpen(
+                            menuID: "settings_subtitle_color_popover_\(id.rawValue)",
+                            owner: "settingsWindow",
+                            trigger: "color_swatch",
+                            startedAt: startedAt
+                        )
                     } else if activeColorPopover == id {
                         activeColorPopover = nil
                         if workbenchAccessibility?.activeSubtitleColorPopover == id {
@@ -666,15 +687,20 @@ struct SettingsSubtitleCategory: View {
     }
 
     private func applyPresetColor(_ presetHex: String, for id: ColorFieldID) {
-        guard let rgb = SettingsSubtitleColorField.parseRGB(fromHex: presetHex) else {
-            return
+        DebugInteractionLatencyProbe.measureMenuItemAction(
+            menuID: "settings_subtitle_color_popover_\(id.rawValue)",
+            item: presetHex
+        ) {
+            guard let rgb = SettingsSubtitleColorField.parseRGB(fromHex: presetHex) else {
+                return
+            }
+            let binding = colorBinding(for: id)
+            var updated = binding.wrappedValue
+            updated.red = rgb.red
+            updated.green = rgb.green
+            updated.blue = rgb.blue
+            binding.wrappedValue = updated
         }
-        let binding = colorBinding(for: id)
-        var updated = binding.wrappedValue
-        updated.red = rgb.red
-        updated.green = rgb.green
-        updated.blue = rgb.blue
-        binding.wrappedValue = updated
     }
 
     private func checkbox(

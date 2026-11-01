@@ -596,6 +596,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         ordinal: Int,
         pointInCue: CGPoint
     ) {
+        let startedAt = ProcessInfo.processInfo.systemUptime
         tearDownSelectedTextMenu()
         // The Scrollbar is outside the menu, so it stops answering the pointer
         // for as long as the menu is up.
@@ -603,12 +604,22 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
 
         selectedTextMenuActions = [
             { [weak self] in
-                self?.dismissSelectedTextActions()
-                self?.onCopySelectedText(text)
+                DebugInteractionLatencyProbe.measureMenuItemAction(
+                    menuID: "selected_text_menu",
+                    item: "copy_selected_text"
+                ) {
+                    self?.dismissSelectedTextActions()
+                    self?.onCopySelectedText(text)
+                }
             },
             { [weak self] in
-                self?.dismissSelectedTextActions()
-                self?.onSearchSelectedText(text)
+                DebugInteractionLatencyProbe.measureMenuItemAction(
+                    menuID: "selected_text_menu",
+                    item: "search_selected_text"
+                ) {
+                    self?.dismissSelectedTextActions()
+                    self?.onSearchSelectedText(text)
+                }
             },
         ]
         selectedTextMenuHighlight.open(
@@ -631,6 +642,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
                 self?.activateSelectedTextAction(at: position)
             }
         )
+        let measureStartedAt = ProcessInfo.processInfo.systemUptime
         let host = MenuHostingView(rootView: AnyView(menu))
         host.translatesAutoresizingMaskIntoConstraints = true
         selectedTextMenuHost = host
@@ -640,6 +652,13 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         // Measured, placed once, and the offset kept — the same order every
         // other menu in the App follows. Afterwards the menu only translates.
         let menuSize = host.fittingSize
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "selected_text_menu",
+            trigger: "text_selection",
+            startedAt: startedAt,
+            measureMs: measureMs
+        )
         let anchor = selectedTextAnchor(ordinal: ordinal, pointInCue: pointInCue)
             ?? .zero
         let openingFrame = selectedTextMenuFrame(anchor: anchor, size: menuSize)

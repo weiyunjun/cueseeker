@@ -94,15 +94,31 @@ final class PlaybackLibrarySessionStore: ObservableObject {
         }
     }
 
-    func prepareForPresentation() async {
+    var cachedFirstScreenCoverStats: LibraryCoverPrewarmStats {
+        let keys = firstScreenCoverKeys
+        let hits = keys.filter {
+            LibraryCoverImagePipeline.shared.isReadyForPresentation(for: $0)
+        }.count
+        return LibraryCoverPrewarmStats(
+            totalCount: keys.count,
+            cacheHitCount: hits,
+            decodedCount: 0,
+            elapsedMilliseconds: 0
+        )
+    }
+
+    @discardableResult
+    func prepareForPresentation() async -> (dataReadyAt: UInt64, coverStats: LibraryCoverPrewarmStats) {
         activate()
         await libraryStore.completeLibraryFolderDetailTasks[folderPath]?.value
+        let dataReadyAt = DebugInteractionLatencyProbe.now()
         guard !Task.isCancelled else {
-            return
+            return (dataReadyAt, .zero)
         }
-        await LibraryCoverImagePipeline.shared.prewarm(
+        let stats = await LibraryCoverImagePipeline.shared.prewarm(
             keys: firstScreenCoverKeys
         )
+        return (dataReadyAt, stats)
     }
 
     /// Keeps the folder as it is shown now: a database change must not move

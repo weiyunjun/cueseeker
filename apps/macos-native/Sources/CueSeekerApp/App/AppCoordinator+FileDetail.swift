@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 extension AppCoordinator {
     func requestRootFolderDetail(for folder: URL) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         let folderPath = folder.isRemoteMediaURL
             ? folder.mediaPath
             : MediaFolderPathMatching.normalizedFolderPath(folder.path)
@@ -36,9 +37,16 @@ extension AppCoordinator {
                 )
             )
         }
+        DebugInteractionLatencyProbe.beginDialogOpen(
+            dialogID: "file_detail_root_folder",
+            trigger: "get_info",
+            startedAt: startedAt,
+            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
+        )
     }
 
     func requestSubfolderDetail(for folderPath: String) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         let standardizedPath = folderPath.isRemoteMediaPath
             ? URL.fromMediaPath(folderPath).standardizedMediaURL.mediaPath
             : MediaFolderPathMatching.normalizedFolderPath(folderPath)
@@ -73,9 +81,16 @@ extension AppCoordinator {
                 )
             )
         }
+        DebugInteractionLatencyProbe.beginDialogOpen(
+            dialogID: "file_detail_subfolder",
+            trigger: "get_info",
+            startedAt: startedAt,
+            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
+        )
     }
 
     func requestVideoDetail(for videoPath: String) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         AppLogger.shared.info(
             .library,
             "File detail opened",
@@ -110,9 +125,16 @@ extension AppCoordinator {
             )
             library.fileDetailSession = FileDetailDialogSession(kind: .video(info))
         }
+        DebugInteractionLatencyProbe.beginDialogOpen(
+            dialogID: "file_detail_video",
+            trigger: "get_info",
+            startedAt: startedAt,
+            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
+        )
     }
 
     func requestSubtitleDetail(for subtitlePath: String) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         AppLogger.shared.info(
             .library,
             "File detail opened",
@@ -146,6 +168,12 @@ extension AppCoordinator {
             )
             library.fileDetailSession = FileDetailDialogSession(kind: .subtitle(info))
         }
+        DebugInteractionLatencyProbe.beginDialogOpen(
+            dialogID: "file_detail_subtitle",
+            trigger: "get_info",
+            startedAt: startedAt,
+            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
+        )
     }
 
     func closeFileDetailDialog() {

@@ -242,6 +242,9 @@ struct PlaybackCommandPanel: View {
     private func schedulePagePreparationIfNeeded(
         for page: PlaybackCommandPanelPage?
     ) {
+        let preparationStartedAt = DebugInteractionLatencyProbe.now()
+        let previousLabel = transitionTracker.lastPresentedPage?.diagnosticLabel ?? "closed"
+        let didChangePage = transitionTracker.lastPresentedPage != page
         transitionTracker.preparationTask?.cancel()
         transitionTracker.preparationTask = nil
         guard let page else {
@@ -252,18 +255,42 @@ struct PlaybackCommandPanel: View {
         }
         if appState.isPlaybackCommandPanelPageReadyForPresentation(page) {
             transitionTracker.lastPresentedPage = page
+            if didChangePage {
+                let swapAt = DebugInteractionLatencyProbe.now()
+                DebugInteractionLatencyProbe.recordNavigationPreparation(
+                    domain: "command_panel",
+                    from: previousLabel,
+                    to: page.diagnosticLabel,
+                    fallbackTrigger: "command_panel_ready",
+                    preparationStartedAt: preparationStartedAt,
+                    dataReadyAt: swapAt,
+                    coverStats: appState.cachedCommandPanelCoverStats(for: page),
+                    containerSwapAt: swapAt
+                )
+            }
             return
         }
         transitionTracker.preparationTask = Task { @MainActor in
-            await appState.preparePlaybackCommandPanelPageForPresentation(page)
+            let metrics = await appState.preparePlaybackCommandPanelPageForPresentation(page)
             guard !Task.isCancelled else {
                 return
             }
+            let swapAt = DebugInteractionLatencyProbe.now()
             transitionTracker.preparationTask = nil
             transitionTracker.lastTargetPage = page
             transitionTracker.asyncPreparedPage = page
             transitionTracker.lastPresentedPage = page
             asyncPreparedPageRevision &+= 1
+            DebugInteractionLatencyProbe.recordNavigationPreparation(
+                domain: "command_panel",
+                from: previousLabel,
+                to: page.diagnosticLabel,
+                fallbackTrigger: "command_panel_async_prepare",
+                preparationStartedAt: preparationStartedAt,
+                dataReadyAt: metrics.dataReadyAt,
+                coverStats: metrics.coverStats,
+                containerSwapAt: swapAt
+            )
         }
     }
 

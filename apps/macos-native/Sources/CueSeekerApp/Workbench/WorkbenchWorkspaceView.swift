@@ -54,6 +54,27 @@ enum WorkbenchPresentedSurface: Equatable {
         }
         return nil
     }
+
+    var diagnosticLabel: String {
+        switch self {
+        case .search:
+            return "search"
+        case .recent(.videos):
+            return "recent_videos"
+        case .recent(.excerpts):
+            return "recent_excerpts"
+        case .libraryRoot:
+            return "library_overview"
+        case .libraryFolder:
+            return "library_directory"
+        case .file:
+            return "file"
+        case .excerptOverview:
+            return "excerpt_overview"
+        case .excerptList:
+            return "excerpt_detail"
+        }
+    }
 }
 
 private final class WorkbenchSurfaceTransitionTracker {
@@ -159,22 +180,49 @@ struct WorkbenchWorkspaceView: View {
     private func scheduleSurfacePreparationIfNeeded(
         for surface: WorkbenchPresentedSurface
     ) {
+        let preparationStartedAt = DebugInteractionLatencyProbe.now()
+        let previousLabel = transitionTracker.lastPresentedSurface?.diagnosticLabel ?? "none"
+        let didChangeSurface = transitionTracker.lastPresentedSurface != surface
         transitionTracker.preparationTask?.cancel()
         transitionTracker.preparationTask = nil
         if appState.isWorkbenchSurfaceReadyForPresentation(surface) {
             transitionTracker.lastPresentedSurface = surface
+            if didChangeSurface {
+                let swapAt = DebugInteractionLatencyProbe.now()
+                DebugInteractionLatencyProbe.recordNavigationPreparation(
+                    domain: "workbench",
+                    from: previousLabel,
+                    to: surface.diagnosticLabel,
+                    fallbackTrigger: "surface_ready",
+                    preparationStartedAt: preparationStartedAt,
+                    dataReadyAt: swapAt,
+                    coverStats: appState.cachedFirstScreenCoverStats(for: surface),
+                    containerSwapAt: swapAt
+                )
+            }
             return
         }
         transitionTracker.preparationTask = Task { @MainActor in
-            await appState.prepareWorkbenchSurfaceForPresentation(surface)
+            let metrics = await appState.prepareWorkbenchSurfaceForPresentation(surface)
             guard !Task.isCancelled else {
                 return
             }
+            let swapAt = DebugInteractionLatencyProbe.now()
             transitionTracker.preparationTask = nil
             transitionTracker.lastTargetSurface = surface
             transitionTracker.asyncPreparedSurface = surface
             transitionTracker.lastPresentedSurface = surface
             asyncPreparedRevision &+= 1
+            DebugInteractionLatencyProbe.recordNavigationPreparation(
+                domain: "workbench",
+                from: previousLabel,
+                to: surface.diagnosticLabel,
+                fallbackTrigger: "async_prepare",
+                preparationStartedAt: preparationStartedAt,
+                dataReadyAt: metrics.dataReadyAt,
+                coverStats: metrics.coverStats,
+                containerSwapAt: swapAt
+            )
         }
     }
 
@@ -337,12 +385,13 @@ extension AppCoordinator {
         }
     }
 
+    @discardableResult
     func prepareWorkbenchSurfaceForPresentation(
         _ surface: WorkbenchPresentedSurface
-    ) async {
+    ) async -> (dataReadyAt: UInt64, coverStats: LibraryCoverPrewarmStats) {
         switch surface {
         case .search, .file, .excerptList:
-            return
+            return (DebugInteractionLatencyProbe.now(), .zero)
         case .recent(let section):
             refreshExcerptOnReappearanceIfNeeded()
             refreshRecentOnReappearanceIfNeeded()
@@ -350,62 +399,111 @@ extension AppCoordinator {
             case .videos:
                 hydrateTestRecentWatchingAsync()
                 await testRecentWatchingTask?.value
-                guard !Task.isCancelled else { return }
-                await LibraryCoverImagePipeline.shared.prewarm(
+                let dataReadyAt = DebugInteractionLatencyProbe.now()
+                guard !Task.isCancelled else { return (dataReadyAt, .zero) }
+                let stats = await LibraryCoverImagePipeline.shared.prewarm(
                     keys: firstScreenRecentVideoCoverKeys()
                 )
+                return (dataReadyAt, stats)
             case .excerpts:
                 loadExcerptListOverviewIfNeeded()
                 await excerpt.listOverviewTask?.value
-                guard !Task.isCancelled else { return }
-                await LibraryCoverImagePipeline.shared.prewarm(
+                let dataReadyAt = DebugInteractionLatencyProbe.now()
+                guard !Task.isCancelled else { return (dataReadyAt, .zero) }
+                let stats = await LibraryCoverImagePipeline.shared.prewarm(
                     keys: firstScreenRecentExcerptCoverKeys()
                 )
+                return (dataReadyAt, stats)
             }
         case .libraryRoot:
             refreshLibraryOnReappearanceIfNeeded()
             hydrateCompleteLibraryAsync()
             hydrateTestRecentWatchingAsync()
             await completeLibraryTask?.value
-            guard !Task.isCancelled else { return }
-            await LibraryCoverImagePipeline.shared.prewarm(
+            let dataReadyAt = DebugInteractionLatencyProbe.now()
+            guard !Task.isCancelled else { return (dataReadyAt, .zero) }
+            let stats = await LibraryCoverImagePipeline.shared.prewarm(
                 keys: firstScreenLibraryRootCoverKeys()
             )
+            return (dataReadyAt, stats)
         case .libraryFolder(let folderPath):
             refreshLibraryOnReappearanceIfNeeded()
             hydrateCompleteLibraryAsync()
             hydrateTestRecentWatchingAsync()
             await completeLibraryTask?.value
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else {
+                return (DebugInteractionLatencyProbe.now(), .zero)
+            }
             guard !isWorkbenchRouteUnknown(.libraryFolder(folderPath: folderPath)),
                   library.completeLibraryFolderSummaries.contains(where: {
                       $0.folderPath == folderPath
                   })
             else {
-                return
+                return (DebugInteractionLatencyProbe.now(), .zero)
             }
             hydrateCompleteLibraryFolderDetailAsync(folderPath: folderPath)
             await completeLibraryFolderDetailTasks[folderPath]?.value
-            guard !Task.isCancelled else { return }
+            let dataReadyAt = DebugInteractionLatencyProbe.now()
+            guard !Task.isCancelled else { return (dataReadyAt, .zero) }
             guard let folder = library.completeLibraryFolderSummaries.first(where: {
                 $0.folderPath == folderPath
             }),
                   let detail = library.completeLibraryFolderDetailsByPath[folderPath]
             else {
-                return
+                return (dataReadyAt, .zero)
             }
-            await LibraryCoverImagePipeline.shared.prewarm(
+            let stats = await LibraryCoverImagePipeline.shared.prewarm(
                 keys: firstScreenLibraryFolderCoverKeys(folder: folder, detail: detail)
             )
+            return (dataReadyAt, stats)
         case .excerptOverview:
             refreshExcerptOnReappearanceIfNeeded()
             loadExcerptListOverviewIfNeeded()
             await excerpt.listOverviewTask?.value
-            guard !Task.isCancelled else { return }
-            await LibraryCoverImagePipeline.shared.prewarm(
+            let dataReadyAt = DebugInteractionLatencyProbe.now()
+            guard !Task.isCancelled else { return (dataReadyAt, .zero) }
+            let stats = await LibraryCoverImagePipeline.shared.prewarm(
                 keys: firstScreenExcerptOverviewCoverKeys()
             )
+            return (dataReadyAt, stats)
         }
+    }
+
+    func cachedFirstScreenCoverStats(
+        for surface: WorkbenchPresentedSurface
+    ) -> LibraryCoverPrewarmStats {
+        let keys: [LibraryCoverImageKey]
+        switch surface {
+        case .search, .file, .excerptList:
+            return .zero
+        case .recent(.videos):
+            keys = firstScreenRecentVideoCoverKeys()
+        case .recent(.excerpts):
+            keys = firstScreenRecentExcerptCoverKeys()
+        case .libraryRoot:
+            keys = firstScreenLibraryRootCoverKeys()
+        case .libraryFolder(let folderPath):
+            guard let folder = library.completeLibraryFolderSummaries.first(where: {
+                $0.folderPath == folderPath
+            }),
+                  let detail = library.completeLibraryFolderDetailsByPath[folderPath]
+            else {
+                return .zero
+            }
+            keys = firstScreenLibraryFolderCoverKeys(folder: folder, detail: detail)
+        case .excerptOverview:
+            keys = firstScreenExcerptOverviewCoverKeys()
+        }
+        let boundedKeys = LibraryCoverImagePipeline.boundedUniqueKeys(from: keys)
+        let hits = boundedKeys.filter {
+            LibraryCoverImagePipeline.shared.isReadyForPresentation(for: $0)
+        }.count
+        return LibraryCoverPrewarmStats(
+            totalCount: boundedKeys.count,
+            cacheHitCount: hits,
+            decodedCount: 0,
+            elapsedMilliseconds: 0
+        )
     }
 
     private static func isLibraryStatusResolved(_ status: LibraryStatus) -> Bool {

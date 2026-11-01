@@ -24,7 +24,15 @@ struct PlaybackChromeSpeedMenuOverlay: View {
                     playback.closeSpeedMenu()
                 }
             )
+            let measureStartedAt = ProcessInfo.processInfo.systemUptime
             let menuSize = NSHostingView(rootView: menuView).fittingSize
+            let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
+            let _ = DebugInteractionLatencyProbe.markMenuTriggerContext(
+                menuID: "player_speed_menu",
+                trigger: "chrome_speed_button",
+                startedAt: measureStartedAt,
+                measureMs: measureMs
+            )
             let menuFrame = MenuPlacement.openingFrame(
                 anchor: buttonFrame,
                 menuSize: menuSize,
@@ -92,7 +100,12 @@ struct PlaybackChromeSpeedMenu: View {
                         guard !suppressesInteraction else {
                             return
                         }
-                        onSelect(speed)
+                        DebugInteractionLatencyProbe.measureMenuItemAction(
+                            menuID: "player_speed_menu",
+                            item: PlaybackViewModel.formatSpeed(speed)
+                        ) {
+                            onSelect(speed)
+                        }
                     } label: {
                         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                             AppIconImage(

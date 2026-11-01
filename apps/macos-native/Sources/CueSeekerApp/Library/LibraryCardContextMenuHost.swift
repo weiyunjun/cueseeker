@@ -297,6 +297,8 @@ struct LibraryCardContextMenuHost<Content: View>: View {
         anchorFrame: CGRect?,
         ownerID: String
     ) {
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        let measureStartedAt = ProcessInfo.processInfo.systemUptime
         let naturalSize = measuredMenuSize(
             for: items,
             maximumHeight: MenuMetrics.maximumHeight
@@ -320,6 +322,13 @@ struct LibraryCardContextMenuHost<Content: View>: View {
             menuSize = measuredMenuSize(for: items, maximumHeight: maximumHeight)
             openingFrame = place(menuSize)
         }
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: anchorFrame != nil ? "card_button_menu" : "card_context_menu",
+            trigger: anchorFrame != nil ? "button_anchor" : "right_click",
+            startedAt: startedAt,
+            measureMs: measureMs
+        )
         activeMenu = LibraryCardContextMenuState(
             ownerID: ownerID,
             anchorPoint: anchor.origin,

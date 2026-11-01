@@ -67,17 +67,25 @@ private final class AppPerformanceProbeState: @unchecked Sendable {
     }
 
     func snapshotLastAction(now: UInt64) -> String {
+        let details = snapshotLastActionDetails(now: now)
+        guard let ageMilliseconds = details.ageMilliseconds else {
+            return details.name
+        }
+        return String(format: "%@ age=%.0fms", details.name, ageMilliseconds)
+    }
+
+    func snapshotLastActionDetails(now: UInt64) -> (name: String, ageMilliseconds: Double?) {
         lock.lock()
         let name = lastActionName
         let startedAt = lastActionStartedAt
         lock.unlock()
 
-        guard let startedAt else {
-            return name
+        guard let startedAt, now >= startedAt else {
+            return (name, nil)
         }
 
         let ageMilliseconds = Double(now - startedAt) / 1_000_000
-        return String(format: "%@ age=%.0fms", name, ageMilliseconds)
+        return (name, ageMilliseconds)
     }
 
     func updateRunLoopActivity(_ activity: String, at timestamp: UInt64) -> (previous: String, start: UInt64)? {
@@ -303,12 +311,16 @@ enum AppPerformanceProbe {
     }
 
     static func startMainRunLoopObserver(thresholdMilliseconds: Double = 250) {
-        guard isMainRunLoopObserverEnabled else {
+        guard isMainRunLoopObserverEnabled || DebugInteractionLatencyProbe.isEnabled else {
             return
         }
         guard !state.hasRunLoopObserver() else {
             return
         }
+
+        let effectiveThreshold = DebugInteractionLatencyProbe.isEnabled
+            ? min(thresholdMilliseconds, 32)
+            : thresholdMilliseconds
 
         let activities: CFRunLoopActivity = [
             .entry,
@@ -331,10 +343,24 @@ enum AppPerformanceProbe {
             }
 
             let elapsedMilliseconds = Double(timestamp - previous.start) / 1_000_000
-            guard elapsedMilliseconds >= thresholdMilliseconds else {
+            guard elapsedMilliseconds >= effectiveThreshold else {
                 return
             }
             guard !(previous.previous == "beforeWaiting" && activityName == "afterWaiting") else {
+                return
+            }
+
+            if DebugInteractionLatencyProbe.isEnabled, elapsedMilliseconds >= 32 {
+                let details = state.snapshotLastActionDetails(now: timestamp)
+                DebugInteractionLatencyProbe.recordMainThreadStall(
+                    stalledMilliseconds: elapsedMilliseconds,
+                    phase: "\(previous.previous)->\(activityName)",
+                    lastAction: details.name,
+                    lastActionAgeMilliseconds: details.ageMilliseconds
+                )
+            }
+
+            guard isMainRunLoopObserverEnabled, elapsedMilliseconds >= thresholdMilliseconds else {
                 return
             }
 
@@ -354,12 +380,16 @@ enum AppPerformanceProbe {
 
         if state.installRunLoopObserver(observer) {
             CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
-            mark("MARK AppPerformanceProbe.runLoopObserverStarted threshold=\(Int(thresholdMilliseconds))ms")
+            mark("MARK AppPerformanceProbe.runLoopObserverStarted threshold=\(Int(effectiveThreshold))ms")
         }
     }
 
     static func breadcrumb(_ name: String) {
         recordLastAction(name)
+    }
+
+    static func currentLastActionDetails(now timestamp: UInt64 = now()) -> (name: String, ageMilliseconds: Double?) {
+        state.snapshotLastActionDetails(now: timestamp)
     }
 
     static func logElapsed(

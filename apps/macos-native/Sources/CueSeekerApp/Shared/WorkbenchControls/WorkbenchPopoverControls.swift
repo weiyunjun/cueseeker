@@ -19,7 +19,13 @@ struct WorkbenchPopoverRow: View {
 
     var body: some View {
         if let action {
-            Button(action: action) {
+            Button(action: {
+                DebugInteractionLatencyProbe.measureMenuItemAction(
+                    menuID: "popover_row",
+                    item: title,
+                    action
+                )
+            }) {
                 label
             }
             .buttonStyle(StaticButtonStyle())

@@ -272,10 +272,16 @@ extension AppCoordinator {
         let standardizedRoot = Self.normalizedFolderPath(URL.fromMediaPath(rootPath).mediaPath)
         if standardizedFolder == standardizedRoot {
             loadFileSubfolders(rootPath: rootPath)
-            navigateWorkbench(to: .fileFolder(rootPath: rootPath))
+            navigateWorkbench(
+                to: .fileFolder(rootPath: rootPath),
+                trigger: "view_in_file"
+            )
         } else {
             loadFileObjects(folderPath: folderPath)
-            navigateWorkbench(to: .fileFiles(rootPath: rootPath, folderPath: folderPath))
+            navigateWorkbench(
+                to: .fileFiles(rootPath: rootPath, folderPath: folderPath),
+                trigger: "view_in_file"
+            )
         }
     }
 
@@ -324,6 +330,8 @@ extension AppCoordinator {
         displayTitle: String? = nil,
         savesCurrentPlaybackHistory: Bool = true
     ) {
+        let startedAt = DebugInteractionLatencyProbe.now()
+        let fromSurface = isPlaybackPageVisible ? "playback" : currentWorkbenchDiagnosticLabel
         ensurePlayerInitialized()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.clearPlaylistSource()
@@ -353,6 +361,13 @@ extension AppCoordinator {
             canGoNext: navigationAvailability.next
         )
         playback.isPlaybackSurfaceExpanded = true
+        DebugInteractionLatencyProbe.completeImmediateNavigation(
+            domain: "playback",
+            from: fromSurface,
+            to: "playback_library",
+            trigger: "open_library_video",
+            startedAt: startedAt
+        )
         if !itemInLibrary {
             cancelPendingPlaybackOpenTask()
             playback.clearPlaylistPosition()

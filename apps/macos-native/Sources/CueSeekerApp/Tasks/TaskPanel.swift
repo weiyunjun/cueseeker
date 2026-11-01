@@ -131,8 +131,24 @@ struct TaskPanel: View {
                 selection: tasks.selectedTab,
                 focusedValue: focusedTab
             ) { tab in
+                let startedAt = ProcessInfo.processInfo.systemUptime
                 dismissMenu()
                 tasks.selectedTab = tab
+                let itemCount: Int
+                switch tab {
+                case .current:
+                    itemCount = tasks.current.count
+                case .completed:
+                    itemCount = tasks.completed.count
+                case .incomplete:
+                    itemCount = tasks.incomplete.count
+                }
+                DebugInteractionLatencyProbe.recordDialogInternalTransition(
+                    dialogID: "task_panel",
+                    action: "switch_tab_\(tab.rawValue)",
+                    startedAt: startedAt,
+                    itemCount: itemCount
+                )
             }
         } trailing: {
             WorkbenchIconButton(
@@ -357,7 +373,16 @@ struct TaskPanel: View {
     }
 
     private func openButtonMenu(for cardID: String, anchorFrame: CGRect, items: [WorkbenchCardMenuItem]) {
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        let measureStartedAt = ProcessInfo.processInfo.systemUptime
         let naturalSize = measuredMenuSize(for: items)
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "task_card_button_menu",
+            trigger: "button_anchor",
+            startedAt: startedAt,
+            measureMs: measureMs
+        )
         let container = CGRect(origin: .zero, size: viewportSize)
         let anchorForPlacement = CGRect(
             x: anchorFrame.maxX - naturalSize.width,
@@ -390,7 +415,16 @@ struct TaskPanel: View {
     }
 
     private func openContextMenu(for cardID: String, at point: CGPoint, items: [WorkbenchCardMenuItem]) {
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        let measureStartedAt = ProcessInfo.processInfo.systemUptime
         let naturalSize = measuredMenuSize(for: items)
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "task_card_context_menu",
+            trigger: "right_click",
+            startedAt: startedAt,
+            measureMs: measureMs
+        )
         let container = CGRect(origin: .zero, size: viewportSize)
         let openingFrame = MenuPlacement.openingFrame(
             anchor: CGRect(origin: point, size: .zero),

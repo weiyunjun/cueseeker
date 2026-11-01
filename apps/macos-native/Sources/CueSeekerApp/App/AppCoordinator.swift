@@ -799,14 +799,47 @@ final class AppCoordinator: ObservableObject {
                 "ACTION UI.WorkbenchMode.selected",
                 details: "from=\(workbenchLayout.panelMode.rawValue) to=\(mode.rawValue)"
             )
-            navigateWorkbench(to: .firstLevel(of: mode))
+            navigateWorkbench(
+                to: .firstLevel(of: mode),
+                trigger: "sidebar_mode_\(mode.rawValue)"
+            )
         }
     }
 
+    var currentWorkbenchDiagnosticLabel: String {
+        workbenchLayout.currentRoute.diagnosticLabel(
+            recentSection: workbenchLayout.selectedRecentSection,
+            fileSection: workbenchLayout.selectedFileSection
+        )
+    }
+
     /// Shows a Workbench page as one step of the history.
-    func navigateWorkbench(to route: WorkbenchRoute) {
-        guard workbenchLayout.currentRoute != route else {
+    func navigateWorkbench(
+        to route: WorkbenchRoute,
+        trigger: String = "route_navigate"
+    ) {
+        let startedAt = DebugInteractionLatencyProbe.now()
+        let previousRoute = workbenchLayout.currentRoute
+        guard previousRoute != route else {
             return
+        }
+        let fromLabel = previousRoute.diagnosticLabel(
+            recentSection: workbenchLayout.selectedRecentSection,
+            fileSection: workbenchLayout.selectedFileSection
+        )
+        let toLabel = route.diagnosticLabel(
+            recentSection: workbenchLayout.selectedRecentSection,
+            fileSection: workbenchLayout.selectedFileSection
+        )
+        let staysWithinFileSurface = previousRoute.panelMode == .file && route.panelMode == .file
+        if !staysWithinFileSurface {
+            DebugInteractionLatencyProbe.beginNavigation(
+                domain: "workbench",
+                from: fromLabel,
+                to: toLabel,
+                trigger: trigger,
+                startedAt: startedAt
+            )
         }
 
         AppLogger.shared.info(
@@ -816,6 +849,18 @@ final class AppCoordinator: ObservableObject {
         )
         workbenchLayout.navigate(to: route)
         prepareWorkbenchRoute(route)
+
+        if staysWithinFileSurface {
+            DebugInteractionLatencyProbe.completeImmediateNavigation(
+                domain: "workbench",
+                from: fromLabel,
+                to: toLabel,
+                trigger: trigger,
+                startedAt: startedAt
+            )
+        } else {
+            DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "workbench")
+        }
     }
 
     private func logRouteFields(for route: WorkbenchRoute, navigation: String? = nil) -> [(String, String?)] {
@@ -854,33 +899,83 @@ final class AppCoordinator: ObservableObject {
     }
 
     func goBackInWorkbench() {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard workbenchLayout.route.canGoBack else {
             return
         }
+        let previousRoute = workbenchLayout.currentRoute
+        let fromLabel = currentWorkbenchDiagnosticLabel
 
         workbenchLayout.goBack()
         let currentRoute = workbenchLayout.currentRoute
+        let toLabel = currentWorkbenchDiagnosticLabel
+        let staysWithinFileSurface = previousRoute.panelMode == .file && currentRoute.panelMode == .file
+        if !staysWithinFileSurface {
+            DebugInteractionLatencyProbe.beginNavigation(
+                domain: "workbench",
+                from: fromLabel,
+                to: toLabel,
+                trigger: "history_back",
+                startedAt: startedAt
+            )
+        }
         AppLogger.shared.info(
             .app,
             "Workbench route changed",
             fields: logRouteFields(for: currentRoute, navigation: "back")
         )
         prepareWorkbenchRoute(currentRoute)
+        if staysWithinFileSurface {
+            DebugInteractionLatencyProbe.completeImmediateNavigation(
+                domain: "workbench",
+                from: fromLabel,
+                to: toLabel,
+                trigger: "history_back",
+                startedAt: startedAt
+            )
+        } else {
+            DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "workbench")
+        }
     }
 
     func goForwardInWorkbench() {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard workbenchLayout.route.canGoForward else {
             return
         }
+        let previousRoute = workbenchLayout.currentRoute
+        let fromLabel = currentWorkbenchDiagnosticLabel
 
         workbenchLayout.goForward()
         let currentRoute = workbenchLayout.currentRoute
+        let toLabel = currentWorkbenchDiagnosticLabel
+        let staysWithinFileSurface = previousRoute.panelMode == .file && currentRoute.panelMode == .file
+        if !staysWithinFileSurface {
+            DebugInteractionLatencyProbe.beginNavigation(
+                domain: "workbench",
+                from: fromLabel,
+                to: toLabel,
+                trigger: "history_forward",
+                startedAt: startedAt
+            )
+        }
         AppLogger.shared.info(
             .app,
             "Workbench route changed",
             fields: logRouteFields(for: currentRoute, navigation: "forward")
         )
         prepareWorkbenchRoute(currentRoute)
+        if staysWithinFileSurface {
+            DebugInteractionLatencyProbe.completeImmediateNavigation(
+                domain: "workbench",
+                from: fromLabel,
+                to: toLabel,
+                trigger: "history_forward",
+                startedAt: startedAt
+            )
+        } else {
+            DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "workbench")
+        }
     }
 
     /// The data a page needs that its own view does not load: the Excerpt

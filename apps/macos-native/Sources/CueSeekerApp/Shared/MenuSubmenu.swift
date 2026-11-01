@@ -274,6 +274,7 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         guard openParent != action else {
             return
         }
+        let startedAt = ProcessInfo.processInfo.systemUptime
         openParent = action
         if action == nil {
             waitsForPointerMove = false
@@ -283,6 +284,14 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
             isMovingTowardSubmenu = true
         }
         onOpenParentChange?(action)
+        if let action {
+            DebugInteractionLatencyProbe.recordPopoverOpen(
+                menuID: "submenu_\(action)",
+                owner: "submenu",
+                trigger: "open_submenu",
+                startedAt: startedAt
+            )
+        }
     }
 }
 

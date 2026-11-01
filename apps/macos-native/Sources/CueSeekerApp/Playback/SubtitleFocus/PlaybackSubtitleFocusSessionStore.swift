@@ -240,6 +240,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     @discardableResult
     func selectModule(_ module: PlaybackOverlayModule) -> Bool {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard isSessionActive,
               !isEditingCollage,
               currentSnapshot != nil || state == .subtitleLeftLibrary,
@@ -248,6 +249,32 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         else {
             return false
         }
+
+        let fromLabel: String = {
+            switch selectedModule {
+            case .current:
+                return "playback_overlay_current"
+            case .playlist:
+                return libraryStore != nil ? "playback_overlay_library" : "playback_overlay_playlist"
+            case .none:
+                return "none"
+            }
+        }()
+        let toLabel: String = {
+            switch module {
+            case .current:
+                return "playback_overlay_current"
+            case .playlist:
+                return libraryStore != nil ? "playback_overlay_library" : "playback_overlay_playlist"
+            }
+        }()
+        DebugInteractionLatencyProbe.beginNavigation(
+            domain: "playback_overlay",
+            from: fromLabel,
+            to: toLabel,
+            trigger: "overlay_tab_select",
+            startedAt: startedAt
+        )
 
         prepareReelForModuleTransition()
         selectedModule = module
@@ -259,6 +286,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             "Playback overlay module selected",
             fields: [("module", "\(module)")]
         )
+        DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "playback_overlay")
         return true
     }
 
@@ -334,6 +362,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     @discardableResult
     func toggleEditingCollage() -> Bool {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard isSessionActive,
               case .cueSelection = state
         else {
@@ -346,6 +375,13 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 .playback,
                 "Collage mode toggled",
                 fields: [("enabled", "false")]
+            )
+            DebugInteractionLatencyProbe.completeImmediateNavigation(
+                domain: "playback_overlay",
+                from: "playback_overlay_collage",
+                to: "playback_overlay_current",
+                trigger: "exit_collage_editor",
+                startedAt: startedAt
             )
             return true
         }
@@ -370,6 +406,13 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 ("enabled", "true"),
                 ("initial_cue_id", "\(selectedCue.id)")
             ]
+        )
+        DebugInteractionLatencyProbe.completeImmediateNavigation(
+            domain: "playback_overlay",
+            from: "playback_overlay_current",
+            to: "playback_overlay_collage",
+            trigger: "enter_collage_editor",
+            startedAt: startedAt
         )
         return true
     }

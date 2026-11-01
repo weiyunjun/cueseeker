@@ -10,6 +10,7 @@ extension LibraryStore {
         currentCoverPath: String?,
         currentCoverRevision: String?
     ) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard coverEditingSession == nil else {
             return
         }
@@ -19,9 +20,16 @@ extension LibraryStore {
             currentCoverPath: currentCoverPath,
             currentCoverRevision: currentCoverRevision
         )
+        DebugInteractionLatencyProbe.beginDialogOpen(
+            dialogID: "library_edit_cover",
+            trigger: "change_cover",
+            startedAt: startedAt,
+            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
+        )
     }
 
     func beginChoosingLibraryCover(_ session: LibraryCoverEditingSession) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard coverEditingSession?.id == session.id,
               !session.isSaving
         else {
@@ -39,10 +47,19 @@ extension LibraryStore {
         panel.resolvesAliases = true
         panel.allowedContentTypes = LibraryCoverOpenPanelPolicy.allowedContentTypes
         panel.allowsOtherFileTypes = false
+        let panelPresentedAt = DebugInteractionLatencyProbe.now()
 
         let completion: (NSApplication.ModalResponse) -> Void = {
             [weak self, weak session, delegate] response in
             _ = delegate
+            DebugInteractionLatencyProbe.recordSystemFilePanel(
+                panelType: "NSOpenPanel",
+                trigger: "library_choose_cover",
+                mode: "sheet_or_modal",
+                startedAt: startedAt,
+                panelPresentedAt: panelPresentedAt,
+                didSelect: response == .OK
+            )
             guard let self,
                   let session,
                   response == .OK,
@@ -52,6 +69,7 @@ extension LibraryStore {
                 return
             }
 
+            let cropTransitionStartedAt = DebugInteractionLatencyProbe.now()
             self.libraryCoverImportTask?.cancel()
             self.libraryCoverImportTask = Task { [weak self, weak session] in
                 do {
@@ -65,7 +83,16 @@ extension LibraryStore {
                     else {
                         return
                     }
+                    let asyncLoadFinishedAt = DebugInteractionLatencyProbe.now()
                     session.selectSource(source)
+                    DebugInteractionLatencyProbe.recordDialogInternalTransition(
+                        dialogID: "library_edit_cover",
+                        transition: "enter_crop_editor",
+                        trigger: "choose_image",
+                        startedAt: cropTransitionStartedAt,
+                        syncPrepFinishedAt: cropTransitionStartedAt,
+                        asyncLoadFinishedAt: asyncLoadFinishedAt
+                    )
                 } catch is CancellationError {
                     return
                 } catch {

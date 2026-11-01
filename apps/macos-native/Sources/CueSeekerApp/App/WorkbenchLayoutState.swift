@@ -147,6 +147,32 @@ enum WorkbenchRoute: Equatable {
             return self
         }
     }
+
+    func diagnosticLabel(
+        recentSection: WorkbenchRecentSection,
+        fileSection: WorkbenchFileSection
+    ) -> String {
+        switch self {
+        case .search:
+            return "search"
+        case .recent:
+            return recentSection == .videos ? "recent_videos" : "recent_excerpts"
+        case .library:
+            return "library_overview"
+        case .libraryFolder:
+            return "library_directory"
+        case .file:
+            return "file_\(fileSection.rawValue)_roots"
+        case .fileFolder:
+            return "file_\(fileSection.rawValue)_subfolders"
+        case .fileFiles:
+            return "file_\(fileSection.rawValue)_files"
+        case .excerpt:
+            return "excerpt_overview"
+        case .excerptList:
+            return "excerpt_detail"
+        }
+    }
 }
 
 @MainActor
@@ -399,11 +425,44 @@ final class WorkbenchLayoutState: ObservableObject {
     }
 
     func selectRecentSection(_ section: WorkbenchRecentSection) {
+        let startedAt = DebugInteractionLatencyProbe.now()
+        let previousSection = route.selectedRecentSection
+        if previousSection != section {
+            DebugInteractionLatencyProbe.beginNavigation(
+                domain: "workbench",
+                from: previousSection == .videos ? "recent_videos" : "recent_excerpts",
+                to: section == .videos ? "recent_videos" : "recent_excerpts",
+                trigger: "recent_tab_select",
+                startedAt: startedAt
+            )
+        }
         route.selectedRecentSection = section
+        if previousSection != section {
+            DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "workbench")
+        }
     }
 
     func selectFileSection(_ section: WorkbenchFileSection) {
+        let startedAt = DebugInteractionLatencyProbe.now()
+        let previousSection = route.selectedFileSection
+        let fromLabel = route.currentRoute.diagnosticLabel(
+            recentSection: route.selectedRecentSection,
+            fileSection: previousSection
+        )
         route.selectedFileSection = section
+        if previousSection != section {
+            let toLabel = route.currentRoute.diagnosticLabel(
+                recentSection: route.selectedRecentSection,
+                fileSection: section
+            )
+            DebugInteractionLatencyProbe.completeImmediateNavigation(
+                domain: "workbench",
+                from: fromLabel,
+                to: toLabel,
+                trigger: "file_tab_select",
+                startedAt: startedAt
+            )
+        }
     }
 
     func beginVideoSizeTransition() -> Bool {

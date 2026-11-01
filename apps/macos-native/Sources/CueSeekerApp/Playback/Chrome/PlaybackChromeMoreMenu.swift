@@ -406,6 +406,7 @@ struct PlaybackChromeMoreMenuOverlay: View {
     }
 
     func measuredLayout(stageSize: CGSize) -> PlaybackMoreMenuLayout {
+        let startedAt = ProcessInfo.processInfo.systemUptime
         let bounds = Self.bounds(stageSize: stageSize, buttonFrame: buttonFrame)
         let menuFrame = MenuPlacement.openingFrame(
             anchor: buttonFrame,
@@ -421,6 +422,13 @@ struct PlaybackChromeMoreMenuOverlay: View {
             menuFrame: menuFrame,
             triggerFrame: Self.triggerFrame(menuWidth: menuFrame.width),
             bounds: bounds
+        )
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "player_more_menu",
+            trigger: "chrome_more_button",
+            startedAt: startedAt,
+            measureMs: measureMs
         )
         return PlaybackMoreMenuLayout(
             menuFrame: menuFrame,
@@ -531,11 +539,12 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
     }
 
     func measuredLayout(stageSize: CGSize) -> PlaybackSubtitleMenuLayout {
+        let startedAt = ProcessInfo.processInfo.systemUptime
         let bounds = PlaybackChromeMoreMenuOverlay.bounds(
             stageSize: stageSize,
             buttonFrame: buttonFrame
         )
-        return PlaybackWrappedMenuPanelLayout.measure(
+        let layout = PlaybackWrappedMenuPanelLayout.measure(
             room: bounds.width,
             boundsHeight: bounds.height,
             items: { width in items(itemWidth: width) },
@@ -548,6 +557,14 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
                 )
             }
         )
+        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000)
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "player_subtitle_menu",
+            trigger: "chrome_subtitle_button",
+            startedAt: startedAt,
+            measureMs: measureMs
+        )
+        return layout
     }
 }
 
@@ -677,7 +694,11 @@ private struct PlaybackChromeMenuItem: View {
                 guard !suppressesInteraction else {
                     return
                 }
-                action()
+                DebugInteractionLatencyProbe.measureMenuItemAction(
+                    menuID: "player_chrome_menu",
+                    item: name,
+                    action
+                )
             } label: {
                 rowContent
             }

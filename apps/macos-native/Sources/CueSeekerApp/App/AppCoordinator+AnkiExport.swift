@@ -66,6 +66,7 @@ extension AppCoordinator {
 
     /// Opens the dialog on the choices the reader left it with last time.
     private func openAnkiExportDialog(_ items: [AnkiExportItem]) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard !items.isEmpty else {
             return
         }
@@ -78,6 +79,12 @@ extension AppCoordinator {
             onOptionsChange: { [weak self] options in
                 self?.settings.ankiExportOptions = options
             }
+        )
+        DebugInteractionLatencyProbe.beginDialogOpen(
+            dialogID: "anki_export",
+            trigger: "open_anki_export",
+            startedAt: startedAt,
+            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
         )
     }
 
@@ -98,6 +105,7 @@ extension AppCoordinator {
     }
 
     func beginChoosingAnkiExportFolder(_ session: AnkiExportSession) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard tasks.ankiExportSession?.id == session.id else {
             return
         }
@@ -109,8 +117,17 @@ extension AppCoordinator {
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
         panel.directoryURL = session.folderURL
+        let panelPresentedAt = DebugInteractionLatencyProbe.now()
 
         let completion: (NSApplication.ModalResponse) -> Void = { [weak self, weak session] response in
+            DebugInteractionLatencyProbe.recordSystemFilePanel(
+                panelType: "NSOpenPanel",
+                trigger: "anki_export_choose_folder",
+                mode: "sheet_or_modal",
+                startedAt: startedAt,
+                panelPresentedAt: panelPresentedAt,
+                didSelect: response == .OK
+            )
             guard let self,
                   let session,
                   response == .OK,

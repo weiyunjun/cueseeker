@@ -156,17 +156,31 @@ extension ExcerptStore {
         guard listEditorSession == nil else {
             return
         }
+        let startedAt = DebugInteractionLatencyProbe.now()
         listEditorSession = ExcerptListEditorSession(
             mode: .newList,
             pendingTransfer: pendingTransfer
         )
+        DebugInteractionLatencyProbe.beginDialogOpen(
+            dialogID: "excerpt_list_editor_new",
+            trigger: "create_excerpt_list",
+            startedAt: startedAt,
+            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
+        )
     }
 
     func presentEditExcerptListEditor(_ list: ExcerptList) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard listEditorSession == nil else {
             return
         }
         listEditorSession = ExcerptListEditorSession(mode: .edit(list))
+        DebugInteractionLatencyProbe.beginDialogOpen(
+            dialogID: "excerpt_list_editor_edit",
+            trigger: "edit_excerpt_list",
+            startedAt: startedAt,
+            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
+        )
     }
 
     func closeExcerptListEditor() {
@@ -200,6 +214,7 @@ extension ExcerptStore {
     }
 
     func beginChoosingExcerptListCover(_ session: ExcerptListEditorSession) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard listEditorSession?.id == session.id,
               !session.isSaving
         else {
@@ -217,10 +232,19 @@ extension ExcerptStore {
         panel.resolvesAliases = true
         panel.allowedContentTypes = LibraryCoverOpenPanelPolicy.allowedContentTypes
         panel.allowsOtherFileTypes = false
+        let panelPresentedAt = DebugInteractionLatencyProbe.now()
 
         let completion: (NSApplication.ModalResponse) -> Void = {
             [weak self, weak session, delegate] response in
             _ = delegate
+            DebugInteractionLatencyProbe.recordSystemFilePanel(
+                panelType: "NSOpenPanel",
+                trigger: "excerpt_list_choose_cover",
+                mode: "sheet_or_modal",
+                startedAt: startedAt,
+                panelPresentedAt: panelPresentedAt,
+                didSelect: response == .OK
+            )
             guard let self,
                   let session,
                   response == .OK,
@@ -243,6 +267,7 @@ extension ExcerptStore {
         from sourceURL: URL,
         for session: ExcerptListEditorSession
     ) {
+        let startedAt = DebugInteractionLatencyProbe.now()
         listCoverImportTask?.cancel()
         listCoverImportTask = Task { @MainActor [weak self, weak session] in
             guard let self, let session else {
@@ -256,7 +281,16 @@ extension ExcerptStore {
                 guard self.listEditorSession?.id == session.id else {
                     return
                 }
+                let asyncLoadFinishedAt = DebugInteractionLatencyProbe.now()
                 session.selectCoverSource(source)
+                DebugInteractionLatencyProbe.recordDialogInternalTransition(
+                    dialogID: "excerpt_list_editor",
+                    transition: "enter_crop_editor",
+                    trigger: "choose_image",
+                    startedAt: startedAt,
+                    syncPrepFinishedAt: startedAt,
+                    asyncLoadFinishedAt: asyncLoadFinishedAt
+                )
             } catch is CancellationError {
                 return
             } catch {

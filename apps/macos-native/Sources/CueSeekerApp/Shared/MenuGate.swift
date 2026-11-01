@@ -164,6 +164,10 @@ final class MenuGate {
                 object: nil
             )
         }
+        DebugInteractionLatencyProbe.recordMenuGateOpen(
+            kind: String(describing: client.kind),
+            owner: String(describing: client.owner)
+        )
         return session
     }
 

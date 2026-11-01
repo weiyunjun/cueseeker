@@ -16,6 +16,7 @@ typealias PlaybackSubtitleFocusCompleteCueBatchLoader = @MainActor @Sendable (
 extension AppCoordinator {
     @discardableResult
     func openPlaybackSubtitleFocusFromUser() -> Bool {
+        let startedAt = DebugInteractionLatencyProbe.now()
         if playback.subtitleFocusSession != nil {
             return true
         }
@@ -33,6 +34,13 @@ extension AppCoordinator {
         else {
             return false
         }
+        DebugInteractionLatencyProbe.beginNavigation(
+            domain: "playback_overlay",
+            from: "closed",
+            to: "playback_overlay_current",
+            trigger: "open_playback_overlay",
+            startedAt: startedAt
+        )
 
         let source = SubtitleFocusSourceIdentity(
             subtitleFileID: subtitleFileID,
@@ -93,14 +101,17 @@ extension AppCoordinator {
 
         guard isPlaybackSubtitleInLibrary(source) else {
             session.showSubtitleLeftLibrary()
+            DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "playback_overlay")
             return true
         }
         startPlaybackSubtitleFocusInitialLoad(for: session)
+        DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "playback_overlay")
         return true
     }
 
     @discardableResult
     func dismissPlaybackSubtitleFocusFromUser() -> Bool {
+        let startedAt = DebugInteractionLatencyProbe.now()
         guard let session = playback.subtitleFocusSession else {
             return false
         }
@@ -121,6 +132,13 @@ extension AppCoordinator {
         if shouldResume {
             resumePlayback()
         }
+        DebugInteractionLatencyProbe.completeImmediateNavigation(
+            domain: "playback_overlay",
+            from: "playback_overlay",
+            to: "closed",
+            trigger: "dismiss_playback_overlay",
+            startedAt: startedAt
+        )
         return true
     }
 

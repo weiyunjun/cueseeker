@@ -75,6 +75,14 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
         .onAppear {
             interfaceLayers?.setOpen(.dialog, !dialogIDs.isEmpty)
         }
+        .onChange(of: dialogIDs) { newDialogIDs in
+            if let lastID = newDialogIDs.last {
+                DebugInteractionLatencyProbe.beginDialogOpenIfNeeded(
+                    dialogID: String(describing: lastID),
+                    trigger: "dialog_layer"
+                )
+            }
+        }
         .onChange(of: dialogIDs.isEmpty) { isEmpty in
             interfaceLayers?.setOpen(.dialog, !isEmpty)
         }
@@ -367,6 +375,10 @@ private struct WorkbenchDialogMotionEffect: ViewModifier, Animatable {
     }
 
     func body(content: Content) -> some View {
+        let _ = DebugInteractionLatencyProbe.recordDialogAnimationFrame(
+            progress: CGFloat(progress),
+            isEntering: isEntering
+        )
         content
             // The dialog fades as one picture, the way the sheet's window
             // did. Faded part by part, the opaque shapes its shadows are cast

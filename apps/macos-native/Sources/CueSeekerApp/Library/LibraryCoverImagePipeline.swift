@@ -290,11 +290,20 @@ actor LibraryCoverImagePipeline {
         return result
     }
 
-    func prewarm(keys: [LibraryCoverImageKey]) async {
+    @discardableResult
+    func prewarm(keys: [LibraryCoverImageKey]) async -> LibraryCoverPrewarmStats {
+        let startedAt = DispatchTime.now().uptimeNanoseconds
         let boundedKeys = Self.boundedUniqueKeys(from: keys)
         let missingKeys = boundedKeys.filter { !memoryCache.isReadyForPresentation(for: $0) }
+        let cacheHitCount = max(0, boundedKeys.count - missingKeys.count)
         guard !missingKeys.isEmpty else {
-            return
+            let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
+            return LibraryCoverPrewarmStats(
+                totalCount: boundedKeys.count,
+                cacheHitCount: cacheHitCount,
+                decodedCount: 0,
+                elapsedMilliseconds: elapsedMs
+            )
         }
 
         await withTaskGroup(of: Void.self) { group in
@@ -304,6 +313,14 @@ actor LibraryCoverImagePipeline {
                 }
             }
         }
+
+        let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
+        return LibraryCoverPrewarmStats(
+            totalCount: boundedKeys.count,
+            cacheHitCount: cacheHitCount,
+            decodedCount: missingKeys.count,
+            elapsedMilliseconds: elapsedMs
+        )
     }
 
     func image(for key: LibraryCoverImageKey) async throws -> CGImage? {
