@@ -561,9 +561,9 @@
 - Status and Action Row、列表标题、面包屑、单集 `Display Title` 与各级容器/卡片均左边缘对齐。
 - Status and Action Row 在 Level 1、Level 2、Level 3 第一行常驻展示，高 36px（`--height-control`），左对齐：从左到右依次为 `Add Folder` 按钮、`Index All` 按钮、状态指示器。
 - 所有层级的第一行（Status and Action Row）与第二行（Level 1 的 `All Folder(s)` 标题行、Level 2 与 Level 3 的面包屑行）在顶部固定冻结，纵向滚动时仅下方列表区域滚动。
-- Level 1 统一展示全部根文件夹卡片，顶部标题为 `All Folder`（根目录数量为 1 时）或 `All Folders`（根目录数量大于 1 时），样式为 14px Semibold `--color-text-primary`。
+- Level 1 统一按添加顺序展示全部根文件夹卡片，顶部标题为 `All Folder`（根目录数量为 1 时）或 `All Folders`（根目录数量大于 1 时），样式为 14px Semibold `--color-text-primary`；Level 2 子文件夹按文件夹名称升序排列。
 - 面包屑节点（Level 2 与 Level 3 第二行）：以 `All Folder` / `All Folders` 为起点（点击返回 Level 1）；未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
-- Episode File Group（单集文件分组）：视频与字幕按单集 `Display Title` 合一展示为单张圆角卡片容器（背景 `--color-table-bg`、边框 `--color-border-control`、宽度 `--border-width-control`、圆角 `--radius-settings-group`、内边距 `0`，占满内容区宽度并裁剪圆角）。卡片顶部为标题栏（最小高度 `--height-control`，水平内边距 `--spacing-4`，背景 `--color-file-group-header-bg`），左对齐展示 `Display Title`（14px Medium `--color-text-muted`）；标题栏底部及下方各文件行之间均以与卡片容器等宽的 `--color-border-divider`（宽度 `--border-width-control`）分隔。
+- Episode File Group（单集文件分组）：视频与字幕按单集 `Display Title` 合一展示为单张圆角卡片容器（视频在上，下方配对字幕按 Data 中的字幕顺序排列；背景 `--color-table-bg`、边框 `--color-border-control`、宽度 `--border-width-control`、圆角 `--radius-settings-group`、内边距 `0`，占满内容区宽度并裁剪圆角）。卡片顶部为标题栏（最小高度 `--height-control`，水平内边距 `--spacing-4`，背景 `--color-file-group-header-bg`），左对齐展示 `Display Title`（14px Medium `--color-text-muted`）；标题栏底部及下方各文件行之间均以与卡片容器等宽的 `--color-border-divider`（宽度 `--border-width-control`）分隔。
 - 空状态与失效态均在顶部固定栏下方的剩余区域居中展示 Empty State：Level 1 无根目录时展示图标 `folder`（含 Title 与 Message）；Level 2 无内容时展示图标 `folder`；Level 3 子文件夹内容被清空或 Level 2 / Level 3 路径已不在索引中（`This page no longer exists.`）时展示图标 `folder-question`。异步加载期间展示居中 `Spinner`。
 - 移除根目录前弹出 Confirmation Dialog。
 - 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，全部操作按钮为 Disabled。
@@ -798,8 +798,8 @@
 
 #### Ordering
 
-- Search：支持默认排序（按 Display Title、字幕路径、Cue 时间升序）、字符数最多、字符数最少；相同条件下按默认排序兜底，首屏与搜索完成后的顺序一致，搜索进行中切换排序立即重新搜索。排序选择持久化保存，并与 Command Panel 搜索结果保持一致
-- Excerpt：支持添加日期最早（默认）、添加日期最晚、字符数最多、字符数最少；相同条件下按添加日期最早兜底。各 Excerpt List 的搜索词、筛选与排序相互独立（筛选与排序持久化保存，搜索词重启后清空）
+- Search：支持默认排序（按文件夹、视频、Data 中的字幕顺序、Cue 时间升序）、字符数最多、字符数最少；相同条件下按默认排序兜底，首屏与搜索完成后的顺序一致，搜索进行中切换排序立即重新搜索。排序选择持久化保存，并与 Command Panel 搜索结果保持一致
+- Excerpt：支持添加日期最早（默认）、添加日期最晚（与添加日期最早互为倒序；批量保存时按保存前列表从上到下的顺序写入）、字符数最多、字符数最少；相同条件下按添加日期最早兜底。各 Excerpt List 的搜索词、筛选与排序相互独立（筛选与排序持久化保存，搜索词重启后清空）
 
 #### Sizes
 
@@ -1183,7 +1183,7 @@
 2. Content
    1. File Header Row
       - `Folder Info`：静态文件夹图标与名称（最多 2 行，超出省略），随下方内容滚动
-      - `File Info`：与 Header 一起固定在顶部不随下方滚动的配对文件下拉触发器（撑满内容宽，圆角 `--radius-settings-group`，边框 `--border-width-control`，内边距纵向 `--spacing-3`、横向 `--spacing-4`；Default 背景 `--color-table-bg`、边框 `--color-border-control`，Hover / Open 背景 `--color-bg-hover`、边框 `--color-border-control-hover`，Pressed 背景 `--color-bg-pressed`、边框 `--color-border-control-hover`），内部依次为文件大图标、文件名（最多 2 行，超出省略）与右侧 `caret-down`（`--size-card-chevron`，`--color-text-secondary`）。点击在正下方（间距 `--spacing-1`）弹出等宽下拉菜单，按「视频在上、配对字幕在下」列出全部配对文件（包含当前文件；菜单项复用 `Action Menu Item`，无勾选标记，左侧 `18px` `video` / `subtitles` 图标对齐首行，右侧完整文件名多行自然折行、上下内边距 `--padding-settings-row-y`）；选择后切换详情并使下方滚动区回到顶部，弹窗打开期间配对列表与各文件详情保持冻结快照不变
+      - `File Info`：与 Header 一起固定在顶部不随下方滚动的配对文件下拉触发器（撑满内容宽，圆角 `--radius-settings-group`，边框 `--border-width-control`，内边距纵向 `--spacing-3`、横向 `--spacing-4`；Default 背景 `--color-table-bg`、边框 `--color-border-control`，Hover / Open 背景 `--color-bg-hover`、边框 `--color-border-control-hover`，Pressed 背景 `--color-bg-pressed`、边框 `--color-border-control-hover`），内部依次为文件大图标、文件名（最多 2 行，超出省略）与右侧 `caret-down`（`--size-card-chevron`，`--color-text-secondary`）。点击在正下方（间距 `--spacing-1`）弹出等宽下拉菜单，按「视频在上、配对字幕在下（按 Data 中的字幕顺序）」列出全部配对文件（包含当前文件；菜单项复用 `Action Menu Item`，无勾选标记，左侧 `18px` `video` / `subtitles` 图标对齐首行，右侧完整文件名多行自然折行、上下内边距 `--padding-settings-row-y`）；选择后切换详情并使下方滚动区回到顶部，弹窗打开期间配对列表与各文件详情保持冻结快照不变
    2. Property Groups：Settings 风格卡片组
       - Folder（Root Folder / Subfolder）：`Folder Info`（Path、Folder Count、Video Count、Subtitle Count）、`Index Info`（Added、Updated）
       - Video File：`Video`（Resolution `W × H`、Frame Rate、Codec、Bit Depth、Pixel Format、Duration）、`Audio #N`（无有效音轨时不显示此分组；Codec、Channels、Sample Rate、Bit Depth、Language、Title，仅展示有效项）、`Associated Subtitles`、`File Details`（File Size、Bitrate、Format 按内部实际容器格式展示且同容器家族保持原后缀对应名称、Path、Modified）
