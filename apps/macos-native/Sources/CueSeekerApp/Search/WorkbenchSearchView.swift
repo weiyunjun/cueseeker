@@ -284,7 +284,6 @@ struct WorkbenchSearchView: View {
     /// The dialog starts from the table's selection, and Show hands its
     /// selection back through the same path a changed selection always took.
     private func openFilterDialog() {
-        WorkbenchAccessibilityDebugLog.log("WorkbenchSearchView.openFilterDialog isSelectionMode=\(isSelectionMode)")
         let binding = searchFacetFilterBinding
         filterDialog.session = CueFacetFilterDialogSession(
             source: .search,
@@ -585,7 +584,6 @@ struct WorkbenchSearchView: View {
 
     private func exportSelectedRowsToAnki() {
         let selectedRows = rowSelection.selectedRows(rowCount: tableSummaryTotalRowCount)
-        WorkbenchAccessibilityDebugLog.log("WorkbenchSearchView.exportSelectedRowsToAnki selectedRowsCount=\(selectedRows.count)")
         guard !selectedRows.isEmpty else {
             return
         }
@@ -606,7 +604,6 @@ struct WorkbenchSearchView: View {
     private func copySelectedRowsAsTable() {
         let rowCount = tableSummaryTotalRowCount
         let selection = rowSelection
-        WorkbenchAccessibilityDebugLog.log("WorkbenchSearchView.copySelectedRowsAsTable selectedCount=\(selection.selectedCount(rowCount: rowCount))")
         guard selection.selectedCount(rowCount: rowCount) > 0 else {
             return
         }
@@ -629,7 +626,6 @@ struct WorkbenchSearchView: View {
         let selectedRows = rowSelection.selectedRows(
             rowCount: tableSummaryTotalRowCount
         )
-        WorkbenchAccessibilityDebugLog.log("WorkbenchSearchView.copySelectedRowsAsDeepLinks selectedRowsCount=\(selectedRows.count)")
         guard !selectedRows.isEmpty else { return }
         let rows = selectedRows.compactMap { rowStore.snapshot.row(at: $0) }
         guard rows.count == selectedRows.count else { return }
@@ -708,7 +704,6 @@ struct WorkbenchSearchView: View {
     }
 
     private func toggleRowSelection(_ row: Int) {
-        let oldMode = isSelectionMode
         rowSelection.toggle(
             row: row,
             rowCount: rowStore.snapshot.totalRowCount,
@@ -721,9 +716,6 @@ struct WorkbenchSearchView: View {
             isSelectionMode = false
         }
         appState.workbenchAccessibility.isTableInSelectionMode = isSelectionMode
-        WorkbenchAccessibilityDebugLog.log(
-            "WorkbenchSearchView.toggleRowSelection(\(row)) count=\(count) isSelectionMode: \(oldMode) -> \(isSelectionMode) a11y.isTableInSelectionMode=\(appState.workbenchAccessibility.isTableInSelectionMode)"
-        )
         persistSelection()
     }
 
@@ -744,7 +736,6 @@ struct WorkbenchSearchView: View {
     }
 
     private func toggleAllRowSelection() {
-        let oldMode = isSelectionMode
         rowSelection.toggleAll(
             rowCount: rowStore.snapshot.totalRowCount,
             unselectableRows: rowStore.snapshot.unavailableRows
@@ -756,9 +747,6 @@ struct WorkbenchSearchView: View {
             isSelectionMode = false
         }
         appState.workbenchAccessibility.isTableInSelectionMode = isSelectionMode
-        WorkbenchAccessibilityDebugLog.log(
-            "WorkbenchSearchView.toggleAllRowSelection count=\(count) isSelectionMode: \(oldMode) -> \(isSelectionMode) a11y.isTableInSelectionMode=\(appState.workbenchAccessibility.isTableInSelectionMode)"
-        )
         persistSelection()
     }
 
@@ -808,9 +796,6 @@ struct WorkbenchSearchView: View {
     }
 
     private func toggleSelectionMode() {
-        WorkbenchAccessibilityDebugLog.log(
-            "WorkbenchSearchView.toggleSelectionMode isSelectionMode=\(isSelectionMode) canEnterSelectionMode=\(canEnterSelectionMode)"
-        )
         if isSelectionMode {
             exitSelectionMode()
             return
@@ -826,9 +811,6 @@ struct WorkbenchSearchView: View {
         guard isSelectionMode || rowSelection.selectedCount(rowCount: tableSummaryTotalRowCount) > 0 else {
             return
         }
-        WorkbenchAccessibilityDebugLog.log(
-            "WorkbenchSearchView.exitSelectionMode isSelectionMode: \(isSelectionMode) -> false"
-        )
         isSelectionMode = false
         appState.workbenchAccessibility.isTableInSelectionMode = false
         rowSelection.reset()

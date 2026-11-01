@@ -124,9 +124,6 @@ struct WorkbenchSearchField: View {
                 onFocusChange: { isNativeFocused = $0 },
                 onBindTextField: { field in
                     textFieldBox.field = field
-                    WorkbenchAccessibilityDebugLog.log(
-                        "WorkbenchSearchField.onBindTextField field=\(ObjectIdentifier(field)) isSearchAccessibilityFocused=\(isSearchAccessibilityFocused)"
-                    )
                     onBindAccessibilityTextField?(field)
                     if isSearchAccessibilityFocused {
                         field.focusFromAccessibility()
@@ -206,17 +203,11 @@ struct WorkbenchSearchField: View {
         )
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .onChange(of: isSearchAccessibilityFocused) { focused in
-            WorkbenchAccessibilityDebugLog.log(
-                "WorkbenchSearchField.onChange(isSearchAccessibilityFocused) -> \(focused) hasField=\(textFieldBox.field != nil)"
-            )
             if focused {
                 textFieldBox.field?.focusFromAccessibility()
             }
         }
         .onDisappear {
-            WorkbenchAccessibilityDebugLog.log(
-                "WorkbenchSearchField.onDisappear hasField=\(textFieldBox.field != nil) isCurrentActiveField=\(workbenchAccessibility?.activeSearchTextField === textFieldBox.field)"
-            )
             if let field = textFieldBox.field,
                let workbenchAccessibility,
                workbenchAccessibility.activeSearchTextField !== field,
@@ -252,9 +243,6 @@ struct WorkbenchButton: View {
         let _ = {
             if isFocused {
                 Self.lastFocusedButtonTitleForTesting = title
-                WorkbenchAccessibilityDebugLog.log(
-                    "WorkbenchButton.body isFocused=true title=\(title ?? "nil") isEnabled=\(isEnabled)"
-                )
             }
         }()
         Button(action: action) {

@@ -180,9 +180,6 @@ struct SchemaWorkbenchSelectionActionButton: View {
     var body: some View {
         let _ = {
             Self.lastRenderedFocusedByID[action.id] = isFocused
-            WorkbenchAccessibilityDebugLog.log(
-                "SchemaWorkbenchSelectionActionButton.body id=\(action.id) isFocused=\(isFocused)"
-            )
         }()
         buttonContent
             .background {

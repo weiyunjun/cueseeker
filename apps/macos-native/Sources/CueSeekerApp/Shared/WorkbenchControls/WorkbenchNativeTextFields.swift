@@ -212,19 +212,13 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     }
 
     func focusFromAccessibility() {
-        WorkbenchAccessibilityDebugLog.log(
-            "WorkbenchNativeSingleLineTextField.focusFromAccessibility START isEnabled=\(isEnabled) isEditable=\(isEditable) hasWindow=\(window != nil) isCurrentlyFocused=\(isCurrentlyFocused)"
-        )
         guard isEnabled && isEditable else {
             return
         }
         let wasFocused = isCurrentlyFocused
         didUserInteractSinceAutofocus = true
         if !wasFocused {
-            let madeFirst = window?.makeFirstResponder(self)
-            WorkbenchAccessibilityDebugLog.log(
-                "WorkbenchNativeSingleLineTextField.focusFromAccessibility makeFirstResponder=\(String(describing: madeFirst)) isCurrentlyFocusedAfter=\(isCurrentlyFocused)"
-            )
+            _ = window?.makeFirstResponder(self)
         }
         if let editor = currentEditor() as? NSTextView {
             applyTextStyle(to: editor)

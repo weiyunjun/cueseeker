@@ -1116,9 +1116,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 clearTextSelection()
             }
             if selectionModeChanged {
-                WorkbenchAccessibilityDebugLog.log(
-                    "SubtitleTableView.Coordinator.update selectionModeChanged table=\(tableName) isSelectionMode=\(isSelectionMode) a11y.isTableInSelectionMode=\(String(describing: workbenchAccessibility?.isTableInSelectionMode)) a11y.focused=\(String(describing: workbenchAccessibility?.focusedTarget))"
-                )
                 clearFocusedCheckbox()
                 updateHoveredColumnID(nil)
                 updateHoveredCueTextRow(nil)
@@ -1698,9 +1695,6 @@ struct SubtitleTableView: NSViewRepresentable {
 
         @discardableResult
         func activateAccessibilityTarget(_ target: WorkbenchAccessibilityTarget) -> Bool {
-            WorkbenchAccessibilityDebugLog.log(
-                "SubtitleTableView.Coordinator.activateAccessibilityTarget target=\(target) isEnabled=\(isEnabled) isCovered=\(isCoveredByHigherLayer) isSelectionMode=\(isSelectionMode)"
-            )
             guard isEnabled, !isCoveredByHigherLayer else { return false }
             switch target {
             case .tableHeaderCheckbox:

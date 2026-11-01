@@ -521,9 +521,6 @@ struct SchemaWorkbenchSearchToolbar: View {
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
             let _ = syncAccessibilityCallbacks(accessibility)
-            let _ = WorkbenchAccessibilityDebugLog.log(
-                "SchemaWorkbenchSearchToolbar.body isSelectionMode=\(isSelectionMode) a11yExists=\(accessibility != nil) focused=\(String(describing: accessibility?.focusedTarget)) selectionActions=\(selectionActions.map(\.id))"
-            )
             VStack(spacing: SchemaWorkbenchStyle.toolbarRowSpacing) {
                 if isSelectionMode {
                     selectionSummaryRow(accessibility: accessibility)
@@ -539,15 +536,9 @@ struct SchemaWorkbenchSearchToolbar: View {
                 }
             }
             .onAppear {
-                WorkbenchAccessibilityDebugLog.log(
-                    "SchemaWorkbenchSearchToolbar.onAppear isSelectionMode=\(isSelectionMode) a11yExists=\(accessibility != nil) selectionActions=\(selectionActions.map(\.id))"
-                )
                 syncAccessibilityCallbacks(accessibility)
             }
             .onChange(of: isSelectionMode) { inSelectionMode in
-                WorkbenchAccessibilityDebugLog.log(
-                    "SchemaWorkbenchSearchToolbar.onChange(isSelectionMode) -> \(inSelectionMode) a11yExists=\(accessibility != nil)"
-                )
                 if inSelectionMode {
                     hasConsumedInitialAutofocus = true
                 } else {
@@ -556,9 +547,6 @@ struct SchemaWorkbenchSearchToolbar: View {
                 accessibility?.isTableInSelectionMode = inSelectionMode
             }
             .onDisappear {
-                WorkbenchAccessibilityDebugLog.log(
-                    "SchemaWorkbenchSearchToolbar.onDisappear isSelectionMode=\(isSelectionMode) a11yExists=\(accessibility != nil)"
-                )
                 resolvedSelectionMenuController.dismiss()
                 accessibility?.isTableInSelectionMode = false
                 accessibility?.onOpenToolbarFilterDialog = nil
@@ -575,29 +563,12 @@ struct SchemaWorkbenchSearchToolbar: View {
     }
 
     private func syncAccessibilityCallbacks(_ accessibility: WorkbenchAccessibilityCoordinator?) {
-        let actionIDs = selectionActions.map(\.id)
-        WorkbenchAccessibilityDebugLog.log(
-            "SchemaWorkbenchSearchToolbar.syncAccessibilityCallbacks isSelectionMode=\(isSelectionMode) a11yExists=\(accessibility != nil) capturedSelectionActionIDs=\(actionIDs)"
-        )
         accessibility?.isTableInSelectionMode = isSelectionMode
-        accessibility?.onOpenToolbarFilterDialog = {
-            WorkbenchAccessibilityDebugLog.log("SchemaWorkbenchSearchToolbar.onOpenToolbarFilterDialog invoked")
-            onFilter()
-        }
-        accessibility?.onToggleToolbarSortMenu = {
-            WorkbenchAccessibilityDebugLog.log("SchemaWorkbenchSearchToolbar.onToggleToolbarSortMenu invoked")
-            onSort()
-        }
-        accessibility?.onExitTableSelectionMode = {
-            WorkbenchAccessibilityDebugLog.log("SchemaWorkbenchSearchToolbar.onExitTableSelectionMode invoked")
-            onToggleSelectionMode()
-        }
+        accessibility?.onOpenToolbarFilterDialog = onFilter
+        accessibility?.onToggleToolbarSortMenu = onSort
+        accessibility?.onExitTableSelectionMode = onToggleSelectionMode
         accessibility?.onPerformSelectionAction = { actionID in
-            let matched = selectionActions.first(where: { $0.id == actionID.rawValue })
-            WorkbenchAccessibilityDebugLog.log(
-                "SchemaWorkbenchSearchToolbar.onPerformSelectionAction(\(actionID.rawValue)) matched=\(matched != nil) capturedActionIDs=\(selectionActions.map(\.id))"
-            )
-            if let matched {
+            if let matched = selectionActions.first(where: { $0.id == actionID.rawValue }) {
                 triggerSelectionAction(matched)
             }
         }
@@ -1036,9 +1007,6 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
     }
 
     private func toggleSortMenu() {
-        WorkbenchAccessibilityDebugLog.log(
-            "SchemaWorkbenchSortMenuHost.toggleSortMenu activeSortMenu=\(activeSortMenu != nil) isSelectionMode=\(isSelectionMode)"
-        )
         if activeSortMenu != nil {
             dismissSortMenu()
         } else {
@@ -1047,17 +1015,11 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
     }
 
     private func openSortMenu() {
-        let viewportSize = sortMenuHostAnchor.bounds?.size
-        let anchorFrame = resolvedSortButtonAnchor.frame(in: sortMenuHostAnchor)
-        WorkbenchAccessibilityDebugLog.log(
-            "SchemaWorkbenchSortMenuHost.openSortMenu isSelectionMode=\(isSelectionMode) sortOptionsCount=\(sortOptions.count) viewportSize=\(String(describing: viewportSize)) anchorFrame=\(String(describing: anchorFrame))"
-        )
         guard !isSelectionMode,
               !sortOptions.isEmpty,
-              let viewportSize,
-              let anchorFrame
+              let viewportSize = sortMenuHostAnchor.bounds?.size,
+              let anchorFrame = resolvedSortButtonAnchor.frame(in: sortMenuHostAnchor)
         else {
-            WorkbenchAccessibilityDebugLog.log("SchemaWorkbenchSortMenuHost.openSortMenu FAILED guard!")
             externalIsSortMenuOpen?.wrappedValue = false
             return
         }
