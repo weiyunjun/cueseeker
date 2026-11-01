@@ -404,7 +404,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -453,8 +453,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
         guard let window,
-              NSApp.isActive,
-              window.isKeyWindow,
+              ((window as? CueSeekerWindow)?.isFocusedForHover ?? (NSApp.isActive && window.isKeyWindow)),
               !PointerHoverScrollState.shared.isScrolling
         else {
             return
@@ -473,8 +472,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
         guard let window,
-              NSApp.isActive,
-              window.isKeyWindow,
+              ((window as? CueSeekerWindow)?.isFocusedForHover ?? (NSApp.isActive && window.isKeyWindow)),
               !PointerHoverScrollState.shared.isScrolling
         else {
             return
@@ -937,7 +935,7 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
         }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -954,8 +952,7 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
 
     override func mouseMoved(with event: NSEvent) {
         guard let window,
-              NSApp.isActive,
-              window.isKeyWindow,
+              ((window as? CueSeekerWindow)?.isFocusedForHover ?? (NSApp.isActive && window.isKeyWindow)),
               !PointerHoverScrollState.shared.isScrolling
         else {
             return

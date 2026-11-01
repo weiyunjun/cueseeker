@@ -362,7 +362,7 @@ class TableScrollbarOverlayView: NSView {
         }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -391,6 +391,7 @@ class TableScrollbarOverlayView: NSView {
             NSApplication.didResignActiveNotification,
             NSWindow.didBecomeKeyNotification,
             NSWindow.didResignKeyNotification,
+            .cueSeekerWindowFocusChanged,
             .cueSeekerScrollDebounceSettled,
         ] {
             let token = center.addObserver(
@@ -424,13 +425,17 @@ class TableScrollbarOverlayView: NSView {
         guard draggingAxis == nil, !isInteractionFrozen else {
             return
         }
-        if NSApp.isActive && window.isKeyWindow {
+        let isWindowFocused = (window as? CueSeekerWindow)?.isFocusedForHover
+            ?? (NSApp.isActive && window.isKeyWindow)
+        if isWindowFocused {
+            let isPointerOverWindow = (window as? CueSeekerWindow)?.isWindowFocusedOverrideForTesting != nil
+                || NSWindow.windowNumber(
+                    at: NSEvent.mouseLocation,
+                    belowWindowWithWindowNumber: 0
+                ) == window.windowNumber
             guard !AppCursorVisibility.isCursorHidden,
                   !PointerHoverScrollState.shared.isScrolling,
-                  NSWindow.windowNumber(
-                      at: NSEvent.mouseLocation,
-                      belowWindowWithWindowNumber: 0
-                  ) == window.windowNumber
+                  isPointerOverWindow
             else {
                 hoveredAxis = nil
                 return
@@ -481,8 +486,7 @@ class TableScrollbarOverlayView: NSView {
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
         guard let window,
-              NSApp.isActive,
-              window.isKeyWindow,
+              ((window as? CueSeekerWindow)?.isFocusedForHover ?? (NSApp.isActive && window.isKeyWindow)),
               !isInteractionFrozen,
               !PointerHoverScrollState.shared.isScrolling
         else {

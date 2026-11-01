@@ -151,6 +151,7 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             NSApplication.didResignActiveNotification,
             NSWindow.didBecomeKeyNotification,
             NSWindow.didResignKeyNotification,
+            .cueSeekerWindowFocusChanged,
             .cueSeekerScrollDebounceSettled,
         ] {
             NotificationCenter.default.addObserver(
@@ -297,10 +298,16 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             MainActor.assumeIsolated {
                 guard let self,
                       let window = self.window,
-                      event.window === window,
-                      NSApp.isActive,
-                      window.isKeyWindow
+                      event.window === window
                 else {
+                    return
+                }
+                if event.type == .leftMouseDown {
+                    (window as? CueSeekerWindow)?.activateWindowForFocusIfNeeded()
+                }
+                let isWindowFocused = (window as? CueSeekerWindow)?.isFocusedForHover
+                    ?? (NSApp.isActive && window.isKeyWindow)
+                guard isWindowFocused else {
                     return
                 }
                 consumed = self.handlePointerEvent(
@@ -320,14 +327,18 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
            notificationWindow !== window {
             return
         }
-        if NSApp.isActive && window.isKeyWindow {
+        let isWindowFocused = (window as? CueSeekerWindow)?.isFocusedForHover
+            ?? (NSApp.isActive && window.isKeyWindow)
+        if isWindowFocused {
+            let isPointerOverWindow = (window as? CueSeekerWindow)?.isWindowFocusedOverrideForTesting != nil
+                || NSWindow.windowNumber(
+                    at: NSEvent.mouseLocation,
+                    belowWindowWithWindowNumber: 0
+                ) == window.windowNumber
             guard isInteractionEnabled,
                   !AppCursorVisibility.isCursorHidden,
                   !PointerHoverScrollState.shared.isScrolling,
-                  NSWindow.windowNumber(
-                      at: NSEvent.mouseLocation,
-                      belowWindowWithWindowNumber: 0
-                  ) == window.windowNumber
+                  isPointerOverWindow
             else {
                 return
             }

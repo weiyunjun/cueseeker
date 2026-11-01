@@ -1,20 +1,191 @@
 import AppKit
+import CueSeekerCore
+
+extension Notification.Name {
+    static let cueSeekerWindowFocusChanged = Notification.Name("cueSeekerWindowFocusChanged")
+}
 
 /// Base window that hides `mouseLocationOutsideOfEventStream` while the window
 /// is not the active key window so background layout passes inside
 /// `NSHostingView` never synthesize hover on an unfocused window.
 class CueSeekerWindow: NSWindow {
     var isWindowFocusedOverrideForTesting: Bool?
+    private(set) var hasUserInteractionFocus = false
+    nonisolated(unsafe) private var focusLifecycleObserverTokens: [NSObjectProtocol] = []
+    nonisolated(unsafe) private var outsideClickGlobalMonitor: Any?
     /// Set by the App once the interface layer registry exists.
     var isFocusLocked: () -> Bool = { false }
     /// Clears any active keyboard/controller accessibility focus when the user clicks with the mouse.
     var onMouseDownClearAccessibility: (() -> Void)?
 
+    override init(
+        contentRect: NSRect,
+        styleMask style: NSWindow.StyleMask,
+        backing backingStoreType: NSWindow.BackingStoreType,
+        defer flag: Bool
+    ) {
+        super.init(
+            contentRect: contentRect,
+            styleMask: style,
+            backing: backingStoreType,
+            defer: flag
+        )
+        installFocusLifecycleObserversIfNeeded()
+    }
+
+    deinit {
+        for token in focusLifecycleObserverTokens {
+            NotificationCenter.default.removeObserver(token)
+        }
+        if let outsideClickGlobalMonitor {
+            NSEvent.removeMonitor(outsideClickGlobalMonitor)
+        }
+    }
+
     var isFocusedForHover: Bool {
         if let isWindowFocusedOverrideForTesting {
             return isWindowFocusedOverrideForTesting
         }
-        return NSApp.isActive && isKeyWindow
+        return (NSApp.isActive && isKeyWindow) || hasUserInteractionFocus
+    }
+
+    func activateWindowForFocusIfNeeded(
+        sender: Any? = nil,
+        preservingCurrentFirstResponder: Bool = false
+    ) {
+        guard isWindowFocusedOverrideForTesting == nil else {
+            return
+        }
+        guard !NSApp.isActive || !isKeyWindow || !hasUserInteractionFocus else {
+            return
+        }
+        activateWindowForFocus(
+            sender: sender,
+            preservingCurrentFirstResponder: preservingCurrentFirstResponder
+        )
+    }
+
+    func activateWindowForFocus(
+        sender: Any? = nil,
+        preservingCurrentFirstResponder: Bool = false
+    ) {
+        installFocusLifecycleObserversIfNeeded()
+        for candidate in NSApp.windows {
+            if let otherWindow = candidate as? CueSeekerWindow,
+               otherWindow !== self,
+               otherWindow.hasUserInteractionFocus {
+                otherWindow.clearUserInteractionFocus()
+            }
+        }
+        let wasFocused = isFocusedForHover
+        let preservedResponder = (preservingCurrentFirstResponder && firstResponder !== self)
+            ? firstResponder
+            : nil
+        hasUserInteractionFocus = true
+        installOutsideClickGlobalMonitorIfNeeded()
+        if !ApplicationInfo.isRunningInUnitTestProcess,
+           isWindowFocusedOverrideForTesting == nil {
+            NSRunningApplication.current.activate(
+                options: [.activateAllWindows, .activateIgnoringOtherApps]
+            )
+            NSApp.activate(ignoringOtherApps: true)
+            if !isKeyWindow || !isVisible {
+                makeKeyAndOrderFront(sender)
+            }
+            if let preservedResponder,
+               firstResponder == nil || firstResponder === self {
+                _ = makeFirstResponder(preservedResponder)
+            }
+        }
+        if !wasFocused && isFocusedForHover {
+            NotificationCenter.default.post(
+                name: .cueSeekerWindowFocusChanged,
+                object: self
+            )
+        }
+    }
+
+    func clearUserInteractionFocus() {
+        removeOutsideClickGlobalMonitor()
+        guard hasUserInteractionFocus else {
+            return
+        }
+        hasUserInteractionFocus = false
+        NotificationCenter.default.post(
+            name: .cueSeekerWindowFocusChanged,
+            object: self
+        )
+    }
+
+    override func resignKey() {
+        clearUserInteractionFocus()
+        super.resignKey()
+    }
+
+    override func orderOut(_ sender: Any?) {
+        clearUserInteractionFocus()
+        super.orderOut(sender)
+    }
+
+    private func installFocusLifecycleObserversIfNeeded() {
+        guard focusLifecycleObserverTokens.isEmpty else {
+            return
+        }
+        let center = NotificationCenter.default
+        let resignActiveToken = center.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.clearUserInteractionFocus()
+            }
+        }
+        focusLifecycleObserverTokens.append(resignActiveToken)
+
+        for name in [
+            NSWindow.didResignKeyNotification,
+            NSWindow.willCloseNotification,
+        ] {
+            let token = center.addObserver(
+                forName: name,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                MainActor.assumeIsolated {
+                    guard let self,
+                          notification.object as? NSWindow === self
+                    else {
+                        return
+                    }
+                    self.clearUserInteractionFocus()
+                }
+            }
+            focusLifecycleObserverTokens.append(token)
+        }
+    }
+
+    private func installOutsideClickGlobalMonitorIfNeeded() {
+        guard !ApplicationInfo.isRunningInUnitTestProcess,
+              outsideClickGlobalMonitor == nil
+        else {
+            return
+        }
+        outsideClickGlobalMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.clearUserInteractionFocus()
+            }
+        }
+    }
+
+    private func removeOutsideClickGlobalMonitor() {
+        guard let outsideClickGlobalMonitor else {
+            return
+        }
+        NSEvent.removeMonitor(outsideClickGlobalMonitor)
+        self.outsideClickGlobalMonitor = nil
     }
 
     override var mouseLocationOutsideOfEventStream: NSPoint {
@@ -47,18 +218,30 @@ class CueSeekerWindow: NSWindow {
         }
         switch event.type {
         case .leftMouseDown:
-            onMouseDownClearAccessibility?()
             cancelFocusedTextInputIfOutside(at: event.locationInWindow)
+            activateWindowForFocusIfNeeded(
+                preservingCurrentFirstResponder: hasFocusedTextInput
+            )
+            onMouseDownClearAccessibility?()
         case .rightMouseDown:
             onMouseDownClearAccessibility?()
             if isPointInsideFocusedTextInput(at: event.locationInWindow) {
+                activateWindowForFocusIfNeeded(
+                    preservingCurrentFirstResponder: true
+                )
                 return
             }
             cancelFocusedTextInputIfOutside(at: event.locationInWindow)
+            activateWindowForFocusIfNeeded(
+                preservingCurrentFirstResponder: false
+            )
             if handleRightMouseDownOnUnfocusedTextInput(with: event) {
                 return
             }
         case .otherMouseDown:
+            activateWindowForFocusIfNeeded(
+                preservingCurrentFirstResponder: hasFocusedTextInput
+            )
             onMouseDownClearAccessibility?()
         default:
             break

@@ -78,7 +78,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         configurePointerEventRouting()
         consumePendingURLSchemeCommand()
         if !launchesFromPendingURLSchemeCommand {
-            NSApp.activate(ignoringOtherApps: true)
+            presentMainWindow()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let window = self.window else {
+                    return
+                }
+                if !NSApp.isActive || !window.isKeyWindow {
+                    (window as? CueSeekerWindow)?.activateWindowForFocus()
+                }
+            }
         }
 #if DEBUG
         configureDebugE2EIfRequested()
@@ -179,8 +187,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func presentMainWindow() {
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        guard let window else {
+            return
+        }
+        if let cueSeekerWindow = window as? CueSeekerWindow {
+            cueSeekerWindow.activateWindowForFocus()
+        } else {
+            NSRunningApplication.current.activate(
+                options: [.activateAllWindows, .activateIgnoringOtherApps]
+            )
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+        }
     }
 
     private func createMainWindow(showImmediately: Bool) {
@@ -274,7 +292,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         self.window = window
         if showImmediately {
-            window.makeKeyAndOrderFront(nil)
+            presentMainWindow()
         }
     }
 
@@ -316,22 +334,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func configureControllerInput() {
         let monitor = GameControllerInputMonitor(
             inputEligibility: { [weak self] in
-                guard let self,
-                      NSApplication.shared.isActive
-                else {
+                guard let self else {
                     return false
                 }
-                return self.window?.isKeyWindow == true
-                    || self.settingsWindow?.isKeyWindow == true
+                let isMainFocused = (self.window as? CueSeekerWindow)?.isFocusedForHover
+                    ?? (NSApplication.shared.isActive && self.window?.isKeyWindow == true)
+                let isSettingsFocused = (self.settingsWindow as? CueSeekerWindow)?.isFocusedForHover
+                    ?? (NSApplication.shared.isActive && self.settingsWindow?.isKeyWindow == true)
+                return isMainFocused || isSettingsFocused
             }
         ) { [weak self] input in
             guard let self else {
                 return false
             }
+            let isMainFocused = (self.window as? CueSeekerWindow)?.isFocusedForHover
+                ?? (NSApplication.shared.isActive && self.window?.isKeyWindow == true)
+            let isSettingsFocused = (self.settingsWindow as? CueSeekerWindow)?.isFocusedForHover
+                ?? (NSApplication.shared.isActive && self.settingsWindow?.isKeyWindow == true)
             return self.appState.handleGlobalControllerInput(
                 input,
-                isMainWindowKey: self.window?.isKeyWindow == true,
-                isSettingsWindowKey: self.settingsWindow?.isKeyWindow == true
+                isMainWindowKey: isMainFocused,
+                isSettingsWindowKey: isSettingsFocused
             )
         }
         controllerInputMonitor = monitor
@@ -385,10 +408,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             // minimised, so the restore has to be asked for on its own.
             if settingsWindow.isMiniaturized {
                 settingsWindow.deminiaturize(sender)
+            }
+            if let cueSeekerSettingsWindow = settingsWindow as? CueSeekerWindow {
+                cueSeekerSettingsWindow.activateWindowForFocus(sender: sender)
             } else {
                 settingsWindow.makeKeyAndOrderFront(sender)
+                NSApp.activate(ignoringOtherApps: true)
             }
-            NSApp.activate(ignoringOtherApps: true)
             DebugInteractionLatencyProbe.completeImmediateNavigation(
                 domain: "settings",
                 from: "closed_cached",
@@ -453,7 +479,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsWindow.isReleasedWhenClosed = false
         settingsWindow.contentView = CueSeekerHostingView(rootView: contentView)
         settingsWindow.center()
-        settingsWindow.makeKeyAndOrderFront(sender)
         self.settingsWindow = settingsWindow
         // The topbar's Settings button stays lit while this window is open, so
         // the window's own close is what puts it out again.
@@ -463,7 +488,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             name: NSWindow.willCloseNotification,
             object: settingsWindow
         )
-        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow.activateWindowForFocus(sender: sender)
         _ = wasCreated
         DebugInteractionLatencyProbe.completeImmediateNavigation(
             domain: "settings",
@@ -475,12 +500,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func settingsWindowWillClose(_ notification: Notification) {
+        (settingsWindow as? CueSeekerWindow)?.clearUserInteractionFocus()
         appState.workbenchLayout.isSettingsWindowOpen = false
         _ = appState.workbenchAccessibility.clearSettings(
             keepTextInputFocus: false,
             keepColorPopoverOpen: false
         )
         _ = appState.workbenchAccessibility.clearSettingsDialog()
+        if let window, window.isVisible {
+            (window as? CueSeekerWindow)?.activateWindowForFocus()
+        }
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {

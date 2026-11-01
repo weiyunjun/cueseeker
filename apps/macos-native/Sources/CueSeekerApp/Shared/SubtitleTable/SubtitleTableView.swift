@@ -725,6 +725,12 @@ struct SubtitleTableView: NSViewRepresentable {
             )
             NotificationCenter.default.addObserver(
                 self,
+                selector: #selector(windowFocusDidChange),
+                name: .cueSeekerWindowFocusChanged,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
                 selector: #selector(scrollDebounceDidSettle),
                 name: .cueSeekerScrollDebounceSettled,
                 object: nil

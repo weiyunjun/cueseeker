@@ -602,6 +602,148 @@ struct PointerHoverGateTests {
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
         #expect(AppPointerShape.model.shape == .arrow)
     }
+
+    @MainActor
+    @Test
+    func clickingLeftOrRightOnUnfocusedWindowActivatesFocusAndRestoresHoverAndMenuInteraction() throws {
+        AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+        defer { PointerHoverScrollState.shared.resetForTesting() }
+
+        var hoveredButtons: Set<Int> = []
+        let menuHighlight = MenuHighlightModel()
+        menuHighlight.open(selectablePositions: [0, 1, 2], defaultPosition: nil)
+        defer { menuHighlight.close() }
+
+        let rootView = VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                ForEach(0..<3, id: \.self) { index in
+                    Rectangle()
+                        .fill(Color.blue)
+                        .frame(width: 40, height: 30)
+                        .onPointerHover { isHovered in
+                            if isHovered {
+                                hoveredButtons.insert(index)
+                            } else {
+                                hoveredButtons.remove(index)
+                            }
+                        }
+                }
+            }
+            HStack(spacing: 10) {
+                ForEach(0..<3, id: \.self) { position in
+                    Rectangle()
+                        .fill(Color.gray)
+                        .frame(width: 40, height: 30)
+                        .onHover { isHovered in
+                            menuHighlight.noteHover(isHovered, at: position)
+                        }
+                }
+            }
+        }
+        .frame(width: 160, height: 80)
+
+        let window = CueSeekerWindow(
+            contentRect: NSRect(x: -5_000, y: -5_000, width: 160, height: 80),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let host = CueSeekerHostingView(rootView: rootView)
+        window.contentView = host
+        window.orderFrontRegardless()
+        defer {
+            window.contentView = nil
+            window.orderOut(nil)
+        }
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+
+        // 1. Before any activation or click, the window is unfocused and suppresses hover.
+        #expect(!window.isFocusedForHover)
+        let button0Point = CGPoint(x: 30, y: 60)
+        host.mouseLocationOverrideForTesting = button0Point
+        if let moveWhileUnfocused = NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: button0Point,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 0,
+            pressure: 0
+        ) {
+            host.mouseEntered(with: moveWhileUnfocused)
+            host.mouseMoved(with: moveWhileUnfocused)
+        }
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(hoveredButtons.isEmpty)
+
+        // 2. Left-clicking inside the unfocused window immediately activates focus and syncs hover.
+        let leftDown = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: button0Point,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 2,
+            clickCount: 1,
+            pressure: 1
+        ))
+        window.sendEvent(leftDown)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(window.isFocusedForHover)
+        #expect(window.hasUserInteractionFocus)
+        #expect(hoveredButtons == [0])
+
+        // 3. Resigning active clears user interaction focus and immediately clears hover.
+        NotificationCenter.default.post(
+            name: NSApplication.didResignActiveNotification,
+            object: NSApp
+        )
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(!window.isFocusedForHover)
+        #expect(!window.hasUserInteractionFocus)
+        #expect(hoveredButtons.isEmpty)
+
+        // 4. Right-clicking inside the unfocused window immediately activates focus so open
+        //    context menus and submenu triggers respond to hover without a prior left-click.
+        let menuRow1Point = CGPoint(x: 80, y: 20)
+        host.mouseLocationOverrideForTesting = menuRow1Point
+        let rightDown = try #require(NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: menuRow1Point,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 3,
+            clickCount: 1,
+            pressure: 1
+        ))
+        window.sendEvent(rightDown)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(window.isFocusedForHover)
+        #expect(menuHighlight.hoveredPosition == 1)
+        #expect(menuHighlight.highlightedPosition == 1)
+
+        // 5. Activating a second CueSeekerWindow (e.g. Settings window) transfers focus and
+        //    clears hover on the first window.
+        let secondWindow = CueSeekerWindow(
+            contentRect: NSRect(x: -4_500, y: -4_500, width: 120, height: 80),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        defer { secondWindow.orderOut(nil) }
+        secondWindow.activateWindowForFocus()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(!window.isFocusedForHover)
+        #expect(secondWindow.isFocusedForHover)
+        #expect(menuHighlight.hoveredPosition == nil)
+    }
 }
 
 private struct NestedCueSeekerHostingViewRepresentable<Content: View>: NSViewRepresentable {

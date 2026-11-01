@@ -25,7 +25,9 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     @Published private(set) var isPointerVisible = true
 
     /// AppKit answers these in the App; tests answer them directly.
-    var hasWindowFocus: (NSWindow) -> Bool = { NSApp.isActive && $0.isKeyWindow }
+    var hasWindowFocus: (NSWindow) -> Bool = {
+        ($0 as? CueSeekerWindow)?.isFocusedForHover ?? (NSApp.isActive && $0.isKeyWindow)
+    }
     var pointerScreenLocation: () -> NSPoint = { NSEvent.mouseLocation }
 
     private static let windowControlButtons: [NSWindow.ButtonType] = [
@@ -386,7 +388,8 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             NSWindow.didBecomeKeyNotification,
             NSWindow.didResignKeyNotification,
             NSApplication.didBecomeActiveNotification,
-            NSApplication.didResignActiveNotification
+            NSApplication.didResignActiveNotification,
+            .cueSeekerWindowFocusChanged,
         ] {
             focusObservers.append(
                 center.addObserver(

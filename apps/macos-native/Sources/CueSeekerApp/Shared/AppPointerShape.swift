@@ -180,12 +180,21 @@ enum AppPointerShape {
         guard let window else {
             return false
         }
-        if let cueSeekerWindow = window as? CueSeekerWindow,
-           cueSeekerWindow.isWindowFocusedOverrideForTesting != nil {
-            return cueSeekerWindow.isFocusedForHover
+        if let cueSeekerWindow = window as? CueSeekerWindow {
+            guard cueSeekerWindow.isFocusedForHover else {
+                return false
+            }
+            if cueSeekerWindow.isWindowFocusedOverrideForTesting != nil {
+                return true
+            }
+        } else {
+            guard NSApp.isActive, window.isKeyWindow else {
+                return false
+            }
         }
-        guard NSApp.isActive, window.isKeyWindow else {
-            return false
+        if (window.contentView as? CueSeekerHostingViewLocationOverride)?
+            .mouseLocationOverrideForTesting != nil {
+            return true
         }
         return NSWindow.windowNumber(
             at: NSEvent.mouseLocation,
@@ -383,6 +392,7 @@ enum AppPointerShape {
 class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHostingViewLocationOverride {
     var mouseLocationOverrideForTesting: CGPoint?
     private var needsMouseReenterInSuper = false
+    private var lastObservedWindowFocus: Bool?
     nonisolated(unsafe) private var focusObserverTokens: [NSObjectProtocol] = []
 
     deinit {
@@ -420,9 +430,12 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
         super.viewDidMoveToWindow()
         removeFocusObservers()
         guard window != nil else {
+            lastObservedWindowFocus = nil
             return
         }
-        needsMouseReenterInSuper = !isWindowFocused
+        let focused = isWindowFocused
+        lastObservedWindowFocus = focused
+        needsMouseReenterInSuper = !focused
         installFocusObservers()
     }
 
@@ -488,7 +501,9 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
         guard let window else {
             return
         }
-        if isWindowFocused {
+        let focused = isWindowFocused
+        lastObservedWindowFocus = focused
+        if focused {
             guard !AppCursorVisibility.isCursorHidden,
                   !PointerHoverScrollState.shared.isHoverSuppressed,
                   !isHoverSyncSuppressedByCoveringLayer,
@@ -505,6 +520,8 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
                 }
             }
             let locationInWindow = mouseLocationOverrideForTesting
+                ?? (window.contentView as? CueSeekerHostingViewLocationOverride)?
+                    .mouseLocationOverrideForTesting
                 ?? window.mouseLocationOutsideOfEventStream
             let visibleBounds = bounds.intersection(visibleRect)
             guard isPointerOverHostingWindow(window),
@@ -548,6 +565,8 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
 
     private func isPointerOverHostingWindow(_ window: NSWindow) -> Bool {
         if mouseLocationOverrideForTesting != nil
+            || (window.contentView as? CueSeekerHostingViewLocationOverride)?
+                .mouseLocationOverrideForTesting != nil
             || (window as? CueSeekerWindow)?.isWindowFocusedOverrideForTesting != nil {
             return true
         }
@@ -564,6 +583,7 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
             NSApplication.didResignActiveNotification,
             NSWindow.didBecomeKeyNotification,
             NSWindow.didResignKeyNotification,
+            .cueSeekerWindowFocusChanged,
             .cueSeekerScrollDebounceSettled,
         ] {
             let token = center.addObserver(
@@ -577,6 +597,10 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
                     }
                     if let notificationWindow = notification.object as? NSWindow,
                        notificationWindow !== window {
+                        return
+                    }
+                    if notification.name != .cueSeekerScrollDebounceSettled,
+                       self.lastObservedWindowFocus == self.isWindowFocused {
                         return
                     }
                     self.syncMouseHoverForWindowFocus()

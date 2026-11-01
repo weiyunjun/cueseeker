@@ -584,6 +584,8 @@ private struct LibraryCardRightClickMonitor: NSViewRepresentable {
                 // monitor does. Routing through the gate first lets an open
                 // menu swallow a right-click inside its own surface or close
                 // before this card opens its menu.
+                (self.window as? CueSeekerWindow)?.activateWindowForFocusIfNeeded()
+                (self.window as? CueSeekerWindow)?.onMouseDownClearAccessibility?()
                 if let menuGate = self.menuGate {
                     guard menuGate.route(event) != nil else {
                         return nil
