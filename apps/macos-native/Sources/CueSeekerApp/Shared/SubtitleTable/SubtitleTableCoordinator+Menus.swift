@@ -64,23 +64,26 @@ extension SubtitleTableView.Coordinator {
         }
     }
 
-    /// The table body in container coordinates. The menus are placed inside
-    /// it and cut off at it: the page chrome above the body is frozen, so a
-    /// menu that reached it would draw over the header and the toolbar.
-    /// This is the table's own boundary, not a rule for menus.
+    /// The table's menu boundary in container coordinates. Menus and submenus
+    /// can span the full vertical height of the table container (including the
+    /// header and any hosted page chrome above the body) while staying aligned
+    /// to the horizontal scroll viewport.
     func menuBodyFrameInContainer() -> CGRect {
-        guard let container, let documentView else {
-            return container?.bounds ?? .zero
+        guard let container else {
+            return .zero
         }
-        let body = container.convert(
-            currentTableBodyVisibleRect,
-            from: documentView
+        let horizontalBounds = scrollView?.frame ?? container.bounds
+        let body = CGRect(
+            x: horizontalBounds.minX,
+            y: container.bounds.minY,
+            width: horizontalBounds.width,
+            height: container.bounds.height
         )
         let clipped = body.intersection(container.bounds)
         return clipped.isNull ? .zero : clipped
     }
 
-    /// The clip view, kept the size of the table body and above the dismiss
+    /// The clip view, kept the size of the menu boundary and above the dismiss
     /// overlay so a press on a menu still reaches it.
     @discardableResult
     func ensureMenuClipView(in container: NSView) -> SubtitleTableMenuClipView {
@@ -89,7 +92,7 @@ extension SubtitleTableView.Coordinator {
             menuClipView = created
             return created
         }()
-        container.addSubview(clipView)
+        container.addSubview(clipView, positioned: .above, relativeTo: nil)
         let body = menuBodyFrameInContainer()
         clipView.frame = body
         // Matching bounds to frame keeps one coordinate space either side

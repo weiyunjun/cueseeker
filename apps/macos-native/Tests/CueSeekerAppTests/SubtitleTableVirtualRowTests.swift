@@ -1176,6 +1176,80 @@ func subtitleTableViewRightClickMenuIsBoundedByTheTableBody() throws {
     #expect(fixture.coordinator.menuIsClippedToTableBodyForTesting())
 }
 
+@MainActor
+@Test
+func subtitleTablePageChromeAllowsRowMenuAndSubmenuToExtendOverHeaderAndChromeWithoutPrematureTruncation() async throws {
+    let destinations = (1...16).map {
+        SubtitleTableRowActionDestination(id: Int64($0), title: "List \($0)")
+    }
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_000,
+        showsCueGroup: true,
+        rowActionMenuStyle: .excerpt,
+        rowActionDestinations: destinations
+    )
+    fixture.container.frame = CGRect(x: 0, y: 0, width: 1_000, height: 640)
+    fixture.scrollView.frame = CGRect(x: 32, y: 0, width: 936, height: 640)
+    let viewport = SubtitleTablePageChromeViewportView(frame: fixture.container.bounds)
+    fixture.container.addSubview(viewport)
+    viewport.addSubview(fixture.header)
+    fixture.coordinator.pageChromeViewport = viewport
+    fixture.coordinator.updatePageChrome(SubtitleTablePageChrome(
+        scrollableHeader: AnyView(Color.clear),
+        pinnedHeader: AnyView(Color.clear),
+        scrollableHeaderHeight: { _ in 220 },
+        pinnedHeaderHeight: 88,
+        leadingInset: 32,
+        trailingInset: 32,
+        bottomInset: 14
+    ))
+    fixture.coordinator.resizeDocument()
+
+    let chromeFrames = try #require(fixture.coordinator.pageChromeFramesForTesting())
+    // The table header ends at 220 + 88 + 44 = 352, leaving only 288pt below
+    // the header, while the full container height is 640pt.
+    #expect(chromeFrames.tableHeader.maxY == 352)
+
+    // Right-click in the vertical middle of the remaining table body (y = 490),
+    // where neither single side below (150pt) nor above to the header (138pt)
+    // could hold the 327pt Excerpt menu on its own.
+    fixture.coordinator.showMenu(
+        for: 0,
+        buttonFrame: .zero,
+        clickPointInDocument: CGPoint(x: 200, y: 490)
+    )
+
+    let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
+    let bodyFrame = fixture.coordinator.menuBodyFrameForTesting()
+    #expect(bodyFrame.minY == 0)
+    #expect(bodyFrame.height == 640)
+    // Full 9-item Excerpt menu height (327pt), shifted upward above the table
+    // header (352pt) instead of shrinking into a scrollbar.
+    #expect(menuFrame.height > 320)
+    #expect(menuFrame.minY < chromeFrames.tableHeader.maxY)
+    #expect(menuFrame.maxY <= bodyFrame.maxY - SubtitleTableMetrics.trailingInset + 0.5)
+
+    for _ in 0..<10
+    where fixture.coordinator.rowActionParentItemFrameForTesting(.moveToList) == nil {
+        await Task.yield()
+    }
+    fixture.coordinator.openRowActionSubmenuForTesting(.moveToList)
+
+    let submenuFrame = try #require(fixture.coordinator.submenuFrameForTesting())
+    // Sixteen destinations + New List reach the 480pt cap, extending upward
+    // over the table header and page chrome while still receiving hits there.
+    #expect(abs(submenuFrame.height - MenuMetrics.maximumHeight) < 0.5)
+    #expect(submenuFrame.minY < chromeFrames.tableHeader.minY)
+    #expect(
+        fixture.coordinator.submenuReceivesHitForTesting(
+            containerPoint: CGPoint(
+                x: submenuFrame.midX,
+                y: submenuFrame.minY + 12
+            )
+        )
+    )
+}
+
 private func expectMenuFrame(_ menuFrame: CGRect, opensBelow clickPoint: CGPoint) {
     let gap = WorkbenchControlMetrics.redesignSpacing1
     #expect(abs(menuFrame.minX - clickPoint.x.rounded()) < 0.5)

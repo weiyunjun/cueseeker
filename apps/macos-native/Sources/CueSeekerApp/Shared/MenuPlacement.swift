@@ -16,12 +16,12 @@ enum MenuPlacement {
     ///
     /// Below the anchor first, above it when the menu would not fit below.
     ///
-    /// When neither side can hold the menu whole, a menu whose content scrolls
-    /// takes the side with more room and is cut down to it: the height that
-    /// comes back is then smaller than the one asked for, and the caller must
-    /// hold the menu to it so the scrollbar comes up. Nothing is left hanging
-    /// over the boundary for someone else to clip. A menu that cannot scroll
-    /// keeps the height it asked for and is slid along the edge instead.
+    /// When neither single side can hold the menu whole, the menu keeps its full
+    /// height whenever the container's total vertical room can hold it and slides
+    /// along the container edge (so the pointer or trigger sits beside the middle
+    /// of the menu instead of forcing a premature scrollbar). Only when the
+    /// container's total vertical room is shorter than the menu does a scrolling
+    /// menu (`shrinksToFit: true`) cut its height down to the container's room.
     static func openingFrame(
         anchor: CGRect,
         menuSize: CGSize,
@@ -35,18 +35,18 @@ enum MenuPlacement {
         let minY = container.minY + edgeInset
         let maxY = container.maxY - edgeInset
 
+        let availableHeight = max(0, maxY - minY)
         let roomBelow = maxY - (anchor.maxY + gap)
         let roomAbove = (anchor.minY - gap) - minY
 
-        var height = menuSize.height
+        let height = shrinksToFit
+            ? min(menuSize.height, availableHeight)
+            : menuSize.height
         var y: CGFloat
         if height <= roomBelow {
             y = anchor.maxY + gap
         } else if height <= roomAbove {
             y = anchor.minY - gap - height
-        } else if shrinksToFit {
-            height = max(0, max(roomBelow, roomAbove))
-            y = roomBelow >= roomAbove ? anchor.maxY + gap : minY
         } else {
             y = anchor.maxY + gap
         }
@@ -54,7 +54,18 @@ enum MenuPlacement {
 
         var x = anchor.minX
         if x + menuSize.width > maxX {
-            x = maxX - menuSize.width
+            if anchor.width == 0, anchor.minX - menuSize.width >= minX {
+                x = anchor.minX - menuSize.width
+            } else if anchor.width > 0,
+                      anchor.width < menuSize.width,
+                      y < anchor.maxY,
+                      y + height > anchor.minY,
+                      anchor.minX - gap - menuSize.width >= minX
+            {
+                x = anchor.minX - gap - menuSize.width
+            } else {
+                x = maxX - menuSize.width
+            }
         }
         x = clamp(x, min: minX, max: maxX - menuSize.width)
 

@@ -53,10 +53,10 @@ func menuSlidesAlongTheEdgeWhenNeitherSideFits() {
 }
 
 @Test
-func aScrollingMenuTakesTheRoomierSideAndGivesUpTheHeightItCannotHave() {
-    // Neither side holds the menu whole, and there is more room above the
-    // anchor than below it.
-    let anchor = CGRect(x: 40, y: 180, width: 60, height: 20)
+func aScrollingMenuSlidesAlongTheEdgeToKeepFullHeightWhenContainerCanHoldIt() {
+    // Neither single side holds the menu whole, but the container is tall
+    // enough to hold the entire menu without a scrollbar.
+    let anchor = CGRect(x: 40, y: 150, width: 60, height: 20)
     let tallMenu = CGSize(width: 120, height: 280)
 
     let frame = MenuPlacement.openingFrame(
@@ -67,28 +67,67 @@ func aScrollingMenuTakesTheRoomierSideAndGivesUpTheHeightItCannotHave() {
         shrinksToFit: true
     )
 
-    // Above, filling the room between the container's top edge and the anchor.
-    #expect(frame.minY == container.minY)
-    #expect(frame.maxY == anchor.minY - 8)
-    #expect(frame.height < tallMenu.height)
+    #expect(frame.height == tallMenu.height)
+    #expect(frame.maxY == container.maxY)
+    #expect(frame.minY == container.maxY - tallMenu.height)
+    #expect(frame.minY < anchor.minY)
+    #expect(frame.maxY > anchor.maxY)
 }
 
 @Test
-func aScrollingMenuStaysBelowWhenBelowIsTheRoomierSide() {
-    let anchor = CGRect(x: 40, y: 100, width: 60, height: 20)
-    let tallMenu = CGSize(width: 120, height: 280)
+func aScrollingMenuOnlyShrinksWhenTheWholeContainerIsShorterThanTheMenu() {
+    let anchor = CGRect(x: 40, y: 150, width: 60, height: 20)
+    let oversizedMenu = CGSize(width: 120, height: 360)
 
     let frame = MenuPlacement.openingFrame(
         anchor: anchor,
+        menuSize: oversizedMenu,
+        in: container,
+        gap: 8,
+        edgeInset: 10,
+        shrinksToFit: true
+    )
+
+    #expect(frame.minY == container.minY + 10)
+    #expect(frame.maxY == container.maxY - 10)
+    #expect(frame.height == container.height - 20)
+}
+
+@Test
+func aPointAnchorNearTheTrailingEdgeFlipsToTheLeftOfThePointer() {
+    let pointerAnchor = CGRect(x: 360, y: 150, width: 0, height: 0)
+    let tallMenu = CGSize(width: 120, height: 240)
+
+    let frame = MenuPlacement.openingFrame(
+        anchor: pointerAnchor,
         menuSize: tallMenu,
         in: container,
         gap: 8,
         shrinksToFit: true
     )
 
-    #expect(frame.minY == anchor.maxY + 8)
+    #expect(frame.height == tallMenu.height)
+    #expect(frame.maxX == pointerAnchor.minX)
     #expect(frame.maxY == container.maxY)
-    #expect(frame.height < tallMenu.height)
+}
+
+@Test
+func aTrailingButtonAnchorStepsLeftWhenVerticalShiftWouldOverlapTheButton() {
+    let buttonAnchor = CGRect(x: 356, y: 140, width: 32, height: 32)
+    let tallMenu = CGSize(width: 120, height: 240)
+
+    let frame = MenuPlacement.openingFrame(
+        anchor: buttonAnchor,
+        menuSize: tallMenu,
+        in: container,
+        gap: 4,
+        edgeInset: 8,
+        shrinksToFit: true
+    )
+
+    #expect(frame.height == tallMenu.height)
+    #expect(frame.maxX == buttonAnchor.minX - 4)
+    #expect(frame.maxY == container.maxY - 8)
 }
 
 @Test
