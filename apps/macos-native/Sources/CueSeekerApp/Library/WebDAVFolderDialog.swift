@@ -36,7 +36,6 @@ struct WebDAVFolderDialog: View {
     private static let dialogStyle = RemoteFolderDialogStyle(
         titleKey: "webdav.dialog.title",
         connectTitleKey: "webdav.connect",
-        addTitleKey: "webdav.add",
         emptyFolderItemsKey: "webdav.empty_folder_items",
         folderIcon: .folderWebdav,
         connectAccessibilityID: "webdav-connect",

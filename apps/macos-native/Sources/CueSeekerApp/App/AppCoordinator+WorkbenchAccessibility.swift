@@ -976,9 +976,11 @@ extension AppCoordinator {
                 targets.append(.remoteBreadcrumb(node.id))
             }
             if !session.isLoadingDirectory && session.directoryErrorMessage == nil {
-                for item in session.items where item.kind == .folder && !session.isFolderItemDisabled(item) {
-                    targets.append(.remoteFolderCard(item.id))
-                    targets.append(.remoteFolderCheckbox(item.id))
+                for item in session.items where item.kind == .folder {
+                    if !session.isFolderItemDisabled(item) {
+                        targets.append(.remoteFolderCard(item.id))
+                    }
+                    targets.append(.remoteFolderEnterButton(item.id))
                 }
             }
             targets.append(.remoteBack)
@@ -1092,7 +1094,7 @@ extension AppCoordinator {
         case .remoteCancel, .remoteBack, .remoteBreadcrumb:
             return true
 
-        case .remoteFolderCard(let itemID), .remoteFolderCheckbox(let itemID):
+        case .remoteFolderCard(let itemID):
             switch dialogID {
             case .webdav:
                 guard let session = library.webdavDialogSession,
@@ -1114,6 +1116,32 @@ extension AppCoordinator {
                       let item = session.items.first(where: { $0.id == itemID })
                 else { return false }
                 return item.kind == .folder && !session.isFolderItemDisabled(item)
+            default:
+                return false
+            }
+
+        case .remoteFolderEnterButton(let itemID):
+            switch dialogID {
+            case .webdav:
+                guard let session = library.webdavDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID })
+                else { return false }
+                return item.kind == .folder
+            case .smb:
+                guard let session = library.smbDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID })
+                else { return false }
+                return item.kind == .folder
+            case .ftp:
+                guard let session = library.ftpDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID })
+                else { return false }
+                return item.kind == .folder
+            case .nfs:
+                guard let session = library.nfsDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID })
+                else { return false }
+                return item.kind == .folder
             default:
                 return false
             }
@@ -1488,69 +1516,65 @@ extension AppCoordinator {
                       item.kind == .folder,
                       !session.isFolderItemDisabled(item)
                 else { return false }
-                openWebDAVSubfolder(item, in: session)
+                session.toggleFolderSelection(item)
                 return true
             case .smb:
                 guard let session = library.smbDialogSession,
                       let item = session.items.first(where: { $0.id == itemID }),
                       item.kind == .folder,
                       !session.isFolderItemDisabled(item)
+                else { return false }
+                session.toggleFolderSelection(item)
+                return true
+            case .ftp:
+                guard let session = library.ftpDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID }),
+                      item.kind == .folder,
+                      !session.isFolderItemDisabled(item)
+                else { return false }
+                session.toggleFolderSelection(item)
+                return true
+            case .nfs:
+                guard let session = library.nfsDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID }),
+                      item.kind == .folder,
+                      !session.isFolderItemDisabled(item)
+                else { return false }
+                session.toggleFolderSelection(item)
+                return true
+            default:
+                return false
+            }
+
+        case .remoteFolderEnterButton(let itemID):
+            switch dialogID {
+            case .webdav:
+                guard let session = library.webdavDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID }),
+                      item.kind == .folder
+                else { return false }
+                openWebDAVSubfolder(item, in: session)
+                return true
+            case .smb:
+                guard let session = library.smbDialogSession,
+                      let item = session.items.first(where: { $0.id == itemID }),
+                      item.kind == .folder
                 else { return false }
                 openSMBBSubfolderIfAvailable(item, in: session)
                 return true
             case .ftp:
                 guard let session = library.ftpDialogSession,
                       let item = session.items.first(where: { $0.id == itemID }),
-                      item.kind == .folder,
-                      !session.isFolderItemDisabled(item)
+                      item.kind == .folder
                 else { return false }
                 openFTPSubfolder(item, in: session)
                 return true
             case .nfs:
                 guard let session = library.nfsDialogSession,
                       let item = session.items.first(where: { $0.id == itemID }),
-                      item.kind == .folder,
-                      !session.isFolderItemDisabled(item)
+                      item.kind == .folder
                 else { return false }
                 openNFSSubfolder(item, in: session)
-                return true
-            default:
-                return false
-            }
-
-        case .remoteFolderCheckbox(let itemID):
-            switch dialogID {
-            case .webdav:
-                guard let session = library.webdavDialogSession,
-                      let item = session.items.first(where: { $0.id == itemID }),
-                      item.kind == .folder,
-                      !session.isFolderItemDisabled(item)
-                else { return false }
-                session.toggleFolderSelection(item)
-                return true
-            case .smb:
-                guard let session = library.smbDialogSession,
-                      let item = session.items.first(where: { $0.id == itemID }),
-                      item.kind == .folder,
-                      !session.isFolderItemDisabled(item)
-                else { return false }
-                session.toggleFolderSelection(item)
-                return true
-            case .ftp:
-                guard let session = library.ftpDialogSession,
-                      let item = session.items.first(where: { $0.id == itemID }),
-                      item.kind == .folder,
-                      !session.isFolderItemDisabled(item)
-                else { return false }
-                session.toggleFolderSelection(item)
-                return true
-            case .nfs:
-                guard let session = library.nfsDialogSession,
-                      let item = session.items.first(where: { $0.id == itemID }),
-                      item.kind == .folder,
-                      !session.isFolderItemDisabled(item)
-                else { return false }
-                session.toggleFolderSelection(item)
                 return true
             default:
                 return false

@@ -189,7 +189,7 @@ enum WorkbenchDialogAccessibilityTarget: Equatable, Hashable {
     case remoteConnect
     case remoteBreadcrumb(String)
     case remoteFolderCard(String)
-    case remoteFolderCheckbox(String)
+    case remoteFolderEnterButton(String)
     case remoteBack
     case remoteAdd
     // L-06.5 Export to Anki Dialog

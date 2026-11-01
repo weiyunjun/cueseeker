@@ -733,8 +733,10 @@
 "webdav.field.username" = "Username";
 "webdav.field.password" = "Password";
 "webdav.connect" = "Connect";
-"webdav.add" = "Add";
 "remote.browser.added" = "Added";
+"remote.browser.add_current_folder" = "Add Current Folder";
+"remote.browser.add_folders.one" = "Add 1 Folder";
+"remote.browser.add_folders.other" = "Add %d Folders";
 "webdav.empty_folder_items" = "No folders, videos, or subtitles in this folder.";
 "common.back" = "Back";
 "webdav.error.name_empty" = "Enter a name";
@@ -750,7 +752,6 @@
 "smb.field.username" = "Username";
 "smb.field.password" = "Password";
 "smb.connect" = "Connect";
-"smb.add" = "Add";
 "smb.empty_folder_items" = "No folders, videos, or subtitles in this folder.";
 "smb.error.invalid_address" = "Enter a valid SMB address";
 "smb.error.invalid_port" = "Enter a valid port (1–65535)";
@@ -763,7 +764,6 @@
 "ftp.field.username" = "Username";
 "ftp.field.password" = "Password";
 "ftp.connect" = "Connect";
-"ftp.add" = "Add";
 "ftp.empty_folder_items" = "No folders, videos, or subtitles in this folder.";
 "ftp.error.invalid_address" = "Enter a valid FTP address";
 "ftp.error.invalid_port" = "Enter a valid port (1–65535)";
@@ -773,7 +773,6 @@
 "nfs.dialog.title" = "NFS Folder";
 "nfs.field.address" = "Address";
 "nfs.connect" = "Connect";
-"nfs.add" = "Add";
 "nfs.empty_folder_items" = "No folders, videos, or subtitles in this folder.";
 "nfs.error.invalid_address" = "Enter a valid NFS address";
 

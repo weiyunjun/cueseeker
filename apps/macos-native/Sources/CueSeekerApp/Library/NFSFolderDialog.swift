@@ -39,7 +39,6 @@ struct NFSFolderDialog: View {
     private static let dialogStyle = RemoteFolderDialogStyle(
         titleKey: "nfs.dialog.title",
         connectTitleKey: "nfs.connect",
-        addTitleKey: "nfs.add",
         emptyFolderItemsKey: "nfs.empty_folder_items",
         folderIcon: .folderNfs,
         connectAccessibilityID: "nfs-connect",

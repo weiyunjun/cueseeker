@@ -469,7 +469,6 @@ extension AppCoordinator {
         guard library[keyPath: sessionKeyPath]?.id == session.id,
               session.step == .browser,
               item.kind == .folder,
-              !session.isFolderItemDisabled(item),
               let baseConfig = session.baseConfig
         else {
             return

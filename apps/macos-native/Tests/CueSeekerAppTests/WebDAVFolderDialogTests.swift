@@ -410,37 +410,92 @@ struct WebDAVFolderDialogTests {
     }
 
     @Test
-    func browserCardSelectionAndDisabledStylingFollowNeutralCardAndCheckboxRules() throws {
+    func browserCardSelectionAndDisabledStylingFollowNeutralCardAndFilterChipRules() throws {
         let folderURL = try #require(WebDAVAddress.parseURL(from: "http://192.168.1.5:5244/dav/115/动漫/01. 进击的巨人"))
         let folderItem = WebDAVBrowserItem(url: folderURL, name: "01. 进击的巨人", kind: .folder)
+        let videoItem = WebDAVBrowserItem(
+            url: folderURL.appendingPathComponent("S01E01.mkv"),
+            name: "S01E01.mkv",
+            kind: .video
+        )
 
-        // Enabled folder cards use tableBg when not hovered and rowHover when hovered,
-        // regardless of whether isSelected is true or false, and always use borderControl.
-        for isSelected in [false, true] {
-            #expect(
-                WebDAVBrowserCard.resolveBackgroundFillColor(
-                    isFolder: true,
-                    isDisabled: false,
-                    isSelected: isSelected,
-                    isHovered: false
-                ) == WorkbenchRedesignColors.tableBg
-            )
-            #expect(
-                WebDAVBrowserCard.resolveBackgroundFillColor(
-                    isFolder: true,
-                    isDisabled: false,
-                    isSelected: isSelected,
-                    isHovered: true
-                ) == WorkbenchRedesignColors.rowHover
-            )
-            #expect(
-                WebDAVBrowserCard.resolveBorderStrokeColor(
-                    isFolder: true,
-                    isDisabled: false,
-                    isSelected: isSelected
-                ) == WorkbenchRedesignColors.borderControl
-            )
-        }
+        #expect(
+            WebDAVBrowserCard.enterButtonWidth
+                == WorkbenchControlMetrics.redesignCardChevronSize
+                + WorkbenchControlMetrics.redesignControlPaddingX * 2
+        )
+
+        // Unselected enabled folder cards use tableBg / rowHover / fileFolderCardBgPressed and borderControl.
+        #expect(
+            WebDAVBrowserCard.resolveBackgroundFillColor(
+                isFolder: true,
+                isDisabled: false,
+                isSelected: false,
+                isHovered: false,
+                isPressed: false
+            ) == WorkbenchRedesignColors.tableBg
+        )
+        #expect(
+            WebDAVBrowserCard.resolveBackgroundFillColor(
+                isFolder: true,
+                isDisabled: false,
+                isSelected: false,
+                isHovered: true,
+                isPressed: false
+            ) == WorkbenchRedesignColors.rowHover
+        )
+        #expect(
+            WebDAVBrowserCard.resolveBackgroundFillColor(
+                isFolder: true,
+                isDisabled: false,
+                isSelected: false,
+                isHovered: true,
+                isPressed: true
+            ) == WorkbenchRedesignColors.fileFolderCardBgPressed
+        )
+        #expect(
+            WebDAVBrowserCard.resolveBorderStrokeColor(
+                isFolder: true,
+                isDisabled: false,
+                isSelected: false
+            ) == WorkbenchRedesignColors.borderControl
+        )
+
+        // Selected enabled folder cards reuse Filter Chip selected tokens.
+        #expect(
+            WebDAVBrowserCard.resolveBackgroundFillColor(
+                isFolder: true,
+                isDisabled: false,
+                isSelected: true,
+                isHovered: false,
+                isPressed: false
+            ) == WorkbenchRedesignColors.filterChipSelectedBg
+        )
+        #expect(
+            WebDAVBrowserCard.resolveBackgroundFillColor(
+                isFolder: true,
+                isDisabled: false,
+                isSelected: true,
+                isHovered: true,
+                isPressed: false
+            ) == WorkbenchRedesignColors.filterChipSelectedBgHover
+        )
+        #expect(
+            WebDAVBrowserCard.resolveBackgroundFillColor(
+                isFolder: true,
+                isDisabled: false,
+                isSelected: true,
+                isHovered: true,
+                isPressed: true
+            ) == WorkbenchRedesignColors.filterChipSelectedBgPressed
+        )
+        #expect(
+            WebDAVBrowserCard.resolveBorderStrokeColor(
+                isFolder: true,
+                isDisabled: false,
+                isSelected: true
+            ) == WorkbenchRedesignColors.filterChipSelectedContent
+        )
 
         let unselectedEnabledCard = WebDAVBrowserCard(
             item: folderItem,
@@ -456,14 +511,15 @@ struct WebDAVFolderDialogTests {
             onToggleSelection: {},
             onOpenFolder: {}
         )
-        #expect(unselectedEnabledCard.checkboxState == .unchecked)
-        #expect(unselectedEnabledCard.showsTrailingChevron)
+        #expect(unselectedEnabledCard.isCardInteractive)
+        #expect(unselectedEnabledCard.showsEnterButton)
         #expect(!unselectedEnabledCard.showsAddedBadge)
-        #expect(selectedEnabledCard.checkboxState == .checked)
-        #expect(selectedEnabledCard.showsTrailingChevron)
+        #expect(selectedEnabledCard.isCardInteractive)
+        #expect(selectedEnabledCard.showsEnterButton)
         #expect(!selectedEnabledCard.showsAddedBadge)
 
-        // Disabled folder cards always show a checked checkbox, hide chevron, show the Added badge, and keep tableBg even on hover.
+        // Disabled (already-added) folder cards are non-interactive on the main card,
+        // show the Added badge inside the card, and still show the right enter button.
         let disabledCard = WebDAVBrowserCard(
             item: folderItem,
             isDisabled: true,
@@ -471,8 +527,8 @@ struct WebDAVFolderDialogTests {
             onToggleSelection: {},
             onOpenFolder: {}
         )
-        #expect(disabledCard.checkboxState == .checked)
-        #expect(!disabledCard.showsTrailingChevron)
+        #expect(!disabledCard.isCardInteractive)
+        #expect(disabledCard.showsEnterButton)
         #expect(disabledCard.showsAddedBadge)
         #expect(
             WebDAVBrowserCard.resolveBackgroundFillColor(
@@ -487,18 +543,51 @@ struct WebDAVFolderDialogTests {
                 isFolder: true,
                 isDisabled: true,
                 isSelected: false,
-                isHovered: true
+                isHovered: true,
+                isPressed: true
             ) == WorkbenchRedesignColors.tableBg
         )
         #expect(
             WebDAVBrowserCard.resolveBorderStrokeColor(
                 isFolder: true,
                 isDisabled: true,
-                isSelected: false
+                isSelected: true
             ) == WorkbenchRedesignColors.borderControl
         )
 
-        // File cards always use tableBg even when hovered.
+        // Right enter button styling.
+        #expect(
+            WebDAVBrowserCard.resolveEnterButtonBackgroundFillColor(isHovered: false, isPressed: false)
+                == WorkbenchRedesignColors.tableBg
+        )
+        #expect(
+            WebDAVBrowserCard.resolveEnterButtonBackgroundFillColor(isHovered: true, isPressed: false)
+                == WorkbenchRedesignColors.rowHover
+        )
+        #expect(
+            WebDAVBrowserCard.resolveEnterButtonBackgroundFillColor(isHovered: true, isPressed: true)
+                == WorkbenchRedesignColors.fileFolderCardBgPressed
+        )
+        #expect(
+            WebDAVBrowserCard.resolveEnterButtonIconColor(isHovered: false, isPressed: false)
+                == WorkbenchRedesignColors.textMuted
+        )
+        #expect(
+            WebDAVBrowserCard.resolveEnterButtonIconColor(isHovered: true, isPressed: false)
+                == WorkbenchRedesignColors.textPrimary
+        )
+
+        // File cards hide the enter button (replacing it with a fixed spacer) and always use tableBg.
+        let fileCard = WebDAVBrowserCard(
+            item: videoItem,
+            isDisabled: false,
+            isSelected: false,
+            onToggleSelection: {},
+            onOpenFolder: {}
+        )
+        #expect(!fileCard.isCardInteractive)
+        #expect(!fileCard.showsEnterButton)
+        #expect(!fileCard.showsAddedBadge)
         #expect(
             WebDAVBrowserCard.resolveBackgroundFillColor(
                 isFolder: false,
@@ -512,13 +601,14 @@ struct WebDAVFolderDialogTests {
                 isFolder: false,
                 isDisabled: false,
                 isSelected: false,
-                isHovered: true
+                isHovered: true,
+                isPressed: true
             ) == WorkbenchRedesignColors.tableBg
         )
     }
 
     @Test
-    func browserSplitHitRegionsAndAlreadyAddedFolderRulesDisableSelectionNavigationAndEmptyAdd() async throws {
+    func browserSplitHitRegionsAndAlreadyAddedFolderRulesDisableSelectionAllowSubfolderInspectionAndUpdateAddButtonTitle() async throws {
         let fixture = try DialogTestFixture()
         defer { fixture.cleanUp() }
 
@@ -549,6 +639,26 @@ struct WebDAVFolderDialogTests {
                   </D:response>
                   <D:response>
                     <D:href>/dav/115/动漫/01.%20进击的巨人/S01E01.mkv</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype/></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                </D:multistatus>
+                """
+            } else if decodedPath.contains("02. 葬送的芙莉莲") {
+                xml = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <D:multistatus xmlns:D="DAV:">
+                  <D:response>
+                    <D:href>/dav/115/动漫/02.%20葬送的芙莉莲/</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/115/动漫/02.%20葬送的芙莉莲/S01E01.mkv</D:href>
                     <D:propstat>
                       <D:prop><D:resourcetype/></D:prop>
                       <D:status>HTTP/1.1 200 OK</D:status>
@@ -607,24 +717,33 @@ struct WebDAVFolderDialogTests {
         let folderA = session.items[0]
         let folderB = session.items[1]
 
-        // folderA is not added -> enabled; folderB is already added -> disabled
+        // folderA is not added -> enabled; folderB is already added -> disabled for selection
         #expect(!session.isFolderItemDisabled(folderA))
         #expect(session.isFolderItemDisabled(folderB))
 
-        // Disabled folderB cannot be selected and cannot be navigated into
+        // Disabled folderB cannot be selected, but CAN be navigated into via its right enter button
         session.toggleFolderSelection(folderB)
         #expect(session.selectedFolderPaths.isEmpty)
         app.openWebDAVSubfolder(folderB, in: session)
-        #expect(session.directoryTask == nil)
+        await session.directoryTask?.value
+        #expect(session.breadcrumbNodes.map(\.title) == ["动漫", "02. 葬送的芙莉莲"])
+        #expect(!session.canAddInBrowser)
+        #expect(session.browserAddButtonTitle == L("remote.browser.add_current_folder"))
+
+        // Return to root via breadcrumb
+        let initialRootNode = try #require(session.breadcrumbNodes.first)
+        app.navigateWebDAVBreadcrumb(to: initialRootNode, in: session)
+        await session.directoryTask?.value
         #expect(session.breadcrumbNodes.map(\.title) == ["动漫"])
 
         // When selectedFolderPaths is empty, because folderA is still enabled and current directory is not added,
-        // canAddInBrowser is true and targetFoldersToAdd returns [currentDirectoryURL]
+        // canAddInBrowser is true, button title is "Add Current Folder", and targetFoldersToAdd returns [currentDirectoryURL]
         #expect(session.canAddInBrowser)
+        #expect(session.browserAddButtonTitle == L("remote.browser.add_current_folder"))
         #expect(session.targetFoldersToAdd() == [rootURL.standardizedMediaURL])
 
         // Verify split hit regions on enabled folderA card:
-        // 1) Left checkbox region toggles selection without navigating into the folder
+        // 1) Left main card toggles selection without navigating into the folder
         let cardForA = WebDAVBrowserCard(
             item: folderA,
             isDisabled: session.isFolderItemDisabled(folderA),
@@ -634,10 +753,20 @@ struct WebDAVFolderDialogTests {
         )
         cardForA.onToggleSelection()
         #expect(session.selectedFolderPaths == [folderA.id])
+        #expect(session.browserAddButtonTitle == L("remote.browser.add_folders.one"))
         #expect(session.breadcrumbNodes.map(\.title) == ["动漫"])
         #expect(session.targetFoldersToAdd() == [showAURL.standardizedMediaURL])
 
-        // 2) Right folder region opens the subfolder on single click and clears previous selections
+        // If 2 enabled folders are selected, button title uses plural format
+        app.indexing.selectedFolders = []
+        session.existingRootFolders = []
+        session.toggleFolderSelection(folderB)
+        #expect(session.activeSelectedFolderItems.count == 2)
+        #expect(session.browserAddButtonTitle == L("remote.browser.add_folders.other", 2))
+        app.indexing.selectedFolders = [showBURL]
+        session.existingRootFolders = [showBURL]
+
+        // 2) Right enter button opens the subfolder on single click and clears previous selections
         cardForA.onOpenFolder()
         #expect(session.selectedFolderPaths.isEmpty)
         await session.directoryTask?.value

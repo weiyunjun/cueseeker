@@ -37,7 +37,6 @@ struct FTPFolderDialog: View {
     private static let dialogStyle = RemoteFolderDialogStyle(
         titleKey: "ftp.dialog.title",
         connectTitleKey: "ftp.connect",
-        addTitleKey: "ftp.add",
         emptyFolderItemsKey: "ftp.empty_folder_items",
         folderIcon: .folderFtp,
         connectAccessibilityID: "ftp-connect",

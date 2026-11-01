@@ -261,8 +261,9 @@ struct WorkbenchAccessibilityStep2Tests {
         #expect(!app.isDialogAccessibilityTargetEnabled(.remoteConnect))
         session.isSubmitting = false
 
-        // Step 2 (Browser): Breadcrumb links (excluding last), enabled folder cards & checkboxes,
-        // and Back / Cancel / Add buttons. Disabled folders and subtitle files are skipped.
+        // Step 2 (Browser): Breadcrumb links (excluding last), enabled folder cards & enter buttons,
+        // already-added folder enter buttons, and Back / Cancel / Add buttons.
+        // Disabled folder cards and subtitle files are skipped.
         let rootURL = URL(string: "smb://nas.local:445/Media")!
         let subURL = URL(string: "smb://nas.local:445/Media/Anime")!
         let folderEnabledURL = URL(string: "smb://nas.local:445/Media/Anime/Season1")!
@@ -292,17 +293,18 @@ struct WorkbenchAccessibilityStep2Tests {
             .dialogCloseButton,
             .remoteBreadcrumb(rootBreadcrumbID),
             .remoteFolderCard(enabledFolderItem.id),
-            .remoteFolderCheckbox(enabledFolderItem.id),
+            .remoteFolderEnterButton(enabledFolderItem.id),
+            .remoteFolderEnterButton(addedFolderItem.id),
             .remoteBack,
             .remoteCancel,
             .remoteAdd,
         ])
 
-        // Activating .remoteFolderCheckbox toggles selection on the folder item.
-        app.workbenchAccessibility.setDialogFocus(.remoteFolderCheckbox(enabledFolderItem.id), dialogID: .smb)
-        #expect(app.activateDialogAccessibilityTarget(.remoteFolderCheckbox(enabledFolderItem.id)))
+        // Activating .remoteFolderCard toggles selection on the folder item.
+        app.workbenchAccessibility.setDialogFocus(.remoteFolderCard(enabledFolderItem.id), dialogID: .smb)
+        #expect(app.activateDialogAccessibilityTarget(.remoteFolderCard(enabledFolderItem.id)))
         #expect(session.selectedFolderPaths.contains(enabledFolderItem.id))
-        #expect(app.workbenchAccessibility.focusedDialogTarget == .remoteFolderCheckbox(enabledFolderItem.id))
+        #expect(app.workbenchAccessibility.focusedDialogTarget == .remoteFolderCard(enabledFolderItem.id))
 
         app.library.smbDialogSession = nil
     }

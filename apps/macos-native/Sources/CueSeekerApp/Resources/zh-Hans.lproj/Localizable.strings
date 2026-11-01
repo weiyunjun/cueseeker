@@ -733,8 +733,10 @@
 "webdav.field.username" = "用户名";
 "webdav.field.password" = "密码";
 "webdav.connect" = "连接";
-"webdav.add" = "添加";
 "remote.browser.added" = "已添加";
+"remote.browser.add_current_folder" = "添加当前文件夹";
+"remote.browser.add_folders.one" = "添加 1 个文件夹";
+"remote.browser.add_folders.other" = "添加 %d 个文件夹";
 "webdav.empty_folder_items" = "此文件夹中没有文件夹、视频或字幕文件。";
 "common.back" = "返回";
 "webdav.error.name_empty" = "请输入名称";
@@ -750,7 +752,6 @@
 "smb.field.username" = "用户名";
 "smb.field.password" = "密码";
 "smb.connect" = "连接";
-"smb.add" = "添加";
 "smb.empty_folder_items" = "此文件夹中没有文件夹、视频或字幕文件。";
 "smb.error.invalid_address" = "请输入有效的 SMB 地址";
 "smb.error.invalid_port" = "请输入有效的端口号（1–65535）";
@@ -763,7 +764,6 @@
 "ftp.field.username" = "用户名";
 "ftp.field.password" = "密码";
 "ftp.connect" = "连接";
-"ftp.add" = "添加";
 "ftp.empty_folder_items" = "此文件夹中没有文件夹、视频或字幕文件。";
 "ftp.error.invalid_address" = "请输入有效的 FTP 地址";
 "ftp.error.invalid_port" = "请输入有效的端口号（1–65535）";
@@ -773,7 +773,6 @@
 "nfs.dialog.title" = "NFS 文件夹";
 "nfs.field.address" = "地址";
 "nfs.connect" = "连接";
-"nfs.add" = "添加";
 "nfs.empty_folder_items" = "此文件夹中没有文件夹、视频或字幕文件。";
 "nfs.error.invalid_address" = "请输入有效的 NFS 地址";
 

@@ -99,6 +99,17 @@ extension RemoteFolderDialogSessionProtocol {
         }
     }
 
+    var browserAddButtonTitle: String {
+        let count = activeSelectedFolderItems.count
+        if count == 0 {
+            return L("remote.browser.add_current_folder")
+        } else if count == 1 {
+            return L("remote.browser.add_folders.one")
+        } else {
+            return L("remote.browser.add_folders.other", count)
+        }
+    }
+
     var canAddInBrowser: Bool {
         guard step == .browser,
               !isLoadingDirectory,
@@ -181,7 +192,6 @@ extension RemoteFolderDialogSessionProtocol {
 struct RemoteFolderDialogStyle {
     let titleKey: String
     let connectTitleKey: String
-    let addTitleKey: String
     let emptyFolderItemsKey: String
     let folderIcon: AppIcon
     let connectAccessibilityID: String
@@ -310,7 +320,7 @@ struct RemoteFolderDialogContainer<
                             isDisabled: item.kind == .folder && session.isFolderItemDisabled(item),
                             isSelected: item.kind == .folder && session.selectedFolderPaths.contains(item.id),
                             isCardFocused: item.kind == .folder && accessibility?.isDialogFocused(.remoteFolderCard(item.id), dialogID: dialogID) == true,
-                            isCheckboxFocused: item.kind == .folder && accessibility?.isDialogFocused(.remoteFolderCheckbox(item.id), dialogID: dialogID) == true,
+                            isEnterButtonFocused: item.kind == .folder && accessibility?.isDialogFocused(.remoteFolderEnterButton(item.id), dialogID: dialogID) == true,
                             onToggleSelection: {
                                 session.toggleFolderSelection(item)
                             },
@@ -352,7 +362,7 @@ struct RemoteFolderDialogContainer<
             .keyboardShortcut(.cancelAction)
 
             WorkbenchPrimaryButton(
-                title: L(style.addTitleKey),
+                title: session.browserAddButtonTitle,
                 isFocused: accessibility?.isDialogFocused(.remoteAdd, dialogID: dialogID) == true,
                 action: submitAddIfReady
             )
@@ -418,31 +428,38 @@ struct RemoteFolderBreadcrumbBar: View {
 }
 
 struct WebDAVBrowserCard: View {
+    static let enterButtonWidth: CGFloat =
+        WorkbenchControlMetrics.redesignCardChevronSize
+        + WorkbenchControlMetrics.redesignControlPaddingX * 2
+
     let item: WebDAVBrowserItem
     var folderIcon: AppIcon = .folderWebdav
     var isDisabled: Bool = false
     let isSelected: Bool
     var isCardFocused: Bool = false
-    var isCheckboxFocused: Bool = false
+    var isEnterButtonFocused: Bool = false
     let onToggleSelection: () -> Void
     let onOpenFolder: () -> Void
 
-    @State private var isHovered = false
+    @State private var isCardHovered = false
+    @State private var isCardPressed = false
+    @State private var isEnterButtonHovered = false
+    @State private var isEnterButtonPressed = false
 
     var isFolder: Bool {
         item.kind == .folder
     }
 
-    var checkboxState: WorkbenchCheckboxState {
-        isDisabled || isSelected ? .checked : .unchecked
-    }
-
-    var showsTrailingChevron: Bool {
+    var isCardInteractive: Bool {
         isFolder && !isDisabled
     }
 
     var showsAddedBadge: Bool {
         isFolder && isDisabled
+    }
+
+    var showsEnterButton: Bool {
+        isFolder
     }
 
     var icon: AppIcon {
@@ -456,14 +473,13 @@ struct WebDAVBrowserCard: View {
         }
     }
 
-    /// Enabled folder cards use the standard row hover background on hover;
-    /// disabled folder cards and file cards never highlight on hover.
     var backgroundFillColor: Color {
         Self.resolveBackgroundFillColor(
             isFolder: isFolder,
             isDisabled: isDisabled,
             isSelected: isSelected,
-            isHovered: isHovered
+            isHovered: isCardHovered,
+            isPressed: isCardPressed
         )
     }
 
@@ -475,13 +491,43 @@ struct WebDAVBrowserCard: View {
         )
     }
 
+    var enterButtonBackgroundFillColor: Color {
+        Self.resolveEnterButtonBackgroundFillColor(
+            isHovered: isEnterButtonHovered,
+            isPressed: isEnterButtonPressed
+        )
+    }
+
+    var enterButtonIconColor: Color {
+        Self.resolveEnterButtonIconColor(
+            isHovered: isEnterButtonHovered,
+            isPressed: isEnterButtonPressed
+        )
+    }
+
     static func resolveBackgroundFillColor(
         isFolder: Bool,
         isDisabled: Bool = false,
         isSelected: Bool = false,
-        isHovered: Bool
+        isHovered: Bool,
+        isPressed: Bool = false
     ) -> Color {
-        if isFolder && !isDisabled && isHovered {
+        guard isFolder, !isDisabled else {
+            return WorkbenchRedesignColors.tableBg
+        }
+        if isSelected {
+            if isPressed {
+                return WorkbenchRedesignColors.filterChipSelectedBgPressed
+            }
+            if isHovered {
+                return WorkbenchRedesignColors.filterChipSelectedBgHover
+            }
+            return WorkbenchRedesignColors.filterChipSelectedBg
+        }
+        if isPressed {
+            return WorkbenchRedesignColors.fileFolderCardBgPressed
+        }
+        if isHovered {
             return WorkbenchRedesignColors.rowHover
         }
         return WorkbenchRedesignColors.tableBg
@@ -492,7 +538,32 @@ struct WebDAVBrowserCard: View {
         isDisabled: Bool = false,
         isSelected: Bool = false
     ) -> Color {
-        WorkbenchRedesignColors.borderControl
+        if isFolder && !isDisabled && isSelected {
+            return WorkbenchRedesignColors.filterChipSelectedContent
+        }
+        return WorkbenchRedesignColors.borderControl
+    }
+
+    static func resolveEnterButtonBackgroundFillColor(
+        isHovered: Bool,
+        isPressed: Bool = false
+    ) -> Color {
+        if isPressed {
+            return WorkbenchRedesignColors.fileFolderCardBgPressed
+        }
+        if isHovered {
+            return WorkbenchRedesignColors.rowHover
+        }
+        return WorkbenchRedesignColors.tableBg
+    }
+
+    static func resolveEnterButtonIconColor(
+        isHovered: Bool,
+        isPressed: Bool = false
+    ) -> Color {
+        (isHovered || isPressed)
+            ? WorkbenchRedesignColors.textPrimary
+            : WorkbenchRedesignColors.textMuted
     }
 
     var body: some View {
@@ -501,125 +572,111 @@ struct WebDAVBrowserCard: View {
             style: .continuous
         )
 
-        Group {
-            if isFolder {
-                HStack(alignment: .center, spacing: 0) {
-                    Button {
-                        onToggleSelection()
-                    } label: {
-                        WorkbenchCheckboxGlyph(
-                            state: checkboxState,
-                            isEnabled: !isDisabled,
-                            size: WorkbenchControlMetrics.redesignCheckboxSize
-                        )
-                        .workbenchAccessibilityFocusRing(
-                            isFocused: isCheckboxFocused,
-                            cornerRadius: WorkbenchControlMetrics.redesignCheckboxSize / 2,
-                            isCircular: true
-                        )
-                        .padding(.leading, WorkbenchControlMetrics.redesignSpacing4)
-                        .padding(.trailing, WorkbenchControlMetrics.redesignSpacing4)
-                        .frame(
-                            minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
-                            maxHeight: .infinity
-                        )
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(StaticButtonStyle())
-                    .focusable(false)
-                    .disabled(isDisabled)
+        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                WorkbenchCardIcon(icon: icon)
+                    .allowsHitTesting(false)
 
-                    Button {
-                        onOpenFolder()
-                    } label: {
-                        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                            WorkbenchCardIcon(icon: icon)
+                Text(item.name)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .allowsHitTesting(false)
 
-                            Text(item.name)
-                                .font(.system(
-                                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                                    weight: WorkbenchControlMetrics.redesignFontWeightControl
-                                ))
-                                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            if showsAddedBadge {
-                                WorkbenchBadge(
-                                    title: L("remote.browser.added"),
-                                    foregroundColor: WorkbenchRedesignColors.watchStatusFinishedText,
-                                    fillColor: WorkbenchRedesignColors.watchStatusFinishedBg
-                                )
-                                .allowsHitTesting(false)
-                            } else if showsTrailingChevron {
-                                AppIconImage(
-                                    .caretRight,
-                                    size: WorkbenchControlMetrics.redesignCardChevronSize
-                                )
-                                .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                                .frame(
-                                    width: WorkbenchControlMetrics.redesignCardChevronSize,
-                                    height: WorkbenchControlMetrics.redesignIconButtonSize
-                                )
-                                .allowsHitTesting(false)
-                            }
-                        }
-                        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing4)
-                        .padding(.trailing, WorkbenchControlMetrics.redesignSpacing4)
-                        .frame(
-                            maxWidth: .infinity,
-                            minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
-                            maxHeight: .infinity,
-                            alignment: .leading
-                        )
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(StaticButtonStyle())
-                    .focusable(false)
-                    .disabled(isDisabled)
+                if showsAddedBadge {
+                    WorkbenchBadge(
+                        title: L("remote.browser.added"),
+                        foregroundColor: WorkbenchRedesignColors.watchStatusFinishedText,
+                        fillColor: WorkbenchRedesignColors.watchStatusFinishedBg
+                    )
+                    .allowsHitTesting(false)
                 }
-            } else {
-                HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                    WorkbenchCardIcon(icon: icon)
-
-                    Text(item.name)
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizeBody,
-                            weight: WorkbenchControlMetrics.redesignFontWeightControl
-                        ))
-                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(WorkbenchControlMetrics.redesignSpacing4)
             }
-        }
-        .frame(
-            maxWidth: .infinity,
-            minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
-            alignment: .leading
-        )
-        .background {
-            ZStack {
-                shape.fill(backgroundFillColor)
-                WorkbenchAccessibilityScrollRevealProbe(isActive: isCardFocused || isCheckboxFocused)
-            }
-        }
-        .overlay(
-            shape.strokeBorder(
-                borderStrokeColor,
-                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+            .padding(WorkbenchControlMetrics.redesignSpacing4)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
+                alignment: .leading
             )
-        )
-        .workbenchAccessibilityFocusRing(
-            isFocused: isCardFocused,
-            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
-        )
-        .contentShape(shape)
-        .onPointerHover { hovering in
-            isHovered = (isFolder && !isDisabled) ? hovering : false
+            .background {
+                ZStack {
+                    shape.fill(backgroundFillColor)
+                    WorkbenchAccessibilityScrollRevealProbe(isActive: isCardFocused)
+
+                    if isCardInteractive {
+                        Button(action: onToggleSelection) {
+                            Color.clear
+                                .contentShape(shape)
+                        }
+                        .buttonStyle(PressableButtonStyle(isPressed: $isCardPressed, isHovered: $isCardHovered))
+                        .focusable(false)
+                    }
+                }
+            }
+            .overlay(
+                shape.strokeBorder(
+                    borderStrokeColor,
+                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                )
+                .allowsHitTesting(false)
+            )
+            .workbenchAccessibilityFocusRing(
+                isFocused: isCardFocused,
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+            )
+            .contentShape(shape)
+            .onPointerHover { hovering in
+                isCardHovered = isCardInteractive ? hovering : false
+            }
+
+            if showsEnterButton {
+                Button(action: onOpenFolder) {
+                    AppIconImage(
+                        .caretRight,
+                        size: WorkbenchControlMetrics.redesignCardChevronSize
+                    )
+                    .foregroundStyle(enterButtonIconColor)
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+                    .frame(
+                        width: Self.enterButtonWidth,
+                        height: WorkbenchControlMetrics.redesignCardBaselineHeight
+                    )
+                    .contentShape(shape)
+                }
+                .buttonStyle(PressableButtonStyle(isPressed: $isEnterButtonPressed, isHovered: $isEnterButtonHovered))
+                .focusable(false)
+                .background {
+                    ZStack {
+                        shape.fill(enterButtonBackgroundFillColor)
+                        WorkbenchAccessibilityScrollRevealProbe(isActive: isEnterButtonFocused)
+                    }
+                }
+                .overlay(
+                    shape.strokeBorder(
+                        WorkbenchRedesignColors.borderControl,
+                        lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                    )
+                    .allowsHitTesting(false)
+                )
+                .workbenchAccessibilityFocusRing(
+                    isFocused: isEnterButtonFocused,
+                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                )
+                .contentShape(shape)
+                .onPointerHover { isEnterButtonHovered = $0 }
+            } else {
+                Color.clear
+                    .frame(
+                        width: Self.enterButtonWidth,
+                        height: WorkbenchControlMetrics.redesignCardBaselineHeight
+                    )
+                    .allowsHitTesting(false)
+            }
         }
     }
 }

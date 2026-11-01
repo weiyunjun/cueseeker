@@ -733,8 +733,10 @@
 "webdav.field.username" = "使用者名稱";
 "webdav.field.password" = "密碼";
 "webdav.connect" = "連線";
-"webdav.add" = "加入";
 "remote.browser.added" = "已加入";
+"remote.browser.add_current_folder" = "加入目前資料夾";
+"remote.browser.add_folders.one" = "加入 1 個資料夾";
+"remote.browser.add_folders.other" = "加入 %d 個資料夾";
 "webdav.empty_folder_items" = "此資料夾中沒有資料夾、影片或字幕檔案。";
 "common.back" = "返回";
 "webdav.error.name_empty" = "請輸入名稱";
@@ -750,7 +752,6 @@
 "smb.field.username" = "使用者名稱";
 "smb.field.password" = "密碼";
 "smb.connect" = "連線";
-"smb.add" = "加入";
 "smb.empty_folder_items" = "此資料夾中沒有資料夾、影片或字幕檔案。";
 "smb.error.invalid_address" = "請輸入有效的 SMB 位址";
 "smb.error.invalid_port" = "請輸入有效的連接埠號碼（1–65535）";
@@ -763,7 +764,6 @@
 "ftp.field.username" = "使用者名稱";
 "ftp.field.password" = "密碼";
 "ftp.connect" = "連線";
-"ftp.add" = "加入";
 "ftp.empty_folder_items" = "此資料夾中沒有資料夾、影片或字幕檔案。";
 "ftp.error.invalid_address" = "請輸入有效的 FTP 位址";
 "ftp.error.invalid_port" = "請輸入有效的連接埠號碼（1–65535）";
@@ -773,7 +773,6 @@
 "nfs.dialog.title" = "NFS 資料夾";
 "nfs.field.address" = "位址";
 "nfs.connect" = "連線";
-"nfs.add" = "加入";
 "nfs.empty_folder_items" = "此資料夾中沒有資料夾、影片或字幕檔案。";
 "nfs.error.invalid_address" = "請輸入有效的 NFS 位址";
 

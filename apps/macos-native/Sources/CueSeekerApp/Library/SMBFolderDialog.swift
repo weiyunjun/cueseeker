@@ -42,7 +42,6 @@ struct SMBFolderDialog: View {
     private static let dialogStyle = RemoteFolderDialogStyle(
         titleKey: "smb.dialog.title",
         connectTitleKey: "smb.connect",
-        addTitleKey: "smb.add",
         emptyFolderItemsKey: "smb.empty_folder_items",
         folderIcon: .folderSmb,
         connectAccessibilityID: "smb-connect",
