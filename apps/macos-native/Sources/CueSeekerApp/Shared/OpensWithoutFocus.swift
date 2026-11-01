@@ -56,6 +56,10 @@ private struct OpensWithoutFocusProbe: NSViewRepresentable {
             guard let window, !hadFocusWhenResigned else {
                 return
             }
+            if let cueSeekerWindow = window as? CueSeekerWindow,
+               cueSeekerWindow.shouldPreserveCurrentFocusOnBecomeKey {
+                return
+            }
             window.makeFirstResponder(nil)
         }
     }

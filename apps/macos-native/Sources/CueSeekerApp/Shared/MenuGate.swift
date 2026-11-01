@@ -156,7 +156,7 @@ final class MenuGate {
             )
         )
         if isFirstMenu {
-            let targetWindow = client.window() ?? NSApp.keyWindow
+            let targetWindow = client.window() ?? CueSeekerWindow.activeKeyWindow
             (targetWindow as? CueSeekerWindow)?.activateWindowForFocusIfNeeded()
             applyBarrier(to: targetWindow)
         }

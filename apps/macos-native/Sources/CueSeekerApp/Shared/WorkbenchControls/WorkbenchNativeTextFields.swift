@@ -188,6 +188,9 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         ]
         editor.font = resolvedFont
         editor.textColor = resolvedColor
+        editor.insertionPointColor = isEnabled
+            ? WorkbenchRedesignColors.NS.borderFocus
+            : WorkbenchRedesignColors.NS.textDisabled
         editor.alignment = effectiveAlignment
         editor.typingAttributes = attributes
         if let storage = editor.textStorage, storage.length > 0 {
@@ -200,6 +203,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
            let textContainer = editor.textContainer {
             layoutManager.ensureLayout(for: textContainer)
         }
+        (window as? CueSeekerWindow)?.refreshFocusedTextInputInsertionPoint()
     }
 
     func selectAllInCurrentEditor() {
@@ -806,6 +810,7 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
                 dragAnchorIndex = index
                 editor.setSelectedRange(NSRange(location: index, length: 0))
             }
+            (window as? CueSeekerWindow)?.refreshFocusedTextInputInsertionPoint()
         }
     }
 
@@ -1192,6 +1197,9 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
             typingAttrs[.foregroundColor] = textColor
             editor.textColor = textColor
         }
+        editor.insertionPointColor = isEnabled
+            ? WorkbenchRedesignColors.NS.borderFocus
+            : WorkbenchRedesignColors.NS.textDisabled
         editor.typingAttributes = typingAttrs
         if let storage = editor.textStorage, storage.length > 0 {
             storage.addAttributes(
@@ -1203,6 +1211,7 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
            let textContainer = editor.textContainer {
             layoutManager.ensureLayout(for: textContainer)
         }
+        (window as? CueSeekerWindow)?.refreshFocusedTextInputInsertionPoint()
     }
 }
 

@@ -744,6 +744,122 @@ struct PointerHoverGateTests {
         #expect(secondWindow.isFocusedForHover)
         #expect(menuHighlight.hoveredPosition == nil)
     }
+
+    @Test
+    @MainActor
+    func dialogTextFieldClickShowsAccentColorInsertionPointEvenWithoutSystemWindowActivation() throws {
+        _ = NSApplication.shared
+        let layers = InterfaceLayerRegistry()
+        let window = CueSeekerMainWindow(
+            contentRect: NSRect(x: -5_000, y: -5_000, width: 1_000, height: 700),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        defer { window.orderOut(nil) }
+        window.isFocusLocked = { layers.hasUncoveredOpenMenu }
+        window.dialogSize = { layers.topDialogSize }
+        window.isWorkbenchCovered = { layers.isCovered(.workbenchPage) }
+
+        let session = WebDAVFolderDialogSession()
+        let host = NSHostingView(
+            rootView: WorkbenchDialogLayer(
+                dialogIDs: [AnyHashable(session.id)],
+                topBandHeight: 52
+            ) {
+                WebDAVFolderDialog(
+                    session: session,
+                    onConfirm: {},
+                    onClose: {}
+                )
+                .environment(\.workbenchDialogID, .webdav)
+                .workbenchDialog()
+            }
+            .frame(width: 1_000, height: 700)
+            .modifier(InterfaceLayerCoverageBridge(layers: layers))
+            .opensWithoutFocus()
+        )
+        host.frame = NSRect(x: 0, y: 0, width: 1_000, height: 700)
+        window.contentView = host
+        window.orderFront(nil)
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.35))
+        host.layoutSubtreeIfNeeded()
+
+        func findAddressField(in view: NSView) -> WorkbenchNativeSingleLineTextField? {
+            if let field = view as? WorkbenchNativeSingleLineTextField {
+                return field
+            }
+            for subview in view.subviews {
+                if let found = findAddressField(in: subview) {
+                    return found
+                }
+            }
+            return nil
+        }
+
+        let addressField = try #require(findAddressField(in: host))
+        #expect(!addressField.isCurrentlyFocused)
+        #expect(!window.isKeyWindow)
+
+        let clickPoint = addressField.convert(
+            NSPoint(x: addressField.bounds.midX, y: addressField.bounds.midY),
+            to: nil
+        )
+        let leftDown = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: clickPoint,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 10,
+            clickCount: 1,
+            pressure: 1
+        ))
+        let leftUp = try #require(NSEvent.mouseEvent(
+            with: .leftMouseUp,
+            location: clickPoint,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime + 0.01,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 10,
+            clickCount: 1,
+            pressure: 0
+        ))
+        NSApp.postEvent(leftUp, atStart: false)
+        window.sendEvent(leftDown)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+
+        #expect(window.isKeyWindow)
+        #expect(window.isFocusedForHover)
+        #expect(addressField.isCurrentlyFocused)
+        let editor = try #require(addressField.currentEditor() as? NSTextView)
+        #expect(editor.insertionPointColor == WorkbenchRedesignColors.NS.borderFocus)
+
+        // Delayed system didBecomeKeyNotification must not clear the user's click focus on Address.
+        NotificationCenter.default.post(
+            name: NSWindow.didBecomeKeyNotification,
+            object: window
+        )
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        #expect(addressField.isCurrentlyFocused)
+
+        host.displayIfNeeded()
+        let rep = try #require(addressField.bitmapImageRepForCachingDisplay(in: addressField.bounds))
+        addressField.cacheDisplay(in: addressField.bounds, to: rep)
+        var nonTransparentInsertionPixels = 0
+        for y in 0..<rep.pixelsHigh {
+            for x in 0..<min(24, rep.pixelsWide) {
+                if let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB),
+                   color.alphaComponent > 0.1 {
+                    nonTransparentInsertionPixels += 1
+                }
+            }
+        }
+        #expect(nonTransparentInsertionPixels > 0)
+    }
 }
 
 private struct NestedCueSeekerHostingViewRepresentable<Content: View>: NSViewRepresentable {

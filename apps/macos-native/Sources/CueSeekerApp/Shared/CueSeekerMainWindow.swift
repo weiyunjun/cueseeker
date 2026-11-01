@@ -11,12 +11,20 @@ extension Notification.Name {
 class CueSeekerWindow: NSWindow {
     var isWindowFocusedOverrideForTesting: Bool?
     private(set) var hasUserInteractionFocus = false
+    private(set) var hasUserFocusedTextInput = false
+    private var isPerformingSystemActivation = false
     nonisolated(unsafe) private var focusLifecycleObserverTokens: [NSObjectProtocol] = []
     nonisolated(unsafe) private var outsideClickGlobalMonitor: Any?
     /// Set by the App once the interface layer registry exists.
     var isFocusLocked: () -> Bool = { false }
     /// Clears any active keyboard/controller accessibility focus when the user clicks with the mouse.
     var onMouseDownClearAccessibility: (() -> Void)?
+
+    static var activeKeyWindow: NSWindow? {
+        NSApp.keyWindow
+            ?? NSApp.windows.first { ($0 as? CueSeekerWindow)?.isFocusedForHover == true }
+            ?? NSApp.mainWindow
+    }
 
     override init(
         contentRect: NSRect,
@@ -42,11 +50,56 @@ class CueSeekerWindow: NSWindow {
         }
     }
 
+    override var isKeyWindow: Bool {
+        if isPerformingSystemActivation {
+            return super.isKeyWindow
+        }
+        if let isWindowFocusedOverrideForTesting {
+            return isWindowFocusedOverrideForTesting
+        }
+        return super.isKeyWindow || hasUserInteractionFocus
+    }
+
     var isFocusedForHover: Bool {
         if let isWindowFocusedOverrideForTesting {
             return isWindowFocusedOverrideForTesting
         }
-        return (NSApp.isActive && isKeyWindow) || hasUserInteractionFocus
+        return (NSApp.isActive && super.isKeyWindow) || hasUserInteractionFocus
+    }
+
+    var shouldPreserveCurrentFocusOnBecomeKey: Bool {
+        guard hasFocusedTextInput else {
+            return false
+        }
+        if hasUserFocusedTextInput {
+            return true
+        }
+        if let field = activeFocusedTextField as? WorkbenchNativeSingleLineTextField {
+            return MainActor.assumeIsolated {
+                field.didUserInteractSinceAutofocus
+                    || field.hasPerformedInitialAutofocus
+                    || field.wantsFocusFromSwiftUI
+            }
+        }
+        return false
+    }
+
+    func refreshFocusedTextInputInsertionPoint() {
+        let activeEditor: NSTextView? = {
+            if let textView = firstResponder as? NSTextView {
+                return textView
+            }
+            if let control = firstResponder as? NSControl,
+               let textView = control.currentEditor() as? NSTextView {
+                return textView
+            }
+            return nil
+        }()
+        guard let activeEditor else {
+            return
+        }
+        activeEditor.updateInsertionPointStateAndRestartTimer(isKeyWindow)
+        activeEditor.needsDisplay = true
     }
 
     func activateWindowForFocusIfNeeded(
@@ -56,7 +109,7 @@ class CueSeekerWindow: NSWindow {
         guard isWindowFocusedOverrideForTesting == nil else {
             return
         }
-        guard !NSApp.isActive || !isKeyWindow || !hasUserInteractionFocus else {
+        guard !NSApp.isActive || !super.isKeyWindow || !hasUserInteractionFocus else {
             return
         }
         activateWindowForFocus(
@@ -85,11 +138,13 @@ class CueSeekerWindow: NSWindow {
         installOutsideClickGlobalMonitorIfNeeded()
         if !ApplicationInfo.isRunningInUnitTestProcess,
            isWindowFocusedOverrideForTesting == nil {
+            isPerformingSystemActivation = true
+            defer { isPerformingSystemActivation = false }
             NSRunningApplication.current.activate(
                 options: [.activateAllWindows, .activateIgnoringOtherApps]
             )
             NSApp.activate(ignoringOtherApps: true)
-            if !isKeyWindow || !isVisible {
+            if !super.isKeyWindow || !isVisible {
                 makeKeyAndOrderFront(sender)
             }
             if let preservedResponder,
@@ -97,6 +152,7 @@ class CueSeekerWindow: NSWindow {
                 _ = makeFirstResponder(preservedResponder)
             }
         }
+        refreshFocusedTextInputInsertionPoint()
         if !wasFocused && isFocusedForHover {
             NotificationCenter.default.post(
                 name: .cueSeekerWindowFocusChanged,
@@ -111,10 +167,16 @@ class CueSeekerWindow: NSWindow {
             return
         }
         hasUserInteractionFocus = false
+        refreshFocusedTextInputInsertionPoint()
         NotificationCenter.default.post(
             name: .cueSeekerWindowFocusChanged,
             object: self
         )
+    }
+
+    override func becomeKey() {
+        super.becomeKey()
+        refreshFocusedTextInputInsertionPoint()
     }
 
     override func resignKey() {
@@ -197,12 +259,17 @@ class CueSeekerWindow: NSWindow {
 
     override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
         guard responder != nil else {
+            hasUserFocusedTextInput = false
             return super.makeFirstResponder(responder)
         }
         guard !isFocusLocked() else {
             return false
         }
-        return super.makeFirstResponder(responder)
+        let accepted = super.makeFirstResponder(responder)
+        if accepted {
+            refreshFocusedTextInputInsertionPoint()
+        }
+        return accepted
     }
 
     override func sendEvent(_ event: NSEvent) {
@@ -226,6 +293,7 @@ class CueSeekerWindow: NSWindow {
         case .rightMouseDown:
             onMouseDownClearAccessibility?()
             if isPointInsideFocusedTextInput(at: event.locationInWindow) {
+                hasUserFocusedTextInput = true
                 activateWindowForFocusIfNeeded(
                     preservingCurrentFirstResponder: true
                 )
@@ -236,6 +304,8 @@ class CueSeekerWindow: NSWindow {
                 preservingCurrentFirstResponder: false
             )
             if handleRightMouseDownOnUnfocusedTextInput(with: event) {
+                hasUserFocusedTextInput = hasFocusedTextInput
+                refreshFocusedTextInputInsertionPoint()
                 return
             }
         case .otherMouseDown:
@@ -247,6 +317,12 @@ class CueSeekerWindow: NSWindow {
             break
         }
         super.sendEvent(event)
+        if event.type == .leftMouseDown || event.type == .rightMouseDown {
+            hasUserFocusedTextInput = hasFocusedTextInput
+            if hasFocusedTextInput {
+                refreshFocusedTextInputInsertionPoint()
+            }
+        }
     }
 
     func cancelFocusedTextInputIfOutside(at windowPoint: NSPoint) {
@@ -299,6 +375,24 @@ class CueSeekerWindow: NSWindow {
         return false
     }
 
+    private var activeFocusedTextField: NSTextField? {
+        guard let responder = firstResponder else {
+            return nil
+        }
+        if let field = responder as? NSTextField {
+            return field
+        }
+        if let textView = responder as? NSTextView {
+            if let delegateField = textView.delegate as? NSTextField {
+                return delegateField
+            }
+            return sequence(first: textView as NSView, next: \.superview)
+                .compactMap({ $0 as? NSTextField })
+                .first
+        }
+        return nil
+    }
+
     private func isPointInsideFocusedTextInput(at windowPoint: NSPoint) -> Bool {
         guard let responder = firstResponder else {
             return false
@@ -316,21 +410,7 @@ class CueSeekerWindow: NSWindow {
             let localPoint = textAreaView.convert(windowPoint, from: nil)
             return textAreaView.bounds.contains(localPoint)
         }
-        let activeField: NSTextField? = {
-            if let field = responder as? NSTextField {
-                return field
-            }
-            if let textView = responder as? NSTextView {
-                if let delegateField = textView.delegate as? NSTextField {
-                    return delegateField
-                }
-                return sequence(first: textView as NSView, next: \.superview)
-                    .compactMap({ $0 as? NSTextField })
-                    .first
-            }
-            return nil
-        }()
-        guard let activeField else {
+        guard let activeField = activeFocusedTextField else {
             return false
         }
         if let root = contentView,

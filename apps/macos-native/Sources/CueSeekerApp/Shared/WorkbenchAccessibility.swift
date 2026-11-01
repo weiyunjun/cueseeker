@@ -745,7 +745,7 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
             settingsTextInputs[kind]?.setFocused(false)
         }
         if keptKind == nil,
-           let window = NSApp.keyWindow,
+           let window = CueSeekerWindow.activeKeyWindow,
            (window.firstResponder is NSText || window.firstResponder is NSTextField) {
             _ = window.makeFirstResponder(nil)
         }
@@ -871,7 +871,7 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
             dialogTextInputs[kind]?.setFocused(false)
         }
         if keptKind == nil,
-           let window = NSApp.keyWindow,
+           let window = CueSeekerWindow.activeKeyWindow,
            (window.firstResponder is NSText || window.firstResponder is NSTextField) {
             _ = window.makeFirstResponder(nil)
         }

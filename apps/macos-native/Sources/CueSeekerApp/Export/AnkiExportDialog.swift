@@ -608,7 +608,7 @@ struct AnkiExportDialog: View {
         isFileNameFocused = false
         isLocationFocused = false
         isLocationFieldFocused = false
-        NSApp.keyWindow?.makeFirstResponder(nil)
+        CueSeekerWindow.activeKeyWindow?.makeFirstResponder(nil)
     }
 
     private func openMenu(

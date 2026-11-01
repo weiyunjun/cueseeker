@@ -110,7 +110,7 @@ final class InterfaceLayerRegistry: ObservableObject {
     /// turn, and only while the page still holds it: a dialog that focused its
     /// own field on appearing keeps it.
     private func givePageFocusUp() {
-        guard let window = NSApplication.shared.keyWindow,
+        guard let window = CueSeekerWindow.activeKeyWindow,
               let pageFocus = Self.focusOwner(in: window)
         else {
             return

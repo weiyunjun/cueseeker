@@ -493,7 +493,7 @@ extension AppCoordinator {
 
     func preparePlaybackKeyboardFocus() {
         workbenchLayout.clearSearchFocus()
-        NSApplication.shared.keyWindow?.makeFirstResponder(nil)
+        CueSeekerWindow.activeKeyWindow?.makeFirstResponder(nil)
     }
 
     /// Seeks the current playback to an absolute timestamp through the shared

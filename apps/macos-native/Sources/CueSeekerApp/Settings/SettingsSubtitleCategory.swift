@@ -565,7 +565,7 @@ struct SettingsSubtitleCategory: View {
         if activeColorPopover != nil {
             activeColorPopover = nil
             workbenchAccessibility?.activeSubtitleColorPopover = nil
-            NSApp.keyWindow?.makeFirstResponder(nil)
+            CueSeekerWindow.activeKeyWindow?.makeFirstResponder(nil)
         }
     }
 
@@ -1543,7 +1543,7 @@ struct SettingsSubtitleColorField: View {
                             isPopoverOpen = false
                             workbenchAccessibility?.activeSubtitleColorPopover = nil
                             isFocused = false
-                            NSApp.keyWindow?.makeFirstResponder(nil)
+                            CueSeekerWindow.activeKeyWindow?.makeFirstResponder(nil)
                             return true
                         }
                     )
