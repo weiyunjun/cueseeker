@@ -46,7 +46,15 @@ public struct FileDetailVideoInfo: Equatable, Sendable {
         self.videoPixelFormat = videoPixelFormat
         self.containerFormat = containerFormat
         self.audioTracks = audioTracks
-        self.subtitles = subtitles
+        self.subtitles = subtitles.sorted { lhs, rhs in
+            VideoSubtitles.compareSubtitles(
+                lhsSubtitlePath: lhs.subtitlePath,
+                lhsFormat: lhs.format,
+                rhsSubtitlePath: rhs.subtitlePath,
+                rhsFormat: rhs.format,
+                forVideoPath: path
+            )
+        }
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
     }

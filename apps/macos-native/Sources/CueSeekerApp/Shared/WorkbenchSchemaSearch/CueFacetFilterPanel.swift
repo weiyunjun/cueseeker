@@ -138,11 +138,11 @@ struct CueFacetFolderOption: Equatable {
         return paths
             .map { CueFacetFolderOption(path: $0, title: IndexingStore.displayName(for: URL.fromMediaPath($0))) }
             .sorted { lhs, rhs in
-                let titles = lhs.title.caseInsensitiveCompare(rhs.title)
+                let titles = lhs.title.localizedStandardCompare(rhs.title)
                 if titles != .orderedSame {
                     return titles == .orderedAscending
                 }
-                return lhs.path.caseInsensitiveCompare(rhs.path) == .orderedAscending
+                return lhs.path.localizedStandardCompare(rhs.path) == .orderedAscending
             }
     }
 }

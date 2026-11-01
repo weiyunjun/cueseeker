@@ -190,6 +190,11 @@ public final class SearchDatabase: @unchecked Sendable {
             pathPrefixes: pathPrefixes,
             subtitlePath: nil
         )
+        let fileOrder = try searchFileRanks(
+            pathPrefixes: pathPrefixes,
+            subtitlePath: nil,
+            excludedFolders: nil
+        )
 
         let statement = try database.prepare(
             """
@@ -213,17 +218,14 @@ public final class SearchDatabase: @unchecked Sendable {
             JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
             JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
             \(scopeCondition)
-            ORDER BY sor.display_title COLLATE NOCASE ASC,
-                     sf.subtitle_path COLLATE NOCASE ASC,
+            ORDER BY g.subtitle_file_id ASC,
                      g.start_ms ASC, g.end_ms ASC, g.id ASC,
                      l.display_order ASC, l.event_index ASC, l.id ASC
             """
         )
         _ = try bindPathPrefixes(pathPrefixes, to: statement, startingAt: 1)
 
-        var accepted: [AllCuePageCandidate] = []
-        var fileSummaryAccumulator = SearchFileSummaryAccumulator()
-        var acceptedCount = 0
+        var matchedCandidates: [AllCuePageCandidate] = []
         while try statement.step() {
             try Task.checkCancellation()
             let candidate = searchCandidate(from: statement)
@@ -238,16 +240,30 @@ public final class SearchDatabase: @unchecked Sendable {
             ) else {
                 continue
             }
-
-            fileSummaryAccumulator.add(candidate: candidate)
-            if acceptedCount >= offset && accepted.count < requestedLimit {
-                accepted.append(
-                    AllCuePageCandidate(
-                        candidate: candidate,
-                        cueLineRecord: cueLineRecord,
-                        displayLanguages: displayLanguages
-                    )
+            matchedCandidates.append(
+                AllCuePageCandidate(
+                    candidate: candidate,
+                    cueLineRecord: cueLineRecord,
+                    displayLanguages: displayLanguages
                 )
+            )
+        }
+        let sortedCandidates = matchedCandidates.enumerated().sorted { lhs, rhs in
+            let lhsRank = fileOrder.ranks[lhs.element.candidate.subtitleFileID] ?? .max
+            let rhsRank = fileOrder.ranks[rhs.element.candidate.subtitleFileID] ?? .max
+            if lhsRank != rhsRank {
+                return lhsRank < rhsRank
+            }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
+
+        var accepted: [AllCuePageCandidate] = []
+        var fileSummaryAccumulator = SearchFileSummaryAccumulator()
+        var acceptedCount = 0
+        for item in sortedCandidates {
+            fileSummaryAccumulator.add(candidate: item.candidate)
+            if acceptedCount >= offset && accepted.count < requestedLimit {
+                accepted.append(item)
             }
             acceptedCount += 1
         }
@@ -1401,6 +1417,7 @@ public final class SearchDatabase: @unchecked Sendable {
         let order: SearchResultOrder
         let watchState: LibraryWatchState
         let folderPath: String
+        let folderTitle: String
     }
 
     private struct SearchCoveringCueLineRecord {
@@ -1824,7 +1841,8 @@ public final class SearchDatabase: @unchecked Sendable {
                    sor.folder_order,
                    sor.file_order,
                    COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)'),
-                   sor.folder_path
+                   sor.folder_path,
+                   sor.folder_title
             FROM subtitle_search_order_rows sor
             JOIN subtitle_files sf ON sf.id = sor.subtitle_file_id
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
@@ -1833,9 +1851,7 @@ public final class SearchDatabase: @unchecked Sendable {
             WHERE 1 = 1
             \(scopeCondition)
             \(subtitlePathCondition)
-            \(watchStateCondition)
-            ORDER BY sor.display_title COLLATE NOCASE ASC,
-                     sf.subtitle_path COLLATE NOCASE ASC;
+            \(watchStateCondition);
             """
         )
         var bindIndex = try bindPathPrefixes(pathPrefixes, to: statement, startingAt: 1)
@@ -1849,8 +1865,12 @@ public final class SearchDatabase: @unchecked Sendable {
         }
 
         var order = SearchFileOrder(firstFileIDs: excludedFolders == nil ? nil : [])
+        var loadedFiles: [SearchFileMetadata] = []
         while try statement.step() {
             let fileID = statement.int64Column(0)
+            guard order.files[fileID] == nil else {
+                continue
+            }
             let subtitlePathValue = statement.stringColumn(1)
             let subtitleFormat = SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt
             let videoPath = statement.stringColumn(3)
@@ -1863,11 +1883,11 @@ public final class SearchDatabase: @unchecked Sendable {
             )
             let watchState = LibraryWatchState(rawValue: statement.stringColumn(9)) ?? .unwatched
             let folderPath = statement.stringColumn(10)
-            if order.ranks[fileID] == nil {
-                order.ranks[fileID] = order.ranks.count
-            }
-            order.folderPaths[fileID] = folderPath
-            order.files[fileID] = SearchFileMetadata(
+            let rawFolderTitle = statement.stringColumn(11)
+            let folderTitle = rawFolderTitle.isEmpty
+                ? URL.fromMediaPath(folderPath).lastPathComponent
+                : rawFolderTitle
+            let metadata = SearchFileMetadata(
                 subtitleFileID: fileID,
                 subtitlePath: subtitlePathValue,
                 subtitleFormat: subtitleFormat,
@@ -1875,13 +1895,50 @@ public final class SearchDatabase: @unchecked Sendable {
                 videoName: videoName,
                 order: resultOrder,
                 watchState: watchState,
-                folderPath: folderPath
+                folderPath: folderPath,
+                folderTitle: folderTitle
             )
+            order.folderPaths[fileID] = folderPath
+            order.files[fileID] = metadata
+            loadedFiles.append(metadata)
             if let excludedFolders, !excludedFolders.contains(folderPath) {
                 order.firstFileIDs?.insert(fileID)
             }
         }
+        loadedFiles.sort(by: Self.compareSearchFiles)
+        for (rank, file) in loadedFiles.enumerated() {
+            order.ranks[file.subtitleFileID] = rank
+        }
         return order
+    }
+
+    private static func compareSearchFiles(
+        _ lhs: SearchFileMetadata,
+        _ rhs: SearchFileMetadata
+    ) -> Bool {
+        let folderTitleCompare = lhs.folderTitle.localizedStandardCompare(rhs.folderTitle)
+        if folderTitleCompare != .orderedSame {
+            return folderTitleCompare == .orderedAscending
+        }
+        let folderPathCompare = lhs.folderPath.localizedStandardCompare(rhs.folderPath)
+        if folderPathCompare != .orderedSame {
+            return folderPathCompare == .orderedAscending
+        }
+        let videoNameCompare = lhs.videoName.localizedStandardCompare(rhs.videoName)
+        if videoNameCompare != .orderedSame {
+            return videoNameCompare == .orderedAscending
+        }
+        let videoPathCompare = lhs.videoPath.localizedStandardCompare(rhs.videoPath)
+        if videoPathCompare != .orderedSame {
+            return videoPathCompare == .orderedAscending
+        }
+        return VideoSubtitles.compareSubtitles(
+            lhsSubtitlePath: lhs.subtitlePath,
+            lhsFormat: lhs.subtitleFormat,
+            rhsSubtitlePath: rhs.subtitlePath,
+            rhsFormat: rhs.subtitleFormat,
+            forVideoPath: lhs.videoPath
+        )
     }
 
     /// FTS hit rowids inside the scope, ordered by file display rank and then

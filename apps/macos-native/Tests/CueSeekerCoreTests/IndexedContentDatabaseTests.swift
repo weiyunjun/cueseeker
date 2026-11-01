@@ -209,3 +209,71 @@ func indexedContentDatabaseOnDemandSubfoldersAndObjects() throws {
     #expect(showObjects[0].subtitles.map(\.name) == ["Episode.ass"])
 }
 
+@Test
+func indexedContentDatabaseSortsSubfoldersNaturallyAndSubtitlesByVideoSubtitlePriority() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        INSERT INTO search_paths(id, path, created_at, updated_at)
+        VALUES (1, '/Volumes/Alpha', 'created', 'updated');
+
+        INSERT INTO library_folders(id, library_id, relative_path)
+        VALUES
+            (10, 1, 'Season 10'),
+            (11, 1, 'Season 2');
+
+        INSERT INTO video_files(id, library_id, folder_id, relative_path, path, video_name, file_size)
+        VALUES
+            (100, 1, 10, 'Season 10/Ep1.mkv', '/Volumes/Alpha/Season 10/Ep1.mkv', 'Ep1.mkv', 1000),
+            (101, 1, 11, 'Season 2/Ep1.mkv', '/Volumes/Alpha/Season 2/Ep1.mkv', 'Ep1.mkv', 1000);
+
+        INSERT INTO subtitle_files(id, library_id, folder_id, relative_path, subtitle_path, format, indexed_at, file_size)
+        VALUES
+            (200, 1, 10, 'Season 10/Ep1.srt', '/Volumes/Alpha/Season 10/Ep1.srt', 'srt', 'indexed', 100),
+            (201, 1, 11, 'Season 2/Ep1.chs.ass', '/Volumes/Alpha/Season 2/Ep1.chs.ass', 'ass', 'indexed', 100),
+            (202, 1, 11, 'Season 2/Ep1.srt', '/Volumes/Alpha/Season 2/Ep1.srt', 'srt', 'indexed', 100),
+            (203, 1, 11, 'Season 2/Ep1.ass', '/Volumes/Alpha/Season 2/Ep1.ass', 'ass', 'indexed', 100);
+
+        INSERT INTO subtitle_video_matches(subtitle_file_id, video_file_id, match_method, confidence, is_active)
+        VALUES
+            (200, 100, 'test', 1, 1),
+            (201, 101, 'test', 1, 1),
+            (202, 101, 'test', 1, 1),
+            (203, 101, 'test', 1, 1);
+
+        INSERT INTO library_video_rows(
+            video_path, video_file_id, subtitle_file_id, video_name, duration,
+            subtitle_path, subtitle_format, folder_path, folder_title,
+            display_title, file_extension, folder_order, video_order, updated_at
+        ) VALUES
+            ('/Volumes/Alpha/Season 10/Ep1.mkv', 100, 200, 'Ep1.mkv', NULL,
+                '/Volumes/Alpha/Season 10/Ep1.srt', 'srt', '/Volumes/Alpha/Season 10', 'Season 10',
+                'Season 10 - 01', 'mkv', 1, 0, 'updated'),
+            ('/Volumes/Alpha/Season 2/Ep1.mkv', 101, 203, 'Ep1.mkv', NULL,
+                '/Volumes/Alpha/Season 2/Ep1.ass', 'ass', '/Volumes/Alpha/Season 2', 'Season 2',
+                'Season 2 - 01', 'mkv', 0, 0, 'updated');
+        """
+    )
+
+    let database = try IndexedContentDatabase(path: databaseURL)
+    let subfolders = try database.subfolders(under: URL(fileURLWithPath: "/Volumes/Alpha"))
+    #expect(subfolders.map(\.folderPath) == [
+        "/Volumes/Alpha/Season 2",
+        "/Volumes/Alpha/Season 10"
+    ])
+
+    let objects = try database.objects(in: "/Volumes/Alpha/Season 2")
+    #expect(objects.count == 1)
+    #expect(objects[0].subtitles.map(\.name) == [
+        "Ep1.ass",
+        "Ep1.srt",
+        "Ep1.chs.ass"
+    ])
+}
+

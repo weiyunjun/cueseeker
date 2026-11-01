@@ -977,7 +977,7 @@ extension ExcerptStore {
                 if lhs.element.createdAt != rhs.element.createdAt {
                     return lhs.element.createdAt > rhs.element.createdAt
                 }
-                return lhs.offset < rhs.offset
+                return lhs.offset > rhs.offset
             }.map(\.element)
         case .mostCharacters, .fewestCharacters:
             let widths = relations.map { relation -> Int in

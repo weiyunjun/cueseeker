@@ -853,8 +853,12 @@ public final class IndexingDatabase: @unchecked Sendable {
         }.joined(separator: " OR ")
         let select = try database.prepare(
             """
-            SELECT sf.id, sf.subtitle_path
+            SELECT sf.id, sf.subtitle_path, sf.format,
+                   COALESCE(vf.path, ''), COALESCE(vf.video_name, '')
             FROM subtitle_files sf
+            LEFT JOIN subtitle_video_matches m
+              ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            LEFT JOIN video_files vf ON vf.id = m.video_file_id
             WHERE (\(scopeCondition))
             ORDER BY sf.subtitle_path ASC;
             """
@@ -879,6 +883,9 @@ public final class IndexingDatabase: @unchecked Sendable {
                 SearchOrderFile(
                     subtitleFileID: select.int64Column(0),
                     subtitlePath: subtitlePath,
+                    subtitleFormat: SubtitleFormat(rawValue: select.stringColumn(2)) ?? .srt,
+                    videoPath: select.stringColumn(3),
+                    videoName: select.stringColumn(4),
                     folderPath: folderPath,
                     folderTitle: URL.fromMediaPath(
                         folderPath
@@ -898,10 +905,14 @@ public final class IndexingDatabase: @unchecked Sendable {
             let prefix = Self.subtitlePathPrefix(forFolderPath: folderPath)
             statement = try database.prepare(
                 """
-                SELECT id, subtitle_path
-                FROM subtitle_files
-                WHERE subtitle_path >= ? AND subtitle_path < ?
-                ORDER BY subtitle_path ASC;
+                SELECT sf.id, sf.subtitle_path, sf.format,
+                       COALESCE(vf.path, ''), COALESCE(vf.video_name, '')
+                FROM subtitle_files sf
+                LEFT JOIN subtitle_video_matches m
+                  ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                LEFT JOIN video_files vf ON vf.id = m.video_file_id
+                WHERE sf.subtitle_path >= ? AND sf.subtitle_path < ?
+                ORDER BY sf.subtitle_path ASC;
                 """
             )
             try statement.bind(prefix, at: 1)
@@ -909,9 +920,13 @@ public final class IndexingDatabase: @unchecked Sendable {
         } else {
             statement = try database.prepare(
                 """
-                SELECT id, subtitle_path
-                FROM subtitle_files
-                ORDER BY subtitle_path ASC;
+                SELECT sf.id, sf.subtitle_path, sf.format,
+                       COALESCE(vf.path, ''), COALESCE(vf.video_name, '')
+                FROM subtitle_files sf
+                LEFT JOIN subtitle_video_matches m
+                  ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                LEFT JOIN video_files vf ON vf.id = m.video_file_id
+                ORDER BY sf.subtitle_path ASC;
                 """
             )
         }
@@ -925,6 +940,9 @@ public final class IndexingDatabase: @unchecked Sendable {
                 SearchOrderFile(
                     subtitleFileID: subtitleFileID,
                     subtitlePath: subtitlePath,
+                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
+                    videoPath: statement.stringColumn(3),
+                    videoName: statement.stringColumn(4),
                     folderPath: folderPath,
                     folderTitle: URL.fromMediaPath(folderPath).lastPathComponent,
                     subtitleFileName: URL.fromMediaPath(subtitlePath).lastPathComponent
@@ -974,11 +992,27 @@ public final class IndexingDatabase: @unchecked Sendable {
 
         for (folderOrder, folderPath) in folderPaths.enumerated() {
             let files = (filesByFolderPath[folderPath] ?? []).sorted { lhs, rhs in
+                let videoNameComparison = lhs.videoName.localizedStandardCompare(rhs.videoName)
+                if videoNameComparison != .orderedSame {
+                    return videoNameComparison == .orderedAscending
+                }
+                let videoPathComparison = lhs.videoPath.localizedStandardCompare(rhs.videoPath)
+                if videoPathComparison != .orderedSame {
+                    return videoPathComparison == .orderedAscending
+                }
+                if !lhs.videoPath.isEmpty {
+                    return VideoSubtitles.compareSubtitles(
+                        lhsSubtitlePath: lhs.subtitlePath,
+                        lhsFormat: lhs.subtitleFormat,
+                        rhsSubtitlePath: rhs.subtitlePath,
+                        rhsFormat: rhs.subtitleFormat,
+                        forVideoPath: lhs.videoPath
+                    )
+                }
                 let filenameComparison = lhs.subtitleFileName.localizedStandardCompare(rhs.subtitleFileName)
                 if filenameComparison != .orderedSame {
                     return filenameComparison == .orderedAscending
                 }
-
                 return lhs.subtitlePath.localizedStandardCompare(rhs.subtitlePath) == .orderedAscending
             }
 
@@ -1052,6 +1086,9 @@ public final class IndexingDatabase: @unchecked Sendable {
     private struct SearchOrderFile {
         let subtitleFileID: Int64
         let subtitlePath: String
+        let subtitleFormat: SubtitleFormat
+        let videoPath: String
+        let videoName: String
         let folderPath: String
         let folderTitle: String
         let subtitleFileName: String

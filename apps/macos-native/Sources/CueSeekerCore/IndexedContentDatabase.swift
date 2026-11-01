@@ -140,7 +140,15 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                 ))
             }
         }
-        return folders
+        return folders.sorted { lhs, rhs in
+            let lhsTitle = URL.fromMediaPath(lhs.folderPath).lastPathComponent
+            let rhsTitle = URL.fromMediaPath(rhs.folderPath).lastPathComponent
+            let titleComparison = lhsTitle.localizedStandardCompare(rhsTitle)
+            if titleComparison != .orderedSame {
+                return titleComparison == .orderedAscending
+            }
+            return lhs.folderPath.localizedStandardCompare(rhs.folderPath) == .orderedAscending
+        }
     }
 
     /// Returns the indexed objects (videos with subtitles) in a specific folder.
@@ -271,6 +279,7 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             SELECT match.video_file_id,
                    sf.id,
                    sf.subtitle_path,
+                   sf.format,
                    COALESCE(sf.file_size, 0)
             FROM subtitle_video_matches match
             JOIN subtitle_files sf
@@ -285,26 +294,40 @@ public final class IndexedContentDatabase: @unchecked Sendable {
         for (i, id) in videoIDs.enumerated() {
             try statement.bind(id, at: Int32(i + 1))
         }
-        var subtitlesByVideoID: [Int64: [IndexedContentSubtitle]] = [:]
+        var subtitlesByVideoID: [Int64: [(subtitle: IndexedContentSubtitle, format: SubtitleFormat)]] = [:]
         while try statement.step() {
             let videoID = statement.int64Column(0)
             let subtitlePath = statement.stringColumn(2)
-            subtitlesByVideoID[videoID, default: []].append(IndexedContentSubtitle(
-                id: statement.int64Column(1),
-                path: subtitlePath,
-                name: URL.fromMediaPath(subtitlePath).lastPathComponent,
-                fileSize: statement.int64Column(3)
+            let format = SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt
+            subtitlesByVideoID[videoID, default: []].append((
+                subtitle: IndexedContentSubtitle(
+                    id: statement.int64Column(1),
+                    path: subtitlePath,
+                    name: URL.fromMediaPath(subtitlePath).lastPathComponent,
+                    fileSize: statement.int64Column(4)
+                ),
+                format: format
             ))
         }
         for (videoID, subs) in subtitlesByVideoID {
             if let index = objectIndices[videoID] {
+                let videoPath = objects[index].videoPath
+                let sortedSubs = subs.sorted { lhs, rhs in
+                    VideoSubtitles.compareSubtitles(
+                        lhsSubtitlePath: lhs.subtitle.path,
+                        lhsFormat: lhs.format,
+                        rhsSubtitlePath: rhs.subtitle.path,
+                        rhsFormat: rhs.format,
+                        forVideoPath: videoPath
+                    )
+                }.map(\.subtitle)
                 objects[index] = IndexedContentObject(
                     id: objects[index].id,
                     displayTitle: objects[index].displayTitle,
-                    videoPath: objects[index].videoPath,
+                    videoPath: videoPath,
                     videoName: objects[index].videoName,
                     fileSize: objects[index].fileSize,
-                    subtitles: subs
+                    subtitles: sortedSubs
                 )
             }
         }
@@ -319,6 +342,7 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             SELECT match.video_file_id,
                    sf.id,
                    sf.subtitle_path,
+                   sf.format,
                    COALESCE(sf.file_size, 0)
             FROM subtitle_video_matches match
             JOIN subtitle_files sf
@@ -330,22 +354,47 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             """
         )
 
+        var subtitlesByVideoID: [Int64: [(subtitle: IndexedContentSubtitle, format: SubtitleFormat)]] = [:]
         while try statement.step() {
             let videoID = statement.int64Column(0)
-            guard let objectLocation = objectLocations[videoID] else {
+            guard objectLocations[videoID] != nil else {
                 continue
             }
 
             let subtitlePath = statement.stringColumn(2)
-            roots[objectLocation.rootIndex]
-                .folders[objectLocation.folderIndex]
-                .objects[objectLocation.objectIndex]
-                .subtitles.append(IndexedContentSubtitle(
+            let format = SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt
+            subtitlesByVideoID[videoID, default: []].append((
+                subtitle: IndexedContentSubtitle(
                     id: statement.int64Column(1),
                     path: subtitlePath,
                     name: URL.fromMediaPath(subtitlePath).lastPathComponent,
-                    fileSize: statement.int64Column(3)
-                ))
+                    fileSize: statement.int64Column(4)
+                ),
+                format: format
+            ))
+        }
+
+        for (videoID, subs) in subtitlesByVideoID {
+            guard let objectLocation = objectLocations[videoID] else {
+                continue
+            }
+            let videoPath = roots[objectLocation.rootIndex]
+                .folders[objectLocation.folderIndex]
+                .objects[objectLocation.objectIndex]
+                .videoPath
+            let sortedSubs = subs.sorted { lhs, rhs in
+                VideoSubtitles.compareSubtitles(
+                    lhsSubtitlePath: lhs.subtitle.path,
+                    lhsFormat: lhs.format,
+                    rhsSubtitlePath: rhs.subtitle.path,
+                    rhsFormat: rhs.format,
+                    forVideoPath: videoPath
+                )
+            }.map(\.subtitle)
+            roots[objectLocation.rootIndex]
+                .folders[objectLocation.folderIndex]
+                .objects[objectLocation.objectIndex]
+                .subtitles = sortedSubs
         }
     }
 }

@@ -497,9 +497,56 @@ func excerptListsKeepIndependentSearchFilterAndSortStateAndUseEarliestDateAddedT
     #expect(app.excerpt.tableSortOrder == .earliestDateAdded)
     #expect(app.excerpt.tableResultExcerptIDs == [itemA.id, itemB.id, itemC.id])
 
-    // Latest Date Added sorts by created_at DESC with Earliest Date Added tie-breaker.
+    // Latest Date Added sorts by created_at DESC, id DESC (strict reverse of Earliest Date Added).
     app.updateExcerptSortOrder(.latestDateAdded)
     #expect(app.excerpt.tableResultExcerptIDs == [itemC.id, itemB.id, itemA.id])
+
+    // Same-timestamp batch-saved items keep insertion order in Earliest Date Added and reverse in Latest Date Added.
+    let sameTimestamp = Date(timeIntervalSince1970: 500)
+    let batchItem1 = try makeExcerpt(
+        in: indexingDatabase,
+        id: 206,
+        content: "batch first",
+        listID: secondList.id,
+        createdAt: sameTimestamp
+    )
+    let batchItem2 = try makeExcerpt(
+        in: indexingDatabase,
+        id: 207,
+        content: "batch second",
+        listID: secondList.id,
+        createdAt: sameTimestamp
+    )
+    let batchItem3 = try makeExcerpt(
+        in: indexingDatabase,
+        id: 208,
+        content: "batch third",
+        listID: secondList.id,
+        createdAt: sameTimestamp
+    )
+    app.openExcerptList(id: secondList.id)
+    try await waitForExcerptTasksToFinish(app)
+    #expect(app.excerpt.tableSortOrder == .earliestDateAdded)
+    #expect(app.excerpt.tableResultExcerptIDs == [
+        secondItem1.id,
+        secondItem2.id,
+        batchItem1.id,
+        batchItem2.id,
+        batchItem3.id
+    ])
+    app.updateExcerptSortOrder(.latestDateAdded)
+    #expect(app.excerpt.tableResultExcerptIDs == [
+        batchItem3.id,
+        batchItem2.id,
+        batchItem1.id,
+        secondItem2.id,
+        secondItem1.id
+    ])
+    app.updateExcerptSortOrder(.earliestDateAdded)
+
+    // Switch back to First List to continue verifying Most/Fewest Characters.
+    app.openExcerptList(id: firstList.id)
+    try await waitForExcerptTasksToFinish(app)
 
     // Most Characters sorts by characterWidth DESC and breaks ties by Earliest Date Added (itemA before itemC).
     app.updateExcerptSortOrder(.mostCharacters)
@@ -521,7 +568,13 @@ func excerptListsKeepIndependentSearchFilterAndSortStateAndUseEarliestDateAddedT
     #expect(app.excerpt.tableSearchDraft == "")
     #expect(app.excerpt.tableFacetFilter == CueFacetFilter())
     #expect(app.excerpt.tableSortOrder == .earliestDateAdded)
-    #expect(app.excerpt.tableResultExcerptIDs == [secondItem1.id, secondItem2.id])
+    #expect(app.excerpt.tableResultExcerptIDs == [
+        secondItem1.id,
+        secondItem2.id,
+        batchItem1.id,
+        batchItem2.id,
+        batchItem3.id
+    ])
 
     app.updateExcerptSearchQuery("longer")
     app.updateExcerptSortOrder(.mostCharacters)

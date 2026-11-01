@@ -230,12 +230,24 @@ func filterDialogListsFoldersLastInLibraryOrderAndTogglesThemInTheSelection() {
         characterCounts: [:],
         languageCounts: [:],
         watchStateCounts: [:],
-        folderCounts: ["/Media/beta": 2, "/Media/Alpha": 1, "/Other/alpha": 0]
+        folderCounts: [
+            "/Media/Season 10": 0,
+            "/Media/Season 2": 0,
+            "/Media/beta": 2,
+            "/Media/Alpha": 1,
+            "/Other/Alpha": 0
+        ]
     )
-    // The library's folders by name, then path, without regard to case.
+    // The library's folders by natural name order, then path.
     let folders = CueFacetFolderOption.listed(emptyDistribution: distribution, snapshot: nil)
-    #expect(folders.map(\.path) == ["/Media/Alpha", "/Other/alpha", "/Media/beta"])
-    #expect(folders.map(\.title) == ["Alpha", "alpha", "beta"])
+    #expect(folders.map(\.path) == [
+        "/Media/Alpha",
+        "/Other/Alpha",
+        "/Media/beta",
+        "/Media/Season 2",
+        "/Media/Season 10"
+    ])
+    #expect(folders.map(\.title) == ["Alpha", "Alpha", "beta", "Season 2", "Season 10"])
 
     let sections = CueFacetSection.sections(
         counts: CueFacetFilterCounts(
@@ -250,13 +262,13 @@ func filterDialogListsFoldersLastInLibraryOrderAndTogglesThemInTheSelection() {
     )
     let folderSection = try! #require(sections.last)
     #expect(folderSection.id == .folder)
-    #expect(folderSection.options.map(\.title) == ["Alpha", "alpha", "beta"])
-    #expect(folderSection.options.map(\.count) == [1, 0, 2])
+    #expect(folderSection.options.map(\.title) == ["Alpha", "Alpha", "beta", "Season 2", "Season 10"])
+    #expect(folderSection.options.map(\.count) == [1, 0, 2, 0, 0])
     #expect(folderSection.options.allSatisfy { !$0.isSelected })
 
     // Selecting one folder leaves the other listed folders out.
     folderSection.options[2].toggle()
-    #expect(filter.excludedFolders == ["/Media/Alpha", "/Other/alpha"])
+    #expect(filter.excludedFolders == ["/Media/Alpha", "/Other/Alpha", "/Media/Season 2", "/Media/Season 10"])
     #expect(filter.isFolderSelected("/Media/beta"))
     #expect(!filter.isFolderSelected("/Media/Alpha"))
 }

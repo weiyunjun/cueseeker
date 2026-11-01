@@ -2615,3 +2615,88 @@ func searchSortOrderOrdersByCharacterWidthWithDefaultOrderTieBreaker() throws {
     #expect(projectedFewestIDs == fewestPage.cueIDs)
 }
 
+@Test
+func searchDefaultOrderAlignsWithLibraryFolderNaturalOrderVideoOrderAndSubtitlePriority() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    func indexCue(_ text: String, subtitlePath: String, videoPath: String) throws {
+        try database.replaceEntries(
+            subtitleFile: URL(fileURLWithPath: subtitlePath),
+            videoFile: URL(fileURLWithPath: videoPath),
+            entries: [
+                SubtitleEntry(
+                    sequenceNumber: 1,
+                    startTimecode: "00:00:01,000",
+                    endTimecode: "00:00:02,000",
+                    startMilliseconds: 1_000,
+                    endMilliseconds: 2_000,
+                    text: text
+                )
+            ]
+        )
+    }
+
+    // Folder natural order: Season 2 before Season 10; same-named folders grouped by path
+    // Video natural order within folder: Episode 2 before Episode 10
+    // Subtitle priority within video: exact basename match (.ass -> .srt) before language suffix (.chs.ass)
+    try indexCue(
+        "match s10-e1",
+        subtitlePath: "/DiskA/Season 10/Episode 1.srt",
+        videoPath: "/DiskA/Season 10/Episode 1.mkv"
+    )
+    try indexCue(
+        "match s2-e10",
+        subtitlePath: "/DiskA/Season 2/Episode 10.srt",
+        videoPath: "/DiskA/Season 2/Episode 10.mkv"
+    )
+    try indexCue(
+        "match s2-e2-chs",
+        subtitlePath: "/DiskA/Season 2/Episode 2.chs.ass",
+        videoPath: "/DiskA/Season 2/Episode 2.mkv"
+    )
+    try indexCue(
+        "match s2-e2-srt",
+        subtitlePath: "/DiskA/Season 2/Episode 2.srt",
+        videoPath: "/DiskA/Season 2/Episode 2.mkv"
+    )
+    try indexCue(
+        "match s2-e2-ass",
+        subtitlePath: "/DiskA/Season 2/Episode 2.ass",
+        videoPath: "/DiskA/Season 2/Episode 2.mkv"
+    )
+    try indexCue(
+        "match diskB-s1-e1",
+        subtitlePath: "/DiskB/Season 1/Episode 1.srt",
+        videoPath: "/DiskB/Season 1/Episode 1.mkv"
+    )
+    try indexCue(
+        "match diskA-s1-e2",
+        subtitlePath: "/DiskA/Season 1/Episode 2.srt",
+        videoPath: "/DiskA/Season 1/Episode 2.mkv"
+    )
+    try indexCue(
+        "match diskA-s1-e1",
+        subtitlePath: "/DiskA/Season 1/Episode 1.srt",
+        videoPath: "/DiskA/Season 1/Episode 1.mkv"
+    )
+
+    let search = try SearchDatabase(path: databaseURL)
+    let page = try search.searchPage("match", limit: 20, sortOrder: .default)
+    #expect(page.results.map(\.content) == [
+        "match diskA-s1-e1",
+        "match diskA-s1-e2",
+        "match diskB-s1-e1",
+        "match s2-e2-ass",
+        "match s2-e2-srt",
+        "match s2-e2-chs",
+        "match s2-e10",
+        "match s10-e1"
+    ])
+}
+

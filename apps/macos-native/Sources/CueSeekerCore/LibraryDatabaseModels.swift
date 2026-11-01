@@ -104,27 +104,46 @@ public struct VideoSubtitles: Equatable, Sendable {
     /// rest follow in Finder's file name order. Names compare the way matching
     /// compares them.
     public init(videoPath: String, subtitles: [VideoSubtitle], defaultSubtitleFileID: Int64?) {
-        let videoName = Self.nameWithoutLastExtension(videoPath)
-        let sharesVideoName = { (subtitle: VideoSubtitle) in
-            Self.nameWithoutLastExtension(subtitle.subtitlePath) == videoName
-        }
         self.subtitles = subtitles.sorted { lhs, rhs in
-            let lhsShares = sharesVideoName(lhs)
-            if lhsShares != sharesVideoName(rhs) {
-                return lhsShares
-            }
-            if lhsShares, lhs.format != rhs.format {
-                return lhs.format.sortPriority < rhs.format.sortPriority
-            }
-            let lhsName = URL.fromMediaPath(lhs.subtitlePath).lastPathComponent
-            let rhsName = URL.fromMediaPath(rhs.subtitlePath).lastPathComponent
-            let nameComparison = lhsName.localizedStandardCompare(rhsName)
-            if nameComparison != .orderedSame {
-                return nameComparison == .orderedAscending
-            }
-            return lhs.subtitlePath < rhs.subtitlePath
+            Self.compareSubtitles(
+                lhsSubtitlePath: lhs.subtitlePath,
+                lhsFormat: lhs.format,
+                rhsSubtitlePath: rhs.subtitlePath,
+                rhsFormat: rhs.format,
+                forVideoPath: videoPath
+            )
         }
         self.defaultSubtitleFileID = defaultSubtitleFileID
+    }
+
+    public static func compareSubtitles(
+        lhsSubtitlePath: String,
+        lhsFormat: SubtitleFormat,
+        rhsSubtitlePath: String,
+        rhsFormat: SubtitleFormat,
+        forVideoPath videoPath: String
+    ) -> Bool {
+        let videoName = nameWithoutLastExtension(videoPath)
+        let lhsBase = nameWithoutLastExtension(lhsSubtitlePath)
+        let rhsBase = nameWithoutLastExtension(rhsSubtitlePath)
+        let lhsShares = lhsBase == videoName
+        let rhsShares = rhsBase == videoName
+        if lhsShares != rhsShares {
+            return lhsShares
+        }
+        if lhsBase.caseInsensitiveCompare(rhsBase) == .orderedSame, lhsFormat != rhsFormat {
+            return lhsFormat.sortPriority < rhsFormat.sortPriority
+        }
+        let lhsName = URL.fromMediaPath(lhsSubtitlePath).lastPathComponent
+        let rhsName = URL.fromMediaPath(rhsSubtitlePath).lastPathComponent
+        let nameComparison = lhsName.localizedStandardCompare(rhsName)
+        if nameComparison != .orderedSame {
+            return nameComparison == .orderedAscending
+        }
+        if lhsFormat != rhsFormat {
+            return lhsFormat.sortPriority < rhsFormat.sortPriority
+        }
+        return lhsSubtitlePath < rhsSubtitlePath
     }
 
     /// The default subtitle that takes effect: the first subtitle when none is
