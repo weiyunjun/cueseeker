@@ -42,7 +42,7 @@
 | `caret-down` | Regular | 已展开、下拉 | Library File Tree 展开态；File Info / 文件切换触发器，16px |
 | `sidebar-simple` | Regular | 折叠、展开 Sidebar | Sidebar Toggle |
 | `arrow-left` | Regular | 返回上一级 | Command Panel Secondary / Back Action |
-| `arrow-right` | Regular | 送往列表 | 表格行菜单 / Save to Excerpt List、Move to ...、Duplicate to ... |
+| `arrow-right` | Regular | 送往列表 | 表格行菜单 / Save to Excerpt List、Move to ...、Duplicate to ...；Search / Excerpt Toolbar / Save to Excerpt List、Move to ...、Duplicate to ... |
 | `x` | Regular | 关闭、清除、移除 | Icon Button / Inline Clear；Icon Button / Dialog Close；Task Card / Remove Action；Export to Anki Dialog / Card Item Remove，12px |
 | `check` | Regular | 已选 | Radio Menu Item |
 | `magnifying-glass` | Regular | 搜索 | Search Field；Sidebar Item / Search；Player Topbar、Playback Topbar / Command Panel Entry；Command Panel Root / Search Action；Playback Overlay 选中文字菜单 / Search Selected Text |
@@ -56,7 +56,7 @@
 | --- | --- | --- | --- |
 | `squares-four` | Regular | Library | Sidebar Item / Library |
 | `folder` | Regular | 文件夹 | Sidebar Item / File；File Page / Add Folder 菜单 / Local Folder；表格行菜单 / Open Subtitle Folder；Library 卡片菜单 / Open Folder；Library File Tree / Root Path、Object Folder；Export to Anki Dialog / Location |
-| `bookmark-simple` | Regular | Excerpt | Sidebar Item / Excerpt；Command Panel Root / Recent Excerpt Lists；表格行菜单 / Remove Excerpt；Playback Feedback（移出 Excerpt）；Excerpt List 封面占位，57px |
+| `bookmark-simple` | Regular | Excerpt | Sidebar Item / Excerpt；Command Panel Root / Recent Excerpt Lists；表格行菜单、Search / Excerpt Toolbar / Remove Excerpt；Playback Feedback（移出 Excerpt）；Excerpt List 封面占位，57px |
 | `bookmark-simple` | Fill | 已存入 Excerpt | Playback Feedback（Save to Excerpt List） |
 | `clock` | Regular | 最近、时长 | Sidebar Item / Recent；Filter Menu / Duration |
 | `gear` | Regular | 设置 | Settings Entry |

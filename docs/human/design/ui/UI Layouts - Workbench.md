@@ -745,7 +745,7 @@
    - Row 2（与下方表格左外框左对齐）：Result Count（Search 为 `xx results`，未输入搜索词时不显示；Excerpt 为 `xx excerpts`，仅统计有效台词）
 2. Select Mode：
    - Row 1（与下方表格等宽，左侧与表格左外框对齐）：从左到右依次为 Selected Count（`xx / yy rows selected`，可选行数不含 Unavailable 行，样式同 Result Count 且保持完整显示不截断）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`，宽度不足时优先缩减并尾部省略 `...`）、靠右对齐表格右外框的 `Exit Selection` 按钮（Button / Destructive，带 18px `sign-out` 图标）
-   - Row 2（与下方表格左外框左对齐）：从左到右依次为 3 个标准 Neutral 按钮：`Export to Anki`（图标 `export`，快捷键 `A`）、`Copy Deep Links`（图标 `link-simple`，快捷键 `D`）、`Copy Table`（图标 `copy`，快捷键 `T`）
+   - Row 2（与下方表格左外框左对齐，单行空间不足时自动换行）：前 3 个通用 Neutral 按钮从左到右固定为 `Export to Anki`（图标 `export`，快捷键 `A`）、`Copy Deep Links`（图标 `link-simple`，快捷键 `D`）、`Copy Table`（图标 `copy`，快捷键 `T`）；Search 表格其后接 `Save to Excerpt List`（Neutral，图标 `arrow-right`，快捷键 `S`），Excerpt 表格其后依次接 `Move to ...`（Neutral，图标 `arrow-right`，快捷键 `M`）、`Duplicate to ...`（Neutral，图标 `arrow-right`，快捷键 `C`）、`Remove Excerpt`（Destructive，图标 `bookmark-simple`，快捷键 `R`）
 
 #### Components
 

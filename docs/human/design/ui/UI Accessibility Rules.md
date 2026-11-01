@@ -247,7 +247,7 @@
 6. **`Search` 一级页面与 `L-05.3 Excerpt` 二级详情页**：
    - `Excerpt` 二级详情页先遍历顶部 `Cover Summary` 操作按钮（`Resume` / `Play` → `More`）；
    - **普通模式（`Normal Mode`）下工具栏与表格**：搜索框（及内部 `✕`） → `Filter` 按钮 → `Sort` 按钮 → 表格表头首列 `#` 全选框（存在有效行时） → 表格各数据行（从上到下：有效行依次走「首列勾选框 → 台词文字 → 右侧 `dots-three` 按钮」；`Unavailable` 行仅走「右侧 `dots-three` 按钮」）；
-   - **批量选择模式（`Select Mode`）下工具栏与表格**：第一行右侧 `Exit Selection` 按钮 → 第二行 `Export to Anki` 按钮 → `Copy Deep Links` 按钮 → `Copy Table` 按钮 → 表格表头首列 `#` 全选框 → 表格各有效数据行的首列勾选框（从上到下；`Unavailable` 行跳过）。
+   - **批量选择模式（`Select Mode`）下工具栏与表格**：第一行右侧 `Exit Selection` 按钮 → 第二行批量操作按钮（按当前页面从左到右：`Export to Anki` → `Copy Deep Links` → `Copy Table` → Search 页 `Save to Excerpt List` / Excerpt 页 `Move to ...` → `Duplicate to ...` → `Remove Excerpt`） → 表格表头首列 `#` 全选框 → 表格各有效数据行的首列勾选框（从上到下；`Unavailable` 行跳过）。
 
 ## 3.2 设置窗口布局（`L-02 Settings`）
 

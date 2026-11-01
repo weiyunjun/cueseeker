@@ -795,7 +795,7 @@
 - Structure：Excerpt List 项依次排列，末尾是 Menu Divider 与 New List 项；没有列表项时不显示 Divider
 - 列表项按创建时间正序，与 Excerpt 一级界面的卡片顺序一致
 - 由 Move to ... 与 Duplicate to ... 展开时不含当前所在的列表；由 Save to Excerpt List 展开时含全部列表
-- 也由 Playback Footer 的 Save to Excerpt List 按钮直接弹出，挂靠该按钮，内容与表格行菜单的 Save to Excerpt List 相同
+- 也由 Playback Footer 的 Save to Excerpt List 按钮，以及 Search / Excerpt Toolbar（Select Mode）的 Save to Excerpt List、Move to ...、Duplicate to ... 按钮直接弹出，挂靠对应按钮，内容与表格行菜单的同名项相同
 - Item：Menu Item / Action Menu Item，均不带 Leading Icon
 
 ##### Audio Track Submenu

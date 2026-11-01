@@ -409,6 +409,42 @@
 - Scenario ID：toolbar.selection.copy-table
 - 所在位置：Search / Excerpt Toolbar（Select Mode 第二行）
 
+### 29.1 批量选择保存到摘录列表按钮（Toolbar Save to Excerpt List Button）
+- 英文：Save to Excerpt List
+- 简体中文：保存到摘录列表
+- 繁体中文：儲存至摘錄列表
+- 快捷键：`S`（固定键位）
+- 触发延迟：1秒
+- Scenario ID：toolbar.selection.save-to-excerpt
+- 所在位置：Search Toolbar（Select Mode 第二行）
+
+### 29.2 批量选择移动到摘录列表按钮（Toolbar Move to Excerpt List Button）
+- 英文：Move to ...
+- 简体中文：移动到...
+- 繁体中文：移動至...
+- 快捷键：`M`（固定键位）
+- 触发延迟：1秒
+- Scenario ID：toolbar.selection.move-to-excerpt
+- 所在位置：Excerpt Toolbar（Select Mode 第二行）
+
+### 29.3 批量选择复制到摘录列表按钮（Toolbar Duplicate to Excerpt List Button）
+- 英文：Duplicate to ...
+- 简体中文：复制到...
+- 繁体中文：複製至...
+- 快捷键：`C`（固定键位）
+- 触发延迟：1秒
+- Scenario ID：toolbar.selection.duplicate-to-excerpt
+- 所在位置：Excerpt Toolbar（Select Mode 第二行）
+
+### 29.4 批量选择移除摘录按钮（Toolbar Remove Excerpt Button）
+- 英文：Remove Excerpt
+- 简体中文：移除摘录
+- 繁体中文：移除摘錄
+- 快捷键：`R`（固定键位）
+- 触发延迟：1秒
+- Scenario ID：toolbar.selection.remove-excerpt
+- 所在位置：Excerpt Toolbar（Select Mode 第二行）
+
 ---
 
 ## 四、状态与异常指示器（Status Indicator Tooltips）
