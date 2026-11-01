@@ -717,15 +717,15 @@
 ##### Sizes
 
 - Padding：`--padding-menu`
-- Max Height：自然高度、`--max-height-menu`、菜单所在一侧的可用空间，三者取小
+- Max Height：自然高度、`--max-height-menu`、所属边界容器的可用高度，三者取小
 - Menu Item 的 Radius 等于 `--radius-menu` 减 `--padding-menu`
 
 ##### Placement
 
 - Anchor：由按钮弹出时挂靠该按钮，由右键弹出时挂靠右键点中的内容
-- Direction：默认朝下；下方空间不足时朝上；两侧都不足时取空间较大的一侧
+- Direction：默认朝下；下方空间不足且上方空间充足时朝上；上下单侧空间均不足但边界容器总高度足够时，保持完整高度沿容器边界贴边平移
 - 方向与高度在弹出瞬间确定一次，之后随挂靠对象平移，不再重新计算
-- Workbench 表格行菜单以表格正文区域为边界；跟随挂靠对象移动而越过边界的部分被裁剪
+- Workbench 表格行菜单及其二级菜单以表格所在容器区域为边界（可向上跨越表头与页面头部区域）
 - Player Subtitle Menu、Player Speed Menu、Player More Menu 及其二级菜单以播放页顶栏与底栏按钮之间的区域为边界
 
 ##### States
