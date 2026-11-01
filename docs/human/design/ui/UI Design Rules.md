@@ -11,17 +11,17 @@
 - **白名单原则**：仅针对按钮类触发器、筛选筹码与可点击文件夹卡片引入 `Pressed` 视觉反馈；其余容器、列表与导航组件保持按住不改变外观。
 - **允许拥有按下态的组件白名单**：
   1. **按钮与快捷动作**：`C-03.1 Button`（`Neutral`、`Cover Summary`、`Primary`、`Destructive` 及设置页字体下拉触发器）、`C-03.2 Icon Button`（含 `C-05.2 Sidebar Toggle`、卡片与表格行 `dots-three` 按钮、设置页恢复默认按钮、导出 Anki 的 `+` 与条目 `✕` 按钮）、`C-03.3 Shortcut Action Button`（内部 `C-08.9 Keycap` 同步进入 `Pressed`）、`L-06.8 File Detail Dialog Layout` 中 `File Info` 顶部文件切换触发器。
-  2. **筛选筹码与文件夹卡片**：`C-02.5 Filter Chip`（未选中与已选中）、`L-04.6 File Card Layout` 中的一级与二级可点击文件夹卡片（按住右侧 `dots-three` 按钮时仅按钮自身进入 `Pressed`，卡片维持 `Hover`）。
+  2. **筛选筹码与文件夹卡片**：`C-02.5 Filter Chip`（未选中与已选中）、`L-04.6 File Card Layout` 中的一级与二级可点击文件夹卡片（按住右侧 `dots-three` 按钮时仅按钮自身进入 `Pressed`，卡片维持 `Hover`）、`L-06.4` 远程目录浏览中的未添加文件夹主卡片与右侧独立 `>` 按钮。
   3. **播放控制按钮**：`C-12.1 Player Speed Button`、播放页顶底栏 `Icon Button`、`C-12.5 Player Volume Control` 左侧静音喇叭按钮（拖拽音量滑块不触发按钮 `Pressed`）、`C-12.7 Player Cue Queue Control Bar` 内部按钮。
 - **几何零缩放与 `Open` 态衔接**：`Pressed` 态严禁缩放几何尺寸或偏移内容，仅将背景色在 `Hover` 态基础上推进一档（带边框控件保持 `Hover` 边框色）；处于 `Open` 态（外观同 `Hover`）的按钮再次被按住时，同样切换为 `Pressed` 外观。
-- **非白名单维持原貌**：媒体卡片 `C-11.5`、File 剧集分组文件行、远程目录浏览弹窗卡片、任务卡片 `L-06.10`、表头与表格行 `C-06.2`/`C-06.3`、Sidebar 项 `C-05.3`、标签页 `C-05.5`、面包屑 `C-05.6`、菜单项 `C-04.3`、分段控制器 `C-02.4`、复选框 `C-02.1`、开关 `C-02.2`、输入框 `C-01` 等按住期间保持既有外观不变。
+- **非白名单维持原貌**：媒体卡片 `C-11.5`、File 剧集分组文件行、远程目录浏览中已添加文件夹主卡片与文件卡片、任务卡片 `L-06.10`、表头与表格行 `C-06.2`/`C-06.3`、Sidebar 项 `C-05.3`、标签页 `C-05.5`、面包屑 `C-05.6`、菜单项 `C-04.3`、分段控制器 `C-02.4`、复选框 `C-02.1`、开关 `C-02.2`、输入框 `C-01` 等按住期间保持既有外观不变。
 
 ## 1.2 选中态（Selected）组件白名单
 - **白名单原则**：只有具备「持久状态、当前位置指示或键盘导航焦点」语义的组件才拥有 `Selected`（或 `Checked`）视觉状态。
 - **允许拥有选中态的组件白名单**：
   1. **选择控件**：`C-02.1 Checkbox`（`Checked` / `Indeterminate`）、`C-02.2 Switch`、`C-02.4 Segmented Control`、`C-02.5 Filter Chip`。
   2. **导航与菜单项**：`C-04.3 Menu Item`（仅 Command Panel 首页选项的键盘/默认选中态，以及 `Radio Menu Item` 的勾选项；所有弹出菜单与二级菜单项将 Hover 与 Select 合并为统一的 Hover 样式）、`C-05.3 Sidebar Item`、`C-05.5 Tab`、`C-05.6 Breadcrumb`（仅当前所在层级末节点为激活样式，前置祖先节点无选中态）。
-  3. **列表、卡片与台词流**：`C-06.3 Table Row`（批量选择勾选行）、`C-11.5 Media Card`（Playback 界面卡片网格中的常驻选中项，以及 Workbench 界面卡片网格在无障碍光圈位于网格内时的联动选中项）、`C-13.1 Playback Cue Metadata`、`C-13.2 Subtitle Focus Cue`、`C-13.3 Playback Cue Result`。`
+  3. **列表、卡片与台词流**：`C-06.3 Table Row`（批量选择勾选行）、`C-11.5 Media Card`（Playback 界面卡片网格中的常驻选中项，以及 Workbench 界面卡片网格在无障碍光圈位于网格内时的联动选中项）、`L-06.4` 远程目录浏览中的未添加文件夹主卡片（多选选中项）、`C-13.1 Playback Cue Metadata`、`C-13.2 Subtitle Focus Cue`、`C-13.3 Playback Cue Result`。
 - **非白名单组件禁令**：除上述白名单外，其余动作触发型组件（如 `C-03.1 Button`、`C-03.2 Icon Button`、`C-03.3 Shortcut Action Button` 等）**严禁定义或渲染 `Selected` 态**；当按钮所挂靠的菜单、弹窗或所控模式处于打开状态时，统一使用 `Open` 状态（外观等同于对应表面的 `Hover` 态）；当所挂靠的菜单、弹窗关闭或所控模式退出时，按钮立即退出 `Open` 状态，其高亮底色同步消失并退回 `Default`（仅在当前层未被冻结且指针仍停留在该按钮上时进入 `Hover`）。
 
 ## 1.3 输入框聚焦与报错预留约束

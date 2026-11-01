@@ -992,14 +992,13 @@
    1. Header：`WebDAV Folder`、`SMB Folder`、`FTP Folder` 或 `NFS Folder` + Close Button
    2. Breadcrumb Navigation
    3. Browser Card List
-   4. Footer：左侧 `Back`；右侧 `Cancel`、`Add`
+   4. Footer：左侧 `Back`；右侧 `Cancel`、`Add Current Folder` / `Add 1 Folder` / `Add N Folders`
 
 #### Components
 
 - Dialog
 - Text Field
 - Breadcrumb Navigation
-- Checkbox
 - Watch Status Badge
 - Spinner
 - Empty State
@@ -1012,8 +1011,8 @@
 - Step 1 Width：`--width-dialog-medium`；Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Address` 必填（粘贴百分号编码链接时即时还原为可读字符；`SMB Folder`、`FTP Folder` 与 `NFS Folder` 未带对应协议前缀时点击 `Connect` 自动补全 `smb://`、`ftp://` 或 `nfs://` 解析，不修改输入框内容；`NFS Folder` 支持斜杠路径或 `主机:/导出路径` 写法并由后台自动连接标准 `2049` 端口），`SMB Folder` 与 `FTP Folder` 的 `Port` 必填且分别默认预填 `445` 与 `21`，`Username` 与 `Password` 选填（留空以匿名/访客方式访问），均无占位提示；仅最下方输入框下预留 1 行 Validation Message（左边缘与输入框对齐），成功加载初始目录列表前的任何报错均停留在 Step 1 显示红字。
 - Step 2 Width：`--width-dialog-x-large`，Height：`--height-task-panel`；Header、Breadcrumb 与 Footer 固定，中间列表垂直滚动，滚动条位于右侧 `--inset-dialog` 通道内。
 - Breadcrumb Navigation：以 Step 1 所填地址对应的目录名称或主机名称为起点（不展示或回退至更上层父目录）。
-- Browser Card List：仅展示文件夹（或 SMB 顶层共享文件夹、NFS 顶层导出目录）、受支持的视频与字幕文件（文件夹在上、文件在下，按名称排序）。卡片复用 `L-04.6 File Card Layout` 单行形态（高度 `68px`、内边距 `--spacing-4`、图标底容器 `36×36px`、标题 `--font-size-body` Medium 单行尾部截断；文件夹左侧带 `21px` `Checkbox`，未添加文件夹右侧带 `16px` `caret-right` 箭头，已添加文件夹右侧替换为复用 `Watch Status Badge` `Finished` 绿底白字样式的 `Added` / `已添加` / `已加入` 胶囊标签；文件无复选框、箭头与操作按钮）。
-- 交互与选中态：文件卡片不可点击且无 Hover 效果。未添加文件夹卡片左侧复选框矩形区域支持单击切换同层级多选，卡片其余区域支持单击进入子目录；Hover 背景均为 `--color-row-hover`，勾选后卡片背景与边框保持默认。已添加文件夹（或其子目录）处于 Disabled 状态（左侧复选框固定为灰色 `Checked + Disabled` 样式、右侧显示 `Added` 胶囊标签），不可取消勾选、不可点击进入下一层且无 Hover 效果。单击进入子目录、点击面包屑跳转或点击 `Back` 返回 Step 1 时清空当前选中项；`Back` 返回 Step 1 时保留已输入的表单内容，仅关闭弹窗时清空。
+- Browser Card List：仅展示文件夹（或 SMB 顶层共享文件夹、NFS 顶层导出目录）、受支持的视频与字幕文件（文件夹在上、文件在下，按名称排序）。文件夹行拆分为左侧文件夹主卡片与右侧独立的 `>` 进入按钮（间距 `--spacing-3`）：左侧主卡片复用 `L-04.6 File Card Layout` 单行形态（高度 `68px`、内边距 `--spacing-4`、图标底容器 `36×36px`、标题 `--font-size-body` Medium 单行尾部截断；已添加文件夹在主卡片内部右侧展示复用 `Watch Status Badge` `Finished` 样式的 `Added` / `已添加` / `已加入` 胶囊标签）；右侧 `>` 按钮与主卡片等高（圆角 `--radius-control`、边框 `--color-border-control`、水平内边距 `--padding-control-x`、居中 `caret-right` 图标 `--size-card-chevron`，右边缘与底部主按钮右边缘对齐）。文件卡片无右侧 `>` 按钮，右边框与上方文件夹主卡片右边框对齐。
+- 交互与选中态：文件卡片与已添加文件夹（或其子目录）主卡片本体不可点击选中，无 Hover 与 Pressed 效果。未添加文件夹主卡片支持单击切换同层级多选（未选中时默认背景 `--color-table-bg`、Hover `--color-row-hover`、Pressed `--color-file-folder-card-bg-pressed`、边框 `--color-border-control`；选中时复用 `Filter Chip` 选中态样式，背景 `--color-filter-chip-selected-bg`、Hover `--color-filter-chip-selected-bg-hover`、Pressed `--color-filter-chip-selected-bg-pressed`、边框 `--color-filter-chip-selected-content`）。所有文件夹（含未添加与已添加文件夹）右侧独立的 `>` 按钮均支持单击进入下一级子目录（默认背景 `--color-table-bg`、Hover `--color-row-hover`、Pressed `--color-file-folder-card-bg-pressed`；图标默认 `--color-text-muted`，Hover 与 Pressed 为 `--color-text-primary`）。进入子目录、点击面包屑跳转或点击 `Back` 返回 Step 1 时清空当前选中项；`Back` 返回 Step 1 时保留已输入的表单内容，仅关闭弹窗时清空。
 
 #### Spacing
 
@@ -1027,7 +1026,7 @@
 - Step 1 - Default
 - Step 1 - Validation Error
 - Step 1 - Connecting（全部输入框与 `Connect` 按钮为 Disabled，`Connect` 按钮内左侧展示 `Spinner`）
-- Step 2 - Loaded（`Add` 启用；未勾选子文件夹时添加当前目录自身，勾选一个或多个子文件夹时按从上到下顺序依次入队添加；当未勾选任何文件夹，且处于 `SMB Folder` 主机顶层共享文件夹列表、`NFS Folder` 主机顶层导出目录列表、当前目录自身已添加、或当前层级下所有子文件夹均已添加时，`Add` 为 Disabled）
+- Step 2 - Loaded（未选中子文件夹时底部主按钮显示 `Add Current Folder`，点击添加当前目录自身；选中 1 个或多个子文件夹时分别显示 `Add 1 Folder` / `Add N Folders`，点击按从上到下顺序依次入队添加；当未选中任何文件夹，且处于 `SMB Folder` 主机顶层共享文件夹列表、`NFS Folder` 主机顶层导出目录列表、当前目录自身已添加、或当前层级下所有子文件夹均已添加时，主按钮为 Disabled）
 - Step 2 - Loading Subfolder（列表区居中展示 `Spinner`，`Add` 为 Disabled）
 - Step 2 - Load Failed / Empty（列表区居中展示 `Empty State`：无可用项为图标 `folder`，子目录加载失败为图标 `folder-question` 且 `Add` 为 Disabled）
 
