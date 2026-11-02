@@ -103,7 +103,7 @@
 | `list-checks` | Regular | 选择模式 | 预留，暂无使用位置 |
 | `dots-six-vertical` | Regular | 拖拽手柄 | Export to Anki Dialog / Card Item Handle，12px |
 | `sign-out` | Regular | 退出选择 | Search / Excerpt Toolbar / Exit Selection |
-| `images-square` | Regular | 截图组 | Playback Topbar / Collage Action |
+| `images-square` | Regular | 截图组 | 预留，暂无使用位置 |
 | `trash` | Regular | 删除 | Excerpt List 卡片菜单 / Delete List；Task Card / Delete Action |
 | `copy` | Regular | 复制 | Search / Excerpt Toolbar / Copy Table；表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Playback Overlay 选中文字菜单 / Copy Selected Text；Playback Feedback（复制） |
 | `export` | Regular | 导出、更换封面 | Search / Excerpt Toolbar / Export to Anki；Library 卡片菜单 / Change Cover；Playback Feedback（导出长截图） |

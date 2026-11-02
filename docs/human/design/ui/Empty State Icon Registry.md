@@ -7,7 +7,7 @@
 
 - 画布：256×256
 - 风格：无外边框同色系双色调（Duotone）大图标，通过同色系不同透明度区分前后层次：
-  - 搜索初始引导图标（`search-hint`）：基准色取系统强调色（`macOS accent color`）
+  - 操作引导图标（`search-hint`、`collage-hint`）：基准色取系统强调色（`macOS accent color`）
   - 其余 9 枚空状态与失效态图标：基准色取次要弱化文本中性灰 `--color-text-muted`（Light `#717171`；Dark `#979797`）
 - 线端与拐角：内部线条、`✕` 号、托盘凹槽折线与 `?` 号均采用圆线端、圆拐角
 - 镂空叠加：右下角叠加的放大镜与圆环 `?` 角标，均先以圆形（及放大镜手柄）镂空遮罩裁切底层图形，再绘制角标内底与前景描边，透出所在表面的真实背景色
@@ -20,14 +20,15 @@
 | --- | --- | --- |
 | 68px | `--size-empty-state-icon` | 全界面 `C-09.2 Empty State` 顶部居中图标 |
 
-## 2.2 搜索引导强调色层次（仅 `search-hint`）
+## 2.2 操作引导强调色层次（`search-hint`、`collage-hint`）
 
 | 层次 | Token | 颜色与透明度 | 适用部位 |
 | --- | --- | --- | --- |
 | 放大镜镜面 | `--color-empty-icon-magnifier-fill` | `macOS accent color` Alpha `0.22` | `search-hint` 右下角放大镜镜面填充 |
-| 搜索卡片底板 | `--color-empty-icon-search-card` | `macOS accent color` Alpha `0.30` | `search-hint` 圆角卡片底板 |
-| 搜索文本线 | `--color-empty-icon-search-line` | `macOS accent color` Alpha `0.58` | `search-hint` 卡片内部 5 段水平文本线 |
-| 核心前景层 | `--color-card-icon-accent-foreground` | `macOS accent color`（`100%`） | `search-hint` 放大镜外圈与手柄 |
+| 主体卡片底板 | `--color-empty-icon-search-card` | `macOS accent color` Alpha `0.30` | `search-hint` 圆角卡片底板、`collage-hint` 左下前景相框底板 |
+| 后景叠层框 | `--color-empty-icon-collage-back` | `macOS accent color` Alpha `0.52` | `collage-hint` 右上后景叠层圆角框 |
+| 次要前景层 | `--color-empty-icon-search-line` | `macOS accent color` Alpha `0.58` | `search-hint` 卡片内部 5 段水平文本线、`collage-hint` 左上太阳圆点 |
+| 核心前景层 | `--color-card-icon-accent-foreground` | `macOS accent color`（`100%`） | `search-hint` 放大镜外圈与手柄、`collage-hint` 底部双峰山脉剪影 |
 
 ## 2.3 空状态与失效态灰阶层次（其余 9 枚图标）
 
@@ -45,6 +46,7 @@
 | 图标 | 造型结构 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `search-hint` | 强调色圆角卡片底板（`search-card`）+ 5 段水平文本线（`search-line`）+ 右下镂空放大镜（镜面 `magnifier-fill`，外圈与手柄 `accent-foreground`） | 搜索提示（未输入搜索词） | Search Page（未输入搜索词） |
+| `collage-hint` | 右上后景叠层圆角框（`collage-back`，被前景框带间隙镂空裁切）+ 左下前景相框底板（`search-card`）+ 左上太阳圆点（`search-line`）+ 底部双峰山脉剪影（`accent-foreground`） | 长截图提示（未勾选任何字幕） | Playback Overlay / Collage（未勾选任何字幕） |
 | `search-no-results` | 圆角卡片底板（`base`）+ 左上圆头 `✕` 号（`foreground`）+ 右下镂空放大镜（镜面 `badge-fill`，外圈与手柄 `foreground`） | 搜索或筛选无结果 | Search Page（搜索或筛选无结果）；Library Overview（搜索无结果）；Excerpt List Overview（搜索无结果）；Excerpt List Detail（搜索或筛选无结果）；Command Panel Secondary / Search Results（搜索或筛选无结果） |
 | `video` | 圆角矩形视频框底板（`base`）+ 居中实心圆角播放三角（`foreground`） | 暂无视频内容 | Recent Page / Videos（为空）；Library Overview（为空）；Library Folder Detail（文件夹内无剧集）；Command Panel Secondary / Recent Videos（为空） |
 | `excerpt` | 单层圆角燕尾书签底板（`mid`） | 暂无摘录内容 | Recent Page / Excerpts（为空）；Excerpt List Detail（列表无有效摘录）；Command Panel Secondary / Recent Excerpt Lists（为空） |

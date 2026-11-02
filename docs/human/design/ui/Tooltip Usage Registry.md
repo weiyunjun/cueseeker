@@ -97,26 +97,14 @@
 - Scenario ID：player.topbar.return
 - 所在位置：Player Topbar
 
-### 7. 播放覆盖层返回工作台（Playback Overlay Return Action）
-- 英文：Return to Workbench
-- 简体中文：返回工作台
-- 繁体中文：返回工作台
-- 快捷键：无
+### 7. 播放覆盖层返回播放（Playback Overlay Return Action）
+- 英文：Return to Playback
+- 简体中文：返回播放
+- 繁体中文：返回播放
+- 快捷键：`Esc`（固定键位）
 - 触发延迟：1秒
 - Scenario ID：playback_overlay.topbar.return
 - 所在位置：Playback Overlay Topbar
-
-### 8. 长截图编辑模式开关（Collage Action）
-- 英文（未开启时）：Edit Collage
-- 英文（编辑中 Open 态）：Exit Collage
-- 简体中文（未开启时）：编辑长截图
-- 简体中文（编辑中 Open 态）：退出长截图
-- 繁体中文（未开启时）：編輯長截圖
-- 繁体中文（编辑中 Open 态）：退出長截圖
-- 快捷键：默认 `P`（动态跟随 `Settings / Shortcuts -> Edit Collage`）
-- 触发延迟：1秒
-- Scenario ID：playback_overlay.topbar.collage
-- 所在位置：Playback Overlay Topbar（仅 Current 模块可见）
 
 ### 9. 命令面板二级页返回上一级（Command Panel Back Action）
 - 英文：Back

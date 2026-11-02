@@ -22,7 +22,7 @@
 | [`UI Layouts - Workbench.md`](UI%20Layouts%20-%20Workbench.md) | **工作台与弹窗布局（`L-01` ~ `L-06`）**：App 壳层、设置窗口、Recent、Library 与 File、Search 与 Excerpt、全部模态对话框与任务面板。 |
 | [`UI Layouts - Playback.md`](UI%20Layouts%20-%20Playback.md) | **播放相关布局（`L-07` ~ `L-09`）**：播放器顶底栏与反馈层、Playback Overlay（Current / Playlist / Collage Editor）、Command Panel。 |
 | [`Icon Registry.md`](Icon%20Registry.md) | **图标名录**：Phosphor 图标制作规格、尺寸与线宽映射表、全量图标使用位置。 |
-| [`Empty State Icon Registry.md`](Empty%20State%20Icon%20Registry.md) | **空状态图标名录**：`C-09.2 Empty State` 双色调图标制作规格、配色层次与全界面 24 处使用位置。 |
+| [`Empty State Icon Registry.md`](Empty%20State%20Icon%20Registry.md) | **空状态图标名录**：`C-09.2 Empty State` 双色调图标制作规格、配色层次与全界面 25 处使用位置。 |
 | [`Toast Usage Registry.md`](Toast%20Usage%20Registry.md) | **Toast 与 HUD 注册表**：全场景提示文案（英/简/繁）、图标、持续时间与 Scenario ID。 |
 | [`Tooltip Usage Registry.md`](Tooltip%20Usage%20Registry.md) | **Tooltip 注册表**：全场景悬停提示文案（英/简/繁）、快捷键跟随规则、触发延迟与 Scenario ID。 |
 
@@ -154,7 +154,7 @@
 | | `L-07.4` | Playback Feedback Overlay Layout | 播放舞台中央 HUD / 反馈层 |
 | | `L-07.5` | Player Error Banner Layout | 播放窗口左上角多行红色报错横幅 |
 | **3.8 Playback Overlay** | `L-08.1` | Playback Overlay Layout | 播放页内浮层容器（顶栏 + 内容区 + 底栏） |
-| | `L-08.2` | Playback Topbar Layout | Playback Overlay 顶栏（Normal 与 Editing Collage 双形态） |
+| | `L-08.2` | Playback Topbar Layout | Playback Overlay 顶栏（红绿灯、返回播放、居中 Tabs、功能入口） |
 | | `L-08.3` | Playback Footer Layout | Playback Overlay 与 Command Panel 共用底栏（左侧计数 + 右侧快捷键按钮） |
 | | `L-08.4` | Playback Current Layout | 当前字幕流视图（`Focus Cue Reel`） |
 | | `L-08.5` | Playback Playlist Layout | 播放列表视图（字幕列表 `Cue Result Reel` 或视频网格） |

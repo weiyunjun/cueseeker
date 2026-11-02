@@ -81,6 +81,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-empty-icon-search-card`: macOS accent color with Alpha `0.30`
 - `--color-empty-icon-search-line`: macOS accent color with Alpha `0.58`
 - `--color-empty-icon-magnifier-fill`: macOS accent color with Alpha `0.22`
+- `--color-empty-icon-collage-back`: macOS accent color with Alpha `0.52`
 
 ### Focus
 

@@ -372,8 +372,9 @@
 
 ##### Anatomy
 
-- Icon：68×68px 双色调大图标（`search-hint` 为系统强调色，其余 9 枚为中性灰色系，角标区域镂空透底，详见 [`Empty State Icon Registry.md`](Empty%20State%20Icon%20Registry.md)）
+- Icon：68×68px 双色调大图标（`search-hint` 与 `collage-hint` 为系统强调色，其余 9 枚为中性灰色系，角标区域镂空透底，详见 [`Empty State Icon Registry.md`](Empty%20State%20Icon%20Registry.md)）
   - `search-hint`：圆角卡片底板（`--color-empty-icon-search-card`）+ 5 段水平文本线（`--color-empty-icon-search-line`）+ 右下镂空放大镜（镜面 `--color-empty-icon-magnifier-fill`，外圈与手柄 `--color-card-icon-accent-foreground`）
+  - `collage-hint`：右上后景叠层圆角框（`--color-empty-icon-collage-back`，被前景框带间隙镂空裁切）+ 左下前景相框底板（`--color-empty-icon-search-card`）+ 左上太阳圆点（`--color-empty-icon-search-line`）+ 底部双峰山脉剪影（`--color-card-icon-accent-foreground`）
   - `search-no-results`：圆角卡片底板（`--color-empty-icon-base`）+ 左上圆头 `✕` 号（`--color-empty-icon-foreground`）+ 右下镂空放大镜（镜面 `--color-empty-icon-badge-fill`，外圈与手柄 `--color-empty-icon-foreground`）
   - `video`：圆角视频框底板（`--color-empty-icon-base`）+ 居中实心播放三角（`--color-empty-icon-foreground`）
   - `excerpt`：单层圆角燕尾书签底板（`--color-empty-icon-mid`）

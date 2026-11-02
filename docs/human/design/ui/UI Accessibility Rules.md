@@ -216,7 +216,7 @@
 4. **`C-12.7 Player Cue Queue Control Bar`（台词队列控制栏）**：
    - 按从左到右顺序依次选中 `Auto Pause` 按钮 → `Auto Switch` 按钮 → 步进器 `-` 按钮 → 步进器 `+` 按钮（**含处于 `Disabled` 状态的按钮**，仅跳过中间只读毫秒数文本）。
 5. **`C-13.4 Playback Cue Reel`（所有字幕流，含 `Focus Cue Reel` 与 `Cue Result Reel`）**：
-   - 字幕流容器及其内部所有字幕项（含 `Editing Collage` 右侧带勾选框的字幕项）**均不参与无障碍选中（直接跳过）**。
+   - 字幕流容器及其内部所有字幕项（含 `Collage` 右侧带勾选框的字幕项）**均不参与无障碍选中（直接跳过）**。
 
 ---
 
@@ -298,19 +298,15 @@
    - **底栏控制行（`L-07.2`）**：左侧控制组（播放/暂停按钮 → 上一项按钮 → 下一项按钮 → 音量控件左侧静音喇叭按钮） → 右侧控制组（`Playback Overlay` 入口按钮 → 单句循环按钮 → 复制截图按钮 → 字幕菜单按钮 → 倍速菜单按钮 → 更多菜单按钮 → 全屏按钮）。
 
 ### 3.4.2 播放页浮层（`L-08 Playback Overlay`）
-- **取消旧的 `Tab` / `L1` / `R1` 直接切换标签页行为**：在 `Playback Overlay` 中，`Tab` / `Shift + Tab` 与手柄 `L1` / `R1` 统一用于无障碍焦点遍历，不再直接切换 `Current` 与 `Playlist` 标签页。
-1. **`Current` 与 `Subtitle Playlist` 视图**：
-   - **顶栏（`L-08.2`）**：返回按钮 → 顶栏 `Tabs`（`Current` → `Playlist`，当存在 Playlist 标签时） → `Collage` 按钮（仅 `Current` 视图） → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口；
-   - **内容区（`L-08.4` / `L-08.5`）**：字幕流 `Reel` 整体跳过；
+- **取消旧的 `Tab` / `L1` / `R1` 直接切换标签页行为**：在 `Playback Overlay` 中，`Tab` / `Shift + Tab` 与手柄 `L1` / `R1` 统一用于无障碍焦点遍历，不再直接切换顶栏标签页。
+1. **`Current`、`Subtitle Playlist` 与 `Collage` 视图**：
+   - **顶栏（`L-08.2`）**：返回按钮 → 顶栏 `Tabs`（有播放列表时为 `Current` → `Playlist` → `Collage`，无播放列表时为 `Current` → `Collage`） → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口；
+   - **内容区（`L-08.4` / `L-08.5` / `L-08.6`）**：字幕流 `Reel` 与左侧长截图预览组均跳过；
    - **底栏（`L-08.3`）**：右侧动作区各 `Shortcut Action Button`（从左到右）。
 2. **`Video Playlist` 视图**：
-   - **顶栏（`L-08.2`）**：返回按钮 → 顶栏 `Tabs`（`Current` → `Playlist`） → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口；
+   - **顶栏（`L-08.2`）**：返回按钮 → 顶栏 `Tabs`（`Current` → `Playlist` → `Collage`） → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口；
    - **内容区（`L-08.5`）**：视频封面卡片网格（从上到下、从左到右，每张卡片先选整体再选右下角 `dots-three` 按钮，在卡片网格内与 `Select` 双向跟随）；
    - **底栏（`L-08.3`）**：右侧 `Play` 按钮。
-3. **`Editing Collage` 长截图编辑视图**：
-   - **顶栏（`L-08.2`）**：返回按钮 → `Collage` 按钮 → `Command Panel` 入口 → `Task` 入口 → `Settings` 入口；
-   - **内容区（`L-08.6`）**：左侧长截图预览组与右侧字幕勾选流均跳过；
-   - **底栏（`L-08.3`）**：右侧各 `Shortcut Action Button`（`Copy Collage` → `Export Collage` → `Select`）。
 
 ### 3.4.3 命令面板（`L-09 Command Panel`）
 1. **一级根视图（`L-09.1 Root`）**：
