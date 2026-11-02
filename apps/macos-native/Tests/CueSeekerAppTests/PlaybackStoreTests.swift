@@ -124,7 +124,7 @@ func playbackStoreUsesTheLibrarySessionStoreAsTheMediaPlaylistSource() throws {
         openSnapshot: openSnapshot,
         libraryStore: libraryStore
     ))
-    #expect(librarySession.availableModules == [.current, .playlist])
+    #expect(librarySession.availableModules == [.current, .playlist, .collage])
     #expect(librarySession.selectedModule == .current)
     #expect(librarySession.libraryStore === libraryStore)
     store.releaseSubtitleFocusSession(librarySession)

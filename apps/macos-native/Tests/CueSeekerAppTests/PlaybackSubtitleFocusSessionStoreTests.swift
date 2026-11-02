@@ -33,7 +33,7 @@ func playbackOverlaySessionUsesCanonicalModuleOrderWithOptionalPlaylist() throws
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 1
     )
-    #expect(withoutPlaylist.availableModules == [.current])
+    #expect(withoutPlaylist.availableModules == [.current, .collage])
     #expect(withoutPlaylist.selectedModule == .current)
     #expect(!withoutPlaylist.presentModule(.playlist))
     #expect(withoutPlaylist.selectedModule == .current)
@@ -43,17 +43,18 @@ func playbackOverlaySessionUsesCanonicalModuleOrderWithOptionalPlaylist() throws
         sessionGeneration: 2,
         availableModules: PlaybackOverlayModule.modules(hasPlaylist: true)
     )
-    #expect(withPlaylist.availableModules == [.current, .playlist])
+    #expect(withPlaylist.availableModules == [.current, .playlist, .collage])
     #expect(withPlaylist.selectedModule == .current)
 
     let reorderedAndDuplicated = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 3,
-        availableModules: [.playlist, .current, .playlist]
+        availableModules: [.collage, .playlist, .current, .playlist]
     )
     #expect(reorderedAndDuplicated.availableModules == [
         .current,
         .playlist,
+        .collage,
     ])
 }
 
@@ -97,6 +98,7 @@ func playbackOverlaySessionCyclesModulesAndPreservesCurrentSelection() throws {
 
     for expectedModule in [
         PlaybackOverlayModule.playlist,
+        .collage,
         .current,
     ] {
         #expect(session.selectNextModule())
@@ -114,27 +116,28 @@ func playbackOverlayCollageStripClickTravelsLikeAKey() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 1,
-        availableModules: [.current, .playlist]
+        availableModules: PlaybackOverlayModule.allCases
     )
     #expect(session.publishInitialSnapshot(
         focusPresentationSnapshot(),
         token: session.token
     ))
-    // No strip exists outside Collage editing.
+    // No strip exists outside Collage tab.
     #expect(!session.jumpToCollageCue(ordinal: 11))
     #expect(session.keyboardNavigationRequest == nil)
 
-    #expect(session.toggleEditingCollage())
+    #expect(session.selectModule(.collage))
     #expect(session.jumpToCollageCue(ordinal: 11))
     let request = try #require(session.keyboardNavigationRequest)
     #expect(request.targetOrdinal == 11)
     #expect(request.direction == .backward)
-    // Only the focus moves; the plan keeps the cue it started with.
+    // Only the Collage focus moves; the plan keeps the cue it started with and Current focus stays at 12.
     #expect(session.collageSelectionPlan.selectedCueCount == 1)
     #expect(session.collageSelectionPlan.contains(cueID: 13))
 
     #expect(session.commitKeyboardNavigation(request))
-    #expect(session.currentSnapshot?.selectedOrdinal == 11)
+    #expect(session.collageSnapshot?.selectedOrdinal == 11)
+    #expect(session.currentSnapshot?.selectedOrdinal == 12)
     // Already there, the click asks for nothing.
     #expect(!session.jumpToCollageCue(ordinal: 11))
     #expect(session.keyboardNavigationRequest == nil)
@@ -144,42 +147,51 @@ func playbackOverlayCollageStripClickTravelsLikeAKey() throws {
 
 @MainActor
 @Test
-func playbackOverlayEditingCollageIsExclusiveToCurrent() throws {
+func playbackOverlayCollageTabPreservesDraftAcrossTabSwitchesAndKeepsIndependentFocus() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 1,
-        availableModules: [.current, .playlist]
+        availableModules: PlaybackOverlayModule.allCases
     )
-    #expect(!session.toggleEditingCollage())
+    #expect(!session.selectModule(.collage))
     #expect(session.publishInitialSnapshot(
         focusPresentationSnapshot(),
         token: session.token
     ))
-    #expect(session.requestKeyboardNavigation(.forward))
-
-    #expect(session.toggleEditingCollage())
-    #expect(session.isEditingCollage)
-    #expect(session.keyboardNavigationRequest == nil)
+    // Move focus in Current before ever visiting Collage: Collage still starts on the initial cue (#12, id: 13).
+    #expect(session.commitNativeReelSelection(ordinal: 15))
+    #expect(session.currentSnapshot?.selectedOrdinal == 15)
+    #expect(session.collageSnapshot?.selectedOrdinal == 12)
     #expect(session.collageSelectionPlan.selectedCueCount == 1)
     #expect(session.collageSelectionPlan.contains(cueID: 13))
+
+    #expect(session.selectModule(.collage))
+    #expect(session.isEditingCollage)
+    #expect(session.collagePreviewStore != nil)
     #expect(session.toggleCollageCueSelection(at: 11) != .unchanged)
     #expect(session.collageSelectionPlan.contains(cueID: 12))
     #expect(session.commitNativeReelSelection(ordinal: 13))
-    #expect(!session.selectModule(.playlist))
-    #expect(!session.presentModule(.playlist))
-    #expect(!session.selectNextModule())
-    #expect(session.selectedModule == .current)
+    #expect(session.collageSnapshot?.selectedOrdinal == 13)
+    #expect(session.currentSnapshot?.selectedOrdinal == 15)
 
-    #expect(session.toggleEditingCollage())
-    #expect(!session.isEditingCollage)
-    #expect(session.currentSnapshot?.selectedOrdinal == 13)
-    #expect(session.collageSelectionPlan.selectedCueCount == 0)
+    // Switching to Playlist and Current preserves the Collage draft and independent focus.
     #expect(session.selectModule(.playlist))
-    #expect(!session.toggleEditingCollage())
+    #expect(!session.isEditingCollage)
+    #expect(session.collageSelectionPlan.selectedCueCount == 2)
     #expect(session.selectModule(.current))
-    #expect(session.toggleEditingCollage())
+    #expect(session.currentSnapshot?.selectedOrdinal == 15)
+    #expect(session.collageSnapshot?.selectedOrdinal == 13)
+    #expect(session.selectModule(.collage))
+    #expect(session.isEditingCollage)
+    #expect(session.collageSelectionPlan.selectedCueCount == 2)
+    #expect(session.collageSnapshot?.selectedOrdinal == 13)
+
+    // Closing the session clears the Collage draft.
     #expect(session.dismissByUser() == false)
     #expect(!session.isEditingCollage)
+    #expect(session.collagePreviewStore == nil)
+    #expect(session.collageSelectionPlan.selectedCueCount == 0)
+    #expect(session.collageSnapshot == nil)
 }
 
 @MainActor

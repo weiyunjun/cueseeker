@@ -2749,13 +2749,8 @@ extension AppCoordinator {
                 return []
             }
             var targets: [PlaybackAccessibilityTarget] = [.overlayReturn]
-            if !session.isEditingCollage {
-                for module in session.availableModules {
-                    targets.append(.overlayTab(module))
-                }
-            }
-            if session.selectedModule == .current {
-                targets.append(.overlayCollageButton)
+            for module in session.availableModules {
+                targets.append(.overlayTab(module))
             }
             targets.append(contentsOf: [
                 .overlayCommandPanel,
@@ -2764,18 +2759,20 @@ extension AppCoordinator {
             ])
 
             if session.selectedModule == .current {
-                if session.isEditingCollage {
-                    targets.append(contentsOf: [
-                        .overlayFooterAction("copy-collage"),
-                        .overlayFooterAction("export-collage"),
-                        .overlayFooterAction("select"),
-                    ])
-                } else if session.currentSnapshot != nil {
+                if session.currentSnapshot != nil {
                     targets.append(contentsOf: [
                         .overlayFooterAction("excerpt"),
                         .overlayFooterAction("copy-cue-text"),
                         .overlayFooterAction("copy-deep-link"),
                         .overlayFooterAction("play"),
+                    ])
+                }
+            } else if session.selectedModule == .collage {
+                if session.collageSnapshot != nil {
+                    targets.append(contentsOf: [
+                        .overlayFooterAction("copy-collage"),
+                        .overlayFooterAction("export-collage"),
+                        .overlayFooterAction("select"),
                     ])
                 }
             } else if session.selectedModule == .playlist {
@@ -3021,9 +3018,14 @@ extension AppCoordinator {
     @discardableResult
     func activatePlaybackAccessibilityTarget(_ target: PlaybackAccessibilityTarget) -> Bool {
         switch target {
-        case .playerReturn, .overlayReturn:
+        case .playerReturn:
             workbenchLayout.clearSearchFocus()
             stopPlayback()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .overlayReturn:
+            _ = dismissPlaybackSubtitleFocusFromUser()
             reconcilePlaybackAccessibilityFocus()
             return true
 
@@ -3146,12 +3148,6 @@ extension AppCoordinator {
             if session.selectedModule != module {
                 _ = session.selectModule(module)
             }
-            reconcilePlaybackAccessibilityFocus()
-            return true
-
-        case .overlayCollageButton:
-            guard let session = playback.subtitleFocusSession else { return false }
-            _ = session.toggleEditingCollage()
             reconcilePlaybackAccessibilityFocus()
             return true
 

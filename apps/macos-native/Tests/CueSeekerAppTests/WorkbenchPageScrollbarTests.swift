@@ -382,14 +382,12 @@ func playbackOverlayTopBarMountsDraggableTitlebarBackgroundInModuleAndCollageMod
     )
     let localization = makeTestAppLocalizationStore()
 
-    for isEditingCollage in [false, true] {
+    for selectedModule in [PlaybackOverlayModule.current, .collage] {
         let host = NSHostingView(
             rootView: PlaybackOverlayTopBar(
-                modules: [.current, .playlist],
-                selectedModule: .current,
-                isEditingCollage: isEditingCollage,
+                modules: [.current, .playlist, .collage],
+                selectedModule: selectedModule,
                 onSelect: { _ in true },
-                onToggleEditingCollage: { true },
                 onReturn: {}
             )
             .environmentObject(app)

@@ -53,7 +53,9 @@ struct PlaybackPageView: View {
                             appState.searchPlaybackSelectedText,
                         onOpenLibraryEpisode:
                             appState.openPlaybackLibraryEpisodeFromOverlay,
-                        onReturn: onClose
+                        onReturn: {
+                            _ = appState.dismissPlaybackSubtitleFocusFromUser()
+                        }
                     )
                         .id(subtitleFocusSession.token.sessionGeneration)
                         .environmentObject(playback.pointerVisibility)

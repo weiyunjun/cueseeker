@@ -10,6 +10,7 @@ struct PlaybackCollagePreviewPane: View {
     // its hover where it is and takes no click.
     @Environment(\.interfaceLayerContext) private var layerContext
     @ObservedObject var store: PlaybackCollagePreviewStore
+    var isEmpty: Bool = false
     let uiProbeScope: String?
     /// A click on a group's strip, with the reel ordinal of the first cue of
     /// the group drawn there.
@@ -20,27 +21,25 @@ struct PlaybackCollagePreviewPane: View {
             "UI.PlaybackCollagePreviewPane.body",
             scope: uiProbeScope
         )
-        VStack(
-            alignment: .leading,
-            spacing: WorkbenchControlMetrics.redesignSpacing4
-        ) {
-            Text(L("playback.collage.preview"))
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
-                    weight: .semibold
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .accessibilityIdentifier("playback-collage-preview-title")
-
+        ZStack {
             PlaybackCollagePreviewImageScrollView(
                 image: store.image,
                 segments: store.segments,
-                isInteractionEnabled: !layerContext.isFrozen,
+                isInteractionEnabled: !layerContext.isFrozen && !isEmpty,
                 onJumpToCue: onJumpToCue,
                 uiProbeScope: uiProbeScope
             )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityIdentifier("playback-collage-preview-image")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .opacity(isEmpty ? 0 : 1)
+            .accessibilityIdentifier("playback-collage-preview-image")
+
+            if isEmpty {
+                WorkbenchEmptyHint(
+                    icon: .collageHint,
+                    message: L("playback.collage.empty_hint")
+                )
+                .accessibilityIdentifier("playback-collage-preview-empty")
+            }
         }
         .padding(PlaybackSubtitleFocusMetrics.contentInset)
     }

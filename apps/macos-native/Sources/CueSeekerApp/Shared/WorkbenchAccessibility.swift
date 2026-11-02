@@ -348,7 +348,6 @@ enum PlaybackAccessibilityTarget: Equatable, Hashable {
     // L-08 Playback Overlay - Topbar (L-08.1)
     case overlayReturn
     case overlayTab(PlaybackOverlayModule)
-    case overlayCollageButton
     case overlayCommandPanel
     case overlayTask
     case overlaySettings

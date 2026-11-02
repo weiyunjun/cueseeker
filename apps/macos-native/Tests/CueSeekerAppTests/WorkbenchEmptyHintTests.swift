@@ -31,7 +31,7 @@ func workbenchEmptyHintPassesMouseHitTestingToUnderlyingTableSurface() {
 @MainActor
 @Test
 func workbenchEmptyHintAndDuotoneIconsMatchDesignMetrics() {
-    #expect(AppEmptyStateIcon.allCases.count == 10)
+    #expect(AppEmptyStateIcon.allCases.count == 11)
     #expect(WorkbenchControlMetrics.redesignEmptyStateIconSize == 68)
     #expect(WorkbenchControlMetrics.redesignEmptyStateIconToTextGap == 14)
     #expect(WorkbenchControlMetrics.redesignEmptyStateTitleToMessageGap == 4)
@@ -39,6 +39,7 @@ func workbenchEmptyHintAndDuotoneIconsMatchDesignMetrics() {
     #expect(WorkbenchControlMetrics.redesignEmptyStateMessageMaxWidth == 380)
 
     #expect(WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity == 0.30)
+    #expect(WorkbenchControlMetrics.redesignEmptyIconCollageBackOpacity == 0.52)
     #expect(WorkbenchControlMetrics.redesignEmptyIconSearchLineOpacity == 0.58)
     #expect(WorkbenchControlMetrics.redesignEmptyIconMagnifierFillOpacity == 0.22)
     #expect(WorkbenchControlMetrics.redesignEmptyIconBadgeFillOpacity == 0.24)
@@ -46,6 +47,7 @@ func workbenchEmptyHintAndDuotoneIconsMatchDesignMetrics() {
     #expect(WorkbenchControlMetrics.redesignEmptyIconMidOpacity == 0.52)
     #expect(WorkbenchControlMetrics.redesignEmptyIconForegroundOpacity == 1.0)
     #expect(AppEmptyStateIconMetrics.searchCardOpacity == 0.30)
+    #expect(AppEmptyStateIconMetrics.collageBackOpacity == 0.52)
     #expect(AppEmptyStateIconMetrics.searchLineOpacity == 0.58)
     #expect(AppEmptyStateIconMetrics.magnifierFillOpacity == 0.22)
     #expect(AppEmptyStateIconMetrics.badgeFillOpacity == 0.24)

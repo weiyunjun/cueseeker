@@ -82,7 +82,7 @@ struct TooltipTests {
             TooltipShortcut.action(.toggleFullscreen).resolvedText(keymap: keymap) == "F"
         )
         #expect(
-            TooltipShortcut.action(.editCollage).resolvedText(keymap: keymap) == "P"
+            TooltipShortcut.action(.copyCollage).resolvedText(keymap: keymap) == "P"
         )
         #expect(
             TooltipShortcut.action(.openCommandPanel).resolvedText(keymap: keymap) == "K"
@@ -423,8 +423,7 @@ struct TooltipTests {
             "tooltip.topbar.back.disabled",
             "tooltip.topbar.forward.disabled",
             "tooltip.playback.return_to_workbench",
-            "tooltip.playback_overlay.collage.edit",
-            "tooltip.playback_overlay.collage.exit",
+            "tooltip.playback_overlay.return_to_playback",
             "tooltip.command_panel.back",
             "tooltip.player.previous.cue",
             "tooltip.player.previous.cue.disabled",

@@ -180,7 +180,7 @@ struct WorkbenchAccessibilityStep4Tests {
             app.playback.isPlaybackSurfaceExpanded = true
             let session = try #require(app.playback.beginSubtitleFocusSession(
                 openSnapshot: step4OpenSnapshot(),
-                availableModules: [.current, .playlist]
+                availableModules: PlaybackOverlayModule.allCases
             ))
             #expect(session.publishInitialSnapshot(
                 step4CueSnapshot(),
@@ -192,7 +192,7 @@ struct WorkbenchAccessibilityStep4Tests {
                 .overlayReturn,
                 .overlayTab(.current),
                 .overlayTab(.playlist),
-                .overlayCollageButton,
+                .overlayTab(.collage),
                 .overlayCommandPanel,
                 .overlayTask,
                 .overlaySettings,
@@ -202,14 +202,17 @@ struct WorkbenchAccessibilityStep4Tests {
                 .overlayFooterAction("play"),
             ])
 
-            // Focus .overlayCollageButton and activate it -> enters Editing Collage and keeps focus on .overlayCollageButton
-            app.applyPlaybackAccessibilityFocus(.overlayCollageButton, surface: .playbackOverlay)
+            // Focus .overlayTab(.collage) and activate it -> switches to Collage tab and keeps focus on .overlayTab(.collage)
+            app.applyPlaybackAccessibilityFocus(.overlayTab(.collage), surface: .playbackOverlay)
             #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
             #expect(session.isEditingCollage)
-            #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayCollageButton)
+            #expect(session.selectedModule == .collage)
+            #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.collage))
             #expect(app.currentPlaybackAccessibilityTargets() == [
                 .overlayReturn,
-                .overlayCollageButton,
+                .overlayTab(.current),
+                .overlayTab(.playlist),
+                .overlayTab(.collage),
                 .overlayCommandPanel,
                 .overlayTask,
                 .overlaySettings,
@@ -218,12 +221,13 @@ struct WorkbenchAccessibilityStep4Tests {
                 .overlayFooterAction("select"),
             ])
 
-            // First Esc clears focus ring; second Esc exits Editing Collage
+            // First Esc clears focus ring; second Esc closes Playback Overlay
             #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
             #expect(app.workbenchAccessibility.focusedPlaybackTarget == nil)
             #expect(session.isEditingCollage)
             #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
             #expect(!session.isEditingCollage)
+            #expect(app.playback.subtitleFocusSession == nil)
 
             // Video Playlist view with cards
             let videos = [step4Video(0), step4Video(1), step4Video(2)]
@@ -426,7 +430,7 @@ struct WorkbenchAccessibilityStep4Tests {
                 #expect(WorkbenchIconButton.lastFocusedIconForTesting == expectedIcon)
             }
 
-            // 2. Host PlaybackOverlayTopBar and verify Return, Collage, Command Panel, Task, and Settings re-render on Tab
+            // 2. Host PlaybackOverlayTopBar and verify Return, Tabs, Command Panel, Task, and Settings re-render on Tab
             let session = try #require(app.playback.beginSubtitleFocusSession(
                 openSnapshot: step4OpenSnapshot(),
                 availableModules: [.current, .playlist]
@@ -440,9 +444,7 @@ struct WorkbenchAccessibilityStep4Tests {
             let overlayTopBarView = PlaybackOverlayTopBar(
                 modules: session.availableModules,
                 selectedModule: session.selectedModule,
-                isEditingCollage: session.isEditingCollage,
                 onSelect: session.selectModule,
-                onToggleEditingCollage: session.toggleEditingCollage,
                 onReturn: {}
             )
             .environment(\.workbenchAccessibility, app.workbenchAccessibility)
@@ -470,9 +472,8 @@ struct WorkbenchAccessibilityStep4Tests {
             #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
             #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayTab(.playlist))
 
-            // 4th..7th Tab -> .overlayCollageButton, .overlayCommandPanel, .overlayTask, .overlaySettings
+            // 4th..6th Tab -> .overlayCommandPanel, .overlayTask, .overlaySettings
             let expectedOverlayTrailingSequence: [(PlaybackAccessibilityTarget, AppIcon)] = [
-                (.overlayCollageButton, .imagesSquare),
                 (.overlayCommandPanel, .magnifyingGlass),
                 (.overlayTask, .tray),
                 (.overlaySettings, .gear),

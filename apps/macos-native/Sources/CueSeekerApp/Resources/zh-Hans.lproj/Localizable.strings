@@ -294,16 +294,14 @@
 /* Playback subtitle focus, collage and command panel */
 "playback.copy_selected_text" = "复制选中文本";
 "playback.search_selected_text" = "搜索选中文本";
-"playback.collage" = "长截图";
-"playback.collage.exit" = "退出";
-"playback.collage.editing" = "正在编辑长截图…";
-"playback.collage.preview" = "长截图预览";
 "playback.collage.copy" = "复制长截图";
 "playback.collage.export" = "导出长截图";
 "playback.collage.selected_cue_count" = "已选 %d / %d 条台词";
+"playback.collage.empty_hint" = "选择台词以预览长截图。";
 "playback.select" = "选择";
 "playback.source.current" = "当前";
 "playback.source.playlist" = "播放列表";
+"playback.source.collage" = "长截图";
 "playback.cue_count.one" = "1 条台词";
 "playback.cue_count.other" = "%d 条台词";
 "playback.result_count.one" = "1 条结果";
@@ -383,7 +381,6 @@
 /* Settings: Shortcuts */
 "settings.shortcuts.section.playback" = "播放";
 "settings.shortcuts.section.overlay" = "播放覆盖层与命令面板";
-"settings.shortcuts.section.collage" = "长截图";
 "settings.shortcuts.placeholder" = "按下按键";
 "settings.shortcuts.conflict" = "与%@冲突";
 "settings.shortcuts.quoted_name" = "“%@”";
@@ -406,7 +403,6 @@
 "settings.shortcuts.action.saveToExcerpt" = "保存到摘录集";
 "settings.shortcuts.action.copyCueText" = "复制台词文本";
 "settings.shortcuts.action.copyDeepLink" = "复制 Deep Link";
-"settings.shortcuts.action.editCollage" = "编辑长截图";
 "settings.shortcuts.action.copyCollage" = "复制长截图";
 "settings.shortcuts.action.exportCollage" = "导出长截图";
 
@@ -780,8 +776,7 @@
 "tooltip.topbar.back.disabled" = "没有可后退的页面";
 "tooltip.topbar.forward.disabled" = "没有可前进的页面";
 "tooltip.playback.return_to_workbench" = "返回工作台";
-"tooltip.playback_overlay.collage.edit" = "编辑长截图";
-"tooltip.playback_overlay.collage.exit" = "退出长截图";
+"tooltip.playback_overlay.return_to_playback" = "返回播放";
 "tooltip.command_panel.back" = "返回上一级";
 "tooltip.player.previous.cue" = "上一条台词";
 "tooltip.player.previous.cue.disabled" = "已经是第一条台词";

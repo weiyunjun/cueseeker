@@ -294,16 +294,14 @@
 /* Playback subtitle focus, collage and command panel */
 "playback.copy_selected_text" = "拷貝選取文字";
 "playback.search_selected_text" = "搜尋選取文字";
-"playback.collage" = "長截圖";
-"playback.collage.exit" = "退出";
-"playback.collage.editing" = "正在編輯長截圖⋯";
-"playback.collage.preview" = "長截圖預覽";
 "playback.collage.copy" = "拷貝長截圖";
 "playback.collage.export" = "匯出長截圖";
 "playback.collage.selected_cue_count" = "已選 %d / %d 條台詞";
+"playback.collage.empty_hint" = "選取台詞以預覽長截圖。";
 "playback.select" = "選取";
 "playback.source.current" = "目前";
 "playback.source.playlist" = "播放列表";
+"playback.source.collage" = "長截圖";
 "playback.cue_count.one" = "1 條台詞";
 "playback.cue_count.other" = "%d 條台詞";
 "playback.result_count.one" = "1 筆結果";
@@ -383,7 +381,6 @@
 /* Settings: Shortcuts */
 "settings.shortcuts.section.playback" = "播放";
 "settings.shortcuts.section.overlay" = "播放覆蓋層與指令面板";
-"settings.shortcuts.section.collage" = "長截圖";
 "settings.shortcuts.placeholder" = "按下按鍵";
 "settings.shortcuts.conflict" = "與%@衝突";
 "settings.shortcuts.quoted_name" = "「%@」";
@@ -406,7 +403,6 @@
 "settings.shortcuts.action.saveToExcerpt" = "儲存到摘錄集";
 "settings.shortcuts.action.copyCueText" = "拷貝台詞文字";
 "settings.shortcuts.action.copyDeepLink" = "拷貝 Deep Link";
-"settings.shortcuts.action.editCollage" = "編輯長截圖";
 "settings.shortcuts.action.copyCollage" = "拷貝長截圖";
 "settings.shortcuts.action.exportCollage" = "匯出長截圖";
 
@@ -780,8 +776,7 @@
 "tooltip.topbar.back.disabled" = "沒有可後退的頁面";
 "tooltip.topbar.forward.disabled" = "沒有可前進的頁面";
 "tooltip.playback.return_to_workbench" = "返回工作台";
-"tooltip.playback_overlay.collage.edit" = "編輯長截圖";
-"tooltip.playback_overlay.collage.exit" = "退出長截圖";
+"tooltip.playback_overlay.return_to_playback" = "返回播放";
 "tooltip.command_panel.back" = "返回上一級";
 "tooltip.player.previous.cue" = "上一條台詞";
 "tooltip.player.previous.cue.disabled" = "已經是第一條台詞";

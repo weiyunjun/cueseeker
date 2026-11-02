@@ -889,11 +889,12 @@ private struct AccentDuotoneRenamePencilShape: Shape {
 }
 
 /// Duotone large icons dedicated to `C-09.2 Empty State` across Workbench
-/// pages, Dialogs, Playback Overlay, and Command Panel (`search-hint` uses the
-/// system accent palette; the other 9 empty/unavailable icons use the neutral
-/// gray palette).
+/// pages, Dialogs, Playback Overlay, and Command Panel (`search-hint` and
+/// `collage-hint` use the system accent palette; the other 9 empty/unavailable
+/// icons use the neutral gray palette).
 enum AppEmptyStateIcon: String, CaseIterable, Sendable {
     case searchHint = "search-hint"
+    case collageHint = "collage-hint"
     case searchNoResults = "search-no-results"
     case video = "video"
     case excerpt = "excerpt"
@@ -909,6 +910,7 @@ enum AppEmptyStateIconMetrics {
     static let iconSize = WorkbenchControlMetrics.redesignEmptyStateIconSize
     static let iconToTextGap = WorkbenchControlMetrics.redesignEmptyStateIconToTextGap
     static let searchCardOpacity = WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity
+    static let collageBackOpacity = WorkbenchControlMetrics.redesignEmptyIconCollageBackOpacity
     static let searchLineOpacity = WorkbenchControlMetrics.redesignEmptyIconSearchLineOpacity
     static let magnifierFillOpacity = WorkbenchControlMetrics.redesignEmptyIconMagnifierFillOpacity
     static let badgeFillOpacity = WorkbenchControlMetrics.redesignEmptyIconBadgeFillOpacity
@@ -930,6 +932,8 @@ struct AppEmptyStateIconView: View {
             switch icon {
             case .searchHint:
                 searchHintIconView
+            case .collageHint:
+                collageHintIconView
             case .searchNoResults:
                 searchNoResultsIconView
             case .video:
@@ -968,6 +972,28 @@ struct AppEmptyStateIconView: View {
                 lensFill: WorkbenchRedesignColors.emptyIconMagnifierFill,
                 foreground: WorkbenchRedesignColors.cardIconAccentForeground
             )
+        }
+        .compositingGroup()
+    }
+
+    private var collageHintIconView: some View {
+        ZStack {
+            AccentDuotoneCollageBackCardShape()
+                .fill(WorkbenchRedesignColors.emptyIconCollageBack)
+
+            AccentDuotoneCollageFrontKnockoutShape()
+                .fill(Color.black)
+                .blendMode(.destinationOut)
+
+            AccentDuotoneCollageFrontCardShape()
+                .fill(WorkbenchRedesignColors.emptyIconSearchCard)
+
+            AccentDuotoneCircleShape(cx: 114, cy: 78, radius: 18)
+                .fill(WorkbenchRedesignColors.cardIconAccentForeground)
+
+            AccentDuotoneCollageMountainShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentForeground)
+                .clipShape(AccentDuotoneCollageFrontCardShape())
         }
         .compositingGroup()
     }
@@ -1157,6 +1183,68 @@ private struct AccentDuotoneSearchCardShape: Shape {
             height: 184 * s
         )
         return Path(roundedRect: cardRect, cornerRadius: 34 * s, style: .circular)
+    }
+}
+
+private struct AccentDuotoneCollageBackCardShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        let cardRect = CGRect(
+            x: rect.minX + 24 * s,
+            y: rect.minY + 64 * s,
+            width: 168 * s,
+            height: 168 * s
+        )
+        return Path(roundedRect: cardRect, cornerRadius: 28 * s, style: .circular)
+    }
+}
+
+private struct AccentDuotoneCollageFrontKnockoutShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        let knockoutRect = CGRect(
+            x: rect.minX + 52 * s,
+            y: rect.minY + 16 * s,
+            width: 188 * s,
+            height: 188 * s
+        )
+        return Path(roundedRect: knockoutRect, cornerRadius: 38 * s, style: .circular)
+    }
+}
+
+private struct AccentDuotoneCollageFrontCardShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        let cardRect = CGRect(
+            x: rect.minX + 64 * s,
+            y: rect.minY + 28 * s,
+            width: 168 * s,
+            height: 168 * s
+        )
+        return Path(roundedRect: cardRect, cornerRadius: 28 * s, style: .circular)
+    }
+}
+
+private struct AccentDuotoneCollageMountainShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(84, 196))
+        path.addLine(to: pt(164, 116))
+        path.addCurve(
+            to: pt(188, 116),
+            control1: pt(170.6, 109.4),
+            control2: pt(181.4, 109.4)
+        )
+        path.addLine(to: pt(232, 160))
+        path.addLine(to: pt(232, 196))
+        path.addLine(to: pt(84, 196))
+        path.closeSubpath()
+        return path
     }
 }
 

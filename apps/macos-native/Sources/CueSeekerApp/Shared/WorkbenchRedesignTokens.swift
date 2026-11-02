@@ -161,6 +161,10 @@ enum WorkbenchRedesignColors {
             lightAlpha: WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity,
             darkAlpha: WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity
         )
+        static let emptyIconCollageBack = NSColor.controlAccent(
+            lightAlpha: WorkbenchControlMetrics.redesignEmptyIconCollageBackOpacity,
+            darkAlpha: WorkbenchControlMetrics.redesignEmptyIconCollageBackOpacity
+        )
         static let emptyIconSearchLine = NSColor.controlAccent(
             lightAlpha: WorkbenchControlMetrics.redesignEmptyIconSearchLineOpacity,
             darkAlpha: WorkbenchControlMetrics.redesignEmptyIconSearchLineOpacity
@@ -404,6 +408,7 @@ enum WorkbenchRedesignColors {
     static let cardIconAccentAnkiLine = Color(nsColor: NS.cardIconAccentAnkiLine)
     static let cardIconAccentForeground = Color(nsColor: NS.cardIconAccentForeground)
     static let emptyIconSearchCard = Color(nsColor: NS.emptyIconSearchCard)
+    static let emptyIconCollageBack = Color(nsColor: NS.emptyIconCollageBack)
     static let emptyIconSearchLine = Color(nsColor: NS.emptyIconSearchLine)
     static let emptyIconMagnifierFill = Color(nsColor: NS.emptyIconMagnifierFill)
 

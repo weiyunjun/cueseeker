@@ -46,6 +46,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
 
     for expectedModule in [
         PlaybackOverlayModule.playlist,
+        .collage,
         .current,
     ] {
         #expect(session.selectNextModule())

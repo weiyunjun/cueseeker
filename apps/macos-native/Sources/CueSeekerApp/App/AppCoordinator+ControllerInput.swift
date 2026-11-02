@@ -98,7 +98,7 @@ extension AppCoordinator {
         }
 
         if let session = playback.subtitleFocusSession,
-           session.isEditingCollage,
+           session.selectedModule == .collage,
            let handled = handlePlaybackCollageControllerButton(
                session,
                button: button,
@@ -120,7 +120,7 @@ extension AppCoordinator {
         isRepeat: Bool
     ) -> Bool? {
         switch button {
-        case .west:
+        case .auxiliaryLeft:
             guard !isRepeat else {
                 return false
             }
@@ -130,6 +130,8 @@ extension AppCoordinator {
                 return false
             }
             return session.exportCurrentCollage()
+        case .west:
+            return true
         default:
             return nil
         }

@@ -272,7 +272,7 @@ func theOverlayOpensOnASubtitleTheLibraryDroppedAndStillOffersThePlaylist() asyn
         #expect(app.openPlaybackSubtitleFocusFromUser())
         let session = try #require(app.playback.subtitleFocusSession)
         #expect(session.state == .subtitleLeftLibrary)
-        #expect(session.availableModules == [.current, .playlist])
+        #expect(session.availableModules == [.current, .playlist, .collage])
         #expect(session.playlistWindow?.snapshot.totalCount == 1)
         #expect(session.playlistWindow?.item(at: 0)?.identity == .search(results[1].entryID))
         #expect(session.selectModule(.current))

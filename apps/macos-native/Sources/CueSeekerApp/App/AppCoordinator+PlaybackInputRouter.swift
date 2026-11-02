@@ -109,8 +109,17 @@ extension AppCoordinator {
             )
         }
 
+        if shortcuts.effectiveKey(for: .openCommandPanel) == shortcutKey,
+           !textInputState.isEditableFocused {
+            if !isRepeat {
+                _ = presentPlaybackCommandPanel()
+                reconcilePlaybackAccessibilityFocus()
+            }
+            return true
+        }
+
         if let subtitleFocusSession = playback.subtitleFocusSession,
-           subtitleFocusSession.isEditingCollage {
+           subtitleFocusSession.selectedModule == .collage {
             return handlePlaybackCollageKeyDown(
                 subtitleFocusSession,
                 keyCode: keyCode,
@@ -119,15 +128,6 @@ extension AppCoordinator {
                 shortcutKey: shortcutKey,
                 shortcuts: shortcuts
             )
-        }
-
-        if shortcuts.effectiveKey(for: .openCommandPanel) == shortcutKey,
-           !textInputState.isEditableFocused {
-            if !isRepeat {
-                _ = presentPlaybackCommandPanel()
-                reconcilePlaybackAccessibilityFocus()
-            }
-            return true
         }
 
         if let subtitleFocusSession = playback.subtitleFocusSession {
@@ -187,16 +187,9 @@ extension AppCoordinator {
         shortcutKey: PlaybackShortcutKey,
         shortcuts: PlaybackShortcutKeymap
     ) -> Bool {
-        if shortcuts.effectiveKey(for: .editCollage) == shortcutKey {
+        if let overlayShortcut = shortcuts.action(for: shortcutKey, in: .overlay) {
             if !isRepeat {
-                _ = subtitleFocusSession.toggleEditingCollage()
-                reconcilePlaybackAccessibilityFocus()
-            }
-            return true
-        }
-        if let collageShortcut = shortcuts.action(for: shortcutKey, in: .collage) {
-            if !isRepeat {
-                switch collageShortcut {
+                switch overlayShortcut {
                 case .copyCollage:
                     _ = subtitleFocusSession.copyCurrentCollage()
                 case .exportCollage:
@@ -239,9 +232,7 @@ extension AppCoordinator {
                 clearPlaybackAccessibilityFocus()
                 return true
             }
-            _ = subtitleFocusSession.toggleEditingCollage()
-            reconcilePlaybackAccessibilityFocus()
-            return true
+            return dismissPlaybackSubtitleFocusFromUser()
         case 49:
             if let focused = workbenchAccessibility.focusedPlaybackTarget,
                workbenchAccessibility.activePlaybackSurface == .playbackOverlay {
@@ -449,15 +440,6 @@ extension AppCoordinator {
         cueShortcutAction: PlaybackSubtitleFocusAction?
     ) -> Bool {
         let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
-
-        if shortcuts.effectiveKey(for: .editCollage) == shortcutKey {
-            if !isRepeat,
-               subtitleFocusSession.selectedModule == .current {
-                _ = subtitleFocusSession.toggleEditingCollage()
-                reconcilePlaybackAccessibilityFocus()
-            }
-            return true
-        }
 
         if keyCode == 48,
            modifierFlags.intersection(disallowedModifiers).isEmpty {
@@ -701,7 +683,7 @@ extension AppCoordinator {
             viewModel.adjustSpeed(by: 0.25)
             return true
         case .openCommandPanel, .saveToExcerpt, .copyCueText, .copyDeepLink,
-             .editCollage, .copyCollage, .exportCollage, nil:
+             .copyCollage, .exportCollage, nil:
             return false
         }
     }

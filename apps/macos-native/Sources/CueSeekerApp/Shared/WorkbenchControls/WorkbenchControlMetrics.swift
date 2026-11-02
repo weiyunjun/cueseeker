@@ -434,6 +434,8 @@ enum WorkbenchControlMetrics {
     static let redesignCardIconAccentForegroundOpacity: CGFloat = 1.0
     /// --color-empty-icon-search-card alpha: 0.30
     static let redesignEmptyIconSearchCardOpacity: CGFloat = 0.30
+    /// --color-empty-icon-collage-back alpha: 0.52
+    static let redesignEmptyIconCollageBackOpacity: CGFloat = 0.52
     /// --color-empty-icon-search-line alpha: 0.58
     static let redesignEmptyIconSearchLineOpacity: CGFloat = 0.58
     /// --color-empty-icon-magnifier-fill alpha: 0.22

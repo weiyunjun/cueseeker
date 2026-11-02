@@ -42,13 +42,15 @@ enum PlaybackSubtitleFocusState: Equatable, Sendable {
 enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
     case current
     case playlist
+    case collage
 
     static let standardModules: [Self] = [
         .current,
+        .collage,
     ]
 
     static func modules(hasPlaylist: Bool) -> [Self] {
-        hasPlaylist ? [.current, .playlist] : standardModules
+        hasPlaylist ? [.current, .playlist, .collage] : standardModules
     }
 
     var label: String {
@@ -57,11 +59,13 @@ enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
             L("playback.source.current")
         case .playlist:
             L("playback.source.playlist")
+        case .collage:
+            L("playback.source.collage")
         }
     }
 
     var usesSharedCueShortcuts: Bool {
-        true
+        self != .collage
     }
 }
 
@@ -112,30 +116,36 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             }
         }
     }
-    @Published private(set) var isEditingCollage = false {
-        didSet {
-            if isEditingCollage != oldValue {
-                AppPointerShape.reevaluateAfterInterfaceChange()
-            }
-        }
+    var isEditingCollage: Bool {
+        selectedModule == .collage
     }
-    @Published private(set) var collageSelectionPlan = SubtitleCollageSelectionPlan()
-    @Published private(set) var collagePreviewStore: PlaybackCollagePreviewStore?
+    private var _collageSnapshot: SubtitleFocusSnapshot?
+    var collageSnapshot: SubtitleFocusSnapshot? {
+        _collageSnapshot
+    }
+    private var _collageSelectionPlan = SubtitleCollageSelectionPlan()
+    var collageSelectionPlan: SubtitleCollageSelectionPlan {
+        _collageSelectionPlan
+    }
+    private var _collagePreviewStore: PlaybackCollagePreviewStore?
+    var collagePreviewStore: PlaybackCollagePreviewStore? {
+        _collagePreviewStore
+    }
     /// A new style renders the collage preview again from scratch; ASS keeps
     /// its own styles and is left alone.
     var srtSubtitleStyle = SRTSubtitleStyle() {
         didSet {
             guard srtSubtitleStyle != oldValue,
-                  isEditingCollage,
-                  collagePreviewStore != nil,
+                  let oldPreviewStore = _collagePreviewStore,
                   collageSubtitleSource.format == .srt
             else {
                 return
             }
             let previewStore = makeCollagePreviewStore()
-            previewStore.update(plan: collageSelectionPlan)
-            collagePreviewStore?.invalidate()
-            collagePreviewStore = previewStore
+            previewStore.update(plan: _collageSelectionPlan)
+            oldPreviewStore.invalidate()
+            objectWillChange.send()
+            _collagePreviewStore = previewStore
         }
     }
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
@@ -206,9 +216,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     }
 
     var focusedCueTextForCommandPanel: String? {
-        guard !isEditingCollage else {
-            return nil
-        }
         switch selectedModule {
         case .current:
             return currentSnapshot?.selectedCue?.text
@@ -219,7 +226,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 return nil
             }
             return playlistWindow.item(at: selectedOrdinal)?.primaryCueText
-        case .none:
+        case .collage, .none:
             return nil
         }
     }
@@ -242,7 +249,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     func selectModule(_ module: PlaybackOverlayModule) -> Bool {
         let startedAt = DebugInteractionLatencyProbe.now()
         guard isSessionActive,
-              !isEditingCollage,
               currentSnapshot != nil || state == .subtitleLeftLibrary,
               availableModules.contains(module),
               selectedModule != module
@@ -256,6 +262,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 return "playback_overlay_current"
             case .playlist:
                 return libraryStore != nil ? "playback_overlay_library" : "playback_overlay_playlist"
+            case .collage:
+                return "playback_overlay_collage"
             case .none:
                 return "none"
             }
@@ -266,6 +274,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 return "playback_overlay_current"
             case .playlist:
                 return libraryStore != nil ? "playback_overlay_library" : "playback_overlay_playlist"
+            case .collage:
+                return "playback_overlay_collage"
             }
         }()
         DebugInteractionLatencyProbe.beginNavigation(
@@ -277,6 +287,11 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         )
 
         prepareReelForModuleTransition()
+        if module == .collage, currentSnapshot != nil, _collagePreviewStore == nil {
+            let previewStore = makeCollagePreviewStore()
+            previewStore.update(plan: _collageSelectionPlan)
+            _collagePreviewStore = previewStore
+        }
         selectedModule = module
         if module == .playlist {
             libraryStore?.activate()
@@ -293,7 +308,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @discardableResult
     func presentModule(_ module: PlaybackOverlayModule) -> Bool {
         guard isSessionActive,
-              !isEditingCollage,
               availableModules.contains(module)
         else {
             return false
@@ -319,7 +333,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         switch selectedModule {
         case .playlist:
             return libraryStore?.moveSelection(direction) == true
-        case .current, .none:
+        case .current, .collage, .none:
             return false
         }
     }
@@ -346,7 +360,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     private func selectAdjacentModule(offset: Int) -> Bool {
         guard isSessionActive,
-              !isEditingCollage,
               let selectedModule,
               let currentIndex = availableModules.firstIndex(of: selectedModule),
               !availableModules.isEmpty
@@ -361,60 +374,20 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     }
 
     @discardableResult
-    func toggleEditingCollage() -> Bool {
-        let startedAt = DebugInteractionLatencyProbe.now()
+    func ensureCollagePreviewStoreIfNeeded() -> PlaybackCollagePreviewStore? {
         guard isSessionActive,
-              case .cueSelection = state
+              currentSnapshot != nil
         else {
-            return false
+            return nil
         }
-
-        if isEditingCollage {
-            clearCollageEditingState()
-            AppLogger.shared.info(
-                .playback,
-                "Collage mode toggled",
-                fields: [("enabled", "false")]
-            )
-            DebugInteractionLatencyProbe.completeImmediateNavigation(
-                domain: "playback_overlay",
-                from: "playback_overlay_collage",
-                to: "playback_overlay_current",
-                trigger: "exit_collage_editor",
-                startedAt: startedAt
-            )
-            return true
+        if let existing = _collagePreviewStore {
+            return existing
         }
-
-        guard selectedModule == .current,
-              let selectedCue = currentSnapshot?.selectedCue
-        else {
-            return false
-        }
-        prepareReelForModuleTransition()
-        var selectionPlan = SubtitleCollageSelectionPlan()
-        _ = selectionPlan.select(selectedCue)
-        collageSelectionPlan = selectionPlan
         let previewStore = makeCollagePreviewStore()
-        previewStore.update(plan: selectionPlan)
-        collagePreviewStore = previewStore
-        isEditingCollage = true
-        AppLogger.shared.info(
-            .playback,
-            "Collage mode toggled",
-            fields: [
-                ("enabled", "true"),
-                ("initial_cue_id", "\(selectedCue.id)")
-            ]
-        )
-        DebugInteractionLatencyProbe.completeImmediateNavigation(
-            domain: "playback_overlay",
-            from: "playback_overlay_current",
-            to: "playback_overlay_collage",
-            trigger: "enter_collage_editor",
-            startedAt: startedAt
-        )
-        return true
+        previewStore.update(plan: _collageSelectionPlan)
+        objectWillChange.send()
+        _collagePreviewStore = previewStore
+        return previewStore
     }
 
     @discardableResult
@@ -422,20 +395,21 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         at ordinal: Int
     ) -> SubtitleCollageSelectionMutation {
         guard isSessionActive,
-              isEditingCollage,
-              selectedModule == .current,
+              selectedModule == .collage,
               let cue = cue(at: ordinal)
         else {
             return .unchanged
         }
 
-        var selectionPlan = collageSelectionPlan
+        var selectionPlan = _collageSelectionPlan
         let mutation = selectionPlan.contains(cueID: cue.id)
             ? selectionPlan.deselect(cueID: cue.id)
             : selectionPlan.select(cue)
         if case .changed = mutation {
-            collageSelectionPlan = selectionPlan
-            collagePreviewStore?.update(plan: selectionPlan)
+            let previewStore = ensureCollagePreviewStoreIfNeeded()
+            objectWillChange.send()
+            _collageSelectionPlan = selectionPlan
+            previewStore?.update(plan: selectionPlan)
         }
         return mutation
     }
@@ -446,10 +420,13 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     @discardableResult
     func copyCurrentCollage() -> Bool {
-        guard isEditingCollage, let collagePreviewStore else {
+        guard isSessionActive,
+              selectedModule == .collage,
+              let collagePreviewStore = ensureCollagePreviewStoreIfNeeded()
+        else {
             return false
         }
-        guard collageSelectionPlan.selectedCueCount > 0 else {
+        guard _collageSelectionPlan.selectedCueCount > 0 else {
             presentCollageFeedback?(.noCueSelected)
             return true
         }
@@ -472,10 +449,13 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     @discardableResult
     func exportCurrentCollage() -> Bool {
-        guard isEditingCollage, let collagePreviewStore else {
+        guard isSessionActive,
+              selectedModule == .collage,
+              let collagePreviewStore = ensureCollagePreviewStoreIfNeeded()
+        else {
             return false
         }
-        guard collageSelectionPlan.selectedCueCount > 0 else {
+        guard _collageSelectionPlan.selectedCueCount > 0 else {
             presentCollageFeedback?(.noCueSelected)
             return true
         }
@@ -500,7 +480,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     @discardableResult
     func toggleFocusedCollageCueSelection() -> SubtitleCollageSelectionMutation {
-        guard let snapshot = currentSnapshot else {
+        guard let snapshot = collageSnapshot else {
             return .unchanged
         }
         return toggleCollageCueSelection(
@@ -515,7 +495,10 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             let cue = completeCueBatch.cues[ordinal]
             return cue.ordinal == ordinal ? cue : nil
         }
-        return currentSnapshot?.cues.first { $0.ordinal == ordinal }
+        if let cue = currentSnapshot?.cues.first(where: { $0.ordinal == ordinal }) {
+            return cue
+        }
+        return collageSnapshot?.cues.first { $0.ordinal == ordinal }
     }
 
     @discardableResult
@@ -547,6 +530,17 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 totalCount: snapshot.totalCount,
                 cues: snapshot.cues
             )
+        }
+        _collageSnapshot = snapshot
+        var initialPlan = SubtitleCollageSelectionPlan()
+        if let selectedCue = snapshot.selectedCue {
+            _ = initialPlan.select(selectedCue)
+        }
+        _collageSelectionPlan = initialPlan
+        if selectedModule == .collage {
+            let previewStore = makeCollagePreviewStore()
+            previewStore.update(plan: initialPlan)
+            _collagePreviewStore = previewStore
         }
         state = .cueSelection(snapshot)
         return true
@@ -591,7 +585,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     /// untouched. A strip whose cue is already the target asks for nothing.
     @discardableResult
     func jumpToCollageCue(ordinal: Int) -> Bool {
-        guard isEditingCollage else {
+        guard selectedModule == .collage else {
             return false
         }
         return requestNavigation { _ in ordinal }
@@ -626,6 +620,16 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             contentDatasetID = nil
             contentGeneration = nil
             targetIdentity = nil
+        case .collage:
+            guard let snapshot = collageSnapshot else {
+                return false
+            }
+            currentTarget = pendingKeyboardNavigationTargetOrdinal
+                ?? snapshot.selectedOrdinal
+            totalCount = snapshot.totalCount
+            contentDatasetID = nil
+            contentGeneration = nil
+            targetIdentity = nil
         case .playlist:
             guard let window = cueResultWindow(for: selectedModule),
                   let selectedOrdinal = window.selectedOrdinal,
@@ -645,7 +649,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         guard targetOrdinal != currentTarget,
               targetOrdinal >= 0,
               targetOrdinal < totalCount,
-              selectedModule != .current || cue(at: targetOrdinal) != nil
+              (selectedModule != .current && selectedModule != .collage)
+                  || cue(at: targetOrdinal) != nil
         else {
             return false
         }
@@ -673,11 +678,12 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         _ request: PlaybackSubtitleFocusKeyboardNavigationRequest
     ) -> Bool {
         guard isSessionActive,
-              selectedModule == .current,
+              let selectedModule,
+              (selectedModule == .current || selectedModule == .collage),
               keyboardNavigationRequest == request,
               pendingKeyboardNavigationTargetOrdinal == request.targetOrdinal,
               activeKeyboardAction == nil,
-              selectAvailableCue(ordinal: request.targetOrdinal)
+              selectAvailableCue(ordinal: request.targetOrdinal, module: selectedModule)
         else {
             return false
         }
@@ -688,8 +694,20 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     @discardableResult
     func commitNativeReelSelection(ordinal: Int) -> Bool {
+        guard let selectedModule else {
+            return false
+        }
+        return commitNativeReelSelection(ordinal: ordinal, module: selectedModule)
+    }
+
+    @discardableResult
+    func commitNativeReelSelection(
+        ordinal: Int,
+        module: PlaybackOverlayModule
+    ) -> Bool {
         guard isSessionActive,
-              selectedModule == .current,
+              selectedModule == module,
+              (module == .current || module == .collage),
               activeKeyboardAction == nil,
               (pendingKeyboardAction == nil
                   || isCueReelMotionActive
@@ -698,10 +716,11 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         else {
             return false
         }
-        if currentSnapshot?.selectedOrdinal == ordinal {
+        let activeSnapshot = module == .collage ? collageSnapshot : currentSnapshot
+        if activeSnapshot?.selectedOrdinal == ordinal {
             return true
         }
-        return selectAvailableCue(ordinal: ordinal)
+        return selectAvailableCue(ordinal: ordinal, module: module)
     }
 
     @discardableResult
@@ -930,6 +949,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         switch selectedModule {
         case .current:
             return currentSnapshot?.selectedCue != nil
+        case .collage:
+            return collageSnapshot?.selectedCue != nil
         case .playlist:
             let window = cueResultWindow(for: selectedModule)
             return window?.selectedOrdinal.flatMap {
@@ -959,6 +980,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 return nil
             }
             return .playlist(item)
+        case .collage:
+            return nil
         }
     }
 
@@ -968,13 +991,17 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         switch module {
         case .playlist:
             playlistWindow
-        case .current:
+        case .current, .collage:
             nil
         }
     }
 
-    private func selectAvailableCue(ordinal: Int) -> Bool {
-        guard let snapshot = currentSnapshot,
+    private func selectAvailableCue(
+        ordinal: Int,
+        module: PlaybackOverlayModule = .current
+    ) -> Bool {
+        let sourceSnapshot = module == .collage ? collageSnapshot : currentSnapshot
+        guard let snapshot = sourceSnapshot,
               ordinal >= 0,
               ordinal < snapshot.totalCount,
               cue(at: ordinal) != nil
@@ -992,11 +1019,17 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         } else {
             cues = snapshot.cues
         }
-        state = .cueSelection(SubtitleFocusSnapshot(
+        let updatedSnapshot = SubtitleFocusSnapshot(
             totalCount: snapshot.totalCount,
             selectedOrdinal: ordinal,
             cues: cues
-        ))
+        )
+        if module == .collage {
+            objectWillChange.send()
+            _collageSnapshot = updatedSnapshot
+        } else {
+            state = .cueSelection(updatedSnapshot)
+        }
         return true
     }
 
@@ -1146,9 +1179,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     }
 
     private func clearCollageEditingState() {
-        collagePreviewStore?.invalidate()
-        collagePreviewStore = nil
-        isEditingCollage = false
-        collageSelectionPlan = SubtitleCollageSelectionPlan()
+        _collagePreviewStore?.invalidate()
+        _collagePreviewStore = nil
+        _collageSnapshot = nil
+        _collageSelectionPlan = SubtitleCollageSelectionPlan()
     }
 }

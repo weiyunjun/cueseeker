@@ -11,6 +11,9 @@ struct PlaybackReturnButton: View {
     let hoverBackground: Color
     var pressedBackground: Color = WorkbenchRedesignColors.bgPressed
     var scenarioID: String = "player.topbar.return"
+    var tooltipLabel: String? = nil
+    var tooltipShortcut: TooltipShortcut = .none
+    var accessibilityLabel: String? = nil
     var isFocused: Bool = false
     var isPlayerChrome: Bool = false
     let action: () -> Void
@@ -28,9 +31,10 @@ struct PlaybackReturnButton: View {
         )
         .workbenchTooltip(
             scenarioID: scenarioID,
-            label: L("tooltip.playback.return_to_workbench")
+            label: tooltipLabel ?? L("tooltip.playback.return_to_workbench"),
+            shortcut: tooltipShortcut
         )
-        .accessibilityLabel(L("playback.close_and_return"))
+        .accessibilityLabel(accessibilityLabel ?? L("playback.close_and_return"))
         .accessibilityIdentifier("playback-return")
         .playerInteractiveRegion()
         .padding(.leading, leadingInset)

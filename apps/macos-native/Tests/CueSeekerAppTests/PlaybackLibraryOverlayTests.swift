@@ -141,7 +141,7 @@ func playbackLibrarySourceOpensAsTheMediaPlaylist() async throws {
 
         #expect(app.openPlaybackSubtitleFocusFromUser())
         let session = try #require(app.playback.subtitleFocusSession)
-        #expect(session.availableModules == [.current, .playlist])
+        #expect(session.availableModules == [.current, .playlist, .collage])
         #expect(session.libraryStore?.libraryStore === app.library)
         #expect(session.libraryStore?.folderPath == folder.folderPath)
         #expect(session.libraryStore?.detail?.videos == expectedVideos)
@@ -169,7 +169,7 @@ func playbackRecentEntryUsesTheCurrentFolderLibraryPlaylist() async throws {
 
         #expect(app.openPlaybackSubtitleFocusFromUser())
         let session = try #require(app.playback.subtitleFocusSession)
-        #expect(session.availableModules == [.current, .playlist])
+        #expect(session.availableModules == [.current, .playlist, .collage])
         #expect(session.libraryStore?.folderPath == folder.folderPath)
         #expect(
             session.libraryStore?.detail?.videos

@@ -101,12 +101,12 @@ func playbackOverlayEnterQueuesPlayWhileSpaceRemainsInactive() async throws {
 
 @MainActor
 @Test
-func playbackOverlayPControlsExclusiveEditingCollageMode() async throws {
+func playbackOverlayCollageTabHandlesSelectionNavigationAndDismissOnEsc() async throws {
     try await withKeyboardActionApp { app, _ in
         app.settings.prefillCommandPanelWithFocusedCue = true
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
-            availableModules: [.current, .playlist]
+            availableModules: PlaybackOverlayModule.allCases
         ))
         #expect(session.publishInitialSnapshot(
             keyboardActionSnapshot(),
@@ -116,20 +116,19 @@ func playbackOverlayPControlsExclusiveEditingCollageMode() async throws {
             app.playback.playbackViewModel
         ).areSubtitlesVisible
 
+        // P in Current does not switch to Collage tab (Edit Collage shortcut removed)
         #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
         #expect(app.playback.subtitleFocusSession === session)
+        #expect(!session.isEditingCollage)
+        #expect(session.selectedModule == .current)
+
+        #expect(session.selectModule(.collage))
         #expect(session.isEditingCollage)
         #expect(session.collagePreviewStore != nil)
         #expect(app.playback.playbackViewModel?.feedback == nil)
 
-        #expect(app.handlePlaybackKeyDown(
-            keyCode: 35,
-            modifierFlagsRawValue: 0,
-            isRepeat: true
-        ))
-        #expect(session.isEditingCollage)
         #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
-        #expect(session.selectedModule == .current)
+        #expect(session.selectedModule == .collage)
         #expect(app.workbenchAccessibility.focusedPlaybackTarget == .overlayReturn)
         #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
         #expect(app.workbenchAccessibility.focusedPlaybackTarget == nil)
@@ -148,53 +147,53 @@ func playbackOverlayPControlsExclusiveEditingCollageMode() async throws {
         #expect(!session.collageSelectionPlan.contains(cueID: 13))
         #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
         #expect(session.collageSelectionPlan.contains(cueID: 13))
-        #expect(app.handlePlaybackKeyDown(keyCode: 40, modifierFlagsRawValue: 0))
-        #expect(app.playback.commandPanelPresentation == nil)
         #expect(app.handlePlaybackKeyDown(keyCode: 126, modifierFlagsRawValue: 0))
         #expect(session.keyboardNavigationRequest?.targetOrdinal == 11)
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
         #expect(session.keyboardNavigationRequest?.targetOrdinal == 12)
 
+        // Pressing Esc in Collage tab (with no accessibility focus ring) closes the Playback Overlay
         #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
         #expect(!session.isEditingCollage)
         #expect(session.collagePreviewStore == nil)
-        #expect(app.playback.subtitleFocusSession === session)
-        #expect(session.selectModule(.playlist))
-        #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
-        #expect(!session.isEditingCollage)
+        #expect(app.playback.subtitleFocusSession == nil)
     }
 }
 
 @MainActor
 @Test
-func playbackOverlayEditCollageAndCommandPanelFollowTheirReboundKeys() async throws {
+func playbackOverlayCollageAndCommandPanelFollowTheirReboundKeys() async throws {
     try await withKeyboardActionApp { app, _ in
-        let editKey = PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_G))
-        app.settings.playbackShortcuts.set(editKey, for: .editCollage)
+        let copyCollageKey = PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_G))
+        app.settings.playbackShortcuts.set(copyCollageKey, for: .copyCollage)
         app.settings.playbackShortcuts.set(
             PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_J)),
             for: .openCommandPanel
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
-            availableModules: [.current, .playlist]
+            availableModules: PlaybackOverlayModule.allCases
         ))
         #expect(session.publishInitialSnapshot(
             keyboardActionSnapshot(),
             token: session.token
         ))
+        var events: [PlaybackCollageFeedbackEvent] = []
+        session.presentCollageFeedback = { events.append($0) }
 
-        #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
-        #expect(!session.isEditingCollage)
-        #expect(app.handlePlaybackKeyDown(keyCode: editKey.keyCode, modifierFlagsRawValue: 0))
-        #expect(session.isEditingCollage)
-        #expect(app.handlePlaybackKeyDown(keyCode: editKey.keyCode, modifierFlagsRawValue: 0))
-        #expect(!session.isEditingCollage)
+        #expect(session.selectModule(.collage))
+        // Deselect the single selected cue so Copy Collage deterministically emits .noCueSelected
+        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(session.collageSelectionPlan.selectedCueCount == 0)
 
-        // Save to Excerpt on the same key: the two conflict and it runs neither.
-        app.settings.playbackShortcuts.set(editKey, for: .saveToExcerpt)
-        #expect(app.handlePlaybackKeyDown(keyCode: editKey.keyCode, modifierFlagsRawValue: 0))
-        #expect(!session.isEditingCollage)
+        #expect(app.handlePlaybackKeyDown(keyCode: copyCollageKey.keyCode, modifierFlagsRawValue: 0))
+        #expect(events == [.noCueSelected])
+        events.removeAll()
+
+        // Save to Excerpt on the same key: the two conflict in .overlay and it runs neither.
+        app.settings.playbackShortcuts.set(copyCollageKey, for: .saveToExcerpt)
+        #expect(app.handlePlaybackKeyDown(keyCode: copyCollageKey.keyCode, modifierFlagsRawValue: 0))
+        #expect(events.isEmpty)
         #expect(app.playback.excerptDestinationMenu == nil)
 
         app.playback.isPlaybackSurfaceExpanded = true
@@ -214,7 +213,7 @@ func playbackCollageCopyAndExportShortcutsRouteThroughSessionAndRespectRebinding
     try await withKeyboardActionApp { app, _ in
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
-            availableModules: [.current]
+            availableModules: PlaybackOverlayModule.standardModules
         ))
         #expect(session.publishInitialSnapshot(
             keyboardActionSnapshot(),
@@ -224,20 +223,20 @@ func playbackCollageCopyAndExportShortcutsRouteThroughSessionAndRespectRebinding
         var events: [PlaybackCollageFeedbackEvent] = []
         session.presentCollageFeedback = { events.append($0) }
 
-        #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
+        #expect(session.selectModule(.collage))
         #expect(session.isEditingCollage)
 
-        // Deselect the single selected cue so C and E deterministically emit .noCueSelected
+        // Deselect the single selected cue so P and E deterministically emit .noCueSelected
         #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
         #expect(session.collageSelectionPlan.selectedCueCount == 0)
 
-        // Default C (Copy Collage) and E (Export Collage), ignoring key repeat
+        // Default P (Copy Collage) and E (Export Collage), ignoring key repeat
         #expect(app.handlePlaybackKeyDown(
-            keyCode: UInt16(kVK_ANSI_C),
+            keyCode: UInt16(kVK_ANSI_P),
             modifierFlagsRawValue: 0
         ))
         #expect(app.handlePlaybackKeyDown(
-            keyCode: UInt16(kVK_ANSI_C),
+            keyCode: UInt16(kVK_ANSI_P),
             modifierFlagsRawValue: 0,
             isRepeat: true
         ))
@@ -254,7 +253,7 @@ func playbackCollageCopyAndExportShortcutsRouteThroughSessionAndRespectRebinding
             for: .copyCollage
         )
         #expect(app.handlePlaybackKeyDown(
-            keyCode: UInt16(kVK_ANSI_C),
+            keyCode: UInt16(kVK_ANSI_P),
             modifierFlagsRawValue: 0
         ))
         #expect(events.isEmpty)
@@ -263,6 +262,17 @@ func playbackCollageCopyAndExportShortcutsRouteThroughSessionAndRespectRebinding
             modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
         ))
         #expect(events == [.noCueSelected])
+        events.removeAll()
+
+        // Controller Create (.auxiliaryLeft) and Triangle (.north) trigger Copy Collage and Export Collage regardless of keyboard rebinding; Square (.west) is a no-op in Collage.
+        app.playback.isPlaybackSurfaceExpanded = true
+        #expect(app.handlePlaybackControllerInput(.button(.west)))
+        #expect(events.isEmpty)
+        #expect(app.handlePlaybackControllerInput(.button(.auxiliaryLeft)))
+        #expect(!app.handlePlaybackControllerInput(.button(.auxiliaryLeft, isRepeat: true)))
+        #expect(app.handlePlaybackControllerInput(.button(.north)))
+        #expect(!app.handlePlaybackControllerInput(.button(.north, isRepeat: true)))
+        #expect(events == [.noCueSelected, .noCueSelected])
     }
 }
 
@@ -1148,7 +1158,7 @@ func playbackCommandPanelDatabaseSearchOpensCompletePlaylistOverlay() async thro
             modifierFlagsRawValue: 0
         ))
         let session = try #require(app.playback.subtitleFocusSession)
-        #expect(session.availableModules == [.current, .playlist])
+        #expect(session.availableModules == [.current, .playlist, .collage])
         await app.playbackSubtitleFocusInitialLoadTask?.value
         #expect(session.selectedModule == .playlist)
 

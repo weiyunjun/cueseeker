@@ -759,7 +759,7 @@ func playbackCollageActionsRouteEmptyNotReadyFailedAndCompletionFeedback() async
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: openSnapshot,
         sessionGeneration: 1,
-        availableModules: [.current]
+        availableModules: PlaybackOverlayModule.standardModules
     )
     session.collagePreviewStoreFactory = { previewStore }
     var events: [PlaybackCollageFeedbackEvent] = []
@@ -770,8 +770,8 @@ func playbackCollageActionsRouteEmptyNotReadyFailedAndCompletionFeedback() async
     #expect(!session.exportCurrentCollage())
     #expect(events.isEmpty)
 
-    // 1. Entering Collage starts rendering -> notReady
-    #expect(session.toggleEditingCollage())
+    // 1. Entering Collage tab starts rendering -> notReady
+    #expect(session.selectModule(.collage))
     await waitForCollagePreviewCondition { pendingRender != nil }
     #expect(session.copyCurrentCollage())
     #expect(session.exportCurrentCollage())

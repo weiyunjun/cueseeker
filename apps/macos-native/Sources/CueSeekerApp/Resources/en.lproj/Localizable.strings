@@ -294,16 +294,14 @@
 /* Playback subtitle focus, collage and command panel */
 "playback.copy_selected_text" = "Copy Selected Text";
 "playback.search_selected_text" = "Search Selected Text";
-"playback.collage" = "Collage";
-"playback.collage.exit" = "Exit";
-"playback.collage.editing" = "Editing Collage…";
-"playback.collage.preview" = "Collage Preview";
 "playback.collage.copy" = "Copy Collage";
 "playback.collage.export" = "Export Collage";
 "playback.collage.selected_cue_count" = "%d / %d cues selected";
+"playback.collage.empty_hint" = "Select cues to preview the collage.";
 "playback.select" = "Select";
 "playback.source.current" = "Current";
 "playback.source.playlist" = "Playlist";
+"playback.source.collage" = "Collage";
 "playback.cue_count.one" = "1 cue";
 "playback.cue_count.other" = "%d cues";
 "playback.result_count.one" = "1 result";
@@ -383,7 +381,6 @@
 /* Settings: Shortcuts */
 "settings.shortcuts.section.playback" = "Playback";
 "settings.shortcuts.section.overlay" = "Playback Overlay & Command Panel";
-"settings.shortcuts.section.collage" = "Collage";
 "settings.shortcuts.placeholder" = "Press a key";
 "settings.shortcuts.conflict" = "Conflicts with %@";
 "settings.shortcuts.quoted_name" = "“%@”";
@@ -406,7 +403,6 @@
 "settings.shortcuts.action.saveToExcerpt" = "Save to Excerpt List";
 "settings.shortcuts.action.copyCueText" = "Copy Cue Text";
 "settings.shortcuts.action.copyDeepLink" = "Copy Deep Link";
-"settings.shortcuts.action.editCollage" = "Edit Collage";
 "settings.shortcuts.action.copyCollage" = "Copy Collage";
 "settings.shortcuts.action.exportCollage" = "Export Collage";
 
@@ -780,8 +776,7 @@
 "tooltip.topbar.back.disabled" = "No previous page";
 "tooltip.topbar.forward.disabled" = "No next page";
 "tooltip.playback.return_to_workbench" = "Return to Workbench";
-"tooltip.playback_overlay.collage.edit" = "Edit Collage";
-"tooltip.playback_overlay.collage.exit" = "Exit Collage";
+"tooltip.playback_overlay.return_to_playback" = "Return to Playback";
 "tooltip.command_panel.back" = "Back";
 "tooltip.player.previous.cue" = "Previous Cue";
 "tooltip.player.previous.cue.disabled" = "Already at first cue";

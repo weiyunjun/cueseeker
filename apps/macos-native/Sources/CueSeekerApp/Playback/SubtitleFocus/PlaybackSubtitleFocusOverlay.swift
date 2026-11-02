@@ -139,9 +139,7 @@ struct PlaybackOverlay: View {
                 PlaybackOverlayTopBar(
                     modules: session.availableModules,
                     selectedModule: session.selectedModule,
-                    isEditingCollage: session.isEditingCollage,
                     onSelect: session.selectModule,
-                    onToggleEditingCollage: session.toggleEditingCollage,
                     onReturn: onReturn
                 )
                 .frame(height: WorkbenchControlMetrics.redesignAppTopbarHeight)
@@ -168,9 +166,9 @@ struct PlaybackOverlay: View {
         guard let module else { return "none" }
         switch module {
         case .current:
-            return session.isEditingCollage
-                ? "playback_overlay_collage"
-                : "playback_overlay_current"
+            return "playback_overlay_current"
+        case .collage:
+            return "playback_overlay_collage"
         case .playlist:
             if session.libraryStore != nil {
                 return "playback_overlay_library"
@@ -242,11 +240,14 @@ struct PlaybackOverlay: View {
     private var moduleContent: some View {
         let presentedModule = activeModule
         if presentedModule == .current {
-            if session.isEditingCollage,
-               let previewStore = session.collagePreviewStore {
+            currentSubtitleOverlay
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if presentedModule == .collage {
+            if let collageSnapshot = session.collageSnapshot,
+               let previewStore = session.collagePreviewStore ?? session.ensureCollagePreviewStoreIfNeeded() {
                 PlaybackCollageEditor(
                     plan: session.collageSelectionPlan,
-                    totalCueCount: snapshot?.totalCount ?? 0,
+                    totalCueCount: collageSnapshot.totalCount,
                     previewStore: previewStore,
                     uiProbeScope: uiProbeScope,
                     onCopy: { _ = session.copyCurrentCollage() },
@@ -254,11 +255,14 @@ struct PlaybackOverlay: View {
                     onSelect: { _ = session.toggleFocusedCollageCueSelection() },
                     onJumpToCue: { _ = session.jumpToCollageCue(ordinal: $0) }
                 ) {
-                    currentSubtitleOverlay
+                    collageSubtitleOverlay(snapshot: collageSnapshot)
                 }
             } else {
-                currentSubtitleOverlay
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                WorkbenchEmptyHint(
+                    icon: .subtitleQuestion,
+                    message: L("playback.current.left_library")
+                )
+                .background(PlaybackTheme.subtitleFocusOverlayBackground)
             }
         } else if presentedModule == .playlist {
             if let libraryStore = session.libraryStore {
@@ -315,12 +319,12 @@ struct PlaybackOverlay: View {
             keyboardNavigationRequest: session.keyboardNavigationRequest,
             blocksNewNavigation: session.pendingKeyboardAction != nil
                 || session.activeKeyboardAction != nil,
-            collageSelectionPlan: session.isEditingCollage
-                ? session.collageSelectionPlan
-                : nil,
+            collageSelectionPlan: nil,
             isCoveredByHigherLayer: isCoveredByHigherLayer,
             onCommitKeyboardNavigation: session.commitKeyboardNavigation,
-            onCommitNativeReelSelection: session.commitNativeReelSelection,
+            onCommitNativeReelSelection: {
+                session.commitNativeReelSelection(ordinal: $0, module: .current)
+            },
             onToggleCollageCueSelection: session.toggleCollageCueSelection,
             onCopySelectedText: onCopySelectedText,
             onSearchSelectedText: onSearchSelectedText,
@@ -336,6 +340,45 @@ struct PlaybackOverlay: View {
             },
             onCueReelMotionChanged: {
                 session.noteCueReelMotion($0, module: .current)
+            },
+            onExecuteAction: onExecuteAction,
+            onRequestAction: onRequestAction
+        )
+    }
+
+    private func collageSubtitleOverlay(
+        snapshot: SubtitleFocusSnapshot
+    ) -> some View {
+        PlaybackSubtitleFocusOverlay(
+            snapshot: snapshot,
+            cues: session.completeCueBatch?.cues ?? snapshot.cues,
+            displayTitle: currentDisplayTitle,
+            contentGeneration: session.token.sessionGeneration,
+            uiProbeScope: uiProbeScope,
+            keyboardNavigationRequest: session.keyboardNavigationRequest,
+            blocksNewNavigation: session.pendingKeyboardAction != nil
+                || session.activeKeyboardAction != nil,
+            collageSelectionPlan: session.collageSelectionPlan,
+            isCoveredByHigherLayer: isCoveredByHigherLayer,
+            onCommitKeyboardNavigation: session.commitKeyboardNavigation,
+            onCommitNativeReelSelection: {
+                session.commitNativeReelSelection(ordinal: $0, module: .collage)
+            },
+            onToggleCollageCueSelection: session.toggleCollageCueSelection,
+            onCopySelectedText: onCopySelectedText,
+            onSearchSelectedText: onSearchSelectedText,
+            allowsNativeWheelInput: session.allowsNativeWheelInput,
+            allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
+            consumeDeferredAction: {
+                session.consumeDeferredKeyboardActionIfReady(
+                    module: .collage
+                )
+            },
+            onScrollbarDraggingChanged: {
+                session.noteScrollbarDragging($0, module: .collage)
+            },
+            onCueReelMotionChanged: {
+                session.noteCueReelMotion($0, module: .collage)
             },
             onExecuteAction: onExecuteAction,
             onRequestAction: onRequestAction
@@ -401,6 +444,7 @@ private struct PlaybackCollageEditor<SubtitleContent: View>: View {
                 HStack(spacing: 0) {
                     PlaybackCollagePreviewPane(
                         store: previewStore,
+                        isEmpty: plan.selectedCueCount == 0,
                         uiProbeScope: uiProbeScope,
                         onJumpToCue: onJumpToCue
                     )
@@ -450,15 +494,13 @@ private struct PlaybackCollageEditor<SubtitleContent: View>: View {
 }
 
 struct PlaybackOverlayTopBar: View {
-    // Observed so the tab labels and the editing title are re-read when the
-    // language changes: the bar's own inputs do not change with it, so
-    // without this SwiftUI would leave the bar as it was.
+    // Observed so the tab labels are re-read when the language changes: the
+    // bar's own inputs do not change with it, so without this SwiftUI would
+    // leave the bar as it was.
     @EnvironmentObject private var localization: AppLocalizationStore
     let modules: [PlaybackOverlayModule]
     let selectedModule: PlaybackOverlayModule?
-    let isEditingCollage: Bool
     let onSelect: (PlaybackOverlayModule) -> Bool
-    let onToggleEditingCollage: () -> Bool
     let onReturn: () -> Void
 
     var body: some View {
@@ -484,7 +526,6 @@ struct PlaybackOverlayTopBar: View {
                     }
                     return module
                 }()
-                let isCollageFocused = accessibility?.isPlaybackFocused(.overlayCollageButton) == true
                 let isCommandPanelFocused = accessibility?.isPlaybackFocused(.overlayCommandPanel) == true
                 let isTaskFocused = accessibility?.isPlaybackFocused(.overlayTask) == true
                 let isSettingsFocused = accessibility?.isPlaybackFocused(.overlaySettings) == true
@@ -493,7 +534,7 @@ struct PlaybackOverlayTopBar: View {
                     leadingInset: 0,
                     trailingInset: WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding,
                     minimumGap: WorkbenchControlMetrics.redesignSpacing3,
-                    keepsCenterOnMidline: isEditingCollage
+                    keepsCenterOnMidline: false
                 ) {
                     PlaybackReturnButton(
                         hoverBackground: WorkbenchRedesignColors
@@ -501,80 +542,37 @@ struct PlaybackOverlayTopBar: View {
                         pressedBackground: WorkbenchRedesignColors
                             .overlaySurfaceShortcutButtonPressedBg,
                         scenarioID: "playback_overlay.topbar.return",
+                        tooltipLabel: L("tooltip.playback_overlay.return_to_playback"),
+                        tooltipShortcut: .fixed("Esc"),
+                        accessibilityLabel: L("tooltip.playback_overlay.return_to_playback"),
                         isFocused: isReturnFocused,
                         action: onReturn
                     )
                 } center: {
-                    if isEditingCollage {
-                        Text(L("playback.collage.editing"))
-                            .font(.system(
-                                size: WorkbenchControlMetrics.redesignFontSizeBody,
-                                weight: .semibold
-                            ))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                            .allowsHitTesting(false)
-                            .accessibilityIdentifier("playback-collage-editor-title")
-                    } else {
-                        WorkbenchTabs(
-                            items: modules.map {
-                                .init(
-                                    value: $0,
-                                    label: $0.label,
-                                    accessibilityIdentifier: "playback-view-\($0.rawValue)"
-                                )
-                            },
-                            selection: selectedModule ?? modules.first ?? .current,
-                            focusedValue: focusedTab
-                        ) { module in
-                            _ = onSelect(module)
-                        }
+                    WorkbenchTabs(
+                        items: modules.map {
+                            .init(
+                                value: $0,
+                                label: $0.label,
+                                accessibilityIdentifier: "playback-view-\($0.rawValue)"
+                            )
+                        },
+                        selection: selectedModule ?? modules.first ?? .current,
+                        focusedValue: focusedTab
+                    ) { module in
+                        _ = onSelect(module)
                     }
                 } trailing: {
-                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                        if selectedModule == .current {
-                            WorkbenchIconButton(
-                                icon: .imagesSquare,
-                                isOpen: isEditingCollage,
-                                isFocused: isCollageFocused,
-                                hoverBackground: WorkbenchRedesignColors
-                                    .overlaySurfaceShortcutButtonHoverBg,
-                                pressedBackground: WorkbenchRedesignColors
-                                    .overlaySurfaceShortcutButtonPressedBg
-                            ) {
-                                _ = onToggleEditingCollage()
-                            }
-                            .workbenchTooltip(
-                                scenarioID: "playback_overlay.topbar.collage",
-                                label: isEditingCollage
-                                    ? L("tooltip.playback_overlay.collage.exit")
-                                    : L("tooltip.playback_overlay.collage.edit"),
-                                shortcut: .action(.editCollage)
-                            )
-                            .accessibilityLabel(
-                                isEditingCollage
-                                    ? L("playback.collage.exit")
-                                    : L("playback.collage")
-                            )
-                            .accessibilityIdentifier(
-                                isEditingCollage
-                                    ? "playback-exit-collage"
-                                    : "playback-enter-collage"
-                            )
-                        }
-
-                        TopbarAppEntries(
-                            showsCommandPanel: true,
-                            hoverBackground: WorkbenchRedesignColors
-                                .overlaySurfaceShortcutButtonHoverBg,
-                            pressedBackground: WorkbenchRedesignColors
-                                .overlaySurfaceShortcutButtonPressedBg,
-                            isCommandPanelFocused: isCommandPanelFocused,
-                            isTaskFocused: isTaskFocused,
-                            isSettingsFocused: isSettingsFocused
-                        )
-                    }
+                    TopbarAppEntries(
+                        showsCommandPanel: true,
+                        hoverBackground: WorkbenchRedesignColors
+                            .overlaySurfaceShortcutButtonHoverBg,
+                        pressedBackground: WorkbenchRedesignColors
+                            .overlaySurfaceShortcutButtonPressedBg,
+                        isCommandPanelFocused: isCommandPanelFocused,
+                        isTaskFocused: isTaskFocused,
+                        isSettingsFocused: isSettingsFocused
+                    )
                 }
             }
         }
