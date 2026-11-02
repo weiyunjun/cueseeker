@@ -317,17 +317,6 @@ extension AppCoordinator {
         )
     }
 
-    func refreshSearchForLibraryWatchStateChange() {
-        search.reloadEmptySearchFacetDistribution()
-
-        let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else {
-            return
-        }
-
-        refreshCurrentSearch()
-    }
-
     func searchCandidateCueIDsForPruning() -> [Int64] {
         var candidateCueIDs = search.searchResultCueIDs.isEmpty
             ? search.searchResults.map(\.entryID)

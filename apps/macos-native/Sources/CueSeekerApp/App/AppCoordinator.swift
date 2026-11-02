@@ -581,7 +581,6 @@ final class AppCoordinator: ObservableObject {
                 || indexing.databaseMaintenanceStatus.isCompacting
         }
         library.onWatchStateChanged = { [weak self] in
-            self?.refreshSearchForLibraryWatchStateChange()
             self?.refreshExcerptForLibraryWatchStateChange()
         }
         configureAnkiExportRunner()

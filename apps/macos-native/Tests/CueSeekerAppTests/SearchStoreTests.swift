@@ -691,7 +691,7 @@ func filterChangeAfterATwoCardSearchIsProjectedOverEveryMatch() {
 
 @MainActor
 @Test
-func searchFacetWatchDistributionRefreshesAfterLibraryHistoryPublication() async throws {
+func libraryHistoryPublicationDoesNotRerunCurrentSearch() async throws {
     let suiteName = "CueSeekerWatchStateSearchRefreshTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
@@ -742,14 +742,16 @@ func searchFacetWatchDistributionRefreshesAfterLibraryHistoryPublication() async
     await app.search.searchTask?.value
     #expect(app.search.searchResults.count == 1)
     #expect(app.search.searchFacetSnapshot?.distribution.watchStateCounts[.unwatched] == 1)
+    let initialGeneration = app.search.resultListGeneration
 
     app.recordRecentLibraryWatching(for: video, refreshPresentation: false)
     app.flushPendingLibraryPlaybackHistoryPresentations()
-    await app.search.searchTask?.value
 
+    #expect(app.search.resultListGeneration == initialGeneration)
+    #expect(app.search.searchStatus == .completed)
     #expect(app.search.searchResults.count == 1)
     #expect(app.search.searchResults.first?.videoPath == videoURL.path)
-    #expect(app.search.searchFacetSnapshot?.distribution.watchStateCounts[.watching] == 1)
+    #expect(app.search.searchFacetSnapshot?.distribution.watchStateCounts[.unwatched] == 1)
 }
 
 @MainActor
