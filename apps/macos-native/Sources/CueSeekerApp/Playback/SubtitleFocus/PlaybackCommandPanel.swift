@@ -90,10 +90,6 @@ struct PlaybackCommandPanel: View {
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
-                                onSynchronize: {
-                                    appState
-                                        .synchronizePlaybackCommandPanelSearchResults()
-                                },
                                 onApplyFacetFilter:
                                     appState.applySearchFacetFilter,
                                 onUpdateSortOrder:
@@ -737,7 +733,6 @@ private struct PlaybackCommandPanelSearchResults: View {
     let windowStore: PlaybackCueResultSessionWindowStore?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     let onBack: () -> Bool
-    let onSynchronize: () -> Void
     let onApplyFacetFilter: (CueFacetFilter) -> Void
     let onUpdateSortOrder: (SearchSortOrder) -> Void
     let onCommitSelection: (PlaybackVirtualReelSelectionCommit) -> Bool
@@ -844,10 +839,6 @@ private struct PlaybackCommandPanelSearchResults: View {
                     accessibility?.onToggleCommandPanelSortMenu = nil
                 }
             }
-        }
-        .onAppear(perform: onSynchronize)
-        .onChange(of: searchStore.resultRevision) { _ in
-            onSynchronize()
         }
         .onDisappear {
             closeFilterDialog()

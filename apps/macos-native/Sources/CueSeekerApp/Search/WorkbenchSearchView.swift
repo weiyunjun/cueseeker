@@ -188,6 +188,10 @@ struct WorkbenchSearchView: View {
             search.tableViewportAnchor = nil
             viewportAnchorToRestore = nil
             didRestoreViewport = true
+            guard allowsTableResponse else {
+                hasDeferredRefreshWhileCovered = true
+                return
+            }
             if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 search.activateResidentSearchTableProjection()
                 tableScrollTargetRow = nil
@@ -541,6 +545,7 @@ struct WorkbenchSearchView: View {
 
     private func refreshTableForCurrentState() {
         if showsSearchEmptyHint {
+            search.clearTableProjectionSource()
             clearTableRows(resetScroll: false)
         } else {
             updateRowsFromResidentSearch()

@@ -976,20 +976,21 @@ func playbackCommandPanelRootLiveSearchUpdatesExactCountAndReusesCompletedSearch
         app.playback.isPlaybackSurfaceExpanded = true
         #expect(app.presentPlaybackCommandPanel())
 
-        app.updatePlaybackCommandPanelQuery("keyboard action")
-        #expect(app.search.searchQuery == "keyboard action")
-        #expect(app.search.isSearchDebouncing)
+        app.updatePlaybackCommandPanelQuery("keyboard action  ")
+        #expect(app.search.searchQuery == "keyboard action  ")
+        #expect(app.search.searchStatus == .searching)
         #expect(
             app.search.exactSearchResultTotalCount(
-                matchingQuery: "keyboard action"
+                matchingQuery: "keyboard action  "
             ) == nil
         )
 
         await app.search.searchTask?.value
-        #expect(!app.search.isSearchDebouncing)
+        #expect(app.search.searchStatus == .completed)
+        #expect(app.search.searchFacetSnapshot != nil)
         #expect(
             app.search.exactSearchResultTotalCount(
-                matchingQuery: "keyboard action"
+                matchingQuery: "keyboard action  "
             ) == 30
         )
         #expect(
@@ -1002,7 +1003,21 @@ func playbackCommandPanelRootLiveSearchUpdatesExactCountAndReusesCompletedSearch
         #expect(app.submitPlaybackCommandPanelSearch())
         #expect(app.playback.commandPanelPresentation?.page == .searchResults)
         #expect(app.search.resultListGeneration == completedGeneration)
+        #expect(app.search.searchFacetSnapshot != nil)
         #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 30)
+
+        // Returning to root, typing a new query, and submitting immediately
+        // during debounce reuses the in-flight search without restarting it.
+        #expect(app.returnPlaybackCommandPanelToRoot())
+        app.updatePlaybackCommandPanelQuery("keyboard action cue 1")
+        let inFlightGeneration = app.search.resultListGeneration
+        #expect(app.search.searchStatus == .searching)
+        #expect(app.submitPlaybackCommandPanelSearch())
+        #expect(app.playback.commandPanelPresentation?.page == .searchResults)
+        #expect(app.search.resultListGeneration == inFlightGeneration)
+        await app.search.searchTask?.value
+        #expect(app.search.resultListGeneration == inFlightGeneration)
+        #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount ?? 0 > 0)
     }
 }
 

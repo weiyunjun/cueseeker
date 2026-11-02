@@ -222,7 +222,8 @@ extension AppCoordinator {
                 guard let self else {
                     return
                 }
-                if self.search.isPlaybackPruningActive {
+                if self.search.isPlaybackPruningActive,
+                   self.search.hasMutatedSinceSearchSnapshot {
                     self.pruneInvalidSearchResultsFromLibrary()
                 }
                 self.refreshSearchPlaybackPlaylistSource(

@@ -398,7 +398,13 @@ final class AppCoordinator: ObservableObject {
     var databaseCompactionTask: Task<Void, Never>?
     var videoSizeTransitionTask: Task<Void, Never>?
     var windowFrameBeforeUserZoom: NSRect?
-    var activePlaybackSource: ActivePlaybackSource = .none
+    var activePlaybackSource: ActivePlaybackSource = .none {
+        didSet {
+            if activePlaybackSource != .search {
+                search.resetPlaybackPruning()
+            }
+        }
+    }
     /// An Add Folder, Index or Remove Folder took the item playing out of the
     /// library. It plays on; previous, next and Auto Switch go to the first
     /// item the library still holds. Every open clears it.
