@@ -189,6 +189,98 @@ func tableSandboxSearchProjectionReloadsWhenCanonicalCueContentChanges() {
 
 @MainActor
 @Test
+func searchStorePrebuiltCompletionAppendsBeyondFirstPageWithoutFullTableReload() {
+    let cueStore = CueContentStore()
+    let searchStore = SearchStore(cueContentStore: cueStore)
+    searchStore.activateResidentSearchTableProjection()
+
+    let totalCount = 500
+    let firstPageCount = 100
+    let allResults = (0..<totalCount).map { rank in
+        SubtitleSearchResult(
+            cueContent: residentCueContent(
+                cueID: Int64(rank + 1),
+                content: "Cue \(rank + 1)"
+            ),
+            searchRank: rank
+        )
+    }
+    let firstPage = SubtitleSearchPage(
+        results: Array(allResults.prefix(firstPageCount)),
+        totalCount: firstPageCount,
+        fileSummaries: [],
+        countSnapshot: .exactProgress(
+            knownResultCount: firstPageCount,
+            knownFileCount: 1
+        ),
+        nextCursor: SubtitleSearchCursor(offset: firstPageCount),
+        pageMode: .visibleWindow
+    )
+    let generation = searchStore.prepareSearch(
+        appending: false,
+        filterSet: SubtitleSearchFilterSet()
+    )
+    searchStore.commitVisibleSearchPage(firstPage, appending: false, offset: 0)
+    #expect(searchStore.tableRowStore.snapshot.totalRowCount == firstPageCount)
+    #expect(searchStore.tableRowStore.snapshot.update == .append(0..<firstPageCount))
+
+    let cueIDs = allResults.map(\.entryID)
+    let contentByCueID = Dictionary(
+        uniqueKeysWithValues: allResults.map { ($0.entryID, $0.cueContent) }
+    )
+    let rankByCueID = Dictionary(
+        uniqueKeysWithValues: allResults.map { ($0.entryID, $0.searchRank) }
+    )
+    let facetSnapshot = CueFacetSnapshot(
+        cueIDs: cueIDs,
+        durationFacets: Array(repeating: .oneToUnderThreeSeconds, count: totalCount),
+        characterFacets: Array(repeating: .oneToTen, count: totalCount),
+        languageFacets: Array(repeating: [.japanese], count: totalCount),
+        watchStateFacets: Array(repeating: .unwatched, count: totalCount),
+        folderFacets: Array(repeating: "/Media", count: totalCount)
+    )
+    let precomputedDistribution = facetSnapshot.distribution
+    let completedPage = SubtitleSearchPage(
+        results: Array(allResults.prefix(firstPageCount)),
+        renderableResults: Array(allResults.dropFirst(firstPageCount)),
+        renderableResultsOffset: firstPageCount,
+        cueIDs: cueIDs,
+        totalCount: totalCount,
+        fileSummaries: [],
+        countSnapshot: .exact(
+            totalCount: totalCount,
+            fileSummaryCount: 1
+        ),
+        nextCursor: nil,
+        pageMode: .exact,
+        facetSnapshot: facetSnapshot
+    )
+    let prebuiltCompletion = SearchStorePrebuiltCompletion(
+        cueIDs: cueIDs,
+        contentByCueID: contentByCueID,
+        rankByCueID: rankByCueID,
+        facetDistribution: precomputedDistribution
+    )
+
+    let didCommit = searchStore.commitExactSearchPage(
+        completedPage,
+        prebuiltCompletion: prebuiltCompletion,
+        generation: generation
+    )
+
+    #expect(didCommit)
+    #expect(searchStore.loadedSearchResultCount == totalCount)
+    #expect(searchStore.tableRowStore.snapshot.totalRowCount == totalCount)
+    #expect(
+        searchStore.tableRowStore.snapshot.update
+            == .append(firstPageCount..<totalCount)
+    )
+    #expect(searchStore.tableRowStore.snapshot.row(at: totalCount - 1)?.primaryCueText == "Cue \(totalCount)")
+    #expect(searchStore.searchFacetDistribution == precomputedDistribution)
+}
+
+@MainActor
+@Test
 func tableSandboxExcerptProjectionReloadsWhenCanonicalCueContentChanges() {
     let cueStore = CueContentStore()
     let original = residentCueContent(cueID: 42, content: "Original Excerpt Cue")

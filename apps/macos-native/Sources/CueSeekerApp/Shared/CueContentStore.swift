@@ -52,11 +52,20 @@ final class CueContentStore {
         }
         if !publishesChange {
             var didChange = false
-            for content in contents where contentByCueID[content.cueID] != content {
-                contentByCueID[content.cueID] = content
-                didChange = true
+            var didModifyExisting = false
+            for content in contents {
+                if let existing = contentByCueID[content.cueID] {
+                    if existing != content {
+                        contentByCueID[content.cueID] = content
+                        didChange = true
+                        didModifyExisting = true
+                    }
+                } else {
+                    contentByCueID[content.cueID] = content
+                    didChange = true
+                }
             }
-            if didChange {
+            if didModifyExisting {
                 revision &+= 1
             }
             return didChange
@@ -68,6 +77,58 @@ final class CueContentStore {
             changedCueIDs.insert(content.cueID)
         }
         return publishChange(cueIDs: changedCueIDs)
+    }
+
+    @discardableResult
+    func installPrebuilt(
+        _ prebuilt: [Int64: CueContent],
+        publishesChange: Bool = false
+    ) -> Bool {
+        guard !prebuilt.isEmpty else { return false }
+        if publishesChange {
+            return install(Array(prebuilt.values), publishesChange: true)
+        }
+        if contentByCueID.isEmpty {
+            contentByCueID = prebuilt
+            return true
+        }
+        if contentByCueID.count <= prebuilt.count {
+            var merged = prebuilt
+            var didModifyExisting = false
+            for (cueID, existingContent) in contentByCueID {
+                if let newContent = merged[cueID] {
+                    if newContent != existingContent {
+                        didModifyExisting = true
+                    }
+                } else {
+                    merged[cueID] = existingContent
+                }
+            }
+            let didChange = didModifyExisting || merged.count != contentByCueID.count
+            contentByCueID = merged
+            if didModifyExisting {
+                revision &+= 1
+            }
+            return didChange
+        }
+        var didChange = false
+        var didModifyExisting = false
+        for (cueID, content) in prebuilt {
+            if let existing = contentByCueID[cueID] {
+                if existing != content {
+                    contentByCueID[cueID] = content
+                    didChange = true
+                    didModifyExisting = true
+                }
+            } else {
+                contentByCueID[cueID] = content
+                didChange = true
+            }
+        }
+        if didModifyExisting {
+            revision &+= 1
+        }
+        return didChange
     }
 
     @discardableResult

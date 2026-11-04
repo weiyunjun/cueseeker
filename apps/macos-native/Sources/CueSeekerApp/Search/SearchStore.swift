@@ -29,6 +29,13 @@ enum SearchTableProjectionSource: Equatable {
     case residentSearch(revision: UInt64)
 }
 
+struct SearchStorePrebuiltCompletion: Sendable {
+    let cueIDs: [Int64]
+    let contentByCueID: [Int64: CueContent]
+    let rankByCueID: [Int64: Int]
+    let facetDistribution: CueFacetDistribution?
+}
+
 @MainActor
 final class SearchStore: ObservableObject {
     private let cueContentStore: CueContentStore
@@ -326,8 +333,15 @@ final class SearchStore: ObservableObject {
         ).distribution
     }
 
-    func setSearchFacetSnapshot(_ snapshot: CueFacetSnapshot?) {
+    func setSearchFacetSnapshot(
+        _ snapshot: CueFacetSnapshot?,
+        precomputedDistribution: CueFacetDistribution? = nil
+    ) {
         searchFacetSnapshot = snapshot
+        if snapshot != nil, let precomputedDistribution {
+            searchFacetDistribution = precomputedDistribution
+            return
+        }
         refreshSearchFacetDistribution()
     }
 
@@ -743,6 +757,7 @@ final class SearchStore: ObservableObject {
     func commitExactSearchPage(
         _ page: SubtitleSearchPage,
         reportedResults: [SubtitleSearchResult] = [],
+        prebuiltCompletion: SearchStorePrebuiltCompletion? = nil,
         generation: UInt64
     ) -> Bool {
         guard generation == resultListGeneration else {
@@ -750,15 +765,34 @@ final class SearchStore: ObservableObject {
         }
         commitResultMutation {
             let loadedResultCount: Int
-            let results = reportedResults + page.renderableResults
-            if !results.isEmpty {
-                mergeLoadedSearchResults(
-                    results,
-                    startingAt: page.renderableResultsOffset - reportedResults.count
-                )
+            if let prebuiltCompletion,
+               !prebuiltCompletion.cueIDs.isEmpty {
+                let isUnchangedPrefixOnly = loadedSearchResultCueIDs == prebuiltCompletion.cueIDs
+                    && searchRankByCueID.count == prebuiltCompletion.rankByCueID.count
+                if !isUnchangedPrefixOnly {
+                    cueContentStore.installPrebuilt(
+                        prebuiltCompletion.contentByCueID,
+                        publishesChange: false
+                    )
+                    loadedSearchResultCueIDs = prebuiltCompletion.cueIDs
+                    searchRankByCueID = prebuiltCompletion.rankByCueID
+                    tableProjectionRevision &+= 1
+                    if case .residentSearch = tableProjectionSource {
+                        activateResidentSearchTableProjection()
+                    }
+                }
                 loadedResultCount = loadedSearchResultCueIDs.count
             } else {
-                loadedResultCount = loadedGlobalResultCount
+                let results = reportedResults + page.renderableResults
+                if !results.isEmpty {
+                    mergeLoadedSearchResults(
+                        results,
+                        startingAt: page.renderableResultsOffset - reportedResults.count
+                    )
+                    loadedResultCount = loadedSearchResultCueIDs.count
+                } else {
+                    loadedResultCount = loadedGlobalResultCount
+                }
             }
             searchResultCueIDs = page.cueIDs
             let hasMore = loadedResultCount < page.totalCount
@@ -774,7 +808,14 @@ final class SearchStore: ObservableObject {
                     ?? SubtitleSearchCursor(offset: loadedResultCount))
                 : nil
             if let facetSnapshot = page.facetSnapshot {
-                setSearchFacetSnapshot(facetSnapshot)
+                let precomputedDistribution = (
+                    searchFacetFilter == resultFacetFilter
+                        && searchSortOrder == resultSortOrder
+                ) ? prebuiltCompletion?.facetDistribution : nil
+                setSearchFacetSnapshot(
+                    facetSnapshot,
+                    precomputedDistribution: precomputedDistribution
+                )
             }
             searchStatus = .completed
             updateSearchSnapshotMutationRevision()

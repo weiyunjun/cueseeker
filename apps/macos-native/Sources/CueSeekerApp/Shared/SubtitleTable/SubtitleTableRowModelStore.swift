@@ -352,8 +352,17 @@ final class TableSandboxRowModelStore: ObservableObject {
             return
         }
         let update: TableSandboxRowsUpdate
+        let oldCount = snapshot.searchCueIDs.count
         if snapshot.loadedReferenceCount == 0, !cueIDs.isEmpty {
             update = .append(0..<cueIDs.count)
+        } else if snapshot.materializedRows.isEmpty,
+                  snapshot.excerptRelations.isEmpty,
+                  snapshot.cueContentRevision == referencedCueContentRevision,
+                  oldCount > 0,
+                  oldCount < cueIDs.count,
+                  cueIDs.starts(with: snapshot.searchCueIDs),
+                  snapshot.searchCueIDs.allSatisfy({ snapshot.searchRankByCueID[$0] == ranks[$0] }) {
+            update = .append(oldCount..<cueIDs.count)
         } else if snapshot.searchCueIDs == cueIDs,
                   snapshot.materializedRows.isEmpty,
                   snapshot.excerptRelations.isEmpty,

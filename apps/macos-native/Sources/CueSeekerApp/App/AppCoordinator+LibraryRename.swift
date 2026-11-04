@@ -81,6 +81,7 @@ extension AppCoordinator {
     /// The paths moved: the root list, File routes, facet filters, and resident
     /// page states follow the new paths in place without a full re-search.
     private func applyCompletedRename(_ plan: LibraryRenamePlan) {
+        invalidateCachedVideoPlaybackMetadata()
         if case .folder = plan.request, let step = plan.steps.first {
             indexing.replaceFolderPathPrefix(step.oldPath, with: step.newPath)
             _ = search.updateFolderScope(indexing.selectedFolders)

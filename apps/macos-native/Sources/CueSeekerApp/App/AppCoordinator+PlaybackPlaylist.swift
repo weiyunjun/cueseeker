@@ -132,25 +132,33 @@ extension AppCoordinator {
         )
     }
 
+    @discardableResult
     func synchronizeSearchAndPlaylistOnPlayback(
         seed result: SubtitleSearchResult
-    ) {
+    ) -> Bool {
         search.activatePlaybackPruning()
         let seedInLibrary = isCueInLibrary(result.entryID)
+        let precomputedLiveCueIDs: Set<Int64>?
         if search.hasMutatedSinceSearchSnapshot || !seedInLibrary {
             let candidateCueIDs = searchCandidateCueIDsForPruning()
             let liveCueIDs = cueIDsInLibrary(among: candidateCueIDs)
             search.pruneInvalidSearchResults(liveCueIDs: liveCueIDs)
+            precomputedLiveCueIDs = liveCueIDs
+        } else {
+            precomputedLiveCueIDs = nil
         }
         installSearchPlaybackPlaylistSource(
             seed: result,
-            isSeedInLibrary: seedInLibrary
+            isSeedInLibrary: seedInLibrary,
+            liveCueIDs: precomputedLiveCueIDs
         )
+        return seedInLibrary
     }
 
     func installSearchPlaybackPlaylistSource(
         seed result: SubtitleSearchResult,
-        isSeedInLibrary: Bool? = nil
+        isSeedInLibrary: Bool? = nil,
+        liveCueIDs precomputedLiveCueIDs: Set<Int64>? = nil
     ) {
         let resultListGeneration = search.resultListGeneration
         let origin = PlaybackPlaylistSourceOrigin.search(
@@ -161,7 +169,8 @@ extension AppCoordinator {
         let selectedOrdinal: Int?
         let didFilterCueIDs: Bool
         if search.hasMutatedSinceSearchSnapshot || !seedInLibrary {
-            let liveCueIDs = cueIDsInLibrary(among: search.loadedSearchResultCueIDs)
+            let liveCueIDs = precomputedLiveCueIDs
+                ?? cueIDsInLibrary(among: search.loadedSearchResultCueIDs)
             cueIDs = search.loadedSearchResultCueIDs.filter { liveCueIDs.contains($0) }
             selectedOrdinal = cueIDs.firstIndex(of: result.entryID)
             didFilterCueIDs = true
@@ -402,7 +411,8 @@ extension AppCoordinator {
         if let content = cueContent.content(for: cueID) {
             return ExcerptCuePresentation(cueContent: content)
         }
-        guard let content = try? CueContentDatabase(path: databaseURL)
+        let resolvedDatabase = cueContentDatabase ?? (try? CueContentDatabase(path: databaseURL))
+        guard let content = try? resolvedDatabase?
             .cueContents(forCueIDs: [cueID])
             .first
         else {

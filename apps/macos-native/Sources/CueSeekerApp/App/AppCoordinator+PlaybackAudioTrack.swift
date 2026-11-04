@@ -7,27 +7,67 @@ import Foundation
 /// Default Audio Track.md`.
 @MainActor
 extension AppCoordinator {
+    func invalidateCachedVideoPlaybackMetadata() {
+        cachedVideoPlaybackMetadataByMediaPath.removeAll(keepingCapacity: true)
+    }
+
+    private func synchronizeCachedVideoPlaybackMetadataRevision() {
+        let currentRevision = search.indexedCueDataRevision
+        guard cachedVideoPlaybackMetadataRevision != currentRevision else {
+            return
+        }
+        cachedVideoPlaybackMetadataRevision = currentRevision
+        cachedVideoPlaybackMetadataByMediaPath.removeAll(keepingCapacity: true)
+    }
+
     func resolvedOpenVideoPlaybackMetadata(
         forVideoPath videoPath: String
     ) -> (codec: String?, defaultAudioTrackIndex: Int) {
         let mediaPath = URL.fromMediaPath(videoPath).mediaPath
-        let currentRevision = search.indexedCueDataRevision
-        if let cached = cachedOpenVideoPlaybackMetadata,
-           cached.mediaPath == mediaPath,
-           cached.indexedCueDataRevision == currentRevision {
+        synchronizeCachedVideoPlaybackMetadataRevision()
+        if let cached = cachedVideoPlaybackMetadataByMediaPath[mediaPath],
+           cached.hasLoadedCodecAndAudioTrack {
             return (cached.codec, cached.defaultAudioTrackIndex)
         }
         let codec = libraryDatabase?.videoCodec(forVideoPath: videoPath)
         let defaultAudioTrackIndex = recordedAudioTracks(forVideoPath: videoPath)?.defaultIndex ?? 0
         if libraryDatabase != nil {
-            cachedOpenVideoPlaybackMetadata = (
-                mediaPath: mediaPath,
-                codec: codec,
-                defaultAudioTrackIndex: defaultAudioTrackIndex,
-                indexedCueDataRevision: currentRevision
-            )
+            var entry = cachedVideoPlaybackMetadataByMediaPath[mediaPath]
+                ?? CachedVideoPlaybackMetadata(
+                    codec: codec,
+                    defaultAudioTrackIndex: defaultAudioTrackIndex
+                )
+            entry.codec = codec
+            entry.defaultAudioTrackIndex = defaultAudioTrackIndex
+            entry.hasLoadedCodecAndAudioTrack = true
+            cachedVideoPlaybackMetadataByMediaPath[mediaPath] = entry
         }
         return (codec, defaultAudioTrackIndex)
+    }
+
+    func resolvedStoredPlaybackDisplayTitle(
+        forVideoPath videoPath: String
+    ) -> String? {
+        let mediaPath = URL.fromMediaPath(videoPath).mediaPath
+        synchronizeCachedVideoPlaybackMetadataRevision()
+        if let cached = cachedVideoPlaybackMetadataByMediaPath[mediaPath],
+           cached.hasLoadedStoredDisplayTitle {
+            return cached.storedDisplayTitle
+        }
+        let storedDisplayTitle = (try? libraryDatabase?.displayTitle(
+            forVideoFile: URL.fromMediaPath(videoPath)
+        ))?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if libraryDatabase != nil {
+            var entry = cachedVideoPlaybackMetadataByMediaPath[mediaPath]
+                ?? CachedVideoPlaybackMetadata(
+                    codec: nil,
+                    defaultAudioTrackIndex: 0
+                )
+            entry.storedDisplayTitle = storedDisplayTitle
+            entry.hasLoadedStoredDisplayTitle = true
+            cachedVideoPlaybackMetadataByMediaPath[mediaPath] = entry
+        }
+        return storedDisplayTitle
     }
 
     /// The video's default audio track as set, counted from 0. The player

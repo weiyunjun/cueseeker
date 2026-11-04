@@ -927,6 +927,66 @@ struct CueGroupRefreshScopeIntegrationTests {
         #expect(app.search.searchNavigationSnapshot?.next?.entryID == orderedCueIDs[targetIndex + 1])
         #expect(app.playbackDisplayTitle(for: targetResult) == "Episode - 01")
     }
+
+    @MainActor
+    @Test
+    func multiEpisodePlaybackMetadataCacheRetainsVisitedVideosAndPersistentCueContentDatabase() throws {
+        let defaultsSuite = "CueSeekerAppTests.MultiEpisodeMetadataCache-\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: defaultsSuite))
+        defer {
+            userDefaults.removePersistentDomain(forName: defaultsSuite)
+        }
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CueSeekerMultiEpisodeCache-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempRoot)
+        }
+
+        let databaseURL = tempRoot.appendingPathComponent("index.sqlite")
+        let videoURL1 = tempRoot.appendingPathComponent("Episode01.mkv")
+        let subtitleURL1 = tempRoot.appendingPathComponent("Episode01.ass")
+        let videoURL2 = tempRoot.appendingPathComponent("Episode02.mkv")
+        let subtitleURL2 = tempRoot.appendingPathComponent("Episode02.ass")
+        try DatabaseBootstrap.prepare(at: databaseURL)
+        let indexingDatabase = try IndexingDatabase(path: databaseURL)
+        try indexingDatabase.replaceCueGroups(
+            subtitleFile: subtitleURL1,
+            videoFile: videoURL1,
+            format: .ass,
+            cueGroups: cueGroupRefreshScopeGroups(groupCount: 1)
+        )
+        try indexingDatabase.replaceCueGroups(
+            subtitleFile: subtitleURL2,
+            videoFile: videoURL2,
+            format: .ass,
+            cueGroups: cueGroupRefreshScopeGroups(groupCount: 1)
+        )
+
+        let app = AppCoordinator(
+            userDefaults: userDefaults,
+            databaseURL: databaseURL
+        )
+        #expect(app.cueContentDatabase != nil)
+        #expect(app.cueIDsInLibrary(among: [1, 2]) == [1, 2])
+
+        _ = app.resolvedOpenVideoPlaybackMetadata(forVideoPath: videoURL1.path)
+        _ = app.resolvedOpenVideoPlaybackMetadata(forVideoPath: videoURL2.path)
+        _ = app.resolvedStoredPlaybackDisplayTitle(forVideoPath: videoURL1.path)
+        #expect(app.cachedVideoPlaybackMetadataByMediaPath.count == 2)
+        #expect(
+            app.cachedVideoPlaybackMetadataByMediaPath[videoURL1.mediaPath]?.hasLoadedCodecAndAudioTrack == true
+        )
+        #expect(
+            app.cachedVideoPlaybackMetadataByMediaPath[videoURL1.mediaPath]?.hasLoadedStoredDisplayTitle == true
+        )
+        #expect(
+            app.cachedVideoPlaybackMetadataByMediaPath[videoURL2.mediaPath]?.hasLoadedCodecAndAudioTrack == true
+        )
+
+        app.invalidateCachedVideoPlaybackMetadata()
+        #expect(app.cachedVideoPlaybackMetadataByMediaPath.isEmpty)
+    }
 }
 
 @MainActor

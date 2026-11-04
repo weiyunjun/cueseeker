@@ -401,6 +401,7 @@ extension AppCoordinator {
         ensurePlayerInitialized()
         clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
+        let precheckedItemInLibrary: Bool?
         if let playlistSourceOverride {
             playback.setPlaylistSource(playlistSourceOverride)
             if case .cue = playlistSourceOverride.origin {
@@ -409,14 +410,16 @@ extension AppCoordinator {
                     ordinal: 0
                 )
             }
+            precheckedItemInLibrary = nil
         } else if let playbackSearchPromotion,
                   let source = playback.playlistSource,
                   !search.hasMutatedSinceSearchSnapshot,
                   source.itemIdentity(at: playbackSearchPromotion.selectedOrdinal)
                       == .search(result.entryID) {
             // Reuse existing unmutated search playlist source without rebuilding.
+            precheckedItemInLibrary = nil
         } else {
-            synchronizeSearchAndPlaylistOnPlayback(seed: result)
+            precheckedItemInLibrary = synchronizeSearchAndPlaylistOnPlayback(seed: result)
         }
         // The ordinal counts in the list the result was chosen from, which a
         // database change may have left apart from the playlist.
@@ -440,7 +443,7 @@ extension AppCoordinator {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
-        let itemInLibrary = isCueInLibrary(result.entryID)
+        let itemInLibrary = precheckedItemInLibrary ?? isCueInLibrary(result.entryID)
         currentPlaybackItemLeftLibrary = !itemInLibrary
         search.selectResult(result)
         if itemInLibrary, playbackSearchPromotion == nil {
@@ -680,7 +683,7 @@ extension AppCoordinator {
         let wasPlayingOrExpanded = activePlaybackSource != .none || playback.isPlaybackSurfaceExpanded
         let stoppedVideoName = currentPlaybackVideoPath.map { URL.fromMediaPath($0).lastPathComponent }
         cancelPendingPlaybackOpenTask()
-        cachedOpenVideoPlaybackMetadata = nil
+        invalidateCachedVideoPlaybackMetadata()
         playbackAwaitsLibraryReconcile = false
         _ = playback.dismissCommandPanel()
         invalidatePlaybackSubtitleFocusForSourceReplacement()

@@ -5,6 +5,7 @@ private struct SearchStorePageLoad: Sendable {
     let page: SubtitleSearchPage
     /// The rows the scan reported batch by batch before its page.
     var reportedResults: [SubtitleSearchResult] = []
+    var prebuiltCompletion: SearchStorePrebuiltCompletion?
     let databaseSearchMilliseconds: Double
 }
 
@@ -221,9 +222,56 @@ extension SearchStore {
                             ))
                         }
                     )
+                    let facetDistribution = page.facetSnapshot?.filteredCueIDs(
+                        using: facetFilter,
+                        sortOrder: sortOrder,
+                        limit: page.facetSnapshot?.cueIDs.count ?? 0
+                    ).distribution
+                    let prebuiltCompletion: SearchStorePrebuiltCompletion?
+                    let remainingReportedResults: [SubtitleSearchResult]
+                    if page.renderableResultsOffset == reportedRows.results.count {
+                        let totalLoaded = reportedRows.results.count + page.renderableResults.count
+                        var cueIDs: [Int64] = []
+                        cueIDs.reserveCapacity(totalLoaded)
+                        var contentByCueID: [Int64: CueContent] = [:]
+                        contentByCueID.reserveCapacity(totalLoaded)
+                        var rankByCueID: [Int64: Int] = [:]
+                        rankByCueID.reserveCapacity(totalLoaded)
+                        for result in reportedRows.results {
+                            let cueID = result.entryID
+                            cueIDs.append(cueID)
+                            contentByCueID[cueID] = result.cueContent
+                            rankByCueID[cueID] = result.searchRank
+                        }
+                        for result in page.renderableResults {
+                            let cueID = result.entryID
+                            cueIDs.append(cueID)
+                            contentByCueID[cueID] = result.cueContent
+                            rankByCueID[cueID] = result.searchRank
+                        }
+                        reportedRows.results.removeAll()
+                        prebuiltCompletion = SearchStorePrebuiltCompletion(
+                            cueIDs: cueIDs,
+                            contentByCueID: contentByCueID,
+                            rankByCueID: rankByCueID,
+                            facetDistribution: facetDistribution
+                        )
+                        remainingReportedResults = []
+                    } else {
+                        prebuiltCompletion = facetDistribution.map {
+                            SearchStorePrebuiltCompletion(
+                                cueIDs: [],
+                                contentByCueID: [:],
+                                rankByCueID: [:],
+                                facetDistribution: $0
+                            )
+                        }
+                        remainingReportedResults = reportedRows.results
+                    }
                     return SearchStorePageLoad(
                         page: page,
-                        reportedResults: reportedRows.results,
+                        reportedResults: remainingReportedResults,
+                        prebuiltCompletion: prebuiltCompletion,
                         databaseSearchMilliseconds:
                             SearchPerformanceLogger.elapsedMilliseconds(since: started)
                     )
@@ -289,6 +337,7 @@ extension SearchStore {
                     self.commitExactSearchPage(
                         page,
                         reportedResults: pageLoad.reportedResults,
+                        prebuiltCompletion: pageLoad.prebuiltCompletion,
                         generation: generation
                     )
                 }

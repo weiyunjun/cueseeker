@@ -51,6 +51,7 @@ final class AppCoordinator: ObservableObject {
     let playbackSubtitleFocusDatabaseReader: PlaybackSubtitleFocusDatabaseReader
     var indexingDatabase: IndexingDatabase?
     let playbackSubtitleDatabase: PlaybackSubtitleDatabase?
+    let cueContentDatabase: CueContentDatabase?
     let taskRecordDatabase: TaskRecordDatabase?
     let workbenchLayout: WorkbenchLayoutState
     let playbackFullscreenManager = PlaybackFullscreenManager()
@@ -164,9 +165,9 @@ final class AppCoordinator: ObservableObject {
             .first(where: { !$0.isEmpty }) {
             return knownDisplayTitle
         }
-        let storedDisplayTitle = (try? libraryDatabase?.displayTitle(
-            forVideoFile: URL.fromMediaPath(videoPath)
-        ))?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let storedDisplayTitle = resolvedStoredPlaybackDisplayTitle(
+            forVideoPath: videoPath
+        )
         if let storedDisplayTitle, !storedDisplayTitle.isEmpty {
             return storedDisplayTitle
         }
@@ -432,14 +433,18 @@ final class AppCoordinator: ObservableObject {
     var pendingLibraryPlaybackHistoryPresentationVideoPaths: Set<String> = []
     var autoSwitchCueSequenceTask: Task<Void, Never>?
     var autoSwitchCueSequenceGeneration = 0
+    struct CachedVideoPlaybackMetadata {
+        var codec: String?
+        var defaultAudioTrackIndex: Int
+        var hasLoadedCodecAndAudioTrack = false
+        var storedDisplayTitle: String?
+        var hasLoadedStoredDisplayTitle = false
+    }
+
     var playbackOpenTask: Task<Void, Never>?
     var playbackOpenGeneration: UInt = 0
-    var cachedOpenVideoPlaybackMetadata: (
-        mediaPath: String,
-        codec: String?,
-        defaultAudioTrackIndex: Int,
-        indexedCueDataRevision: UInt64
-    )?
+    var cachedVideoPlaybackMetadataByMediaPath: [String: CachedVideoPlaybackMetadata] = [:]
+    var cachedVideoPlaybackMetadataRevision: UInt64 = 0
     var pendingURLSchemeDirectPlayIntent: URLSchemeDirectPlayIntent?
     var pendingURLSchemeCuePlaybackIntent: URLSchemeCuePlaybackIntent?
     var urlSchemeCueLookupTask: Task<Void, Never>?
@@ -490,6 +495,7 @@ final class AppCoordinator: ObservableObject {
         var openedDatabase: IndexingDatabase?
         var openedSearchDatabase: SearchDatabase?
         var openedPlaybackSubtitleDatabase: PlaybackSubtitleDatabase?
+        var openedCueContentDatabase: CueContentDatabase?
         var openedLibraryDatabase: LibraryDatabase?
         var openedIndexedContentDatabase: IndexedContentDatabase?
         var openedLibraryCoverDatabase: LibraryCoverDatabase?
@@ -504,6 +510,7 @@ final class AppCoordinator: ObservableObject {
             openedDatabase = database
             openedSearchDatabase = try SearchDatabase(path: self.databaseURL)
             openedPlaybackSubtitleDatabase = try PlaybackSubtitleDatabase(path: self.databaseURL)
+            openedCueContentDatabase = try CueContentDatabase(path: self.databaseURL)
             openedLibraryDatabase = try LibraryDatabase(path: self.databaseURL)
             openedLibraryPlaybackHistoryDatabase = try? LibraryDatabase(path: self.databaseURL)
             openedIndexedContentDatabase = try IndexedContentDatabase(path: self.databaseURL)
@@ -515,6 +522,7 @@ final class AppCoordinator: ObservableObject {
             openedDatabase = nil
             openedSearchDatabase = nil
             openedPlaybackSubtitleDatabase = nil
+            openedCueContentDatabase = nil
             openedLibraryDatabase = nil
             openedLibraryPlaybackHistoryDatabase = nil
             openedIndexedContentDatabase = nil
@@ -548,6 +556,7 @@ final class AppCoordinator: ObservableObject {
         search.updateSearchSortOrder(settings.searchSortOrder)
         _ = search.updateFolderScope(indexing.selectedFolders)
         self.playbackSubtitleDatabase = openedPlaybackSubtitleDatabase
+        self.cueContentDatabase = openedCueContentDatabase
         library = LibraryStore(
             uiProbeScope: uiProbeScope,
             userDefaults: userDefaults,

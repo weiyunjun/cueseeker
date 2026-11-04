@@ -269,6 +269,9 @@ extension AppCoordinator {
         guard !cueIDs.isEmpty else {
             return []
         }
+        if let cueContentDatabase {
+            return (try? cueContentDatabase.liveCueIDs(among: cueIDs)) ?? []
+        }
         return (try? CueContentDatabase(path: databaseURL)
             .liveCueIDs(among: cueIDs)) ?? []
     }

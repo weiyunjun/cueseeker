@@ -916,6 +916,7 @@ extension AppCoordinator {
     }
 
     private func refreshLibraryAfterAuxiliaryDataMutation() {
+        invalidateCachedVideoPlaybackMetadata()
         holdActiveWorkbenchRouteBeforeContentMutation()
         refreshLibrary()
         refreshRecentWatching()
