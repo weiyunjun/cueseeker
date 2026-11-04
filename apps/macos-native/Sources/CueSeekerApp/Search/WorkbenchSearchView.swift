@@ -797,7 +797,11 @@ struct WorkbenchSearchView: View {
 
     private func persistSelection() {
         search.tableSelectionState = rowSelection
-        search.tableSelectionEntryIDs = rowStore.snapshot.orderedEntryIDs
+        if isSelectionMode || rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount) > 0 {
+            search.tableSelectionEntryIDs = rowStore.snapshot.orderedEntryIDs
+        } else if !search.tableSelectionEntryIDs.isEmpty {
+            search.tableSelectionEntryIDs = []
+        }
     }
 
     private func toggleSelectionMode() {
@@ -823,6 +827,11 @@ struct WorkbenchSearchView: View {
     }
 
     private func restoreSelectionIfPossible() {
+        guard !search.tableSelectionEntryIDs.isEmpty,
+              search.tableSelectionEntryIDs.count == rowStore.snapshot.loadedReferenceCount
+        else {
+            return
+        }
         let entryIDs = rowStore.snapshot.orderedEntryIDs
         guard entryIDs == search.tableSelectionEntryIDs else { return }
         rowSelection = search.tableSelectionState

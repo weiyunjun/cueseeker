@@ -831,7 +831,18 @@
 
     [_packetQueueCondition lock];
     NSUInteger generation = _playbackGeneration;
+    BOOL isFirstFrameForPresentation = _lastPresentedPresentationGeneration != _presentationGeneration;
+    BOOL audioAlreadyPrimed = _audioPrimed
+        || _audioCodecContext == NULL
+        || (atomic_load(&_pauseAfterFirstFrame) && !atomic_load(&_didPauseAfterFirstFrame));
     [_packetQueueCondition unlock];
+    if (isFirstFrameForPresentation && !audioAlreadyPrimed && !atomic_load(&_paused)) {
+        @synchronized (self) {
+            _perfAudioPrimeWaitMs = 0.0;
+            _lastVideoOutputHostSeconds = CACurrentMediaTime();
+        }
+        return YES;
+    }
     CFTimeInterval audioPrimeWaitStart = CACurrentMediaTime();
     if (![self waitForAudioPrimeForGeneration:generation]) {
         return NO;

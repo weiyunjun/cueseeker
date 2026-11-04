@@ -172,6 +172,9 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     }
 
     func setInteractiveFrames(_ frames: [CGRect]) {
+        guard interactiveFrames != frames else {
+            return
+        }
         interactiveFrames = frames
         reevaluate()
     }

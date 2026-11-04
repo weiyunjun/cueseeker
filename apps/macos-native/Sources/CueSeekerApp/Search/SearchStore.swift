@@ -192,7 +192,7 @@ final class SearchStore: ObservableObject {
         _ results: [SubtitleSearchResult],
         orderedCueIDs: [Int64]? = nil
     ) {
-        cueContentStore.install(results.map(\.cueContent))
+        cueContentStore.install(results.map(\.cueContent), publishesChange: false)
         let nextCueIDs = results.map(\.entryID)
         let nextRanks = Dictionary(uniqueKeysWithValues: results.map {
             ($0.entryID, $0.searchRank)
@@ -252,7 +252,7 @@ final class SearchStore: ObservableObject {
         guard !newResults.isEmpty else {
             return
         }
-        cueContentStore.install(newResults.map(\.cueContent))
+        cueContentStore.install(newResults.map(\.cueContent), publishesChange: false)
         loadedSearchResultCueIDs.append(contentsOf: newResults.map(\.entryID))
         for result in newResults {
             searchRankByCueID[result.entryID] = result.searchRank

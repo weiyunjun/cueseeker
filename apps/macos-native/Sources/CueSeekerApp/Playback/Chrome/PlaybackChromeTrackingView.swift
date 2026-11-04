@@ -39,7 +39,7 @@ struct PlaybackChromeTrackingView: NSViewRepresentable {
         nsView.onEntered = onEntered
         nsView.onMoved = onMoved
         nsView.onExited = onExited
-        nsView.notifyViewChanged()
+        nsView.notifyViewChangedIfNeeded()
     }
 }
 
@@ -48,6 +48,8 @@ final class PlaybackChromeTrackingNSView: NSView {
     var onEntered: (NSView) -> Void = { _ in }
     var onMoved: (NSView) -> Void = { _ in }
     var onExited: (NSView) -> Void = { _ in }
+    private weak var lastReportedWindow: NSWindow?
+    private var lastReportedBounds: NSRect = .null
 
     /// Top-left origin, so a pointer position converted into this view lands
     /// in the same coordinates as the SwiftUI frames of the stage it fills.
@@ -80,7 +82,16 @@ final class PlaybackChromeTrackingNSView: NSView {
         notifyViewChanged()
     }
 
+    func notifyViewChangedIfNeeded() {
+        guard window !== lastReportedWindow || bounds != lastReportedBounds else {
+            return
+        }
+        notifyViewChanged()
+    }
+
     func notifyViewChanged() {
+        lastReportedWindow = window
+        lastReportedBounds = bounds
         onViewChanged(self)
     }
 

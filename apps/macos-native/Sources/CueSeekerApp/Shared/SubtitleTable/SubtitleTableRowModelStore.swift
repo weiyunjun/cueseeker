@@ -43,11 +43,13 @@ struct TableSandboxRowsSnapshot {
         materializedRows = rows
         self.searchResultsByEntryID = searchResultsByEntryID
         self.searchCueIDs = searchCueIDs
-        self.searchCueIndexByEntryID = Dictionary(
-            uniqueKeysWithValues: searchCueIDs.enumerated().map { index, cueID in
-                (Int(cueID), index)
-            }
-        )
+        self.searchCueIndexByEntryID = searchRankByCueID.isEmpty
+            ? Dictionary(
+                uniqueKeysWithValues: searchCueIDs.enumerated().map { index, cueID in
+                    (Int(cueID), index)
+                }
+            )
+            : [:]
         self.searchRankByCueID = searchRankByCueID
         self.searchCueContentProvider = searchCueContentProvider
         self.searchSourceRevision = searchSourceRevision
@@ -176,23 +178,37 @@ struct TableSandboxRowsSnapshot {
     }
 
     func rowIndex(entryID: Int) -> Int? {
-        excerptRelationIndexByEntryID[entryID]
-            ?? searchCueIndexByEntryID[entryID]
-            ?? materializedRows.firstIndex(where: { $0.id == entryID })
+        if let index = excerptRelationIndexByEntryID[entryID] {
+            return index
+        }
+        let cueID = Int64(entryID)
+        if let rank = searchRankByCueID[cueID],
+           searchCueIDs.indices.contains(rank),
+           searchCueIDs[rank] == cueID {
+            return rank
+        }
+        if let index = searchCueIndexByEntryID[entryID] {
+            return index
+        }
+        if !searchCueIDs.isEmpty, let index = searchCueIDs.firstIndex(of: cueID) {
+            return index
+        }
+        return materializedRows.firstIndex(where: { $0.id == entryID })
     }
 
     func searchResult(entryID: Int) -> SubtitleSearchResult? {
         if let result = searchResultsByEntryID[entryID] {
             return result
         }
-        guard searchCueIndexByEntryID[entryID] != nil,
-              let content = searchCueContentProvider?(Int64(entryID))
+        let cueID = Int64(entryID)
+        guard searchRankByCueID[cueID] != nil || searchCueIndexByEntryID[entryID] != nil,
+              let content = searchCueContentProvider?(cueID)
         else {
             return nil
         }
         return SubtitleSearchResult(
             cueContent: content,
-            searchRank: searchRankByCueID[Int64(entryID)] ?? 0
+            searchRank: searchRankByCueID[cueID] ?? searchCueIndexByEntryID[entryID] ?? 0
         )
     }
 

@@ -613,9 +613,7 @@ extension AppCoordinator {
             "ACTION UI.Excerpt.opened",
             details: "time=\(String(format: "%.2f", Double(excerpt.startMilliseconds) / 1000.0))"
         )
-        if !wasPlaybackPageVisible {
-            preparePlaybackKeyboardFocus()
-        }
+        preparePlaybackKeyboardFocus(wasPlaybackPageVisible: wasPlaybackPageVisible)
 
         let validScopeIDs: [Int64]?
         let resolvedPlaylistScope: PlaybackPlaylistExcerptScope?
@@ -676,13 +674,6 @@ extension AppCoordinator {
         if !playback.isPlaybackSurfaceExpanded {
             playback.isPlaybackSurfaceExpanded = true
         }
-        DebugInteractionLatencyProbe.completeImmediateNavigation(
-            domain: "playback",
-            from: fromSurface,
-            to: "playback_excerpt_cue",
-            trigger: "open_excerpt",
-            startedAt: startedAt
-        )
         if !itemInLibrary {
             cancelPendingPlaybackOpenTask()
             playback.clearPlaylistPosition()
@@ -708,19 +699,29 @@ extension AppCoordinator {
                 videoPath: excerpt.videoPath,
                 subtitlePath: excerpt.subtitlePath
             ) { [weak self] in
-                _ = self?.play(excerpt)
+                _ = self?.play(excerpt, didPrepareTransition: true)
             }
         }
+        DebugInteractionLatencyProbe.completeImmediateNavigation(
+            domain: "playback",
+            from: fromSurface,
+            to: "playback_excerpt_cue",
+            trigger: "open_excerpt",
+            startedAt: startedAt
+        )
     }
 
     @discardableResult
-    func play(_ excerpt: Excerpt) -> Bool {
+    func play(
+        _ excerpt: Excerpt,
+        didPrepareTransition: Bool = false
+    ) -> Bool {
         ensurePlayerInitialized()
         let canSeekOpenVideo = canSeekInCurrentlyOpenVideo(forVideoPath: excerpt.videoPath)
         let videoURL = URL.fromMediaPath(excerpt.videoPath)
         let videoName = videoURL.lastPathComponent
         if !canSeekOpenVideo {
-            let rawCodec = libraryDatabase?.videoCodec(forVideoPath: excerpt.videoPath)
+            let rawCodec = resolvedOpenVideoPlaybackMetadata(forVideoPath: excerpt.videoPath).codec
             let targetDecodeMode = prepareDecodeModeForPlayback(
                 videoPath: excerpt.videoPath,
                 codec: rawCodec
@@ -749,12 +750,14 @@ extension AppCoordinator {
         }
         playback.clearError(on: .video)
         playback.clearError(on: .notInLibrary)
-        preparePlaybackTransition(
-            forVideoPath: excerpt.videoPath,
-            startMilliseconds: excerpt.startMilliseconds,
-            subtitleCues: [],
-            resetsLoadingTimer: false
-        )
+        if !didPrepareTransition {
+            preparePlaybackTransition(
+                forVideoPath: excerpt.videoPath,
+                startMilliseconds: excerpt.startMilliseconds,
+                subtitleCues: [],
+                resetsLoadingTimer: false
+            )
+        }
 
         do {
             let autoStopBoundary = configureCueAutoStopBoundary(

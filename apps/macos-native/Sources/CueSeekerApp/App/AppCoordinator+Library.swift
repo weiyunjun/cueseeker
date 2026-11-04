@@ -364,13 +364,6 @@ extension AppCoordinator {
             canGoNext: navigationAvailability.next
         )
         playback.isPlaybackSurfaceExpanded = true
-        DebugInteractionLatencyProbe.completeImmediateNavigation(
-            domain: "playback",
-            from: fromSurface,
-            to: "playback_library",
-            trigger: "open_library_video",
-            startedAt: startedAt
-        )
         if !itemInLibrary {
             cancelPendingPlaybackOpenTask()
             playback.clearPlaylistPosition()
@@ -410,6 +403,13 @@ extension AppCoordinator {
                 }
             }
         }
+        DebugInteractionLatencyProbe.completeImmediateNavigation(
+            domain: "playback",
+            from: fromSurface,
+            to: "playback_library",
+            trigger: "open_library_video",
+            startedAt: startedAt
+        )
     }
 
     func recordRecentLibraryWatching(
@@ -446,7 +446,7 @@ extension AppCoordinator {
         didPrepareTransition: Bool = false
     ) -> Bool {
         ensurePlayerInitialized()
-        let rawCodec = libraryDatabase?.videoCodec(forVideoPath: video.videoPath)
+        let rawCodec = resolvedOpenVideoPlaybackMetadata(forVideoPath: video.videoPath).codec
         let targetDecodeMode = prepareDecodeModeForPlayback(
             videoPath: video.videoPath,
             codec: rawCodec

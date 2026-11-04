@@ -434,6 +434,12 @@ final class AppCoordinator: ObservableObject {
     var autoSwitchCueSequenceGeneration = 0
     var playbackOpenTask: Task<Void, Never>?
     var playbackOpenGeneration: UInt = 0
+    var cachedOpenVideoPlaybackMetadata: (
+        mediaPath: String,
+        codec: String?,
+        defaultAudioTrackIndex: Int,
+        indexedCueDataRevision: UInt64
+    )?
     var pendingURLSchemeDirectPlayIntent: URLSchemeDirectPlayIntent?
     var pendingURLSchemeCuePlaybackIntent: URLSchemeCuePlaybackIntent?
     var urlSchemeCueLookupTask: Task<Void, Never>?

@@ -168,7 +168,9 @@ public final class PlaybackViewModel: ObservableObject {
             ?? activeSubtitleText
         let stagedSubtitleTrack = subtitleCues.map { PlaybackSubtitleTrack(cues: $0) }
             ?? pendingPresentation?.stagedSubtitleTrack
-        isOpeningNewVideo = true
+        if !isOpeningNewVideo {
+            isOpeningNewVideo = true
+        }
         pendingPresentation = PendingPresentation(
             generation: nil,
             targetTime: targetTime,
@@ -177,8 +179,12 @@ public final class PlaybackViewModel: ObservableObject {
         )
         clearProtectedSeekTarget()
         clearTimelineThumbnailPreview()
-        duration = 0
-        isPlaying = true
+        if duration != 0 {
+            duration = 0
+        }
+        if !isPlaying {
+            isPlaying = true
+        }
         updatePlaybackTime(0, publishesControlsImmediately: true)
         scheduleLoadingFeedback(reset: resetsLoadingTimer)
     }
@@ -193,7 +199,9 @@ public final class PlaybackViewModel: ObservableObject {
             ?? activeSubtitleText
         let stagedSubtitleTrack = subtitleCues.map { PlaybackSubtitleTrack(cues: $0) }
             ?? pendingPresentation?.stagedSubtitleTrack
-        isOpeningNewVideo = false
+        if isOpeningNewVideo {
+            isOpeningNewVideo = false
+        }
         pendingPresentation = PendingPresentation(
             generation: nil,
             targetTime: targetTime,
@@ -216,7 +224,9 @@ public final class PlaybackViewModel: ObservableObject {
 
     func cancelPendingPresentation() {
         pendingPresentation = nil
-        isOpeningNewVideo = false
+        if isOpeningNewVideo {
+            isOpeningNewVideo = false
+        }
         cancelLoadingFeedback()
         clearProtectedSeekTarget()
         player.cancelPendingPresentation()
@@ -231,7 +241,9 @@ public final class PlaybackViewModel: ObservableObject {
             return
         }
         loadingFeedbackTask?.cancel()
-        isLoadingFeedbackVisible = false
+        if isLoadingFeedbackVisible {
+            isLoadingFeedbackVisible = false
+        }
         let delayNanoseconds = PlaybackChromeMetrics.loadingFeedbackDelayMilliseconds * 1_000_000
         loadingFeedbackTask = Task.detached(priority: .userInitiated) { [weak self] in
             try? await Task.sleep(nanoseconds: delayNanoseconds)
@@ -274,8 +286,12 @@ public final class PlaybackViewModel: ObservableObject {
         cancelPendingPresentation()
         clearTimelineThumbnailPreview()
         clearSubtitleCues()
-        duration = 0
-        isPlaying = false
+        if duration != 0 {
+            duration = 0
+        }
+        if isPlaying {
+            isPlaying = false
+        }
         updatePlaybackTime(0, publishesControlsImmediately: true)
         isPlayerEmpty = true
     }
@@ -340,7 +356,9 @@ public final class PlaybackViewModel: ObservableObject {
         }
         let targetTime = clampedPlaybackTime(seconds)
         onSeekInteractionBegan()
-        isPlaying = true
+        if !isPlaying {
+            isPlaying = true
+        }
         preparePresentationTransition(
             to: targetTime
         )
@@ -412,7 +430,9 @@ public final class PlaybackViewModel: ObservableObject {
         timelineScrubbingWasPlaying = nil
 
         let targetTime = clampedPlaybackTime(seconds)
-        isPlaying = shouldResumePlayback
+        if isPlaying != shouldResumePlayback {
+            isPlaying = shouldResumePlayback
+        }
         preparePresentationTransition(
             to: targetTime
         )
@@ -814,8 +834,11 @@ public final class PlaybackViewModel: ObservableObject {
             return
         }
 
-        displayedCurrentTime = currentTime
         lastDisplayedCurrentTimePublishTimestamp = now
+        guard displayedCurrentTime != currentTime else {
+            return
+        }
+        displayedCurrentTime = currentTime
         UIInvalidationProbe.count(
             "UI.PlaybackTime.published",
             details: String(format: "time=%.2f", displayedCurrentTime)
@@ -1034,7 +1057,9 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
         }
 
         self.pendingPresentation = nil
-        isOpeningNewVideo = false
+        if isOpeningNewVideo {
+            isOpeningNewVideo = false
+        }
         cancelLoadingFeedback()
         if let stagedSubtitleTrack = pendingPresentation.stagedSubtitleTrack {
             subtitleTrack = stagedSubtitleTrack
@@ -1050,7 +1075,9 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
         }
         subtitlePresentationHoldMilliseconds = nil
         clearProtectedSeekTarget()
-        isPlaying = playing
+        if isPlaying != playing {
+            isPlaying = playing
+        }
         let committedDuration = player.duration()
         if duration != committedDuration {
             duration = committedDuration

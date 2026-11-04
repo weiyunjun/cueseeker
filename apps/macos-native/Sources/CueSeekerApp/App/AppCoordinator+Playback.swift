@@ -436,9 +436,7 @@ extension AppCoordinator {
             "ACTION UI.SearchResult.opened",
             details: "time=\(String(format: "%.2f", Double(result.startMilliseconds) / 1000.0))"
         )
-        if !wasPlaybackPageVisible {
-            preparePlaybackKeyboardFocus()
-        }
+        preparePlaybackKeyboardFocus(wasPlaybackPageVisible: wasPlaybackPageVisible)
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
@@ -461,13 +459,6 @@ extension AppCoordinator {
         if !playback.isPlaybackSurfaceExpanded {
             playback.isPlaybackSurfaceExpanded = true
         }
-        DebugInteractionLatencyProbe.completeImmediateNavigation(
-            domain: "playback",
-            from: fromSurface,
-            to: "playback_search_cue",
-            trigger: "open_search_result",
-            startedAt: startedAt
-        )
         if !itemInLibrary {
             cancelPendingPlaybackOpenTask()
             playback.clearPlaylistPosition()
@@ -493,14 +484,25 @@ extension AppCoordinator {
                 videoPath: result.videoPath,
                 subtitlePath: result.subtitlePath
             ) { [weak self] in
-                _ = self?.play(result)
+                _ = self?.play(result, didPrepareTransition: true)
             }
         }
+        DebugInteractionLatencyProbe.completeImmediateNavigation(
+            domain: "playback",
+            from: fromSurface,
+            to: "playback_search_cue",
+            trigger: "open_search_result",
+            startedAt: startedAt
+        )
     }
 
-    func preparePlaybackKeyboardFocus() {
-        workbenchLayout.clearSearchFocus()
-        CueSeekerWindow.activeKeyWindow?.makeFirstResponder(nil)
+    func preparePlaybackKeyboardFocus(wasPlaybackPageVisible: Bool = false) {
+        if workbenchLayout.isSearchFocused {
+            workbenchLayout.clearSearchFocus()
+        }
+        if !wasPlaybackPageVisible {
+            CueSeekerWindow.activeKeyWindow?.makeFirstResponder(nil)
+        }
     }
 
     /// Seeks the current playback to an absolute timestamp through the shared
@@ -541,7 +543,7 @@ extension AppCoordinator {
         }
 
         // Gate 1: Check database indexed metadata for known codec hardware capability
-        if let codec = preloadedCodec ?? libraryDatabase?.videoCodec(forVideoPath: videoPath),
+        if let codec = preloadedCodec ?? resolvedOpenVideoPlaybackMetadata(forVideoPath: videoPath).codec,
            !PlaybackHardwareCapabilities.isHardwareDecodeSupported(forCodec: codec) {
             AppLogger.shared.warn(
                 .playback,
@@ -568,13 +570,16 @@ extension AppCoordinator {
     }
 
     @discardableResult
-    func play(_ result: SubtitleSearchResult) -> Bool {
+    func play(
+        _ result: SubtitleSearchResult,
+        didPrepareTransition: Bool = false
+    ) -> Bool {
         ensurePlayerInitialized()
         let canSeekOpenVideo = canSeekInCurrentlyOpenVideo(forVideoPath: result.videoPath)
         let videoURL = URL.fromMediaPath(result.videoPath)
         let videoName = videoURL.lastPathComponent
         if !canSeekOpenVideo {
-            let rawCodec = libraryDatabase?.videoCodec(forVideoPath: result.videoPath)
+            let rawCodec = resolvedOpenVideoPlaybackMetadata(forVideoPath: result.videoPath).codec
             let targetDecodeMode = prepareDecodeModeForPlayback(
                 videoPath: result.videoPath,
                 codec: rawCodec
@@ -603,12 +608,14 @@ extension AppCoordinator {
         }
         playback.clearError(on: .video)
         playback.clearError(on: .notInLibrary)
-        preparePlaybackTransition(
-            forVideoPath: result.videoPath,
-            startMilliseconds: result.startMilliseconds,
-            subtitleCues: [],
-            resetsLoadingTimer: false
-        )
+        if !didPrepareTransition {
+            preparePlaybackTransition(
+                forVideoPath: result.videoPath,
+                startMilliseconds: result.startMilliseconds,
+                subtitleCues: [],
+                resetsLoadingTimer: false
+            )
+        }
 
         do {
             let autoStopBoundary = configureCueAutoStopBoundary(
@@ -673,6 +680,7 @@ extension AppCoordinator {
         let wasPlayingOrExpanded = activePlaybackSource != .none || playback.isPlaybackSurfaceExpanded
         let stoppedVideoName = currentPlaybackVideoPath.map { URL.fromMediaPath($0).lastPathComponent }
         cancelPendingPlaybackOpenTask()
+        cachedOpenVideoPlaybackMetadata = nil
         playbackAwaitsLibraryReconcile = false
         _ = playback.dismissCommandPanel()
         invalidatePlaybackSubtitleFocusForSourceReplacement()

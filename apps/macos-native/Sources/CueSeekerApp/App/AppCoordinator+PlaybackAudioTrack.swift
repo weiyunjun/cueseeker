@@ -7,10 +7,33 @@ import Foundation
 /// Default Audio Track.md`.
 @MainActor
 extension AppCoordinator {
+    func resolvedOpenVideoPlaybackMetadata(
+        forVideoPath videoPath: String
+    ) -> (codec: String?, defaultAudioTrackIndex: Int) {
+        let mediaPath = URL.fromMediaPath(videoPath).mediaPath
+        let currentRevision = search.indexedCueDataRevision
+        if let cached = cachedOpenVideoPlaybackMetadata,
+           cached.mediaPath == mediaPath,
+           cached.indexedCueDataRevision == currentRevision {
+            return (cached.codec, cached.defaultAudioTrackIndex)
+        }
+        let codec = libraryDatabase?.videoCodec(forVideoPath: videoPath)
+        let defaultAudioTrackIndex = recordedAudioTracks(forVideoPath: videoPath)?.defaultIndex ?? 0
+        if libraryDatabase != nil {
+            cachedOpenVideoPlaybackMetadata = (
+                mediaPath: mediaPath,
+                codec: codec,
+                defaultAudioTrackIndex: defaultAudioTrackIndex,
+                indexedCueDataRevision: currentRevision
+            )
+        }
+        return (codec, defaultAudioTrackIndex)
+    }
+
     /// The video's default audio track as set, counted from 0. The player
     /// falls back to the first track when the file does not have it.
     func defaultAudioTrackIndex(forVideoPath videoPath: String) -> Int {
-        recordedAudioTracks(forVideoPath: videoPath)?.defaultIndex ?? 0
+        resolvedOpenVideoPlaybackMetadata(forVideoPath: videoPath).defaultAudioTrackIndex
     }
 
     func canSeekInCurrentlyOpenVideo(forVideoPath videoPath: String) -> Bool {
@@ -20,12 +43,15 @@ extension AppCoordinator {
         else {
             return false
         }
-        let targetDecodeMode = resolveInitialDecodeMode(forVideoPath: videoPath)
+        let metadata = resolvedOpenVideoPlaybackMetadata(forVideoPath: videoPath)
+        let targetDecodeMode = resolveInitialDecodeMode(
+            forVideoPath: videoPath,
+            codec: metadata.codec
+        )
         guard player.activeDecodeMode == targetDecodeMode else {
             return false
         }
-        let targetAudioTrackIndex = defaultAudioTrackIndex(forVideoPath: videoPath)
-        return player.currentAudioTrackIndex.map { $0 == targetAudioTrackIndex } ?? true
+        return player.currentAudioTrackIndex.map { $0 == metadata.defaultAudioTrackIndex } ?? true
     }
 
     /// Whether opening an item can stay in the video already open and only

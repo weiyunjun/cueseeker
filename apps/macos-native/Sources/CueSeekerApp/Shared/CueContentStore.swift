@@ -45,10 +45,21 @@ final class CueContentStore {
     }
 
     @discardableResult
-    func install(_ contents: [CueContent]) -> Bool {
+    func install(_ contents: [CueContent], publishesChange: Bool = true) -> Bool {
         guard !contents.isEmpty else { return false }
         if contentByCueID.capacity < contentByCueID.count + contents.count {
             contentByCueID.reserveCapacity(contentByCueID.count + contents.count)
+        }
+        if !publishesChange {
+            var didChange = false
+            for content in contents where contentByCueID[content.cueID] != content {
+                contentByCueID[content.cueID] = content
+                didChange = true
+            }
+            if didChange {
+                revision &+= 1
+            }
+            return didChange
         }
         var changedCueIDs: Set<Int64> = []
         changedCueIDs.reserveCapacity(contents.count)
