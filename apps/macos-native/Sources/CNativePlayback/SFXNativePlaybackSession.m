@@ -84,11 +84,18 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     atomic_init(&_paused, false);
     atomic_init(&_playing, false);
 
-    if (!SFXIsHTTPMediaPath(_path.UTF8String)) {
-        if (![self prepareWithError:error]) {
-            [self teardown];
-            return nil;
+    if (_path.length == 0) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(10, @"Native playback media path is empty.");
         }
+        return nil;
+    }
+    if (!SFXIsHTTPMediaPath(_path.UTF8String)
+        && ![[NSFileManager defaultManager] isReadableFileAtPath:_path]) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(10, @"Native playback media file is not readable.");
+        }
+        return nil;
     }
 
     return self;
@@ -105,7 +112,9 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 }
 
 - (double)duration {
-    return _duration;
+    @synchronized (self) {
+        return _duration;
+    }
 }
 
 - (void)getDisplayVideoWidth:(NSInteger *)widthOut height:(NSInteger *)heightOut {
@@ -257,7 +266,9 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 }
 
 - (NSInteger)audioTrackIndex {
-    return _audioTrackIndex;
+    @synchronized (self) {
+        return _audioTrackIndex;
+    }
 }
 
 - (SFXNativePlaybackDecodeMode)decodeMode {
@@ -721,7 +732,10 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     }
 
     if (_formatContext->duration != AV_NOPTS_VALUE) {
-        _duration = (double)_formatContext->duration / AV_TIME_BASE;
+        double resolvedDuration = (double)_formatContext->duration / AV_TIME_BASE;
+        @synchronized (self) {
+            _duration = resolvedDuration;
+        }
     }
     _timelineOriginSeconds = SFXMediaTimelineOriginSeconds(_formatContext);
 
@@ -730,6 +744,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     // the first.
     int firstAudioStreamIndex = -1;
     NSInteger audioTrackCount = 0;
+    NSInteger resolvedAudioTrackIndex = -1;
     for (unsigned int index = 0; index < _formatContext->nb_streams; index++) {
         AVStream *stream = _formatContext->streams[index];
         if (_videoStreamIndex < 0 && stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
@@ -740,14 +755,17 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
             }
             if (audioTrackCount == _requestedAudioTrackIndex) {
                 _audioStreamIndex = (int)index;
-                _audioTrackIndex = audioTrackCount;
+                resolvedAudioTrackIndex = audioTrackCount;
             }
             audioTrackCount += 1;
         }
     }
     if (_audioStreamIndex < 0 && firstAudioStreamIndex >= 0) {
         _audioStreamIndex = firstAudioStreamIndex;
-        _audioTrackIndex = 0;
+        resolvedAudioTrackIndex = 0;
+    }
+    @synchronized (self) {
+        _audioTrackIndex = resolvedAudioTrackIndex;
     }
 
     if (_videoStreamIndex < 0) {
@@ -814,12 +832,14 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 }
 
 - (void)populateKeyframeStreamTimestamps {
-    if (_keyframeStreamTimestamps != NULL) {
-        free(_keyframeStreamTimestamps);
-        _keyframeStreamTimestamps = NULL;
+    @synchronized (self) {
+        if (_keyframeStreamTimestamps != NULL) {
+            free(_keyframeStreamTimestamps);
+            _keyframeStreamTimestamps = NULL;
+        }
+        _keyframeStreamTimestampCount = 0;
+        _videoStreamTimeBase = (AVRational){0, 1};
     }
-    _keyframeStreamTimestampCount = 0;
-    _videoStreamTimeBase = (AVRational){0, 1};
 
     if (_formatContext == NULL
         || _videoStreamIndex < 0
@@ -831,7 +851,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     if (videoStream == NULL || videoStream->time_base.num <= 0 || videoStream->time_base.den <= 0) {
         return;
     }
-    _videoStreamTimeBase = videoStream->time_base;
+    AVRational streamTimeBase = videoStream->time_base;
 
     int entryCount = avformat_index_get_entries_count(videoStream);
     if (entryCount <= 0) {
@@ -863,46 +883,54 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         return;
     }
 
-    _keyframeStreamTimestamps = timestamps;
-    _keyframeStreamTimestampCount = count;
+    @synchronized (self) {
+        if (_keyframeStreamTimestamps != NULL) {
+            free(_keyframeStreamTimestamps);
+        }
+        _videoStreamTimeBase = streamTimeBase;
+        _keyframeStreamTimestamps = timestamps;
+        _keyframeStreamTimestampCount = count;
+    }
 }
 
 - (NSInteger)keyframeTimestampMillisecondsForTargetMilliseconds:(NSInteger)milliseconds {
-    if (_keyframeStreamTimestamps == NULL
-        || _keyframeStreamTimestampCount == 0
-        || _videoStreamTimeBase.num <= 0
-        || _videoStreamTimeBase.den <= 0) {
-        return -1;
-    }
-
-    double timeBaseSeconds = av_q2d(_videoStreamTimeBase);
-    if (!isfinite(timeBaseSeconds) || timeBaseSeconds <= 0) {
-        return -1;
-    }
-
-    double targetSeconds = fmax(0.0, (double)milliseconds / 1000.0);
-    int64_t targetStreamTimestamp = (int64_t)llround((targetSeconds + _timelineOriginSeconds) / timeBaseSeconds);
-
-    NSUInteger matchedIndex = 0;
-    if (targetStreamTimestamp > _keyframeStreamTimestamps[0]) {
-        NSUInteger low = 0;
-        NSUInteger high = _keyframeStreamTimestampCount;
-        while (low < high) {
-            NSUInteger mid = low + (high - low) / 2;
-            if (_keyframeStreamTimestamps[mid] <= targetStreamTimestamp) {
-                low = mid + 1;
-            } else {
-                high = mid;
-            }
+    @synchronized (self) {
+        if (_keyframeStreamTimestamps == NULL
+            || _keyframeStreamTimestampCount == 0
+            || _videoStreamTimeBase.num <= 0
+            || _videoStreamTimeBase.den <= 0) {
+            return -1;
         }
-        matchedIndex = low > 0 ? (low - 1) : 0;
-    }
 
-    double keyframeSeconds = (double)_keyframeStreamTimestamps[matchedIndex] * timeBaseSeconds - _timelineOriginSeconds;
-    if (!isfinite(keyframeSeconds)) {
-        return -1;
+        double timeBaseSeconds = av_q2d(_videoStreamTimeBase);
+        if (!isfinite(timeBaseSeconds) || timeBaseSeconds <= 0) {
+            return -1;
+        }
+
+        double targetSeconds = fmax(0.0, (double)milliseconds / 1000.0);
+        int64_t targetStreamTimestamp = (int64_t)llround((targetSeconds + _timelineOriginSeconds) / timeBaseSeconds);
+
+        NSUInteger matchedIndex = 0;
+        if (targetStreamTimestamp > _keyframeStreamTimestamps[0]) {
+            NSUInteger low = 0;
+            NSUInteger high = _keyframeStreamTimestampCount;
+            while (low < high) {
+                NSUInteger mid = low + (high - low) / 2;
+                if (_keyframeStreamTimestamps[mid] <= targetStreamTimestamp) {
+                    low = mid + 1;
+                } else {
+                    high = mid;
+                }
+            }
+            matchedIndex = low > 0 ? (low - 1) : 0;
+        }
+
+        double keyframeSeconds = (double)_keyframeStreamTimestamps[matchedIndex] * timeBaseSeconds - _timelineOriginSeconds;
+        if (!isfinite(keyframeSeconds)) {
+            return -1;
+        }
+        return MAX(0, (NSInteger)llround(keyframeSeconds * 1000.0));
     }
-    return MAX(0, (NSInteger)llround(keyframeSeconds * 1000.0));
 }
 
 - (BOOL)prepareVideoWithError:(NSError **)error {
@@ -1197,7 +1225,18 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     }
     av_channel_layout_default(&_outputLayout, _audioOutputChannels);
 
-    return [self prepareAudioOutputWithError:error];
+    __block BOOL audioOutputReady = NO;
+    __block NSError *audioOutputError = nil;
+    dispatch_sync(_audioDecodeQueue, ^{
+        audioOutputReady = [self prepareAudioOutputWithError:&audioOutputError];
+    });
+    if (!audioOutputReady) {
+        if (error != NULL) {
+            *error = audioOutputError;
+        }
+        return NO;
+    }
+    return YES;
 }
 
 - (BOOL)prepareAudioOutputWithError:(NSError **)error {
@@ -1310,7 +1349,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 }
 
 - (void)start {
-    BOOL deferPrepareToDecodeQueue = (_formatContext == NULL && SFXIsHTTPMediaPath(_path.UTF8String));
+    BOOL deferPrepareToDecodeQueue = (_formatContext == NULL);
     if (!deferPrepareToDecodeQueue) {
         _perfStartHostSeconds = CACurrentMediaTime();
         double totalPrepareMs = _perfOpenStartHostSeconds > 0
@@ -1325,7 +1364,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
               _perfFindStreamInfoMs,
               _perfInitCodecAudioMs,
               _perfInitialSeekMs,
-              _usingHardwareDecode ? 1 : 0);
+              self.usingHardwareDecode ? 1 : 0);
     }
     [self startStarvationWatchdog];
     dispatch_async(_decodeQueue, ^{
@@ -1359,7 +1398,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
                       _perfFindStreamInfoMs,
                       _perfInitCodecAudioMs,
                       _perfInitialSeekMs,
-                      _usingHardwareDecode ? 1 : 0);
+                      self.usingHardwareDecode ? 1 : 0);
             }
             [self decodeLoop];
             [self startAudioForDrainAfterVideoDecodeIfNeeded];
@@ -1379,6 +1418,11 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 - (void)cancelAsync {
     atomic_store(&_cancelled, true);
     atomic_store(&_paused, false);
+    if (_audioDecodeQueue != NULL) {
+        dispatch_async(_audioDecodeQueue, ^{
+            [_audioPlayer stop];
+        });
+    }
     [_packetQueueCondition lock];
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];

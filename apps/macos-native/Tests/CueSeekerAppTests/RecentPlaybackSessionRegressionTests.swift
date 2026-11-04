@@ -375,6 +375,41 @@ func commandPanelRecentVideosRefreshesWhenStatusAlreadyCompleted() async throws 
     }
 }
 
+@MainActor
+@Test
+func recordingLibraryPlaybackStartWhilePlaybackVisibleDefersPresentationRefreshUntilFlush() async throws {
+    try await withTemporaryRecentPlaybackApp { app, database in
+        let root = URL(fileURLWithPath: "/Media")
+        let episode = root.appendingPathComponent("Show/Episode 1.mkv")
+        try indexRecentPlaybackVideos([episode], in: database)
+        try app.libraryDatabase!.refreshPresentationAfterIndexedContentChange()
+        app.indexing.selectedFolders = [root]
+        app.refreshRecentWatching()
+        await app.recentWatchingTask?.value
+        app.recentWatchingTask = nil
+        #expect(app.library.recentWatchingItems.isEmpty)
+
+        let video = try #require(
+            try app.libraryDatabase!.libraryVideos(under: [root]).first
+        )
+        app.library.selectedLibraryVideo = video
+        app.playback.isPlaybackSurfaceExpanded = true
+
+        app.recordRecentLibraryWatching(
+            for: video,
+            existingHistory: nil,
+            refreshPresentation: !app.isPlaybackPageVisible
+        )
+        #expect(app.recentWatchingTask == nil)
+        #expect(app.library.recentWatchingItems.isEmpty)
+
+        app.flushPendingLibraryPlaybackHistoryPresentations()
+        await app.recentWatchingTask?.value
+
+        #expect(app.library.recentWatchingItems.first?.videoPath == episode.path)
+    }
+}
+
 private func indexRecentPlaybackVideos(
     _ videoFiles: [URL],
     in database: IndexingDatabase

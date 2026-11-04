@@ -14,17 +14,17 @@ extension AppCoordinator {
     }
 
     func canSeekInCurrentlyOpenVideo(forVideoPath videoPath: String) -> Bool {
-        guard playback.playbackViewModel?.isOpeningNewVideo != true else {
-            return false
-        }
-        let targetDecodeMode = resolveInitialDecodeMode(forVideoPath: videoPath)
-        let targetAudioTrackIndex = defaultAudioTrackIndex(forVideoPath: videoPath)
-        guard let player,
-              player.currentVideoURL?.mediaPath == URL.fromMediaPath(videoPath).mediaPath,
-              player.activeDecodeMode == targetDecodeMode
+        guard playback.playbackViewModel?.isOpeningNewVideo != true,
+              let player,
+              player.currentVideoURL?.mediaPath == URL.fromMediaPath(videoPath).mediaPath
         else {
             return false
         }
+        let targetDecodeMode = resolveInitialDecodeMode(forVideoPath: videoPath)
+        guard player.activeDecodeMode == targetDecodeMode else {
+            return false
+        }
+        let targetAudioTrackIndex = defaultAudioTrackIndex(forVideoPath: videoPath)
         return player.currentAudioTrackIndex.map { $0 == targetAudioTrackIndex } ?? true
     }
 

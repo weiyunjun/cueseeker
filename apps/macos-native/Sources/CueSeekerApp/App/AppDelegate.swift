@@ -71,6 +71,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             object: nil
         )
         configureMainMenu()
+        appState.ensurePlayerInitialized()
+        _ = appState.player?.renderView
         let launchesFromPendingURLSchemeCommand = pendingURLSchemeCommand != nil
         createMainWindow(showImmediately: !launchesFromPendingURLSchemeCommand)
         configurePlaybackKeyboardShortcuts()

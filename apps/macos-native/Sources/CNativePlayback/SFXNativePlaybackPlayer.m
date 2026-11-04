@@ -47,6 +47,13 @@
     _scrubPreviewQueue = dispatch_queue_create("CueSeeker.NativePlayback.ScrubPreview", DISPATCH_QUEUE_SERIAL);
     _thumbnailDecoder = [[SFXKeyframeThumbnailDecoder alloc] init];
     _nativeView = [[SFXNativePlaybackView alloc] initWithFrame:NSZeroRect];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        (void)SFXIsHardwareDecodeSupported(AV_CODEC_ID_HEVC);
+        (void)SFXIsHardwareDecodeSupported(AV_CODEC_ID_H264);
+        (void)SFXIsHardwareDecodeSupported(AV_CODEC_ID_AV1);
+        (void)SFXIsHardwareDecodeSupported(AV_CODEC_ID_VP9);
+        (void)SFXIsHardwareDecodeSupported(AV_CODEC_ID_PRORES);
+    });
     return self;
 }
 
@@ -448,7 +455,6 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         _session = session;
         _nativeSessionOpenCount += 1;
     }
-    [_nativeView setVideoOrientation:session.videoOrientation];
     [session configurePerfOpenStart:openStart stopPrevMs:s2StopPrevMs];
     [_session start];
     return YES;
@@ -846,7 +852,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         }
     }
     if (previousSession != nil) {
-        if (SFXIsHTTPMediaPath(previousSession.path.UTF8String)) {
+        if (!flushDisplay || SFXIsHTTPMediaPath(previousSession.path.UTF8String)) {
             [previousSession cancelAsync];
         } else {
             [previousSession stopAndWait];

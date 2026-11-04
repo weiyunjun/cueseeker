@@ -268,7 +268,7 @@ extension AppCoordinator {
                         _ = WebDAVSubtitleCache.shared.loadData(for: subtitleURL)
                     }
                     if videoURL.isRemoteMediaURL {
-                        _ = try? WebDAVClient.shared.resolvePlayableInput(for: videoURL)
+                        _ = WebDAVClient.shared.resolvePlayableInput(for: videoURL)
                     }
                 }.value
             } else {
@@ -524,14 +524,17 @@ extension AppCoordinator {
         revealFile(atPath: currentPlaybackSubtitlePath)
     }
 
-    func resolveInitialDecodeMode(forVideoPath videoPath: String) -> PlaybackDecodeMode {
+    func resolveInitialDecodeMode(
+        forVideoPath videoPath: String,
+        codec preloadedCodec: String? = nil
+    ) -> PlaybackDecodeMode {
         let configuredMode = settings.playbackDecodeMode
         guard configuredMode != .software else {
             return .software
         }
 
         // Gate 1: Check database indexed metadata for known codec hardware capability
-        if let codec = libraryDatabase?.videoCodec(forVideoPath: videoPath),
+        if let codec = preloadedCodec ?? libraryDatabase?.videoCodec(forVideoPath: videoPath),
            !PlaybackHardwareCapabilities.isHardwareDecodeSupported(forCodec: codec) {
             AppLogger.shared.warn(
                 .playback,
@@ -545,8 +548,14 @@ extension AppCoordinator {
     }
 
     @discardableResult
-    func prepareDecodeModeForPlayback(videoPath: String) -> PlaybackDecodeMode {
-        let targetMode = resolveInitialDecodeMode(forVideoPath: videoPath)
+    func prepareDecodeModeForPlayback(
+        videoPath: String,
+        codec preloadedCodec: String? = nil
+    ) -> PlaybackDecodeMode {
+        let targetMode = resolveInitialDecodeMode(
+            forVideoPath: videoPath,
+            codec: preloadedCodec
+        )
         player?.decodeMode = targetMode
         return targetMode
     }
@@ -554,8 +563,12 @@ extension AppCoordinator {
     @discardableResult
     func play(_ result: SubtitleSearchResult) -> Bool {
         ensurePlayerInitialized()
-        let targetDecodeMode = prepareDecodeModeForPlayback(videoPath: result.videoPath)
-        let codec = libraryDatabase?.videoCodec(forVideoPath: result.videoPath) ?? "unknown"
+        let rawCodec = libraryDatabase?.videoCodec(forVideoPath: result.videoPath)
+        let targetDecodeMode = prepareDecodeModeForPlayback(
+            videoPath: result.videoPath,
+            codec: rawCodec
+        )
+        let codec = rawCodec ?? "unknown"
         let videoName = URL.fromMediaPath(result.videoPath).lastPathComponent
         AppLogger.shared.info(
             .playback,

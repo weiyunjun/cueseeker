@@ -346,7 +346,10 @@ extension AppCoordinator {
         }
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .library(videoPath: video.videoPath)
-        let itemInLibrary = !libraryHasLost(videoPath: video.videoPath)
+        let targetSubtitle = indexing.selectedFolders.contains(where: { Self.path(video.videoPath, isUnder: $0) })
+            ? defaultPlaybackSubtitle(forVideoPath: video.videoPath)
+            : nil
+        let itemInLibrary = targetSubtitle != nil
         currentPlaybackItemLeftLibrary = !itemInLibrary
         library.selectedLibraryVideo = video
         search.selectResult(nil)
@@ -377,8 +380,10 @@ extension AppCoordinator {
             showPlaybackItemNotInLibrary()
         } else {
             playback.clearError(on: .notInLibrary)
-            let startMilliseconds = libraryResumePositionMilliseconds(for: video)
-            let targetSubtitle = defaultPlaybackSubtitle(forVideoPath: video.videoPath)
+            let existingHistory = libraryPlaybackHistory(for: video)
+            let startMilliseconds = LibraryPlaybackIntentResolver.startPositionMilliseconds(
+                history: existingHistory
+            )
             preparePlaybackTransition(
                 forVideoPath: video.videoPath,
                 startMilliseconds: startMilliseconds,
@@ -390,9 +395,18 @@ extension AppCoordinator {
                 subtitlePath: targetSubtitle?.subtitlePath ?? video.subtitlePath
             ) { [weak self] in
                 guard let self else { return }
-                let didStartPlayback = self.play(video)
+                let didStartPlayback = self.play(
+                    video,
+                    resolvedSubtitle: targetSubtitle,
+                    resolvedStartMilliseconds: startMilliseconds,
+                    didPrepareTransition: true
+                )
                 if didStartPlayback {
-                    self.recordRecentLibraryWatching(for: video)
+                    self.recordRecentLibraryWatching(
+                        for: video,
+                        existingHistory: existingHistory,
+                        refreshPresentation: !self.isPlaybackPageVisible
+                    )
                 }
             }
         }
@@ -400,12 +414,13 @@ extension AppCoordinator {
 
     func recordRecentLibraryWatching(
         for video: LibraryVideo,
+        existingHistory preloadedHistory: LibraryPlaybackHistory?? = nil,
         refreshPresentation: Bool = true
     ) {
         guard !currentPlaybackItemLeftLibrary else {
             return
         }
-        let existingHistory = libraryPlaybackHistory(for: video)
+        let existingHistory = preloadedHistory ?? libraryPlaybackHistory(for: video)
         let snapshot = LibraryPlaybackHistorySnapshot(
             videoPath: video.videoPath,
             positionMilliseconds: existingHistory?.positionMilliseconds ?? 0,
@@ -424,10 +439,19 @@ extension AppCoordinator {
     }
 
     @discardableResult
-    func play(_ video: LibraryVideo) -> Bool {
+    func play(
+        _ video: LibraryVideo,
+        resolvedSubtitle: VideoSubtitle? = nil,
+        resolvedStartMilliseconds: Int? = nil,
+        didPrepareTransition: Bool = false
+    ) -> Bool {
         ensurePlayerInitialized()
-        let targetDecodeMode = prepareDecodeModeForPlayback(videoPath: video.videoPath)
-        let codec = libraryDatabase?.videoCodec(forVideoPath: video.videoPath) ?? "unknown"
+        let rawCodec = libraryDatabase?.videoCodec(forVideoPath: video.videoPath)
+        let targetDecodeMode = prepareDecodeModeForPlayback(
+            videoPath: video.videoPath,
+            codec: rawCodec
+        )
+        let codec = rawCodec ?? "unknown"
         let videoName = URL.fromMediaPath(video.videoPath).lastPathComponent
         AppLogger.shared.info(
             .playback,
@@ -437,17 +461,19 @@ extension AppCoordinator {
         clearCueAutoStopPlayback()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .library(videoPath: video.videoPath)
-        playbackSubtitle = defaultPlaybackSubtitle(forVideoPath: video.videoPath)
+        playbackSubtitle = resolvedSubtitle ?? defaultPlaybackSubtitle(forVideoPath: video.videoPath)
         playback.playbackStatus = .opening
         playback.clearError(on: .video)
         playback.clearError(on: .notInLibrary)
-        let startMilliseconds = libraryResumePositionMilliseconds(for: video)
-        preparePlaybackTransition(
-            forVideoPath: video.videoPath,
-            startMilliseconds: startMilliseconds,
-            subtitleCues: [],
-            resetsLoadingTimer: false
-        )
+        let startMilliseconds = resolvedStartMilliseconds ?? libraryResumePositionMilliseconds(for: video)
+        if !didPrepareTransition {
+            preparePlaybackTransition(
+                forVideoPath: video.videoPath,
+                startMilliseconds: startMilliseconds,
+                subtitleCues: [],
+                resetsLoadingTimer: false
+            )
+        }
 
         do {
             let request = try PlaybackRequest(

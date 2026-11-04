@@ -736,11 +736,19 @@ func nativePlaybackOpensAndSwitchesAudioTracksCountedAmongAudioStreams() async t
 
     player.audioTrackIndex = 1
     try player.openPath(mediaURL.path, startMilliseconds: 0)
+    let firstAudioTrackResolved = await waitUntil(timeoutSeconds: 4) {
+        player.currentAudioTrackIndex == 1
+    }
+    #expect(firstAudioTrackResolved)
     #expect(player.currentAudioTrackIndex == 1)
 
     // A track the file does not have plays the first one.
     player.audioTrackIndex = 5
     try player.openPath(mediaURL.path, startMilliseconds: 0)
+    let fallbackAudioTrackResolved = await waitUntil(timeoutSeconds: 4) {
+        player.currentAudioTrackIndex == 0
+    }
+    #expect(fallbackAudioTrackResolved)
     #expect(player.currentAudioTrackIndex == 0)
 
     // Switching keeps the position and the pause.
@@ -753,8 +761,12 @@ func nativePlaybackOpensAndSwitchesAudioTracksCountedAmongAudioStreams() async t
     #expect(pausedAtTarget)
 
     try player.selectAudioTrackIndex(1)
-    #expect(player.currentAudioTrackIndex == 1)
     #expect(player.audioTrackIndex == 1)
+    let switchedAudioTrackResolved = await waitUntil(timeoutSeconds: 4) {
+        player.currentAudioTrackIndex == 1
+    }
+    #expect(switchedAudioTrackResolved)
+    #expect(player.currentAudioTrackIndex == 1)
     try await Task.sleep(nanoseconds: 500_000_000)
     #expect(!player.isPlaying)
     #expect(abs(player.currentTime - 2) < 0.5)
@@ -996,7 +1008,6 @@ func nativePlaybackFallsBackToSoftwareAndPresentsFramesForHEVC12BitAndVP9HighChr
         }
 
         try player.openPath(mediaURL.path, startMilliseconds: 0)
-        #expect(!player.usingHardwareDecode, "Expected \(testCase.name) to fall back to software decode")
         try player.setPaused(false)
 
         let initialPresented = await waitUntil(timeoutSeconds: 4) {
@@ -1004,6 +1015,7 @@ func nativePlaybackFallsBackToSoftwareAndPresentsFramesForHEVC12BitAndVP9HighChr
                 && player.nativeLastSubmittedVideoFrameMilliseconds >= 0
         }
         #expect(initialPresented, "Expected \(testCase.name) to present video frames after software fallback")
+        #expect(!player.usingHardwareDecode, "Expected \(testCase.name) to fall back to software decode")
 
         try player.seek(toMilliseconds: 1_500, pauseAfterFirstFrame: true)
         let soughtPresented = await waitUntil(timeoutSeconds: 4) {
@@ -1066,6 +1078,11 @@ func nativePlaybackExtractsKeyframeTimestampsAndScaledTimelineThumbnails() async
         startMilliseconds: 0
     )
     _ = try player.open(request)
+
+    let keyframesReady = await waitUntil(timeoutSeconds: 4) {
+        player.keyframeTimestampMilliseconds(forTargetMilliseconds: 350) != nil
+    }
+    #expect(keyframesReady)
 
     let firstKeyframe = player.keyframeTimestampMilliseconds(forTargetMilliseconds: 350)
     let sameIntervalKeyframe = player.keyframeTimestampMilliseconds(forTargetMilliseconds: 850)

@@ -156,29 +156,56 @@ NSError *SFXNativePlaybackError(NSInteger code, NSString *message) {
 }
 
 BOOL SFXIsHardwareDecodeSupported(enum AVCodecID codecID) {
-    CMVideoCodecType codecType = 0;
     switch (codecID) {
-    case AV_CODEC_ID_AV1:
-        codecType = kCMVideoCodecType_AV1;
-        break;
-    case AV_CODEC_ID_H264:
-        codecType = kCMVideoCodecType_H264;
-        break;
-    case AV_CODEC_ID_HEVC:
-        codecType = kCMVideoCodecType_HEVC;
-        break;
-    case AV_CODEC_ID_VP9:
-        codecType = kCMVideoCodecType_VP9;
-        break;
-    case AV_CODEC_ID_PRORES:
-        codecType = kCMVideoCodecType_AppleProRes422;
-        VTRegisterProfessionalVideoWorkflowVideoDecoders();
-        break;
+    case AV_CODEC_ID_AV1: {
+        static BOOL supported = NO;
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            VTRegisterSupplementalVideoDecoderIfAvailable(kCMVideoCodecType_AV1);
+            supported = VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1) != 0;
+        });
+        return supported;
+    }
+    case AV_CODEC_ID_H264: {
+        static BOOL supported = NO;
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            VTRegisterSupplementalVideoDecoderIfAvailable(kCMVideoCodecType_H264);
+            supported = VTIsHardwareDecodeSupported(kCMVideoCodecType_H264) != 0;
+        });
+        return supported;
+    }
+    case AV_CODEC_ID_HEVC: {
+        static BOOL supported = NO;
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            VTRegisterSupplementalVideoDecoderIfAvailable(kCMVideoCodecType_HEVC);
+            supported = VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC) != 0;
+        });
+        return supported;
+    }
+    case AV_CODEC_ID_VP9: {
+        static BOOL supported = NO;
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            VTRegisterSupplementalVideoDecoderIfAvailable(kCMVideoCodecType_VP9);
+            supported = VTIsHardwareDecodeSupported(kCMVideoCodecType_VP9) != 0;
+        });
+        return supported;
+    }
+    case AV_CODEC_ID_PRORES: {
+        static BOOL supported = NO;
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            VTRegisterProfessionalVideoWorkflowVideoDecoders();
+            VTRegisterSupplementalVideoDecoderIfAvailable(kCMVideoCodecType_AppleProRes422);
+            supported = VTIsHardwareDecodeSupported(kCMVideoCodecType_AppleProRes422) != 0;
+        });
+        return supported;
+    }
     default:
         return NO;
     }
-    VTRegisterSupplementalVideoDecoderIfAvailable(codecType);
-    return VTIsHardwareDecodeSupported(codecType) != 0;
 }
 
 enum AVCodecID SFXCodecIDForName(NSString *codecName) {
