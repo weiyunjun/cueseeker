@@ -222,6 +222,12 @@ final class LibraryCoverImageMemoryCache: @unchecked Sendable {
         defer { lock.unlock() }
         return (totalCostBytes, Set(cache.keys))
     }
+
+    var usageSnapshot: (totalCostBytes: Int, count: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (totalCostBytes, cache.count)
+    }
 }
 
 actor LibraryCoverImagePipeline {
@@ -269,6 +275,10 @@ actor LibraryCoverImagePipeline {
 
     nonisolated func isReadyForPresentation(for key: LibraryCoverImageKey) -> Bool {
         memoryCache.isReadyForPresentation(for: key)
+    }
+
+    nonisolated var memoryCacheUsageSnapshot: (totalCostBytes: Int, count: Int) {
+        memoryCache.usageSnapshot
     }
 
     nonisolated static func boundedUniqueKeys(

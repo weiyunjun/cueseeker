@@ -66,6 +66,7 @@ final class DebugInteractionLatencyProbeTests: XCTestCase {
         XCTAssertEqual(captured?.fields["cover_hit"], "3")
         XCTAssertEqual(captured?.fields["cover_decoded"], "9")
         XCTAssertEqual(captured?.fields["cover_prewarm_ms"], "185.40")
+        assertMemoryAndCoverCacheTelemetryFields(in: captured?.fields)
     }
 
     func testMenuOpenAndItemActionEmitStructuredDebugLogs() async {
@@ -174,11 +175,13 @@ final class DebugInteractionLatencyProbeTests: XCTestCase {
         XCTAssertEqual(openEvent?.fields["dialog_id"], "file_detail_video")
         XCTAssertEqual(openEvent?.fields["trigger"], "get_info")
         XCTAssertEqual(openEvent?.fields["anim_frames"], "2")
+        assertMemoryAndCoverCacheTelemetryFields(in: openEvent?.fields)
 
         let stepEvent = events.first { $0.message == "Dialog internal transition completed" }
         XCTAssertEqual(stepEvent?.fields["dialog_id"], "file_detail")
         XCTAssertEqual(stepEvent?.fields["transition"], "switch_paired_item")
         XCTAssertEqual(stepEvent?.fields["trigger"], "items_3")
+        assertMemoryAndCoverCacheTelemetryFields(in: stepEvent?.fields)
 
         let panelEvent = events.first { $0.message == "System file panel completed" }
         XCTAssertEqual(panelEvent?.fields["panel_type"], "NSOpenPanel")
@@ -266,6 +269,7 @@ final class DebugInteractionLatencyProbeTests: XCTestCase {
         XCTAssertEqual(captured?.fields["from"], "playback_overlay")
         XCTAssertEqual(captured?.fields["to"], "closed")
         XCTAssertEqual(captured?.fields["trigger"], "dismiss_playback_overlay")
+        assertMemoryAndCoverCacheTelemetryFields(in: captured?.fields)
     }
 
     func testMenuContextPreservesInitialClickTimestampAndClearsOnClose() async {
@@ -330,5 +334,40 @@ final class DebugInteractionLatencyProbeTests: XCTestCase {
         XCTAssertEqual(events[1].fields["menu_id"], "player_subtitle_menu")
         XCTAssertEqual(events[1].fields["trigger"], "chrome_subtitle_button")
         XCTAssertEqual(events[1].fields["prep_and_measure_ms"], "4.00")
+    }
+
+    private func assertMemoryAndCoverCacheTelemetryFields(
+        in fields: [String: String]?,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let fields else {
+            XCTFail("Expected non-nil telemetry fields", file: file, line: line)
+            return
+        }
+        guard let memoryMBText = fields["memory_mb"],
+              let memoryMB = Double(memoryMBText),
+              let deltaMBText = fields["memory_delta_mb"],
+              Double(deltaMBText) != nil,
+              let peakMBText = fields["peak_memory_mb"],
+              let peakMB = Double(peakMBText),
+              let coverCacheMBText = fields["cover_cache_mb"],
+              let coverCacheMB = Double(coverCacheMBText),
+              let coverCacheCountText = fields["cover_cache_count"],
+              let coverCacheCount = Int(coverCacheCountText)
+        else {
+            XCTFail("Missing or malformed memory telemetry fields: \(fields)", file: file, line: line)
+            return
+        }
+        XCTAssertGreaterThan(memoryMB, 0, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(peakMB, memoryMB, file: file, line: line)
+        XCTAssertTrue(
+            deltaMBText.hasPrefix("+") || deltaMBText.hasPrefix("-"),
+            "Expected signed memory_delta_mb, got \(deltaMBText)",
+            file: file,
+            line: line
+        )
+        XCTAssertGreaterThanOrEqual(coverCacheMB, 0, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(coverCacheCount, 0, file: file, line: line)
     }
 }

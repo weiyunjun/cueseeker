@@ -1,5 +1,6 @@
 import AppKit
 import CueSeekerCore
+import Darwin
 import Foundation
 
 struct LibraryCoverPrewarmStats: Equatable, Sendable {
@@ -30,6 +31,7 @@ enum DebugInteractionLatencyProbe {
         var toSurface: String
         let trigger: String
         let startedAt: UInt64
+        let startFootprintBytes: UInt64
         var syncPrepMilliseconds: Double?
         var dataReadyMilliseconds: Double?
         var coverStats: LibraryCoverPrewarmStats = .zero
@@ -53,6 +55,7 @@ enum DebugInteractionLatencyProbe {
         let dialogID: String
         let trigger: String
         let startedAt: UInt64
+        let startFootprintBytes: UInt64
         var syncPrepMilliseconds: Double
         var firstFrameMilliseconds: Double?
         var animationStartedAt: UInt64?
@@ -86,6 +89,7 @@ enum DebugInteractionLatencyProbe {
         var lastOpenedMenuIDByOwner: [String: String] = [:]
         var pendingDialogOpens: [String: PendingDialogOpenSession] = [:]
         var pendingDialogTransitions: [UUID: PendingDialogTransitionSession] = [:]
+        var peakFootprintBytes: UInt64 = 0
         var onEventLoggedForTesting: (@Sendable (LoggedEvent) -> Void)?
     }
 
@@ -113,7 +117,71 @@ enum DebugInteractionLatencyProbe {
         String(format: "%.2f", max(0, value))
     }
 
+    static func formatMegabytes(_ value: Double) -> String {
+        String(format: "%.2f", max(0, value))
+    }
+
+    static func formatSignedMegabytes(_ value: Double) -> String {
+        let normalized = abs(value) < 0.005 ? 0 : value
+        return String(format: "%+.2f", normalized)
+    }
+
     #if DEBUG
+    private static func currentPhysicalFootprintBytes() -> UInt64 {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<task_vm_info_data_t>.stride / MemoryLayout<natural_t>.stride
+        )
+        let result = withUnsafeMutablePointer(to: &info) { infoPtr in
+            infoPtr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), intPtr, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else {
+            return 0
+        }
+        return UInt64(info.phys_footprint)
+    }
+
+    private static func sampleMemoryFootprintBytes() -> UInt64 {
+        let footprint = currentPhysicalFootprintBytes()
+        state.lock.lock()
+        if footprint > state.peakFootprintBytes {
+            state.peakFootprintBytes = footprint
+        }
+        state.lock.unlock()
+        return footprint
+    }
+
+    private static func memoryTelemetryFields(
+        startFootprintBytes: UInt64
+    ) -> [(String, String)] {
+        let currentFootprintBytes = currentPhysicalFootprintBytes()
+        state.lock.lock()
+        let peakFootprintBytes = max(
+            state.peakFootprintBytes,
+            max(startFootprintBytes, currentFootprintBytes)
+        )
+        state.peakFootprintBytes = peakFootprintBytes
+        state.lock.unlock()
+
+        let (coverCostBytes, coverCount) = LibraryCoverImagePipeline.shared.memoryCacheUsageSnapshot
+        let bytesPerMegabyte = Double(1_024 * 1_024)
+        let memoryMB = Double(currentFootprintBytes) / bytesPerMegabyte
+        let deltaBytes = Int64(bitPattern: currentFootprintBytes) - Int64(bitPattern: startFootprintBytes)
+        let deltaMB = Double(deltaBytes) / bytesPerMegabyte
+        let peakMB = Double(peakFootprintBytes) / bytesPerMegabyte
+        let coverCacheMB = Double(max(0, coverCostBytes)) / bytesPerMegabyte
+
+        return [
+            ("memory_mb", formatMegabytes(memoryMB)),
+            ("memory_delta_mb", formatSignedMegabytes(deltaMB)),
+            ("peak_memory_mb", formatMegabytes(peakMB)),
+            ("cover_cache_mb", formatMegabytes(coverCacheMB)),
+            ("cover_cache_count", "\(max(0, coverCount))")
+        ]
+    }
+
     static func setTestObserver(_ observer: (@Sendable (LoggedEvent) -> Void)?) {
         state.lock.lock()
         state.onEventLoggedForTesting = observer
@@ -128,6 +196,7 @@ enum DebugInteractionLatencyProbe {
         state.lastOpenedMenuIDByOwner.removeAll()
         state.pendingDialogOpens.removeAll()
         state.pendingDialogTransitions.removeAll()
+        state.peakFootprintBytes = 0
         state.onEventLoggedForTesting = nil
         state.lock.unlock()
     }
@@ -145,12 +214,14 @@ enum DebugInteractionLatencyProbe {
         #if DEBUG
         guard isEnabled else { return }
         AppPerformanceProbe.breadcrumb("nav:\(domain):\(trigger):\(fromSurface)->\(toSurface)")
+        let startFootprintBytes = sampleMemoryFootprintBytes()
         let session = PendingNavigationSession(
             id: UUID(),
             fromSurface: fromSurface,
             toSurface: toSurface,
             trigger: trigger,
-            startedAt: startedAt
+            startedAt: startedAt,
+            startFootprintBytes: startFootprintBytes
         )
         state.lock.lock()
         state.pendingNavigationsByDomain[domain] = session
@@ -212,6 +283,7 @@ enum DebugInteractionLatencyProbe {
     ) {
         #if DEBUG
         guard isEnabled else { return }
+        let fallbackFootprintBytes = sampleMemoryFootprintBytes()
         state.lock.lock()
         var session = state.pendingNavigationsByDomain[domain]
         if session == nil {
@@ -220,7 +292,8 @@ enum DebugInteractionLatencyProbe {
                 fromSurface: fallbackFromSurface,
                 toSurface: toSurface,
                 trigger: fallbackTrigger,
-                startedAt: preparationStartedAt
+                startedAt: preparationStartedAt,
+                startFootprintBytes: fallbackFootprintBytes
             )
         }
         guard var activeSession = session else {
@@ -271,6 +344,7 @@ enum DebugInteractionLatencyProbe {
 
         let matchingExisting = existing?.toSurface == toSurface ? existing : nil
         let effectiveStart = startedAt ?? matchingExisting?.startedAt ?? syncPrepFinishedAt
+        let startFootprintBytes = matchingExisting?.startFootprintBytes ?? sampleMemoryFootprintBytes()
         let effectiveFrom = matchingExisting?.fromSurface ?? fromSurface
         let effectiveTrigger = matchingExisting?.trigger ?? trigger
         let syncPrepMs = matchingExisting?.syncPrepMilliseconds
@@ -284,24 +358,26 @@ enum DebugInteractionLatencyProbe {
         DispatchQueue.main.async {
             let finishTime = now()
             let firstFrameMs = elapsedMilliseconds(since: effectiveStart, now: finishTime)
+            var fields: [(String, String)] = [
+                ("domain", domain),
+                ("from", effectiveFrom),
+                ("to", toSurface),
+                ("trigger", effectiveTrigger),
+                ("sync_prep_ms", formatMilliseconds(syncPrepMs)),
+                ("data_ready_ms", formatMilliseconds(dataReadyMs)),
+                ("cover_prewarm_ms", formatMilliseconds(coverStats.elapsedMilliseconds)),
+                ("cover_total", "\(coverStats.totalCount)"),
+                ("cover_hit", "\(coverStats.cacheHitCount)"),
+                ("cover_decoded", "\(coverStats.decodedCount)"),
+                ("container_wait_ms", formatMilliseconds(containerWaitMs)),
+                ("first_frame_ms", formatMilliseconds(firstFrameMs)),
+                ("total_ms", formatMilliseconds(firstFrameMs))
+            ]
+            fields.append(contentsOf: memoryTelemetryFields(startFootprintBytes: startFootprintBytes))
             emit(
                 domain: logDomain(forNavigationDomain: domain),
                 message: navigationMessage(forNavigationDomain: domain),
-                fields: [
-                    ("domain", domain),
-                    ("from", effectiveFrom),
-                    ("to", toSurface),
-                    ("trigger", effectiveTrigger),
-                    ("sync_prep_ms", formatMilliseconds(syncPrepMs)),
-                    ("data_ready_ms", formatMilliseconds(dataReadyMs)),
-                    ("cover_prewarm_ms", formatMilliseconds(coverStats.elapsedMilliseconds)),
-                    ("cover_total", "\(coverStats.totalCount)"),
-                    ("cover_hit", "\(coverStats.cacheHitCount)"),
-                    ("cover_decoded", "\(coverStats.decodedCount)"),
-                    ("container_wait_ms", formatMilliseconds(containerWaitMs)),
-                    ("first_frame_ms", formatMilliseconds(firstFrameMs)),
-                    ("total_ms", formatMilliseconds(firstFrameMs))
-                ]
+                fields: fields
             )
         }
         #endif
@@ -326,24 +402,26 @@ enum DebugInteractionLatencyProbe {
         let containerWaitMs = session.containerWaitMilliseconds ?? dataReadyMs
         let coverStats = session.coverStats
 
+        var fields: [(String, String)] = [
+            ("domain", domain),
+            ("from", session.fromSurface),
+            ("to", session.toSurface),
+            ("trigger", session.trigger),
+            ("sync_prep_ms", formatMilliseconds(syncPrepMs)),
+            ("data_ready_ms", formatMilliseconds(dataReadyMs)),
+            ("cover_prewarm_ms", formatMilliseconds(coverStats.elapsedMilliseconds)),
+            ("cover_total", "\(coverStats.totalCount)"),
+            ("cover_hit", "\(coverStats.cacheHitCount)"),
+            ("cover_decoded", "\(coverStats.decodedCount)"),
+            ("container_wait_ms", formatMilliseconds(containerWaitMs)),
+            ("first_frame_ms", formatMilliseconds(firstFrameMs)),
+            ("total_ms", formatMilliseconds(firstFrameMs))
+        ]
+        fields.append(contentsOf: memoryTelemetryFields(startFootprintBytes: session.startFootprintBytes))
         emit(
             domain: logDomain(forNavigationDomain: domain),
             message: navigationMessage(forNavigationDomain: domain),
-            fields: [
-                ("domain", domain),
-                ("from", session.fromSurface),
-                ("to", session.toSurface),
-                ("trigger", session.trigger),
-                ("sync_prep_ms", formatMilliseconds(syncPrepMs)),
-                ("data_ready_ms", formatMilliseconds(dataReadyMs)),
-                ("cover_prewarm_ms", formatMilliseconds(coverStats.elapsedMilliseconds)),
-                ("cover_total", "\(coverStats.totalCount)"),
-                ("cover_hit", "\(coverStats.cacheHitCount)"),
-                ("cover_decoded", "\(coverStats.decodedCount)"),
-                ("container_wait_ms", formatMilliseconds(containerWaitMs)),
-                ("first_frame_ms", formatMilliseconds(firstFrameMs)),
-                ("total_ms", formatMilliseconds(firstFrameMs))
-            ]
+            fields: fields
         )
     }
 
@@ -627,12 +705,14 @@ enum DebugInteractionLatencyProbe {
         #if DEBUG
         guard isEnabled else { return }
         AppPerformanceProbe.breadcrumb("dialog:\(dialogID):\(trigger)")
+        let startFootprintBytes = sampleMemoryFootprintBytes()
         let prepEnd = syncPrepFinishedAt ?? now()
         let syncPrepMs = elapsedMilliseconds(since: startedAt, now: prepEnd)
         let session = PendingDialogOpenSession(
             dialogID: dialogID,
             trigger: trigger,
             startedAt: startedAt,
+            startFootprintBytes: startFootprintBytes,
             syncPrepMilliseconds: syncPrepMs
         )
         state.lock.lock()
@@ -744,19 +824,21 @@ enum DebugInteractionLatencyProbe {
         let firstFrameMs = session.firstFrameMilliseconds
             ?? elapsedMilliseconds(since: session.startedAt, now: finishAt)
         let totalMs = elapsedMilliseconds(since: session.startedAt, now: finishAt)
+        var fields: [(String, String)] = [
+            ("dialog_id", session.dialogID),
+            ("trigger", session.trigger),
+            ("sync_prep_ms", formatMilliseconds(session.syncPrepMilliseconds)),
+            ("first_frame_ms", formatMilliseconds(firstFrameMs)),
+            ("anim_duration_ms", formatMilliseconds(animationDurationMilliseconds)),
+            ("anim_frames", "\(session.animationFrameCount)"),
+            ("max_frame_gap_ms", formatMilliseconds(session.maxFrameGapMilliseconds)),
+            ("total_ms", formatMilliseconds(totalMs))
+        ]
+        fields.append(contentsOf: memoryTelemetryFields(startFootprintBytes: session.startFootprintBytes))
         emit(
             domain: .system,
             message: "Dialog open completed",
-            fields: [
-                ("dialog_id", session.dialogID),
-                ("trigger", session.trigger),
-                ("sync_prep_ms", formatMilliseconds(session.syncPrepMilliseconds)),
-                ("first_frame_ms", formatMilliseconds(firstFrameMs)),
-                ("anim_duration_ms", formatMilliseconds(animationDurationMilliseconds)),
-                ("anim_frames", "\(session.animationFrameCount)"),
-                ("max_frame_gap_ms", formatMilliseconds(session.maxFrameGapMilliseconds)),
-                ("total_ms", formatMilliseconds(totalMs))
-            ]
+            fields: fields
         )
     }
     #endif
@@ -772,6 +854,7 @@ enum DebugInteractionLatencyProbe {
         #if DEBUG
         guard isEnabled else { return }
         AppPerformanceProbe.breadcrumb("dialog_step:\(dialogID):\(transition)")
+        let startFootprintBytes = sampleMemoryFootprintBytes()
         let syncEnd = syncPrepFinishedAt ?? asyncLoadFinishedAt ?? now()
         let asyncEnd = asyncLoadFinishedAt ?? syncEnd
         let syncPrepMs = elapsedMilliseconds(since: startedAt, now: syncEnd)
@@ -780,18 +863,20 @@ enum DebugInteractionLatencyProbe {
         DispatchQueue.main.async {
             let firstFrameAt = now()
             let firstFrameMs = elapsedMilliseconds(since: startedAt, now: firstFrameAt)
+            var fields: [(String, String)] = [
+                ("dialog_id", dialogID),
+                ("transition", transition),
+                ("trigger", trigger),
+                ("sync_prep_ms", formatMilliseconds(syncPrepMs)),
+                ("async_load_ms", formatMilliseconds(asyncLoadMs)),
+                ("first_frame_ms", formatMilliseconds(firstFrameMs)),
+                ("total_ms", formatMilliseconds(firstFrameMs))
+            ]
+            fields.append(contentsOf: memoryTelemetryFields(startFootprintBytes: startFootprintBytes))
             emit(
                 domain: .system,
                 message: "Dialog internal transition completed",
-                fields: [
-                    ("dialog_id", dialogID),
-                    ("transition", transition),
-                    ("trigger", trigger),
-                    ("sync_prep_ms", formatMilliseconds(syncPrepMs)),
-                    ("async_load_ms", formatMilliseconds(asyncLoadMs)),
-                    ("first_frame_ms", formatMilliseconds(firstFrameMs)),
-                    ("total_ms", formatMilliseconds(firstFrameMs))
-                ]
+                fields: fields
             )
         }
         #endif
