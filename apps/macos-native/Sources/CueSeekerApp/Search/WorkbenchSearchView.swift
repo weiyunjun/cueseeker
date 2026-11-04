@@ -524,7 +524,7 @@ struct WorkbenchSearchView: View {
 
     private func play(_ row: SubtitleTableRow) {
         guard let result = rowStore.snapshot.searchResult(entryID: row.id)
-            ?? search.searchResults.first(where: { Int($0.entryID) == row.id })
+            ?? search.loadedSearchResult(forCueID: Int64(row.id))
         else {
             return
         }
@@ -696,7 +696,7 @@ struct WorkbenchSearchView: View {
         return selectedRows.compactMap { row in
             guard let tableRow = rowStore.snapshot.row(at: row),
                   let result = rowStore.snapshot.searchResult(entryID: tableRow.id)
-                    ?? search.searchResults.first(where: { Int($0.entryID) == tableRow.id })
+                    ?? search.loadedSearchResult(forCueID: Int64(tableRow.id))
             else {
                 return nil
             }

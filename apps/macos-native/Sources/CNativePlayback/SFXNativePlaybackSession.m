@@ -802,6 +802,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         _segmentEndSeconds = _pendingSeekSegmentEndSeconds;
         _pausesAtSegmentEnd = _pendingSeekPausesAtSegmentEnd;
         _presentationGeneration = _pendingSeekPresentationGeneration;
+        _audioResetInProgress = NO;
         atomic_store(&_pauseAfterFirstFrame, _pendingSeekPauseAfterFirstFrame);
         atomic_store(&_didPauseAfterFirstFrame, false);
         @synchronized (self) {
@@ -1462,10 +1463,10 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 	    double seekSeconds = MAX(0, (double)milliseconds / 1000.0);
 	    NSInteger safeEndMilliseconds = SFXSanitizedSegmentEndMilliseconds(milliseconds, endMilliseconds);
 	    double segmentEndSeconds = safeEndMilliseconds >= 0 ? (double)safeEndMilliseconds / 1000.0 : -1;
-    BOOL isAsyncHTTPSeek = !rebuildsAudioOutput && SFXIsHTTPMediaPath(_path.UTF8String);
+    BOOL isAsyncSeek = !rebuildsAudioOutput;
 
     [_packetQueueCondition lock];
-    if (!isAsyncHTTPSeek) {
+    if (!isAsyncSeek) {
         while ((_seekRequestPending || _seekRequestInProgress)
                && !atomic_load(&_cancelled)
                && !atomic_load(&_decodeLoopFinished)) {
@@ -1488,20 +1489,37 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 	    _pendingSeekPausesAtSegmentEnd = pausesAtSegmentEnd && safeEndMilliseconds >= 0;
 	    _pendingSeekPresentationGeneration = presentationGeneration;
 	    _pendingSeekPauseAfterFirstFrame = pauseAfterFirstFrame;
-	    _pendingSeekRebuildsAudioOutput = rebuildsAudioOutput;
-	    if (rebuildsAudioOutput) {
-	        _audioOutputRecoveryRequested = NO;
-	    }
+	    _pendingSeekRebuildsAudioOutput = rebuildsAudioOutput || _pendingSeekRebuildsAudioOutput || _audioOutputRecoveryRequested;
+	    _audioOutputRecoveryRequested = NO;
+    if (isAsyncSeek) {
+        _presentationGeneration = presentationGeneration;
+        _audioResetInProgress = YES;
+        _readAheadSuspended = NO;
+        atomic_store(&_pauseAfterFirstFrame, pauseAfterFirstFrame);
+        atomic_store(&_didPauseAfterFirstFrame, false);
+        atomic_store(&_segmentEnding, false);
+        atomic_store(&_paused, false);
+        atomic_store(&_playing, !pauseAfterFirstFrame);
+    }
     _seekRequestPending = YES;
     _seekRequestSucceeded = NO;
     _seekRequestError = nil;
     [_packetQueueCondition broadcast];
     [self signalPacingCondition];
 
-    if (isAsyncHTTPSeek) {
+    if (isAsyncSeek) {
         [_packetQueueCondition unlock];
         @synchronized (self) {
+            _seekSeconds = seekSeconds;
+            _segmentEndSeconds = segmentEndSeconds;
+            _pausesAtSegmentEnd = pausesAtSegmentEnd && segmentEndSeconds >= 0;
+            _autoPauseAuthorizationResolved = NO;
+            _autoPauseAuthorized = NO;
+            _segmentEndReached = NO;
+            _segmentFinishNotified = NO;
             _currentTime = seekSeconds;
+            _isPausedInsideLoop = NO;
+            _pauseStartedHostSeconds = 0;
         }
         return YES;
     }
@@ -2145,6 +2163,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 	           && !atomic_load(&_finishingForAutomaticRecycle)
 	           && !_packetQueueEOF
 	           && ![self hasPendingSeekRequestLocked]
+	           && !_audioOutputRecoveryRequested
            && _packetQueueHead == NULL) {
         if (!armedStarvationWatchdog) {
             atomic_store(&_decodeWaitingForPacket, true);
@@ -2158,7 +2177,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         [self disarmStarvationWatchdog];
     }
 
-    if ([self hasPendingSeekRequestLocked]) {
+    if ([self hasPendingSeekRequestLocked] || _audioOutputRecoveryRequested) {
         [_packetQueueCondition unlock];
         return NULL;
     }
@@ -2326,7 +2345,10 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     [_packetQueueCondition lock];
     _playbackGeneration += 1;
     NSUInteger generation = _playbackGeneration;
-    _presentationGeneration = presentationGeneration;
+    BOOL supersededByNewerSeek = _seekRequestPending;
+    if (!supersededByNewerSeek) {
+        _presentationGeneration = presentationGeneration;
+    }
     _audioDrainScheduled = NO;
     _audioPrimed = _audioCodecContext == NULL;
     _audioInputEnded = NO;
@@ -2375,15 +2397,17 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     [self resetSegmentBoundaryState];
 
     double now = CACurrentMediaTime();
-	    @synchronized (self) {
-	        _seekSeconds = seekSeconds;
-	        _segmentEndSeconds = segmentEndSeconds;
-	        _pausesAtSegmentEnd = pausesAtSegmentEnd && segmentEndSeconds >= 0;
-	        _autoPauseAuthorizationResolved = NO;
-	        _autoPauseAuthorized = NO;
-	        _segmentEndReached = NO;
-	        _segmentFinishNotified = NO;
-	        _currentTime = seekSeconds;
+    @synchronized (self) {
+        if (!supersededByNewerSeek) {
+            _seekSeconds = seekSeconds;
+            _segmentEndSeconds = segmentEndSeconds;
+            _pausesAtSegmentEnd = pausesAtSegmentEnd && segmentEndSeconds >= 0;
+            _autoPauseAuthorizationResolved = NO;
+            _autoPauseAuthorized = NO;
+            _segmentEndReached = NO;
+            _segmentFinishNotified = NO;
+            _currentTime = seekSeconds;
+        }
         _audioClockInitialized = NO;
         _audioPlayerStarted = NO;
         _audioStartRequested = NO;
@@ -2414,27 +2438,34 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
           stopReadAheadMs,
           avSeekMs);
 
-	    atomic_store(&_pauseAfterFirstFrame, pauseAfterFirstFrame);
-	    atomic_store(&_didPauseAfterFirstFrame, false);
-	    atomic_store(&_segmentEnding, false);
-	    atomic_store(&_paused, !audioOutputReady);
-    atomic_store(&_playing, audioOutputReady && !pauseAfterFirstFrame);
+    if (rebuildsAudioOutput || !audioOutputReady) {
+        atomic_store(&_pauseAfterFirstFrame, pauseAfterFirstFrame);
+        atomic_store(&_didPauseAfterFirstFrame, false);
+        atomic_store(&_segmentEnding, false);
+        atomic_store(&_paused, !audioOutputReady);
+        atomic_store(&_playing, audioOutputReady && !pauseAfterFirstFrame);
+    } else if (!supersededByNewerSeek) {
+        atomic_store(&_segmentEnding, false);
+    }
     [_packetQueueCondition lock];
-    if (generation == _playbackGeneration) {
+    BOOL hasNewerPendingSeek = _seekRequestPending;
+    if (generation == _playbackGeneration && !hasNewerPendingSeek) {
         _audioResetInProgress = NO;
     }
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
     [self signalPacingCondition];
-    [self notifyTimeIfNeeded:YES];
     if (!audioOutputReady) {
         if (error != NULL) {
             *error = audioOutputError ?: SFXNativePlaybackError(37, @"Audio output recovery failed.");
         }
         return NO;
     }
-    [self startPacketReadAhead];
-    [self requestAudioDrain];
+    if (!hasNewerPendingSeek) {
+        [self notifyTimeIfNeeded:YES];
+        [self startPacketReadAhead];
+        [self requestAudioDrain];
+    }
     return YES;
 }
 

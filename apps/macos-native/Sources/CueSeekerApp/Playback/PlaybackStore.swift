@@ -85,10 +85,36 @@ final class PlaybackPointerVisibilityStore: ObservableObject {
 }
 
 @MainActor
+final class PlaybackRouteVisibilityStore: ObservableObject {
+    @Published private(set) var isPlaybackSurfaceExpanded = false
+    @Published private(set) var hasPlaybackSelection = false
+    @Published private(set) var playbackViewModel: PlaybackViewModel?
+
+    func updateIsPlaybackSurfaceExpanded(_ isExpanded: Bool) {
+        if isPlaybackSurfaceExpanded != isExpanded {
+            isPlaybackSurfaceExpanded = isExpanded
+        }
+    }
+
+    func updateHasPlaybackSelection(_ hasSelection: Bool) {
+        if hasPlaybackSelection != hasSelection {
+            hasPlaybackSelection = hasSelection
+        }
+    }
+
+    func updatePlaybackViewModel(_ viewModel: PlaybackViewModel?) {
+        if playbackViewModel !== viewModel {
+            playbackViewModel = viewModel
+        }
+    }
+}
+
+@MainActor
 final class PlaybackStore: ObservableObject {
     let timeline = PlaybackTimelineInteractionStore()
     let pointerVisibility = PlaybackPointerVisibilityStore()
     let chromeVisibility = PlaybackChromeVisibilityModel()
+    let routeVisibility = PlaybackRouteVisibilityStore()
 
     /// The layer registry answers every "is this layer covered" question, so
     /// the store reports its layers — Playback Overlay, Command Panel — and
@@ -146,10 +172,22 @@ final class PlaybackStore: ObservableObject {
     private(set) var playbackSearchPlaylistOrdinal: Int?
     private(set) var playlistPosition: PlaybackPlaylistPosition?
     @Published var playbackStatus: PlaybackStatus = .idle
-    @Published var isPlaybackSurfaceExpanded = false
+    @Published var isPlaybackSurfaceExpanded = false {
+        didSet {
+            routeVisibility.updateIsPlaybackSurfaceExpanded(isPlaybackSurfaceExpanded)
+        }
+    }
     @Published var isPlaybackSidePanelVisible = false
-    @Published var playbackViewModel: PlaybackViewModel?
-    @Published private(set) var chromeSnapshot = PlaybackChromeSnapshot.empty
+    @Published var playbackViewModel: PlaybackViewModel? {
+        didSet {
+            routeVisibility.updatePlaybackViewModel(playbackViewModel)
+        }
+    }
+    @Published private(set) var chromeSnapshot = PlaybackChromeSnapshot.empty {
+        didSet {
+            routeVisibility.updateHasPlaybackSelection(chromeSnapshot.hasPlaybackSelection)
+        }
+    }
     /// The player's error banner, one line for the video and one for the
     /// subtitle. See `docs/human/requirements/20260921-Bug-Missing Files
     /// Treated As Missing Database Records.md`.

@@ -396,7 +396,8 @@ extension AppCoordinator {
         playlistSourceOverride: PlaybackPlaylistSource? = nil
     ) {
         let startedAt = DebugInteractionLatencyProbe.now()
-        let fromSurface = isPlaybackPageVisible ? "playback" : currentWorkbenchDiagnosticLabel
+        let wasPlaybackPageVisible = isPlaybackPageVisible
+        let fromSurface = wasPlaybackPageVisible ? "playback" : currentWorkbenchDiagnosticLabel
         ensurePlayerInitialized()
         clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
@@ -428,12 +429,16 @@ extension AppCoordinator {
                 playbackSearchSelectedOrdinal: playbackSearchPromotion.selectedOrdinal
             )
         }
-        playback.playbackStatus = .opening
+        if playback.playbackStatus != .opening {
+            playback.playbackStatus = .opening
+        }
         UIInvalidationProbe.mark(
             "ACTION UI.SearchResult.opened",
             details: "time=\(String(format: "%.2f", Double(result.startMilliseconds) / 1000.0))"
         )
-        preparePlaybackKeyboardFocus()
+        if !wasPlaybackPageVisible {
+            preparePlaybackKeyboardFocus()
+        }
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
@@ -453,7 +458,9 @@ extension AppCoordinator {
                 providedDisplayTitle: displayTitle
             )
         )
-        playback.isPlaybackSurfaceExpanded = true
+        if !playback.isPlaybackSurfaceExpanded {
+            playback.isPlaybackSurfaceExpanded = true
+        }
         DebugInteractionLatencyProbe.completeImmediateNavigation(
             domain: "playback",
             from: fromSurface,
@@ -563,24 +570,37 @@ extension AppCoordinator {
     @discardableResult
     func play(_ result: SubtitleSearchResult) -> Bool {
         ensurePlayerInitialized()
-        let rawCodec = libraryDatabase?.videoCodec(forVideoPath: result.videoPath)
-        let targetDecodeMode = prepareDecodeModeForPlayback(
-            videoPath: result.videoPath,
-            codec: rawCodec
-        )
-        let codec = rawCodec ?? "unknown"
-        let videoName = URL.fromMediaPath(result.videoPath).lastPathComponent
-        AppLogger.shared.info(
-            .playback,
-            "Playback requested",
-            details: "source=search video=\"\(videoName)\" codec=\(codec) start_ms=\(result.startMilliseconds) setting_mode=\(settings.playbackDecodeMode.rawValue) target_mode=\(targetDecodeMode.rawValue)"
-        )
+        let canSeekOpenVideo = canSeekInCurrentlyOpenVideo(forVideoPath: result.videoPath)
+        let videoURL = URL.fromMediaPath(result.videoPath)
+        let videoName = videoURL.lastPathComponent
+        if !canSeekOpenVideo {
+            let rawCodec = libraryDatabase?.videoCodec(forVideoPath: result.videoPath)
+            let targetDecodeMode = prepareDecodeModeForPlayback(
+                videoPath: result.videoPath,
+                codec: rawCodec
+            )
+            let codec = rawCodec ?? "unknown"
+            AppLogger.shared.info(
+                .playback,
+                "Playback requested",
+                details: "source=search video=\"\(videoName)\" codec=\(codec) start_ms=\(result.startMilliseconds) setting_mode=\(settings.playbackDecodeMode.rawValue) target_mode=\(targetDecodeMode.rawValue)"
+            )
+        } else {
+            let activeMode = player?.decodeMode ?? settings.playbackDecodeMode
+            AppLogger.shared.info(
+                .playback,
+                "Playback requested",
+                details: "source=search video=\"\(videoName)\" codec=reused start_ms=\(result.startMilliseconds) setting_mode=\(settings.playbackDecodeMode.rawValue) target_mode=\(activeMode.rawValue)"
+            )
+        }
         beginCueAutoStopPlayback()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
         playbackSubtitle = nil
-        playback.playbackStatus = .opening
+        if playback.playbackStatus != .opening {
+            playback.playbackStatus = .opening
+        }
         playback.clearError(on: .video)
         playback.clearError(on: .notInLibrary)
         preparePlaybackTransition(
@@ -595,32 +615,43 @@ extension AppCoordinator {
                 startMilliseconds: result.startMilliseconds,
                 endMilliseconds: result.endMilliseconds
             )
-            let request = try PlaybackRequest(
-                videoURL: URL.fromMediaPath(result.videoPath),
-                startMilliseconds: result.startMilliseconds,
-                autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
-                subtitleSource: loadablePlaybackSubtitleSource(playbackSubtitleSource(for: result)),
-                audioTrackIndex: defaultAudioTrackIndex(forVideoPath: result.videoPath)
-            )
-
             guard let player else {
                 throw PlaybackError.playbackPlayerUnavailable
             }
 
             let generation: UInt
-            if canSeekInOpenVideo(for: request) {
-                if let autoStopBoundary {
-                    generation = try player.seek(
-                        to: autoStopBoundary,
-                        subtitleSource: request.subtitleSource
-                    )
+            if canSeekOpenVideo {
+                let subtitleURL = URL.fromMediaPath(result.subtitlePath)
+                let canReuseLoadedSubtitleSource = player.currentSubtitleURL == subtitleURL.standardizedMediaURL
+                if canReuseLoadedSubtitleSource {
+                    playback.clearError(on: .subtitle)
+                    if let autoStopBoundary {
+                        generation = try player.seek(to: autoStopBoundary)
+                    } else {
+                        generation = try player.seek(toMilliseconds: result.startMilliseconds)
+                    }
                 } else {
-                    generation = try player.seek(
-                        toMilliseconds: result.startMilliseconds,
-                        subtitleSource: request.subtitleSource
-                    )
+                    let subtitleSource = loadablePlaybackSubtitleSource(playbackSubtitleSource(for: result))
+                    if let autoStopBoundary {
+                        generation = try player.seek(
+                            to: autoStopBoundary,
+                            subtitleSource: subtitleSource
+                        )
+                    } else {
+                        generation = try player.seek(
+                            toMilliseconds: result.startMilliseconds,
+                            subtitleSource: subtitleSource
+                        )
+                    }
                 }
             } else {
+                let request = try PlaybackRequest(
+                    videoURL: videoURL,
+                    startMilliseconds: result.startMilliseconds,
+                    autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
+                    subtitleSource: loadablePlaybackSubtitleSource(playbackSubtitleSource(for: result)),
+                    audioTrackIndex: defaultAudioTrackIndex(forVideoPath: result.videoPath)
+                )
                 generation = try player.open(request)
             }
 

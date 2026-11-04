@@ -1390,6 +1390,85 @@ func nativePlaybackCoversThumbnailsScreenshotsAndMetadataApplyRotationAndFlipMet
     }
 }
 
+@Test
+@MainActor
+func nativeRapidConsecutiveInSessionSeeksCoalesceToFinalTargetWithoutBlocking() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping rapid in-session seek coalescing test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let mediaURL = directory.appendingPathComponent("rapid-coalesced-seek.mkv")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=64x64:r=25:d=8",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=8",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-g",
+            "10",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-shortest",
+            "-y",
+            mediaURL.path
+        ]
+    )
+
+    let player = SFXNativePlaybackPlayer()
+    let delegate = NativePlaybackCompletionDelegate()
+    player.delegate = delegate
+    defer {
+        player.stop()
+    }
+
+    try player.openPath(mediaURL.path, startMilliseconds: 0)
+    try player.setPaused(false)
+
+    let started = await waitUntil(timeoutSeconds: 5) {
+        player.nativePresentedVideoFrameCount > 0
+    }
+    #expect(started)
+
+    let openCountBefore = player.nativeSessionOpenCount
+    let seekTargets = [800, 1_600, 2_400, 3_200, 4_000, 4_800, 5_600]
+    let burstStart = CACurrentMediaTime()
+    for target in seekTargets {
+        try player.seek(toMilliseconds: target)
+    }
+    let burstElapsedMilliseconds = (CACurrentMediaTime() - burstStart) * 1_000.0
+
+    #expect(burstElapsedMilliseconds < 100.0)
+    #expect(abs(player.currentTime - 5.6) < 0.05)
+
+    let reachedFinalTarget = await waitUntil(timeoutSeconds: 5) {
+        player.currentTime >= 5.5 && player.nativePresentedVideoFrameCount > 1
+    }
+    #expect(reachedFinalTarget)
+    #expect(player.nativeSessionOpenCount == openCountBefore)
+    #expect(!delegate.hasFailures)
+}
+
 private enum QuadrantColor {
     case red
     case green

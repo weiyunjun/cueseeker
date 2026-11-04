@@ -159,13 +159,18 @@ final class AppCoordinator: ObservableObject {
         videoName: String,
         knownDisplayTitles: [String?]
     ) -> String {
-        let storedDisplayTitle = try? libraryDatabase?.displayTitle(
+        if let knownDisplayTitle = knownDisplayTitles
+            .compactMap({ $0?.trimmingCharacters(in: .whitespacesAndNewlines) })
+            .first(where: { !$0.isEmpty }) {
+            return knownDisplayTitle
+        }
+        let storedDisplayTitle = (try? libraryDatabase?.displayTitle(
             forVideoFile: URL.fromMediaPath(videoPath)
-        )
-        return ([storedDisplayTitle] + knownDisplayTitles)
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty }
-            ?? videoName
+        ))?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let storedDisplayTitle, !storedDisplayTitle.isEmpty {
+            return storedDisplayTitle
+        }
+        return videoName
     }
 
     func playbackDisplayTitle(
@@ -294,7 +299,7 @@ final class AppCoordinator: ObservableObject {
             return searchNavigationSnapshot.next != nil
         }
 
-        let totalCount = max(search.searchResultTotalCount, search.searchResults.count)
+        let totalCount = max(search.searchResultTotalCount, search.loadedSearchResultCount)
         return selectedSearchResult.searchRank + 1 < totalCount
     }
 

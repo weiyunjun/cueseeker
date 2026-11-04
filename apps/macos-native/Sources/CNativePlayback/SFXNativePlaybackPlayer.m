@@ -559,6 +559,17 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
              presentationGeneration:presentationGeneration
                  pauseAfterFirstFrame:pauseAfterFirstFrame
                                 error:error]) {
+        if (session.isFinished) {
+            return [self openPath:_currentPath
+                startMilliseconds:milliseconds
+                  endMilliseconds:endMilliseconds
+               pausesAtSegmentEnd:pausesAtSegmentEnd
+               presentationGeneration:presentationGeneration
+               flushDisplayBeforeStart:NO
+              pauseAfterFirstFrame:pauseAfterFirstFrame
+         allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
+                            error:error];
+        }
         [self restoreCurrentPresentationGeneration:previousPresentationGeneration
                            ifCurrentGenerationIs:presentationGeneration];
         return NO;

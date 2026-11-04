@@ -786,6 +786,147 @@ struct CueGroupRefreshScopeIntegrationTests {
         #expect(catchAllSession.recording().count("test.overlapping_scope") == 4)
         #expect(catchAllSession.recording().markCount("ACTION test.overlapping_scope") == 3)
     }
+
+    @MainActor
+    @Test
+    func switchingCuesDuringPlaybackDoesNotRefreshCoveredSearchOrWorkbenchChrome() async throws {
+        let uiProbeScope = UUID().uuidString
+        let session = UIInvalidationProbe.beginAsyncRecordingForTesting(scope: uiProbeScope)
+        defer { session.finish() }
+
+        try await withMountedCueTable(
+            surface: .search,
+            uiProbeScope: uiProbeScope
+        ) { app, window, _ in
+            let firstResult = try #require(app.search.loadedSearchResult(at: 0))
+            let secondResult = try #require(app.search.loadedSearchResult(at: 1))
+            let thirdResult = try #require(app.search.loadedSearchResult(at: 2))
+
+            app.openSearchResult(firstResult, displayTitle: firstResult.displayTitle)
+            let didPresentPlayback = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return app.isPlaybackPageVisible
+            }
+            try #require(didPresentPlayback)
+            try await Task.sleep(nanoseconds: 100_000_000)
+            window.contentView?.layoutSubtreeIfNeeded()
+            try await Task.sleep(nanoseconds: 50_000_000)
+            window.contentView?.layoutSubtreeIfNeeded()
+
+            let recordingBeforeSwitch = session.recording()
+            app.openAdjacentSearchResult(.next)
+            window.contentView?.layoutSubtreeIfNeeded()
+            app.openAdjacentSearchResult(.next)
+            window.contentView?.layoutSubtreeIfNeeded()
+            try await Task.sleep(nanoseconds: 50_000_000)
+
+            let delta = session.recording().delta(since: recordingBeforeSwitch)
+            #expect(app.search.selectedSearchResult?.entryID == thirdResult.entryID)
+            #expect(app.playback.playbackSearchPlaylistOrdinal == 2)
+            #expect(delta.count("UI.ContentView.body") == 0)
+            #expect(delta.count("UI.Workbench.body") == 0)
+            #expect(delta.count("UI.WorkbenchMainContent.body") == 0)
+            #expect(delta.count("UI.SearchPanel.body") == 0)
+            #expect(delta.count("UI.SearchFilterBar.body") == 0)
+            #expect(delta.count("table.search.surface_body") == 0)
+            #expect(delta.count("table.search.update_ns_view") == 0)
+
+            app.openAdjacentSearchResult(.previous)
+            window.contentView?.layoutSubtreeIfNeeded()
+            #expect(app.search.selectedSearchResult?.entryID == secondResult.entryID)
+            #expect(app.playback.playbackSearchPlaylistOrdinal == 1)
+        }
+    }
+
+    @MainActor
+    @Test
+    func openingSearchResultUnderLargeOrderedCueListResolvesPlaylistAndNavigationOnDemand() throws {
+        let defaultsSuite = "CueSeekerAppTests.LargeSearchPlayback-\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: defaultsSuite))
+        defer {
+            userDefaults.removePersistentDomain(forName: defaultsSuite)
+        }
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CueSeekerLargeSearchPlayback-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempRoot)
+        }
+
+        let databaseURL = tempRoot.appendingPathComponent("index.sqlite")
+        let videoURL = tempRoot.appendingPathComponent("Episode.mkv")
+        let subtitleURL = tempRoot.appendingPathComponent("Episode.ass")
+        try DatabaseBootstrap.prepare(at: databaseURL)
+        let indexingDatabase = try IndexingDatabase(path: databaseURL)
+        try indexingDatabase.replaceCueGroups(
+            subtitleFile: subtitleURL,
+            videoFile: videoURL,
+            format: .ass,
+            cueGroups: cueGroupRefreshScopeGroups(groupCount: 1)
+        )
+
+        let app = AppCoordinator(
+            userDefaults: userDefaults,
+            databaseURL: databaseURL
+        )
+        let totalCount = 50_000
+        let targetIndex = 25_000
+        let videoPath = videoURL.path
+        let subtitlePath = subtitleURL.path
+        let results = (0..<totalCount).map { index -> SubtitleSearchResult in
+            let entryID: Int64 = if index == targetIndex {
+                1
+            } else if index < targetIndex {
+                Int64(index + 10)
+            } else {
+                Int64(index + 10)
+            }
+            return SubtitleSearchResult(
+                entryID: entryID,
+                cueGroupID: entryID,
+                primaryGroupIndex: 0,
+                subtitlePath: subtitlePath,
+                subtitleFormat: .ass,
+                videoPath: videoPath,
+                videoName: "Episode.mkv",
+                displayTitle: "Episode - 01",
+                startMilliseconds: index * 1_000,
+                endMilliseconds: index * 1_000 + 800,
+                content: "Line \(index)",
+                cueLines: ["Line \(index)"],
+                cueGroupLines: ["Line \(index)"],
+                languages: [.english],
+                searchRank: index
+            )
+        }
+        let orderedCueIDs = results.map(\.entryID)
+        app.search.replaceResultState(
+            results: results,
+            orderedCueIDs: orderedCueIDs,
+            status: .completed,
+            totalCount: totalCount,
+            fileSummaries: [],
+            countState: .exact,
+            knownResultCount: totalCount,
+            knownFileCount: 1,
+            hasMore: false
+        )
+
+        let targetResult = try #require(app.search.loadedSearchResult(at: targetIndex))
+        #expect(targetResult.entryID == orderedCueIDs[targetIndex])
+        #expect(app.search.loadedSearchResultIndex(forCueID: targetResult.entryID) == targetIndex)
+
+        app.synchronizeSearchAndPlaylistOnPlayback(seed: targetResult)
+        app.updateSearchNavigationSnapshotForOpenedResult(targetResult)
+
+        #expect(app.playback.playlistSource?.boundary.totalCount == totalCount)
+        #expect(app.playback.playbackSearchPlaylistOrdinal == targetIndex)
+        #expect(app.playback.playlistSource?.item(at: targetIndex)?.identity == .search(targetResult.entryID))
+        #expect(app.search.searchNavigationSnapshot?.current?.entryID == targetResult.entryID)
+        #expect(app.search.searchNavigationSnapshot?.previous?.entryID == orderedCueIDs[targetIndex - 1])
+        #expect(app.search.searchNavigationSnapshot?.next?.entryID == orderedCueIDs[targetIndex + 1])
+        #expect(app.playbackDisplayTitle(for: targetResult) == "Episode - 01")
+    }
 }
 
 @MainActor

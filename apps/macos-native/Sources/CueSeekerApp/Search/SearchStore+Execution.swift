@@ -80,7 +80,7 @@ extension SearchStore {
                 "search_state_reset",
                 phaseStart: resetStart,
                 groupCount: searchFileSummaries.count,
-                renderedRowCount: searchResults.count,
+                renderedRowCount: loadedSearchResultCount,
                 status: "reset"
             )
         }

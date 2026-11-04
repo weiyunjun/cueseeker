@@ -14,11 +14,13 @@
 	    while (!atomic_load(&_cancelled)
 	           && !atomic_load(&_segmentEnding)
 	           && !atomic_load(&_finishingForAutomaticRecycle)) {
+        [self waitWhileAudioOutputRecoveryRequestedIfNeeded];
         if ([self performPendingSeekIfNeeded]) {
             continue;
         }
 
         [self waitWhilePausedIfNeeded];
+        [self waitWhileAudioOutputRecoveryRequestedIfNeeded];
         if ([self performPendingSeekIfNeeded]) {
             continue;
         }
@@ -29,6 +31,7 @@
 
         SFXQueuedPacket *queuedPacket = [self dequeueVideoPacket];
         if (queuedPacket == NULL) {
+            [self waitWhileAudioOutputRecoveryRequestedIfNeeded];
             if ([self performPendingSeekIfNeeded]) {
                 continue;
             }
@@ -67,11 +70,23 @@
 	            [self notifyTimeIfNeeded:YES];
 	        }
 	    }
-    atomic_store(&_decodeLoopFinished, true);
     [_packetQueueCondition lock];
+    atomic_store(&_decodeLoopFinished, true);
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
     [self signalPacingCondition];
+}
+
+- (void)waitWhileAudioOutputRecoveryRequestedIfNeeded {
+    [_packetQueueCondition lock];
+    while (_audioOutputRecoveryRequested
+           && ![self hasPendingSeekRequestLocked]
+           && !atomic_load(&_cancelled)
+           && !atomic_load(&_segmentEnding)
+           && !atomic_load(&_finishingForAutomaticRecycle)) {
+        [_packetQueueCondition wait];
+    }
+    [_packetQueueCondition unlock];
 }
 
 - (void)waitWhilePausedIfNeeded {
@@ -81,6 +96,7 @@
 
 	    [_packetQueueCondition lock];
 	    while (atomic_load(&_paused)
+	           && !_audioOutputRecoveryRequested
 	           && !atomic_load(&_cancelled)
 	           && !atomic_load(&_segmentEnding)
 	           && ![self hasPendingSeekRequestLocked]) {
@@ -516,6 +532,13 @@
 
     AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
     while ((result = avcodec_receive_frame(_videoCodecContext, _videoFrame)) >= 0) {
+        [_packetQueueCondition lock];
+        BOOL hasPendingSeek = [self hasPendingSeekRequestLocked] || _audioOutputRecoveryRequested;
+        [_packetQueueCondition unlock];
+        if (hasPendingSeek) {
+            av_frame_unref(_videoFrame);
+            break;
+        }
         if (SFXFrameBeforeSeekTarget(_videoFrame, videoStream, _seekSeconds, _timelineOriginSeconds)) {
             if (!_perfFirstVideoDecodedRecorded) {
                 _perfSkippedVideoFramesForFirstFrame += 1;
@@ -611,14 +634,19 @@
             CVPixelBufferRelease(pixelBuffer);
         }
 
-        if (mediaSeconds >= 0) {
-            @synchronized (self) {
-                _currentTime = mediaSeconds;
-                if (submittedVideoFrame) {
+        if (submittedVideoFrame && mediaSeconds >= 0) {
+            [_packetQueueCondition lock];
+            BOOL canAdvanceCurrentTime = !_seekRequestPending
+                && !_seekRequestInProgress
+                && !_audioResetInProgress;
+            [_packetQueueCondition unlock];
+            if (canAdvanceCurrentTime) {
+                @synchronized (self) {
+                    _currentTime = mediaSeconds;
                     _lastSubmittedVideoFrameMilliseconds = (NSInteger)floor(mediaSeconds * 1000.0);
                 }
+                [self notifyTimeIfNeeded:NO];
             }
-            [self notifyTimeIfNeeded:NO];
         }
 
         BOOL finishForRecycle = atomic_load(&_finishingForAutomaticRecycle);
@@ -1000,18 +1028,21 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
         }
         BOOL presentationIsStillCurrent = presentationGeneration == _presentationGeneration
             && !_seekRequestPending
-            && !_seekRequestInProgress;
+            && !_seekRequestInProgress
+            && !_audioResetInProgress;
         [_packetQueueCondition unlock];
         double presentedSeconds = CMTIME_IS_NUMERIC(presentationTime)
             ? CMTimeGetSeconds(presentationTime)
             : -1.0;
         @synchronized (self) {
             _presentedVideoFrameCount += 1;
-            if (isfinite(presentedSeconds) && presentedSeconds >= 0) {
-                _currentTime = presentedSeconds;
-                _lastSubmittedVideoFrameMilliseconds = (NSInteger)floor(presentedSeconds * 1000.0);
-            } else if (frameMilliseconds >= 0) {
-                _lastSubmittedVideoFrameMilliseconds = frameMilliseconds;
+            if (presentationIsStillCurrent) {
+                if (isfinite(presentedSeconds) && presentedSeconds >= 0) {
+                    _currentTime = presentedSeconds;
+                    _lastSubmittedVideoFrameMilliseconds = (NSInteger)floor(presentedSeconds * 1000.0);
+                } else if (frameMilliseconds >= 0) {
+                    _lastSubmittedVideoFrameMilliseconds = frameMilliseconds;
+                }
             }
         }
         if (presentationIsStillCurrent

@@ -55,7 +55,7 @@ final class ExcerptStore: ObservableObject {
     /// it; a list that is gone by then is cleared rather than tracked here.
     @Published private(set) var recentSaveListID: Int64?
     @Published var listEditorSession: ExcerptListEditorSession?
-    @Published var selectedExcerpt: Excerpt?
+    var selectedExcerpt: Excerpt?
     @Published var tableSearchDraft = ""
     @Published var tableTotalSavedRowCount = 0
     @Published var tableResultRowCount = 0

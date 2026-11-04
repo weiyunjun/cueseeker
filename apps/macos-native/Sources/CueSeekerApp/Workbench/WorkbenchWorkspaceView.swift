@@ -91,10 +91,7 @@ private final class WorkbenchSurfaceTransitionTracker {
 struct WorkbenchWorkspaceView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var routeState: WorkbenchRouteState
-    // Observed so a Excerpt detail turns into the unknown page when its list
-    // leaves the overview.
-    @EnvironmentObject private var excerptStore: ExcerptStore
-    @EnvironmentObject private var playback: PlaybackStore
+    @ObservedObject var playbackRouteVisibility: PlaybackRouteVisibilityStore
     @Environment(\.colorScheme) private var colorScheme
     @State private var transitionTracker = WorkbenchSurfaceTransitionTracker()
     @State private var asyncPreparedRevision: UInt64 = 0
@@ -260,7 +257,7 @@ struct WorkbenchWorkspaceView: View {
     private var playbackSurface: some View {
         PlaybackView(
             player: appState.playbackPlayer,
-            viewModel: playback.playbackViewModel,
+            viewModel: playbackRouteVisibility.playbackViewModel,
             uiProbeScope: appState.uiProbeScope
         )
     }
@@ -284,16 +281,10 @@ struct WorkbenchWorkspaceView: View {
                 .ignoresSafeArea()
 
             if let listID = selectedListID {
-                if appState.isWorkbenchRouteUnknown(.excerptList(id: listID)) {
-                    WorkbenchEmptyHint(
-                        icon: .excerptQuestion,
-                        message: L("excerpt.list.not_found")
-                    )
-                } else {
-                    WorkbenchExcerptTableView(
-                        isTableResponseActive: !appState.isPlaybackPageVisible
-                    )
-                }
+                WorkbenchExcerptListSurfaceView(
+                    listID: listID,
+                    isTableResponseActive: !appState.isPlaybackPageVisible
+                )
             } else {
                 ExcerptListOverviewView()
             }
@@ -301,6 +292,28 @@ struct WorkbenchWorkspaceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+}
+
+private struct WorkbenchExcerptListSurfaceView: View {
+    @EnvironmentObject private var appState: AppCoordinator
+    // Observed so a Excerpt detail turns into the unknown page when its list
+    // leaves the overview.
+    @EnvironmentObject private var excerptStore: ExcerptStore
+    let listID: Int64
+    let isTableResponseActive: Bool
+
+    var body: some View {
+        if appState.isWorkbenchRouteUnknown(.excerptList(id: listID)) {
+            WorkbenchEmptyHint(
+                icon: .excerptQuestion,
+                message: L("excerpt.list.not_found")
+            )
+        } else {
+            WorkbenchExcerptTableView(
+                isTableResponseActive: isTableResponseActive
+            )
+        }
+    }
 }
 
 @MainActor

@@ -126,7 +126,7 @@ final class LibraryStore: ObservableObject {
         return fileObjectStatusByFolderPath[folderPath] ?? fileObjectStatusByFolderPath[standardized] ?? .idle
     }
     @Published var libraryPlaybackHistoryRevision = 0
-    @Published var selectedLibraryVideo: LibraryVideo?
+    var selectedLibraryVideo: LibraryVideo?
     @Published var coverEditingSession: LibraryCoverEditingSession?
     @Published var renameSession: LibraryRenameSession?
     @Published var webdavDialogSession: WebDAVFolderDialogSession?

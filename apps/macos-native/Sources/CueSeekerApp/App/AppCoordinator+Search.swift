@@ -153,8 +153,9 @@ extension AppCoordinator {
             return
         }
 
-        guard let index = search.searchResults.firstIndex(where: { $0.entryID == result.entryID }),
-              index >= search.searchResults.count - SearchStore.searchPrefetchThreshold
+        let loadedCount = search.loadedSearchResultCount
+        guard let index = search.loadedSearchResultIndex(forCueID: result.entryID),
+              index >= loadedCount - SearchStore.searchPrefetchThreshold
         else {
             return
         }
@@ -183,7 +184,7 @@ extension AppCoordinator {
         max(
             search.searchNavigationSnapshot?.totalCount ?? 0,
             search.searchResultTotalCount,
-            search.searchResults.count
+            search.loadedSearchResultCount
         )
     }
 
@@ -319,7 +320,7 @@ extension AppCoordinator {
 
     func searchCandidateCueIDsForPruning() -> [Int64] {
         var candidateCueIDs = search.searchResultCueIDs.isEmpty
-            ? search.searchResults.map(\.entryID)
+            ? search.loadedSearchResultCueIDs
             : search.searchResultCueIDs
         if let snapshotCueIDs = search.searchFacetSnapshot?.cueIDs,
            !snapshotCueIDs.isEmpty {
@@ -345,7 +346,7 @@ extension AppCoordinator {
             break
         case .pruneRemovedItems:
             guard !search.searchResultCueIDs.isEmpty
-                || !search.searchResults.isEmpty
+                || search.loadedSearchResultCount > 0
                 || search.searchFacetSnapshot != nil
             else {
                 return
@@ -542,45 +543,78 @@ extension AppCoordinator {
         anchor: SearchNavigationAnchor,
         radius: Int
     ) -> SearchNavigationSnapshot? {
-        let liveCueIDs = cueIDsInLibrary(among: search.searchResults.map(\.entryID))
-        let loadedResults = search.searchResults
-            .filter { liveCueIDs.contains($0.entryID) }
-            .sorted { lhs, rhs in
-                lhs.searchRank < rhs.searchRank
-            }
-        guard !loadedResults.isEmpty else {
+        let cueIDs: [Int64]
+        let usesDirectSearchIndex: Bool
+        if search.hasMutatedSinceSearchSnapshot {
+            let liveCueIDs = cueIDsInLibrary(among: search.loadedSearchResultCueIDs)
+            cueIDs = search.loadedSearchResultCueIDs.filter { liveCueIDs.contains($0) }
+            usesDirectSearchIndex = false
+        } else {
+            cueIDs = search.loadedSearchResultCueIDs
+            usesDirectSearchIndex = true
+        }
+        guard !cueIDs.isEmpty else {
             return nil
         }
 
         let currentIndex: Int?
         if let selectedEntryID = anchor.selectedEntryID {
-            currentIndex = loadedResults.firstIndex { $0.entryID == selectedEntryID }
+            currentIndex = usesDirectSearchIndex
+                ? search.loadedSearchResultIndex(forCueID: selectedEntryID)
+                : cueIDs.firstIndex(of: selectedEntryID)
         } else if let selectedSearchRank = anchor.selectedSearchRank {
-            currentIndex = loadedResults.firstIndex { $0.searchRank == selectedSearchRank }
+            if usesDirectSearchIndex, cueIDs.indices.contains(selectedSearchRank) {
+                currentIndex = selectedSearchRank
+            } else {
+                currentIndex = cueIDs.firstIndex {
+                    search.loadedSearchResult(forCueID: $0)?.searchRank == selectedSearchRank
+                }
+            }
         } else {
             currentIndex = nil
         }
 
         let boundedRadius = max(1, radius)
-        let neighborhood: [SubtitleSearchResult]
+        let sliceRange: Range<Int>
         if let currentIndex {
             let lowerBound = max(0, currentIndex - boundedRadius)
-            let upperBound = min(loadedResults.count, currentIndex + boundedRadius + 1)
-            neighborhood = Array(loadedResults[lowerBound..<upperBound])
+            let upperBound = min(cueIDs.count, currentIndex + boundedRadius + 1)
+            sliceRange = lowerBound..<upperBound
         } else {
-            neighborhood = Array(loadedResults.prefix((boundedRadius * 2) + 1))
+            sliceRange = 0..<min(cueIDs.count, (boundedRadius * 2) + 1)
+        }
+        let neighborhood = sliceRange.compactMap { index in
+            search.loadedSearchResult(
+                forCueID: cueIDs[index],
+                fallbackRank: index
+            )
         }
 
         let previous = currentIndex.flatMap { index in
-            index > 0 ? loadedResults[index - 1] : nil
+            index > 0
+                ? search.loadedSearchResult(
+                    forCueID: cueIDs[index - 1],
+                    fallbackRank: index - 1
+                )
+                : nil
         }
-        let current = currentIndex.map { loadedResults[$0] }
+        let current = currentIndex.flatMap { index in
+            search.loadedSearchResult(
+                forCueID: cueIDs[index],
+                fallbackRank: index
+            )
+        }
         let next = currentIndex.flatMap { index in
-            index + 1 < loadedResults.count ? loadedResults[index + 1] : nil
+            index + 1 < cueIDs.count
+                ? search.loadedSearchResult(
+                    forCueID: cueIDs[index + 1],
+                    fallbackRank: index + 1
+                )
+                : nil
         }
 
         return SearchNavigationSnapshot(
-            totalCount: max(search.searchResultTotalCount, loadedResults.count),
+            totalCount: max(search.searchResultTotalCount, cueIDs.count),
             currentIndex: current?.searchRank,
             neighborhood: neighborhood,
             previous: previous,
@@ -604,9 +638,8 @@ extension AppCoordinator {
 
     func updateSearchNavigationSnapshotForOpenedResult(_ result: SubtitleSearchResult) {
         let radius = Self.searchNavigationPanelRadius
-        if let snapshot = searchNavigationSnapshot(
+        if let snapshot = loadedSearchNavigationSnapshot(
             containing: result,
-            in: search.searchResults,
             totalCount: search.searchResultTotalCount,
             radius: radius
         ) {
@@ -626,6 +659,37 @@ extension AppCoordinator {
         }
 
         search.updateNavigationSnapshot(nil)
+    }
+
+    private func loadedSearchNavigationSnapshot(
+        containing result: SubtitleSearchResult,
+        totalCount: Int,
+        radius: Int
+    ) -> SearchNavigationSnapshot? {
+        let loadedCount = search.loadedSearchResultCount
+        guard let currentIndex = search.loadedSearchResultIndex(forCueID: result.entryID),
+              let current = search.loadedSearchResult(at: currentIndex)
+        else {
+            return nil
+        }
+
+        let boundedRadius = max(1, radius)
+        let lowerBound = max(0, currentIndex - boundedRadius)
+        let upperBound = min(loadedCount, currentIndex + boundedRadius + 1)
+        let neighborhood = (lowerBound..<upperBound).compactMap {
+            search.loadedSearchResult(at: $0)
+        }
+        let previous = currentIndex > 0 ? search.loadedSearchResult(at: currentIndex - 1) : nil
+        let next = currentIndex + 1 < loadedCount ? search.loadedSearchResult(at: currentIndex + 1) : nil
+
+        return SearchNavigationSnapshot(
+            totalCount: max(totalCount, loadedCount),
+            currentIndex: current.searchRank,
+            neighborhood: neighborhood,
+            previous: previous,
+            current: current,
+            next: next
+        )
     }
 
     private func searchNavigationSnapshot(

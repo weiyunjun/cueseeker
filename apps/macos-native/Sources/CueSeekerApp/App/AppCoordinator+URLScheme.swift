@@ -155,7 +155,7 @@ extension AppCoordinator {
             guard search.searchCountState == .exact else {
                 return false
             }
-            firstResult = search.searchResults.first
+            firstResult = search.loadedSearchResult(at: 0)
         }
 
         pendingURLSchemeDirectPlayIntent = nil

@@ -90,6 +90,17 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     public private(set) var currentVideoURL: URL?
     private var lastOpenedVideoURL: URL?
+    public var currentSubtitleURL: URL? {
+        if let pendingPresentation {
+            switch pendingPresentation.subtitleAction {
+            case .preserve:
+                break
+            case .replace(let source):
+                return source?.url.standardizedMediaURL
+            }
+        }
+        return activeSubtitleSource?.url.standardizedMediaURL
+    }
     public var usingHardwareDecode: Bool {
         nativePlayer.usingHardwareDecode
     }
@@ -405,11 +416,28 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         let heldMilliseconds = pendingPresentation?.heldMilliseconds
             ?? heldSubtitlePresentationMilliseconds
             ?? lastRenderedASSSubtitleMilliseconds
+        let resolvedSubtitleAction: PendingSubtitleAction
+        switch (pendingPresentation?.subtitleAction, subtitleAction) {
+        case (.replace(let pendingSource), .preserve):
+            let retargetedSource = pendingSource.map {
+                PlaybackSubtitleSource(
+                    url: $0.url,
+                    format: $0.format,
+                    matchedVideoURL: $0.matchedVideoURL,
+                    initialTimestampMilliseconds: max(0, targetMilliseconds),
+                    preparationTimeWindow: nil,
+                    renderCacheProvider: $0.renderCacheProvider
+                )
+            }
+            resolvedSubtitleAction = .replace(retargetedSource)
+        default:
+            resolvedSubtitleAction = subtitleAction
+        }
         pendingPresentation = PendingPresentation(
             generation: nil,
             targetMilliseconds: max(0, targetMilliseconds),
             heldMilliseconds: max(0, heldMilliseconds),
-            subtitleAction: subtitleAction,
+            subtitleAction: resolvedSubtitleAction,
             startedAt: CACurrentMediaTime(),
             resolve302Milliseconds: 0
         )

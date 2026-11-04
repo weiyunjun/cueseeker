@@ -12,7 +12,8 @@ struct ContentView: View {
     var body: some View {
         ContentRootView(
             appState: appState,
-            fullscreenManager: appState.playbackFullscreenManager
+            fullscreenManager: appState.playbackFullscreenManager,
+            playbackRouteVisibility: appState.playback.routeVisibility
         )
     }
 }
@@ -20,12 +21,9 @@ struct ContentView: View {
 private struct ContentRootView: View {
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
+    @ObservedObject var playbackRouteVisibility: PlaybackRouteVisibilityStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
-    /// Observed because `hidesWorkbenchChrome` reads `playback.isPlaybackSurfaceExpanded`
-    /// (via `appState.isPlaybackPageVisible`), and `AppCoordinator` does not republish
-    /// `PlaybackStore` changes.
-    @EnvironmentObject private var playback: PlaybackStore
 
     var body: some View {
         AppPerformanceProbe.measure("ContentView.body", thresholdMilliseconds: 4) {
@@ -36,7 +34,8 @@ private struct ContentRootView: View {
 
             let isPlaybackFullscreen = fullscreenManager.isFullscreen
             let hidesWorkbenchChrome = isPlaybackFullscreen
-                || (appState.hasPlaybackSelection && playback.isPlaybackSurfaceExpanded)
+                || ((playbackRouteVisibility.hasPlaybackSelection || appState.hasPlaybackSelection)
+                    && playbackRouteVisibility.isPlaybackSurfaceExpanded)
 
             return GeometryReader { geometry in
                 let isCompactWindow = AppShellLayout.isCompactWindow(width: geometry.size.width)
@@ -139,7 +138,7 @@ private struct ContentRootView: View {
 
     @ViewBuilder
     private var mainWorkspace: some View {
-        WorkbenchWorkspaceView()
+        WorkbenchWorkspaceView(playbackRouteVisibility: playbackRouteVisibility)
     }
 
     private func collapseSidebarForCompactWindowIfNeeded(

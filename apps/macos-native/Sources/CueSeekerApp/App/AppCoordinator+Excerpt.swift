@@ -591,7 +591,8 @@ extension AppCoordinator {
         allowsUnavailableTarget: Bool = false
     ) {
         let startedAt = DebugInteractionLatencyProbe.now()
-        let fromSurface = isPlaybackPageVisible ? "playback" : currentWorkbenchDiagnosticLabel
+        let wasPlaybackPageVisible = isPlaybackPageVisible
+        let fromSurface = wasPlaybackPageVisible ? "playback" : currentWorkbenchDiagnosticLabel
         guard excerpt.isValid || allowsUnavailableTarget else {
             return
         }
@@ -605,12 +606,16 @@ extension AppCoordinator {
 
         clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
-        playback.playbackStatus = .opening
+        if playback.playbackStatus != .opening {
+            playback.playbackStatus = .opening
+        }
         UIInvalidationProbe.mark(
             "ACTION UI.Excerpt.opened",
             details: "time=\(String(format: "%.2f", Double(excerpt.startMilliseconds) / 1000.0))"
         )
-        preparePlaybackKeyboardFocus()
+        if !wasPlaybackPageVisible {
+            preparePlaybackKeyboardFocus()
+        }
 
         let validScopeIDs: [Int64]?
         let resolvedPlaylistScope: PlaybackPlaylistExcerptScope?
@@ -668,7 +673,9 @@ extension AppCoordinator {
                 providedDisplayTitle: displayTitle
             )
         )
-        playback.isPlaybackSurfaceExpanded = true
+        if !playback.isPlaybackSurfaceExpanded {
+            playback.isPlaybackSurfaceExpanded = true
+        }
         DebugInteractionLatencyProbe.completeImmediateNavigation(
             domain: "playback",
             from: fromSurface,
@@ -709,20 +716,37 @@ extension AppCoordinator {
     @discardableResult
     func play(_ excerpt: Excerpt) -> Bool {
         ensurePlayerInitialized()
-        let targetDecodeMode = prepareDecodeModeForPlayback(videoPath: excerpt.videoPath)
-        let codec = libraryDatabase?.videoCodec(forVideoPath: excerpt.videoPath) ?? "unknown"
-        let videoName = URL.fromMediaPath(excerpt.videoPath).lastPathComponent
-        AppLogger.shared.info(
-            .playback,
-            "Playback requested",
-            details: "source=excerpt video=\"\(videoName)\" codec=\(codec) start_ms=\(excerpt.startMilliseconds) setting_mode=\(settings.playbackDecodeMode.rawValue) target_mode=\(targetDecodeMode.rawValue)"
-        )
+        let canSeekOpenVideo = canSeekInCurrentlyOpenVideo(forVideoPath: excerpt.videoPath)
+        let videoURL = URL.fromMediaPath(excerpt.videoPath)
+        let videoName = videoURL.lastPathComponent
+        if !canSeekOpenVideo {
+            let rawCodec = libraryDatabase?.videoCodec(forVideoPath: excerpt.videoPath)
+            let targetDecodeMode = prepareDecodeModeForPlayback(
+                videoPath: excerpt.videoPath,
+                codec: rawCodec
+            )
+            let codec = rawCodec ?? "unknown"
+            AppLogger.shared.info(
+                .playback,
+                "Playback requested",
+                details: "source=excerpt video=\"\(videoName)\" codec=\(codec) start_ms=\(excerpt.startMilliseconds) setting_mode=\(settings.playbackDecodeMode.rawValue) target_mode=\(targetDecodeMode.rawValue)"
+            )
+        } else {
+            let activeMode = player?.decodeMode ?? settings.playbackDecodeMode
+            AppLogger.shared.info(
+                .playback,
+                "Playback requested",
+                details: "source=excerpt video=\"\(videoName)\" codec=reused start_ms=\(excerpt.startMilliseconds) setting_mode=\(settings.playbackDecodeMode.rawValue) target_mode=\(activeMode.rawValue)"
+            )
+        }
         beginCueAutoStopPlayback()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .excerpt
         playbackSubtitle = nil
-        playback.playbackStatus = .opening
+        if playback.playbackStatus != .opening {
+            playback.playbackStatus = .opening
+        }
         playback.clearError(on: .video)
         playback.clearError(on: .notInLibrary)
         preparePlaybackTransition(
@@ -737,32 +761,43 @@ extension AppCoordinator {
                 startMilliseconds: excerpt.startMilliseconds,
                 endMilliseconds: excerpt.endMilliseconds
             )
-            let request = try PlaybackRequest(
-                videoURL: URL.fromMediaPath(excerpt.videoPath),
-                startMilliseconds: excerpt.startMilliseconds,
-                autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
-                subtitleSource: loadablePlaybackSubtitleSource(playbackSubtitleSource(for: excerpt)),
-                audioTrackIndex: defaultAudioTrackIndex(forVideoPath: excerpt.videoPath)
-            )
-
             guard let player else {
                 throw PlaybackError.playbackPlayerUnavailable
             }
 
             let generation: UInt
-            if canSeekInOpenVideo(for: request) {
-                if let autoStopBoundary {
-                    generation = try player.seek(
-                        to: autoStopBoundary,
-                        subtitleSource: request.subtitleSource
-                    )
+            if canSeekOpenVideo {
+                let subtitleURL = URL.fromMediaPath(excerpt.subtitlePath)
+                let canReuseLoadedSubtitleSource = player.currentSubtitleURL == subtitleURL.standardizedMediaURL
+                if canReuseLoadedSubtitleSource {
+                    playback.clearError(on: .subtitle)
+                    if let autoStopBoundary {
+                        generation = try player.seek(to: autoStopBoundary)
+                    } else {
+                        generation = try player.seek(toMilliseconds: excerpt.startMilliseconds)
+                    }
                 } else {
-                    generation = try player.seek(
-                        toMilliseconds: excerpt.startMilliseconds,
-                        subtitleSource: request.subtitleSource
-                    )
+                    let subtitleSource = loadablePlaybackSubtitleSource(playbackSubtitleSource(for: excerpt))
+                    if let autoStopBoundary {
+                        generation = try player.seek(
+                            to: autoStopBoundary,
+                            subtitleSource: subtitleSource
+                        )
+                    } else {
+                        generation = try player.seek(
+                            toMilliseconds: excerpt.startMilliseconds,
+                            subtitleSource: subtitleSource
+                        )
+                    }
                 }
             } else {
+                let request = try PlaybackRequest(
+                    videoURL: videoURL,
+                    startMilliseconds: excerpt.startMilliseconds,
+                    autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
+                    subtitleSource: loadablePlaybackSubtitleSource(playbackSubtitleSource(for: excerpt)),
+                    audioTrackIndex: defaultAudioTrackIndex(forVideoPath: excerpt.videoPath)
+                )
                 generation = try player.open(request)
             }
 

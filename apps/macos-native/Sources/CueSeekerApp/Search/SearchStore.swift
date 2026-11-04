@@ -65,7 +65,7 @@ final class SearchStore: ObservableObject {
     private(set) var searchKnownFileCount = 0
     private(set) var hasMoreSearchResults = false
     @Published private(set) var resultRevision: UInt64 = 0
-    @Published private(set) var isPlaybackPruningActive = false
+    private(set) var isPlaybackPruningActive = false
     private(set) var searchSnapshotMutationRevision: UInt64 = 0
     private(set) var pendingReappearanceRefreshMode: SearchReappearanceRefreshMode = .none
     @Published private(set) var activeFilterSet = SubtitleSearchFilterSet()
@@ -79,8 +79,8 @@ final class SearchStore: ObservableObject {
     /// The four option-count cards for the current filter: each card ignores its
     /// own selections and applies the other three.
     @Published private(set) var searchFacetDistribution: CueFacetDistribution?
-    @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
-    @Published private(set) var selectedSearchResult: SubtitleSearchResult?
+    private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
+    private(set) var selectedSearchResult: SubtitleSearchResult?
     var tableViewportAnchor: TableViewportAnchor?
     var tableSelectionState = TableSandboxRowSelectionState()
     var tableSelectionEntryIDs: [Int] = []
@@ -104,14 +104,42 @@ final class SearchStore: ObservableObject {
         }
     }
 
+    var loadedSearchResultCount: Int {
+        loadedSearchResultCueIDs.count
+    }
+
+    func loadedSearchResult(forCueID cueID: Int64, fallbackRank: Int? = nil) -> SubtitleSearchResult? {
+        guard let cueContent = cueContentStore.content(for: cueID) else {
+            return nil
+        }
+        return SubtitleSearchResult(
+            cueContent: cueContent,
+            searchRank: searchRankByCueID[cueID] ?? fallbackRank ?? 0
+        )
+    }
+
+    func loadedSearchResult(at index: Int) -> SubtitleSearchResult? {
+        guard loadedSearchResultCueIDs.indices.contains(index) else {
+            return nil
+        }
+        return loadedSearchResult(
+            forCueID: loadedSearchResultCueIDs[index],
+            fallbackRank: index
+        )
+    }
+
+    func loadedSearchResultIndex(forCueID cueID: Int64) -> Int? {
+        if let rank = searchRankByCueID[cueID],
+           loadedSearchResultCueIDs.indices.contains(rank),
+           loadedSearchResultCueIDs[rank] == cueID {
+            return rank
+        }
+        return loadedSearchResultCueIDs.firstIndex(of: cueID)
+    }
+
     var searchResults: [SubtitleSearchResult] {
         loadedSearchResultCueIDs.compactMap { cueID in
-            cueContentStore.content(for: cueID).map {
-                SubtitleSearchResult(
-                    cueContent: $0,
-                    searchRank: searchRankByCueID[cueID] ?? 0
-                )
-            }
+            loadedSearchResult(forCueID: cueID)
         }
     }
 
@@ -120,12 +148,7 @@ final class SearchStore: ObservableObject {
             return []
         }
         return loadedSearchResultCueIDs.prefix(limit).compactMap { cueID in
-            cueContentStore.content(for: cueID).map {
-                SubtitleSearchResult(
-                    cueContent: $0,
-                    searchRank: searchRankByCueID[cueID] ?? 0
-                )
-            }
+            loadedSearchResult(forCueID: cueID)
         }
     }
 
@@ -865,7 +888,7 @@ final class SearchStore: ObservableObject {
         pendingReappearanceRefreshMode = .none
         updateSearchSnapshotMutationRevision()
         let releasedRows = max(
-            searchResults.count,
+            loadedSearchResultCount,
             searchResultCueIDs.count,
             searchResultTotalCount
         )
