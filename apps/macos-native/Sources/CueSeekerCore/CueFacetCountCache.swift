@@ -132,6 +132,109 @@ enum CueFacetCountCache {
         )
     }
 
+    static func adjustWatchStates(
+        forVideoFileID videoFileID: Int64,
+        from previousState: LibraryWatchState,
+        to newState: LibraryWatchState,
+        on database: SQLiteDatabase
+    ) throws {
+        guard previousState != newState else {
+            return
+        }
+        let hasCachedWatchStates = try database.prepare(
+            "SELECT 1 FROM cue_facet_counts WHERE facet = ? LIMIT 1;"
+        )
+        try hasCachedWatchStates.bind(watchStatusFacet, at: 1)
+        guard try hasCachedWatchStates.step() else {
+            try rebuildWatchStates(on: database)
+            return
+        }
+
+        let sharedSubtitleStatement = try database.prepare(
+            """
+            SELECT 1
+            FROM subtitle_video_matches m1
+            JOIN subtitle_video_matches m2
+              ON m2.subtitle_file_id = m1.subtitle_file_id
+             AND m2.video_file_id != m1.video_file_id
+             AND m2.is_active = 1
+            WHERE m1.video_file_id = ? AND m1.is_active = 1
+            LIMIT 1;
+            """
+        )
+        try sharedSubtitleStatement.bind(videoFileID, at: 1)
+        if try sharedSubtitleStatement.step() {
+            try rebuildWatchStates(on: database)
+            return
+        }
+
+        let cueCountStatement = try database.prepare(
+            """
+            SELECT COUNT(DISTINCT l.id)
+            FROM subtitle_video_matches m
+            JOIN subtitle_files sf ON sf.id = m.subtitle_file_id
+            JOIN subtitle_cue_lines l ON l.subtitle_file_id = sf.id
+            WHERE m.video_file_id = ? AND m.is_active = 1;
+            """
+        )
+        try cueCountStatement.bind(videoFileID, at: 1)
+        let delta = try cueCountStatement.step() ? cueCountStatement.intColumn(0) : 0
+        guard delta > 0 else {
+            return
+        }
+
+        let previousCountStatement = try database.prepare(
+            """
+            SELECT cue_count
+            FROM cue_facet_counts
+            WHERE facet = ? AND value = ?;
+            """
+        )
+        try previousCountStatement.bind(watchStatusFacet, at: 1)
+        try previousCountStatement.bind(previousState.rawValue, at: 2)
+        let previousCount = try previousCountStatement.step()
+            ? previousCountStatement.intColumn(0)
+            : 0
+        guard previousCount >= delta else {
+            try rebuildWatchStates(on: database)
+            return
+        }
+
+        if previousCount == delta {
+            let deleteStatement = try database.prepare(
+                "DELETE FROM cue_facet_counts WHERE facet = ? AND value = ?;"
+            )
+            try deleteStatement.bind(watchStatusFacet, at: 1)
+            try deleteStatement.bind(previousState.rawValue, at: 2)
+            try deleteStatement.run()
+        } else {
+            let updateStatement = try database.prepare(
+                """
+                UPDATE cue_facet_counts
+                SET cue_count = ?
+                WHERE facet = ? AND value = ?;
+                """
+            )
+            try updateStatement.bind(previousCount - delta, at: 1)
+            try updateStatement.bind(watchStatusFacet, at: 2)
+            try updateStatement.bind(previousState.rawValue, at: 3)
+            try updateStatement.run()
+        }
+
+        let upsertStatement = try database.prepare(
+            """
+            INSERT INTO cue_facet_counts(facet, value, cue_count)
+            VALUES (?, ?, ?)
+            ON CONFLICT(facet, value) DO UPDATE SET
+                cue_count = cue_facet_counts.cue_count + excluded.cue_count;
+            """
+        )
+        try upsertStatement.bind(watchStatusFacet, at: 1)
+        try upsertStatement.bind(newState.rawValue, at: 2)
+        try upsertStatement.bind(delta, at: 3)
+        try upsertStatement.run()
+    }
+
     static func rebuildWatchStates(on database: SQLiteDatabase) throws {
         try database.execute(
             "DELETE FROM cue_facet_counts WHERE facet = '\(watchStatusFacet)';"

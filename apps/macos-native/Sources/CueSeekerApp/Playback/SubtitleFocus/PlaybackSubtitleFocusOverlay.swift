@@ -747,12 +747,8 @@ struct PlaybackSubtitleFocusOverlay: View {
                 || keyboardNavigationRequest != nil
 
             ZStack(alignment: .top) {
-                PlaybackTheme.subtitleFocusOverlayBackground
-
                 PlaybackSubtitleFocusPointerShield()
 
-                // Keep the native pointer shield visually neutral in SwiftUI
-                // rendering paths that cannot snapshot NSViewRepresentable.
                 PlaybackTheme.subtitleFocusOverlayBackground
                     .allowsHitTesting(false)
 
@@ -826,7 +822,6 @@ struct PlaybackSubtitleFocusOverlay: View {
             .clipped()
             .contentShape(Rectangle())
         }
-        .background(PlaybackTheme.subtitleFocusOverlayBackground)
         .onDisappear {
             onCueReelMotionChanged(false)
             onScrollbarDraggingChanged(false)
@@ -857,16 +852,10 @@ struct PlaybackSubtitleFocusOverlay: View {
 
 private struct PlaybackSubtitleFocusPointerShield: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
-        let view = PlaybackSubtitleFocusPointerShieldView()
-        view.wantsLayer = true
-        view.updateBackgroundColor()
-        return view
+        PlaybackSubtitleFocusPointerShieldView()
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        (nsView as? PlaybackSubtitleFocusPointerShieldView)?
-            .updateBackgroundColor()
-    }
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
 private final class PlaybackSubtitleFocusPointerShieldView: NSView {
@@ -876,20 +865,6 @@ private final class PlaybackSubtitleFocusPointerShieldView: NSView {
 
     override var acceptsFirstResponder: Bool {
         false
-    }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        updateBackgroundColor()
-    }
-
-    func updateBackgroundColor() {
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            layer?.backgroundColor = PlaybackTheme
-                .subtitleFocusOverlayBackgroundNative
-                .usingColorSpace(.sRGB)?
-                .cgColor
-        }
     }
 
     override func mouseDown(with event: NSEvent) {

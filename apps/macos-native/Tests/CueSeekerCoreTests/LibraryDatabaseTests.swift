@@ -1550,3 +1550,99 @@ func indexesSearchesAndReconcilesWebVTTSubtitleFiles() throws {
     #expect(updatedResults.count == 1)
     #expect(updatedResults.first?.entryID == matched.entryID)
 }
+
+@Test
+func playbackHistoryAndWatchStateTransitionsUpdateWatchStatusFacetCountsIncrementally() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerIncrementalWatchFacetTests-\(UUID().uuidString)")
+    defer {
+        try? FileManager.default.removeItem(at: root)
+    }
+    let show = root.appendingPathComponent("Show")
+    try FileManager.default.createDirectory(at: show, withIntermediateDirectories: true)
+    let databaseURL = root.appendingPathComponent("index.sqlite")
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+
+    let episode1Video = show.appendingPathComponent("Episode 1.mkv")
+    let episode1Subtitle = show.appendingPathComponent("Episode 1.srt")
+    let episode2Video = show.appendingPathComponent("Episode 2.mkv")
+    let episode2Subtitle = show.appendingPathComponent("Episode 2.srt")
+
+    try indexingDatabase.replaceEntries(
+        subtitleFile: episode1Subtitle,
+        videoFile: episode1Video,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "First episode cue one"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "First episode cue two"
+            )
+        ]
+    )
+    try indexingDatabase.replaceEntries(
+        subtitleFile: episode2Subtitle,
+        videoFile: episode2Video,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Second episode cue one"
+            )
+        ]
+    )
+
+    let libraryDatabase = try LibraryDatabase(path: databaseURL)
+    let searchDatabase = try SearchDatabase(path: databaseURL)
+
+    var distribution = try searchDatabase.cueFacetDistribution()
+    #expect(distribution.watchStateCounts[.unwatched, default: 0] == 3)
+    #expect(distribution.watchStateCounts[.watching, default: 0] == 0)
+    #expect(distribution.watchStateCounts[.finished, default: 0] == 0)
+
+    try libraryDatabase.upsertLibraryPlaybackHistory(
+        videoFile: episode1Video,
+        positionMilliseconds: 15_000,
+        duration: 120
+    )
+    distribution = try searchDatabase.cueFacetDistribution()
+    #expect(distribution.watchStateCounts[.unwatched, default: 0] == 1)
+    #expect(distribution.watchStateCounts[.watching, default: 0] == 2)
+    #expect(distribution.watchStateCounts[.finished, default: 0] == 0)
+
+    try libraryDatabase.upsertLibraryPlaybackHistory(
+        videoFile: episode1Video,
+        positionMilliseconds: 45_000,
+        duration: 120,
+        markCompleted: true
+    )
+    distribution = try searchDatabase.cueFacetDistribution()
+    #expect(distribution.watchStateCounts[.unwatched, default: 0] == 1)
+    #expect(distribution.watchStateCounts[.watching, default: 0] == 0)
+    #expect(distribution.watchStateCounts[.finished, default: 0] == 2)
+
+    try libraryDatabase.setLibraryWatchState(
+        videoFile: episode1Video,
+        duration: 120,
+        state: .unwatched
+    )
+    distribution = try searchDatabase.cueFacetDistribution()
+    #expect(distribution.watchStateCounts[.unwatched, default: 0] == 3)
+    #expect(distribution.watchStateCounts[.watching, default: 0] == 0)
+    #expect(distribution.watchStateCounts[.finished, default: 0] == 0)
+}
+

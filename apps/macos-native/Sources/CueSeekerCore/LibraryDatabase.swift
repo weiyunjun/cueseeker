@@ -462,61 +462,64 @@ extension LibraryDatabase {
         markStarted: Bool = true,
         markCompleted: Bool = false
     ) throws {
-        guard let videoFileID = try upsertVideoFile(videoFile) else {
-            return
-        }
-        let updatedAtString = Self.playbackHistoryTimestamp(from: updatedAt)
-        let normalizedDuration = duration.flatMap { value in
-            value.isFinite && value > 0 ? value : nil
-        }
-        let startedAt = markStarted || markCompleted ? updatedAtString : nil
-        let completedAt = markCompleted ? updatedAtString : nil
-        let statement = try database.prepare(
-            """
-            INSERT INTO library_playback_history(
-                video_file_id, position_ms, duration,
-                started_at, completed_at, updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(video_file_id) DO UPDATE SET
-                position_ms = excluded.position_ms,
-                duration = excluded.duration,
-                started_at = COALESCE(library_playback_history.started_at, excluded.started_at),
-                completed_at = COALESCE(library_playback_history.completed_at, excluded.completed_at),
-                updated_at = excluded.updated_at;
-            """
-        )
-        try statement.bind(videoFileID, at: 1)
-        try statement.bind(max(0, positionMilliseconds), at: 2)
-        try bind(normalizedDuration, to: statement, at: 3)
-        try bind(startedAt, to: statement, at: 4)
-        try bind(completedAt, to: statement, at: 5)
-        try statement.bind(updatedAtString, at: 6)
-        try statement.run()
-
-        if markCompleted {
-            try upsertLibraryWatchState(
-                videoFile: videoFile,
-                resolvedVideoFileID: videoFileID,
-                state: .finished,
-                updatedAt: updatedAt
-            )
-        } else if markStarted {
-            let currentWatchState = try libraryPlaybackHistory(forVideoFile: videoFile).map {
-                LibraryWatchState(
-                    positionMilliseconds: $0.positionMilliseconds,
-                    duration: $0.duration,
-                    startedAt: $0.startedAt,
-                    completedAt: $0.completedAt
+        try database.withImmediateTransaction {
+            guard let videoFileID = try resolveVideoFileIDForPlaybackState(videoFile) else {
+                return
+            }
+            let updatedAtString = Self.playbackHistoryTimestamp(from: updatedAt)
+            let normalizedDuration = duration.flatMap { value in
+                value.isFinite && value > 0 ? value : nil
+            }
+            let startedAt = markStarted || markCompleted ? updatedAtString : nil
+            let completedAt = markCompleted ? updatedAtString : nil
+            let statement = try database.prepare(
+                """
+                INSERT INTO library_playback_history(
+                    video_file_id, position_ms, duration,
+                    started_at, completed_at, updated_at
                 )
-            } ?? .unwatched
-            if currentWatchState != .finished {
-                try upsertLibraryWatchState(
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(video_file_id) DO UPDATE SET
+                    position_ms = excluded.position_ms,
+                    duration = excluded.duration,
+                    started_at = COALESCE(library_playback_history.started_at, excluded.started_at),
+                    completed_at = COALESCE(library_playback_history.completed_at, excluded.completed_at),
+                    updated_at = excluded.updated_at;
+                """
+            )
+            try statement.bind(videoFileID, at: 1)
+            try statement.bind(max(0, positionMilliseconds), at: 2)
+            try bind(normalizedDuration, to: statement, at: 3)
+            try bind(startedAt, to: statement, at: 4)
+            try bind(completedAt, to: statement, at: 5)
+            try statement.bind(updatedAtString, at: 6)
+            try statement.run()
+
+            if markCompleted {
+                try upsertLibraryWatchStateInTransaction(
                     videoFile: videoFile,
                     resolvedVideoFileID: videoFileID,
-                    state: .watching,
+                    state: .finished,
                     updatedAt: updatedAt
                 )
+            } else if markStarted {
+                let currentWatchState = try libraryPlaybackHistory(forVideoFile: videoFile).map {
+                    LibraryWatchState(
+                        positionMilliseconds: $0.positionMilliseconds,
+                        duration: $0.duration,
+                        startedAt: $0.startedAt,
+                        completedAt: $0.completedAt
+                    )
+                } ?? .unwatched
+                if currentWatchState != .finished {
+                    try upsertLibraryWatchStateInTransaction(
+                        videoFile: videoFile,
+                        resolvedVideoFileID: videoFileID,
+                        state: .watching,
+                        updatedAt: updatedAt,
+                        skipWriteIfUnchanged: true
+                    )
+                }
             }
         }
     }
@@ -537,35 +540,81 @@ extension LibraryDatabase {
         updatedAt: Date
     ) throws {
         try database.withImmediateTransaction {
-            guard let videoFileID = try resolvedVideoFileID ?? upsertVideoFile(videoFile) else {
-                return
-            }
-            let previousState = try database.prepare(
-                "SELECT state FROM library_watch_states WHERE video_file_id = ?;"
+            try upsertLibraryWatchStateInTransaction(
+                videoFile: videoFile,
+                resolvedVideoFileID: resolvedVideoFileID,
+                state: state,
+                updatedAt: updatedAt
             )
-            try previousState.bind(videoFileID, at: 1)
-            let previousValue = try previousState.step()
-                ? LibraryWatchState(rawValue: previousState.stringColumn(0)) ?? .unwatched
-                : .unwatched
+        }
+    }
 
-            let statement = try database.prepare(
-                """
-                INSERT INTO library_watch_states(video_file_id, state, updated_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(video_file_id) DO UPDATE SET
-                    state = excluded.state,
-                    updated_at = excluded.updated_at;
-                """
+    private func upsertLibraryWatchStateInTransaction(
+        videoFile: URL,
+        resolvedVideoFileID: Int64? = nil,
+        state: LibraryWatchState,
+        updatedAt: Date,
+        skipWriteIfUnchanged: Bool = false
+    ) throws {
+        guard let videoFileID = try resolvedVideoFileID
+            ?? resolveVideoFileIDForPlaybackState(videoFile)
+        else {
+            return
+        }
+        let previousState = try database.prepare(
+            "SELECT state FROM library_watch_states WHERE video_file_id = ?;"
+        )
+        try previousState.bind(videoFileID, at: 1)
+        let hasExistingWatchStateRow = try previousState.step()
+        let previousValue = hasExistingWatchStateRow
+            ? LibraryWatchState(rawValue: previousState.stringColumn(0)) ?? .unwatched
+            : .unwatched
+
+        if skipWriteIfUnchanged, hasExistingWatchStateRow, previousValue == state {
+            return
+        }
+
+        let statement = try database.prepare(
+            """
+            INSERT INTO library_watch_states(video_file_id, state, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(video_file_id) DO UPDATE SET
+                state = excluded.state,
+                updated_at = excluded.updated_at;
+            """
+        )
+        try statement.bind(videoFileID, at: 1)
+        try statement.bind(state.rawValue, at: 2)
+        try statement.bind(Self.playbackHistoryTimestamp(from: updatedAt), at: 3)
+        try statement.run()
+
+        if previousValue != state {
+            try CueFacetCountCache.adjustWatchStates(
+                forVideoFileID: videoFileID,
+                from: previousValue,
+                to: state,
+                on: database
             )
-            try statement.bind(videoFileID, at: 1)
-            try statement.bind(state.rawValue, at: 2)
-            try statement.bind(Self.playbackHistoryTimestamp(from: updatedAt), at: 3)
-            try statement.run()
+        }
+    }
 
-            if previousValue != state {
-                try CueFacetCountCache.rebuildWatchStates(on: database)
+    private func resolveVideoFileIDForPlaybackState(_ videoFile: URL) throws -> Int64? {
+        let statement = try database.prepare(
+            """
+            SELECT id, library_id
+            FROM video_files
+            WHERE path = ?;
+            """
+        )
+        try statement.bind(videoFile.mediaPath, at: 1)
+        if try statement.step() {
+            let existingID = statement.int64Column(0)
+            let existingLibraryID = statement.nullableInt64Column(1)
+            if try existingLibraryID != nil || !hasSearchPaths() {
+                return existingID
             }
         }
+        return try upsertVideoFile(videoFile)
     }
 
     private func upsertVideoFile(_ videoFile: URL) throws -> Int64? {
