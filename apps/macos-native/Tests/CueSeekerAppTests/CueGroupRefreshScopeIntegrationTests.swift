@@ -925,7 +925,7 @@ struct CueGroupRefreshScopeIntegrationTests {
         #expect(app.search.searchNavigationSnapshot?.current?.entryID == targetResult.entryID)
         #expect(app.search.searchNavigationSnapshot?.previous?.entryID == orderedCueIDs[targetIndex - 1])
         #expect(app.search.searchNavigationSnapshot?.next?.entryID == orderedCueIDs[targetIndex + 1])
-        #expect(app.playbackDisplayTitle(for: targetResult) == "Episode - 01")
+        #expect(app.playbackDisplayTitle(for: targetResult) == "\(tempRoot.lastPathComponent) - 01")
     }
 
     @MainActor
@@ -982,6 +982,14 @@ struct CueGroupRefreshScopeIntegrationTests {
         )
         #expect(
             app.cachedVideoPlaybackMetadataByMediaPath[videoURL2.mediaPath]?.hasLoadedCodecAndAudioTrack == true
+        )
+        #expect(
+            URL.fromMediaPath("/Volumes/Seagate/影视/Show/../Show/./Episode01.mkv").mediaPath
+                == "/Volumes/Seagate/影视/Show/Episode01.mkv"
+        )
+        #expect(
+            URL.fromMediaPath("/Volumes/Seagate/影视/Show/Episode01.mkv").mediaPath
+                == "/Volumes/Seagate/影视/Show/Episode01.mkv"
         )
 
         app.invalidateCachedVideoPlaybackMetadata()

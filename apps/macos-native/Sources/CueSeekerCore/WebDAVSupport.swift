@@ -254,18 +254,17 @@ extension URL {
             return "\(scheme)://\(formattedHost)\(portSegment)\(decodedPath)"
         }
 
-        var normalized = standardizedFileURL.path
-        while normalized.count > 1 && normalized.hasSuffix("/") {
-            normalized.removeLast()
-        }
-        return normalized
+        return Self.lexicallyNormalizedLocalFilePath(path)
     }
 
     public var standardizedMediaURL: URL {
         if isRemoteMediaURL {
             return URL.fromMediaPath(mediaPath)
         }
-        return standardizedFileURL
+        return URL(
+            fileURLWithPath: Self.lexicallyNormalizedLocalFilePath(path),
+            isDirectory: hasDirectoryPath
+        )
     }
 
     public static func fromMediaPath(_ rawPath: String) -> URL {
@@ -274,27 +273,71 @@ extension URL {
             if let parsed = SMBAddress.parseURL(from: trimmed) {
                 return parsed
             }
-            return URL(string: trimmed) ?? URL(fileURLWithPath: rawPath)
+            return URL(string: trimmed)
+                ?? URL(fileURLWithPath: Self.lexicallyNormalizedLocalFilePath(rawPath), isDirectory: false)
         }
         if trimmed.isFTPPath {
             if let parsed = FTPAddress.parseURL(from: trimmed) {
                 return parsed
             }
-            return URL(string: trimmed) ?? URL(fileURLWithPath: rawPath)
+            return URL(string: trimmed)
+                ?? URL(fileURLWithPath: Self.lexicallyNormalizedLocalFilePath(rawPath), isDirectory: false)
         }
         if trimmed.isNFSPath {
             if let parsed = NFSAddress.parseURL(from: trimmed) {
                 return parsed
             }
-            return URL(string: trimmed) ?? URL(fileURLWithPath: rawPath)
+            return URL(string: trimmed)
+                ?? URL(fileURLWithPath: Self.lexicallyNormalizedLocalFilePath(rawPath), isDirectory: false)
         }
         guard trimmed.isWebDAVPath else {
-            return URL(fileURLWithPath: rawPath).standardizedFileURL
+            return URL(
+                fileURLWithPath: Self.lexicallyNormalizedLocalFilePath(rawPath),
+                isDirectory: false
+            )
         }
         if let parsed = WebDAVAddress.parseURL(from: trimmed) {
             return parsed
         }
-        return URL(string: trimmed) ?? URL(fileURLWithPath: rawPath)
+        return URL(string: trimmed)
+            ?? URL(fileURLWithPath: Self.lexicallyNormalizedLocalFilePath(rawPath), isDirectory: false)
+    }
+
+    private static func lexicallyNormalizedLocalFilePath(_ rawPath: String) -> String {
+        if rawPath.hasPrefix("/"),
+           !(rawPath.count > 1 && rawPath.hasSuffix("/")),
+           !rawPath.hasSuffix("/."),
+           !rawPath.hasSuffix("/.."),
+           !rawPath.contains("//"),
+           !rawPath.contains("/./"),
+           !rawPath.contains("/../") {
+            return rawPath
+        }
+
+        var working = rawPath
+        if working.hasPrefix("~") {
+            working = (working as NSString).expandingTildeInPath
+        }
+        if !working.hasPrefix("/") {
+            working = FileManager.default.currentDirectoryPath + "/" + working
+        }
+
+        var stack: [Substring] = []
+        stack.reserveCapacity(8)
+        for part in working.split(separator: "/", omittingEmptySubsequences: true) {
+            if part == "." {
+                continue
+            }
+            if part == ".." {
+                if !stack.isEmpty {
+                    stack.removeLast()
+                }
+                continue
+            }
+            stack.append(part)
+        }
+
+        return "/" + stack.joined(separator: "/")
     }
 }
 

@@ -204,14 +204,17 @@ public struct PlaybackRequest: Equatable, Sendable {
         segmentEndMilliseconds: Int? = nil,
         autoStopAtMilliseconds: Int? = nil,
         subtitleSource: PlaybackSubtitleSource? = nil,
-        audioTrackIndex: Int = 0
+        audioTrackIndex: Int = 0,
+        precheckedVideoFileExists: Bool? = nil
     ) throws {
         guard videoURL.isFileURL || videoURL.isRemoteMediaURL else {
             throw PlaybackError.invalidVideoURL(videoURL.absoluteString)
         }
 
         if videoURL.isFileURL {
-            guard FileManager.default.fileExists(atPath: videoURL.path) else {
+            let exists = precheckedVideoFileExists
+                ?? FileManager.default.fileExists(atPath: videoURL.path)
+            guard exists else {
                 throw PlaybackError.missingVideoFile(videoURL.path)
             }
         }

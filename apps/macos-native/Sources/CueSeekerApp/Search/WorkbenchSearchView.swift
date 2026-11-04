@@ -351,7 +351,7 @@ struct WorkbenchSearchView: View {
             return nil
         }
 
-        let folders = source.folderPaths.map(URL.init(fileURLWithPath:))
+        let folders = source.folderPaths.map(URL.fromMediaPath)
         let page = await search.loadSearchRows(
             range: range,
             folders: folders,

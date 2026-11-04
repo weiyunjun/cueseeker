@@ -799,7 +799,10 @@ extension AppCoordinator {
                     startMilliseconds: excerpt.startMilliseconds,
                     autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
                     subtitleSource: loadablePlaybackSubtitleSource(playbackSubtitleSource(for: excerpt)),
-                    audioTrackIndex: defaultAudioTrackIndex(forVideoPath: excerpt.videoPath)
+                    audioTrackIndex: defaultAudioTrackIndex(forVideoPath: excerpt.videoPath),
+                    precheckedVideoFileExists: precheckedPlaybackMediaAvailability?.videoExistence(
+                        forMediaPath: videoURL.mediaPath
+                    )
                 )
                 generation = try player.open(request)
             }

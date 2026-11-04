@@ -476,8 +476,9 @@ extension AppCoordinator {
         }
 
         do {
+            let videoURL = URL.fromMediaPath(video.videoPath)
             let request = try PlaybackRequest(
-                videoURL: URL.fromMediaPath(video.videoPath),
+                videoURL: videoURL,
                 startMilliseconds: startMilliseconds,
                 subtitleSource: loadablePlaybackSubtitleSource(
                     playbackSubtitleSource(
@@ -488,7 +489,10 @@ extension AppCoordinator {
                         fallbackEndMilliseconds: startMilliseconds
                     )
                 ),
-                audioTrackIndex: defaultAudioTrackIndex(forVideoPath: video.videoPath)
+                audioTrackIndex: defaultAudioTrackIndex(forVideoPath: video.videoPath),
+                precheckedVideoFileExists: precheckedPlaybackMediaAvailability?.videoExistence(
+                    forMediaPath: videoURL.mediaPath
+                )
             )
 
             guard let player else {

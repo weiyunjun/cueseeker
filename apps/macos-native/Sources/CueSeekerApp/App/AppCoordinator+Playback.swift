@@ -249,29 +249,58 @@ extension AppCoordinator {
         let videoURL = URL.fromMediaPath(videoPath)
         let subtitleURL = subtitlePath.map(URL.fromMediaPath)
         let hasRemoteMedia = videoURL.isRemoteMediaURL || (subtitleURL?.isRemoteMediaURL == true)
+        let isLibraryOpen: Bool
+        if case .library = activePlaybackSource {
+            isLibraryOpen = true
+        } else {
+            isLibraryOpen = false
+        }
+        let canSeekOpenVideo = !isLibraryOpen && canSeekInCurrentlyOpenVideo(forVideoPath: videoPath)
+        let canReuseLoadedSubtitle = canSeekOpenVideo
+            && (subtitleURL.map { player?.currentSubtitleURL == $0.standardizedMediaURL } ?? true)
+        let needsVideoFileProbe = !canSeekOpenVideo && videoURL.isFileURL
+        let needsSubtitleFileProbe = !canReuseLoadedSubtitle && (subtitleURL?.isFileURL == true)
+        let needsBackgroundProbe = hasRemoteMedia || needsVideoFileProbe || needsSubtitleFileProbe
 
         playbackOpenTask = Task { @MainActor [weak self] in
-            if hasRemoteMedia {
-                await withCheckedContinuation { continuation in
-                    DispatchQueue.main.async {
-                        continuation.resume()
+            let precheckedAvailability: PrecheckedPlaybackMediaAvailability?
+            if needsBackgroundProbe {
+                if hasRemoteMedia {
+                    await withCheckedContinuation { continuation in
+                        DispatchQueue.main.async {
+                            continuation.resume()
+                        }
+                    }
+                    guard !Task.isCancelled,
+                          let self,
+                          self.playbackOpenGeneration == generation
+                    else {
+                        return
                     }
                 }
-                guard !Task.isCancelled,
-                      let self,
-                      self.playbackOpenGeneration == generation
-                else {
-                    return
-                }
-                await Task.detached(priority: .userInitiated) {
-                    if let subtitleURL, subtitleURL.isRemoteMediaURL {
-                        _ = WebDAVSubtitleCache.shared.loadData(for: subtitleURL)
+                let videoMediaPath = videoURL.mediaPath
+                let subtitleMediaPath = subtitleURL?.mediaPath
+                precheckedAvailability = await Task.detached(priority: .userInitiated) {
+                    var availability = PrecheckedPlaybackMediaAvailability(
+                        videoMediaPath: videoMediaPath,
+                        subtitleMediaPath: subtitleMediaPath
+                    )
+                    if let subtitleURL {
+                        if subtitleURL.isRemoteMediaURL {
+                            availability.isSubtitleReadable = WebDAVSubtitleCache.shared.loadData(for: subtitleURL) != nil
+                        } else if needsSubtitleFileProbe {
+                            availability.isSubtitleReadable = FileManager.default.isReadableFile(atPath: subtitleURL.path)
+                        }
                     }
                     if videoURL.isRemoteMediaURL {
                         _ = WebDAVClient.shared.resolvePlayableInput(for: videoURL)
+                    } else if needsVideoFileProbe {
+                        availability.videoExists = FileManager.default.fileExists(atPath: videoURL.path)
                     }
+                    return availability
                 }.value
             } else {
+                precheckedAvailability = nil
                 await Task.yield()
             }
             guard !Task.isCancelled,
@@ -281,6 +310,10 @@ extension AppCoordinator {
                 return
             }
             self.playbackOpenTask = nil
+            self.precheckedPlaybackMediaAvailability = precheckedAvailability
+            defer {
+                self.precheckedPlaybackMediaAvailability = nil
+            }
             action()
         }
     }
@@ -313,9 +346,14 @@ extension AppCoordinator {
         guard let source else {
             return nil
         }
-        let isReadable = source.url.isRemoteMediaURL
-            ? WebDAVSubtitleCache.shared.loadData(for: source.url) != nil
-            : FileManager.default.isReadableFile(atPath: source.url.path)
+        let isReadable: Bool
+        if let prechecked = precheckedPlaybackMediaAvailability?.subtitleReadability(forMediaPath: source.url.mediaPath) {
+            isReadable = prechecked
+        } else if source.url.isRemoteMediaURL {
+            isReadable = WebDAVSubtitleCache.shared.loadData(for: source.url) != nil
+        } else {
+            isReadable = FileManager.default.isReadableFile(atPath: source.url.path)
+        }
         guard isReadable else {
             showSubtitleLoadError(path: source.url.mediaPath)
             return nil
@@ -660,7 +698,10 @@ extension AppCoordinator {
                     startMilliseconds: result.startMilliseconds,
                     autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
                     subtitleSource: loadablePlaybackSubtitleSource(playbackSubtitleSource(for: result)),
-                    audioTrackIndex: defaultAudioTrackIndex(forVideoPath: result.videoPath)
+                    audioTrackIndex: defaultAudioTrackIndex(forVideoPath: result.videoPath),
+                    precheckedVideoFileExists: precheckedPlaybackMediaAvailability?.videoExistence(
+                        forMediaPath: videoURL.mediaPath
+                    )
                 )
                 generation = try player.open(request)
             }

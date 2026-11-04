@@ -160,18 +160,13 @@ final class AppCoordinator: ObservableObject {
         videoName: String,
         knownDisplayTitles: [String?]
     ) -> String {
-        if let knownDisplayTitle = knownDisplayTitles
-            .compactMap({ $0?.trimmingCharacters(in: .whitespacesAndNewlines) })
-            .first(where: { !$0.isEmpty }) {
-            return knownDisplayTitle
-        }
         let storedDisplayTitle = resolvedStoredPlaybackDisplayTitle(
             forVideoPath: videoPath
         )
-        if let storedDisplayTitle, !storedDisplayTitle.isEmpty {
-            return storedDisplayTitle
-        }
-        return videoName
+        return ([storedDisplayTitle] + knownDisplayTitles)
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+            ?? videoName
     }
 
     func playbackDisplayTitle(
@@ -441,8 +436,30 @@ final class AppCoordinator: ObservableObject {
         var hasLoadedStoredDisplayTitle = false
     }
 
+    struct PrecheckedPlaybackMediaAvailability: Sendable {
+        var videoMediaPath: String?
+        var videoExists: Bool?
+        var subtitleMediaPath: String?
+        var isSubtitleReadable: Bool?
+
+        func videoExistence(forMediaPath mediaPath: String) -> Bool? {
+            guard videoMediaPath == mediaPath else {
+                return nil
+            }
+            return videoExists
+        }
+
+        func subtitleReadability(forMediaPath mediaPath: String) -> Bool? {
+            guard subtitleMediaPath == mediaPath else {
+                return nil
+            }
+            return isSubtitleReadable
+        }
+    }
+
     var playbackOpenTask: Task<Void, Never>?
     var playbackOpenGeneration: UInt = 0
+    var precheckedPlaybackMediaAvailability: PrecheckedPlaybackMediaAvailability?
     var cachedVideoPlaybackMetadataByMediaPath: [String: CachedVideoPlaybackMetadata] = [:]
     var cachedVideoPlaybackMetadataRevision: UInt64 = 0
     var pendingURLSchemeDirectPlayIntent: URLSchemeDirectPlayIntent?
