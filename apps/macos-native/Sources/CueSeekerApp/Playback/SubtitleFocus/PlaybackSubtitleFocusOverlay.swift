@@ -76,6 +76,7 @@ struct PlaybackSubtitleFocusLayer: View {
 private final class PlaybackOverlayModuleTransitionTracker {
     var lastTargetModule: PlaybackOverlayModule?
     var lastPresentedModule: PlaybackOverlayModule?
+    var lastRecordedModule: PlaybackOverlayModule?
     var asyncPreparedModule: PlaybackOverlayModule?
     var preparationTask: Task<Void, Never>?
 
@@ -157,13 +158,17 @@ struct PlaybackOverlay: View {
         .onDisappear {
             moduleTransitionTracker.preparationTask?.cancel()
             moduleTransitionTracker.preparationTask = nil
+            moduleTransitionTracker.lastTargetModule = nil
+            moduleTransitionTracker.lastPresentedModule = nil
+            moduleTransitionTracker.lastRecordedModule = nil
+            moduleTransitionTracker.asyncPreparedModule = nil
         }
     }
 
     private func overlayModuleDiagnosticLabel(
         _ module: PlaybackOverlayModule?
     ) -> String {
-        guard let module else { return "none" }
+        guard let module else { return "closed" }
         switch module {
         case .current:
             return "playback_overlay_current"
@@ -182,14 +187,16 @@ struct PlaybackOverlay: View {
     ) {
         let preparationStartedAt = DebugInteractionLatencyProbe.now()
         let previousLabel = overlayModuleDiagnosticLabel(
-            moduleTransitionTracker.lastPresentedModule
+            moduleTransitionTracker.lastRecordedModule
         )
         let targetLabel = overlayModuleDiagnosticLabel(module)
-        let didChangeModule = moduleTransitionTracker.lastPresentedModule != module
+        let didChangeModule = moduleTransitionTracker.lastRecordedModule != module
+            || DebugInteractionLatencyProbe.hasPendingNavigation(domain: "playback_overlay")
         moduleTransitionTracker.preparationTask?.cancel()
         moduleTransitionTracker.preparationTask = nil
         if isModuleReadyForPresentation(module) {
             moduleTransitionTracker.lastPresentedModule = module
+            moduleTransitionTracker.lastRecordedModule = module
             if didChangeModule, let module {
                 let swapAt = DebugInteractionLatencyProbe.now()
                 let coverStats = module == .playlist
@@ -210,6 +217,7 @@ struct PlaybackOverlay: View {
         }
         guard let libraryStore = session.libraryStore else {
             moduleTransitionTracker.lastPresentedModule = module
+            moduleTransitionTracker.lastRecordedModule = module
             return
         }
         moduleTransitionTracker.preparationTask = Task { @MainActor in
@@ -222,6 +230,7 @@ struct PlaybackOverlay: View {
             moduleTransitionTracker.lastTargetModule = module
             moduleTransitionTracker.asyncPreparedModule = module
             moduleTransitionTracker.lastPresentedModule = module
+            moduleTransitionTracker.lastRecordedModule = module
             asyncPreparedModuleRevision &+= 1
             DebugInteractionLatencyProbe.recordNavigationPreparation(
                 domain: "playback_overlay",

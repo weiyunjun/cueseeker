@@ -11,6 +11,7 @@ extension AppCoordinator {
     }
 
     func togglePlaybackSubtitleMenu() {
+        let startedAt = ProcessInfo.processInfo.systemUptime
         guard playback.subtitleMenu == nil else {
             playback.closeSubtitleMenu()
             return
@@ -22,6 +23,12 @@ extension AppCoordinator {
         let subtitles = recorded?.subtitles ?? []
         let currentID = currentPlaybackSubtitleFileID
         let defaultID = recorded?.effectiveDefault?.subtitleFileID
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "player_subtitle_menu",
+            trigger: "chrome_subtitle_button",
+            startedAt: startedAt,
+            measureMs: 0
+        )
         playback.openSubtitleMenu(
             PlaybackSubtitleMenu(
                 records: subtitles,

@@ -201,6 +201,22 @@ final class DebugInteractionLatencyProbeTests: XCTestCase {
         XCTAssertTrue(events.isEmpty)
 
         DebugInteractionLatencyProbe.recordMainThreadStall(
+            stalledMilliseconds: 45_499.1,
+            phase: "beforeWaiting->entry",
+            lastAction: "nav:command_panel:open_command_panel",
+            lastActionAgeMilliseconds: 45_500.0
+        )
+        XCTAssertTrue(events.isEmpty)
+
+        DebugInteractionLatencyProbe.recordMainThreadStall(
+            stalledMilliseconds: 16_139.8,
+            phase: "beforeWaiting->afterWaiting",
+            lastAction: "nav:command_panel:open_command_panel",
+            lastActionAgeMilliseconds: 16_140.0
+        )
+        XCTAssertTrue(events.isEmpty)
+
+        DebugInteractionLatencyProbe.recordMainThreadStall(
             stalledMilliseconds: 48.2,
             phase: "afterWaiting->beforeWaiting",
             lastAction: "nav:workbench:card_click",
@@ -212,5 +228,107 @@ final class DebugInteractionLatencyProbeTests: XCTestCase {
         XCTAssertEqual(events.first?.fields["phase"], "afterWaiting->beforeWaiting")
         XCTAssertEqual(events.first?.fields["last_action"], "nav:workbench:card_click")
         XCTAssertEqual(events.first?.fields["last_action_age_ms"], "18.40")
+    }
+
+    func testImmediateNavigationDoesNotInheritMismatchedPendingFromSurface() async {
+        let expectation = expectation(description: "Overlay close log emitted")
+        var captured: DebugInteractionLatencyProbe.LoggedEvent?
+
+        DebugInteractionLatencyProbe.setTestObserver { event in
+            if event.message == "Overlay module transition completed" {
+                captured = event
+                expectation.fulfill()
+            }
+        }
+
+        let openStart = DebugInteractionLatencyProbe.now()
+        DebugInteractionLatencyProbe.beginNavigation(
+            domain: "playback_overlay",
+            from: "closed",
+            to: "playback_overlay_current",
+            trigger: "open_playback_overlay",
+            startedAt: openStart
+        )
+        XCTAssertTrue(DebugInteractionLatencyProbe.hasPendingNavigation(domain: "playback_overlay"))
+
+        let closeStart = openStart + 10_000_000
+        DebugInteractionLatencyProbe.completeImmediateNavigation(
+            domain: "playback_overlay",
+            from: "playback_overlay",
+            to: "closed",
+            trigger: "dismiss_playback_overlay",
+            startedAt: closeStart,
+            syncPrepFinishedAt: closeStart + 1_000_000
+        )
+        XCTAssertFalse(DebugInteractionLatencyProbe.hasPendingNavigation(domain: "playback_overlay"))
+
+        await fulfillment(of: [expectation], timeout: 1.0)
+        XCTAssertEqual(captured?.fields["from"], "playback_overlay")
+        XCTAssertEqual(captured?.fields["to"], "closed")
+        XCTAssertEqual(captured?.fields["trigger"], "dismiss_playback_overlay")
+    }
+
+    func testMenuContextPreservesInitialClickTimestampAndClearsOnClose() async {
+        let expectation = expectation(description: "Two menu opens logged")
+        expectation.expectedFulfillmentCount = 2
+        var events: [DebugInteractionLatencyProbe.LoggedEvent] = []
+
+        DebugInteractionLatencyProbe.setTestObserver { event in
+            if event.message == "Menu open completed" {
+                events.append(event)
+                expectation.fulfill()
+            }
+        }
+
+        let clickStart = DebugInteractionLatencyProbe.now()
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "player_more_menu",
+            trigger: "chrome_more_button",
+            startedAt: clickStart,
+            measureMilliseconds: 0
+        )
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "player_more_menu",
+            trigger: "layout_measure",
+            startedAt: clickStart + 2_000_000,
+            measureMilliseconds: 5.5
+        )
+        DebugInteractionLatencyProbe.recordMenuGateOpen(
+            owner: "playbackPage",
+            fallbackMenuID: "playerMoreMenu",
+            openedAt: clickStart + 8_000_000
+        )
+
+        // Simulate a stale context cleared on menu close before opening the next menu.
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "player_more_menu",
+            trigger: "stale_recalculate",
+            startedAt: clickStart,
+            measureMilliseconds: 5.5
+        )
+        DebugInteractionLatencyProbe.clearActiveMenuContext()
+
+        let secondOpenAt = clickStart + 5_000_000_000
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "player_subtitle_menu",
+            trigger: "chrome_subtitle_button",
+            startedAt: secondOpenAt,
+            measureMilliseconds: 3.2
+        )
+        DebugInteractionLatencyProbe.recordMenuGateOpen(
+            owner: "playbackPage",
+            fallbackMenuID: "playerSubtitleMenu",
+            openedAt: secondOpenAt + 4_000_000
+        )
+
+        await fulfillment(of: [expectation], timeout: 1.0)
+        XCTAssertEqual(events.count, 2)
+        XCTAssertEqual(events[0].fields["menu_id"], "player_more_menu")
+        XCTAssertEqual(events[0].fields["trigger"], "chrome_more_button")
+        XCTAssertEqual(events[0].fields["prep_and_measure_ms"], "8.00")
+
+        XCTAssertEqual(events[1].fields["menu_id"], "player_subtitle_menu")
+        XCTAssertEqual(events[1].fields["trigger"], "chrome_subtitle_button")
+        XCTAssertEqual(events[1].fields["prep_and_measure_ms"], "4.00")
     }
 }

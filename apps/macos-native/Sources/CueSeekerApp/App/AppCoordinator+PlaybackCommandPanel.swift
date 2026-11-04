@@ -640,6 +640,7 @@ extension AppCoordinator {
     }
 
     private func dismissPlaybackCommandPanelForAction() -> Bool {
+        DebugInteractionLatencyProbe.cancelPendingNavigation(domain: "command_panel")
         guard playback.dismissCommandPanel() != nil else {
             return false
         }

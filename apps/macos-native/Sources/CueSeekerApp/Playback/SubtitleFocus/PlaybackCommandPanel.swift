@@ -5,6 +5,7 @@ import SwiftUI
 private final class PlaybackCommandPanelTransitionTracker {
     var lastTargetPage: PlaybackCommandPanelPage?
     var lastPresentedPage: PlaybackCommandPanelPage?
+    var lastRecordedPage: PlaybackCommandPanelPage?
     var asyncPreparedPage: PlaybackCommandPanelPage?
     var preparationTask: Task<Void, Never>?
 
@@ -231,6 +232,10 @@ struct PlaybackCommandPanel: View {
             .onDisappear {
                 transitionTracker.preparationTask?.cancel()
                 transitionTracker.preparationTask = nil
+                transitionTracker.lastTargetPage = nil
+                transitionTracker.lastPresentedPage = nil
+                transitionTracker.lastRecordedPage = nil
+                transitionTracker.asyncPreparedPage = nil
             }
         }
     }
@@ -239,18 +244,21 @@ struct PlaybackCommandPanel: View {
         for page: PlaybackCommandPanelPage?
     ) {
         let preparationStartedAt = DebugInteractionLatencyProbe.now()
-        let previousLabel = transitionTracker.lastPresentedPage?.diagnosticLabel ?? "closed"
-        let didChangePage = transitionTracker.lastPresentedPage != page
+        let previousLabel = transitionTracker.lastRecordedPage?.diagnosticLabel ?? "closed"
+        let didChangePage = transitionTracker.lastRecordedPage != page
+            || DebugInteractionLatencyProbe.hasPendingNavigation(domain: "command_panel")
         transitionTracker.preparationTask?.cancel()
         transitionTracker.preparationTask = nil
         guard let page else {
             transitionTracker.lastTargetPage = nil
             transitionTracker.lastPresentedPage = nil
+            transitionTracker.lastRecordedPage = nil
             transitionTracker.asyncPreparedPage = nil
             return
         }
         if appState.isPlaybackCommandPanelPageReadyForPresentation(page) {
             transitionTracker.lastPresentedPage = page
+            transitionTracker.lastRecordedPage = page
             if didChangePage {
                 let swapAt = DebugInteractionLatencyProbe.now()
                 DebugInteractionLatencyProbe.recordNavigationPreparation(
@@ -276,6 +284,7 @@ struct PlaybackCommandPanel: View {
             transitionTracker.lastTargetPage = page
             transitionTracker.asyncPreparedPage = page
             transitionTracker.lastPresentedPage = page
+            transitionTracker.lastRecordedPage = page
             asyncPreparedPageRevision &+= 1
             DebugInteractionLatencyProbe.recordNavigationPreparation(
                 domain: "command_panel",

@@ -122,6 +122,7 @@ extension AppCoordinator {
     }
 
     func togglePlaybackMoreMenu() {
+        let startedAt = ProcessInfo.processInfo.systemUptime
         guard playback.moreMenu == nil else {
             playback.closeMoreMenu()
             return
@@ -137,6 +138,12 @@ extension AppCoordinator {
         let currentIndex = player?.currentAudioTrackIndex
             .flatMap { tracks.indices.contains($0) ? $0 : nil }
             ?? recorded?.effectiveDefaultIndex ?? 0
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "player_more_menu",
+            trigger: "chrome_more_button",
+            startedAt: startedAt,
+            measureMs: 0
+        )
         playback.openMoreMenu(
             PlaybackMoreMenu(
                 audioTracks: PlaybackMoreMenuList(

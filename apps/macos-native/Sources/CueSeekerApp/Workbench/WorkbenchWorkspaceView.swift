@@ -80,6 +80,7 @@ enum WorkbenchPresentedSurface: Equatable {
 private final class WorkbenchSurfaceTransitionTracker {
     var lastTargetSurface: WorkbenchPresentedSurface?
     var lastPresentedSurface: WorkbenchPresentedSurface?
+    var lastRecordedSurface: WorkbenchPresentedSurface?
     var asyncPreparedSurface: WorkbenchPresentedSurface?
     var preparationTask: Task<Void, Never>?
 
@@ -183,12 +184,14 @@ struct WorkbenchWorkspaceView: View {
         for surface: WorkbenchPresentedSurface
     ) {
         let preparationStartedAt = DebugInteractionLatencyProbe.now()
-        let previousLabel = transitionTracker.lastPresentedSurface?.diagnosticLabel ?? "none"
-        let didChangeSurface = transitionTracker.lastPresentedSurface != surface
+        let previousLabel = transitionTracker.lastRecordedSurface?.diagnosticLabel ?? "none"
+        let didChangeSurface = transitionTracker.lastRecordedSurface != surface
+            || DebugInteractionLatencyProbe.hasPendingNavigation(domain: "workbench")
         transitionTracker.preparationTask?.cancel()
         transitionTracker.preparationTask = nil
         if appState.isWorkbenchSurfaceReadyForPresentation(surface) {
             transitionTracker.lastPresentedSurface = surface
+            transitionTracker.lastRecordedSurface = surface
             if didChangeSurface {
                 let swapAt = DebugInteractionLatencyProbe.now()
                 DebugInteractionLatencyProbe.recordNavigationPreparation(
@@ -214,6 +217,7 @@ struct WorkbenchWorkspaceView: View {
             transitionTracker.lastTargetSurface = surface
             transitionTracker.asyncPreparedSurface = surface
             transitionTracker.lastPresentedSurface = surface
+            transitionTracker.lastRecordedSurface = surface
             asyncPreparedRevision &+= 1
             DebugInteractionLatencyProbe.recordNavigationPreparation(
                 domain: "workbench",

@@ -143,6 +143,10 @@ final class MenuGate {
         self.interfaceLayers = interfaceLayers
     }
 
+    func isOpen(_ kind: Kind) -> Bool {
+        clients.contains { $0.client.kind == kind }
+    }
+
     func open(_ client: Client) -> Session {
         let id = UUID()
         let isFirstMenu = clients.isEmpty
@@ -180,6 +184,7 @@ final class MenuGate {
             isTrackingMenuDrag = false
             AppPointerShape.reevaluate()
         }
+        DebugInteractionLatencyProbe.clearActiveMenuContext()
     }
 
     /// Everything an open menu switches off in its window, applied once.

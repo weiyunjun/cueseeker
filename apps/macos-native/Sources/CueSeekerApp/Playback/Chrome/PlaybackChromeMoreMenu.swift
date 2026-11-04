@@ -228,38 +228,38 @@ struct PlaybackChromeMoreMenuOverlay: View {
             let submenu = submenuState.openParent != nil ? layout?.submenu : nil
 
             ZStack(alignment: .topLeading) {
-                MenuGateClientView(
-                    gate: playback.interfaceLayers.menuGate,
-                    owner: .playbackPage,
-                    kind: .playerMoreMenu,
-                    menuFrame: menuFrame,
-                    submenuFrame: submenu?.frame,
-                    anchorFrame: buttonFrame,
-                    notePointer: { point in
-                        guard let submenu else {
-                            return
-                        }
-                        submenuState.notePointer(
-                            point,
-                            parentMenuFrame: menuFrame,
-                            triggerFrame: Self.triggerFrame(menuWidth: menuFrame.width)
-                                .offsetBy(dx: menuFrame.minX, dy: menuFrame.minY),
-                            submenuFrame: submenu.frame
-                        )
-                    },
-                    handleKey: { keyCode, isRepeat in
-                        playback.handleMoreMenuKey(keyCode, isRepeat: isRepeat, onSelect: onSelect)
-                    },
-                    dismiss: { _ in
-                        DispatchQueue.main.async {
-                            playback.closeMoreMenu()
-                        }
-                    }
-                )
-                .frame(width: proxy.size.width, height: proxy.size.height)
-                .allowsHitTesting(false)
-
                 if layout != nil {
+                    MenuGateClientView(
+                        gate: playback.interfaceLayers.menuGate,
+                        owner: .playbackPage,
+                        kind: .playerMoreMenu,
+                        menuFrame: menuFrame,
+                        submenuFrame: submenu?.frame,
+                        anchorFrame: buttonFrame,
+                        notePointer: { point in
+                            guard let submenu else {
+                                return
+                            }
+                            submenuState.notePointer(
+                                point,
+                                parentMenuFrame: menuFrame,
+                                triggerFrame: Self.triggerFrame(menuWidth: menuFrame.width)
+                                    .offsetBy(dx: menuFrame.minX, dy: menuFrame.minY),
+                                submenuFrame: submenu.frame
+                            )
+                        },
+                        handleKey: { keyCode, isRepeat in
+                            playback.handleMoreMenuKey(keyCode, isRepeat: isRepeat, onSelect: onSelect)
+                        },
+                        dismiss: { _ in
+                            DispatchQueue.main.async {
+                                playback.closeMoreMenu()
+                            }
+                        }
+                    )
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .allowsHitTesting(false)
+
                     PlaybackHostedMenuSurface(frame: menuFrame) {
                         firstLevelMenu
                     }
@@ -278,10 +278,16 @@ struct PlaybackChromeMoreMenuOverlay: View {
                 }
             }
             .onAppear {
-                layout = measuredLayout(stageSize: proxy.size)
+                layout = measuredLayout(
+                    stageSize: proxy.size,
+                    recordsTelemetry: layout == nil
+                )
             }
             .onChange(of: LayoutInput(stageSize: proxy.size, buttonFrame: buttonFrame, menu: menu)) { input in
-                layout = measuredLayout(stageSize: input.stageSize)
+                layout = measuredLayout(
+                    stageSize: input.stageSize,
+                    recordsTelemetry: false
+                )
             }
         }
     }
@@ -405,7 +411,10 @@ struct PlaybackChromeMoreMenuOverlay: View {
         )
     }
 
-    func measuredLayout(stageSize: CGSize) -> PlaybackMoreMenuLayout {
+    func measuredLayout(
+        stageSize: CGSize,
+        recordsTelemetry: Bool = false
+    ) -> PlaybackMoreMenuLayout {
         let startedAt = ProcessInfo.processInfo.systemUptime
         let bounds = Self.bounds(stageSize: stageSize, buttonFrame: buttonFrame)
         let menuFrame = MenuPlacement.openingFrame(
@@ -423,13 +432,15 @@ struct PlaybackChromeMoreMenuOverlay: View {
             triggerFrame: Self.triggerFrame(menuWidth: menuFrame.width),
             bounds: bounds
         )
-        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000)
-        DebugInteractionLatencyProbe.markMenuTriggerContext(
-            menuID: "player_more_menu",
-            trigger: "chrome_more_button",
-            startedAt: startedAt,
-            measureMs: measureMs
-        )
+        if recordsTelemetry {
+            let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000)
+            DebugInteractionLatencyProbe.markMenuTriggerContext(
+                menuID: "player_more_menu",
+                trigger: "chrome_more_button",
+                startedAt: startedAt,
+                measureMs: measureMs
+            )
+        }
         return PlaybackMoreMenuLayout(
             menuFrame: menuFrame,
             submenu: submenu
@@ -461,25 +472,25 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
             let menuFrame = layout?.frame ?? .zero
 
             ZStack(alignment: .topLeading) {
-                MenuGateClientView(
-                    gate: playback.interfaceLayers.menuGate,
-                    owner: .playbackPage,
-                    kind: .playerSubtitleMenu,
-                    menuFrame: menuFrame,
-                    anchorFrame: buttonFrame,
-                    handleKey: { keyCode, isRepeat in
-                        playback.handleSubtitleMenuKey(keyCode, isRepeat: isRepeat, onSelect: onSelect)
-                    },
-                    dismiss: { _ in
-                        DispatchQueue.main.async {
-                            playback.closeSubtitleMenu()
-                        }
-                    }
-                )
-                .frame(width: proxy.size.width, height: proxy.size.height)
-                .allowsHitTesting(false)
-
                 if let layout {
+                    MenuGateClientView(
+                        gate: playback.interfaceLayers.menuGate,
+                        owner: .playbackPage,
+                        kind: .playerSubtitleMenu,
+                        menuFrame: menuFrame,
+                        anchorFrame: buttonFrame,
+                        handleKey: { keyCode, isRepeat in
+                            playback.handleSubtitleMenuKey(keyCode, isRepeat: isRepeat, onSelect: onSelect)
+                        },
+                        dismiss: { _ in
+                            DispatchQueue.main.async {
+                                playback.closeSubtitleMenu()
+                            }
+                        }
+                    )
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .allowsHitTesting(false)
+
                     PlaybackHostedMenuSurface(frame: menuFrame) {
                         WorkbenchPopoverPanel(
                             surface: .playerChrome,
@@ -492,10 +503,16 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
                 }
             }
             .onAppear {
-                layout = measuredLayout(stageSize: proxy.size)
+                layout = measuredLayout(
+                    stageSize: proxy.size,
+                    recordsTelemetry: layout == nil
+                )
             }
             .onChange(of: LayoutInput(stageSize: proxy.size, buttonFrame: buttonFrame, menu: menu)) { input in
-                layout = measuredLayout(stageSize: input.stageSize)
+                layout = measuredLayout(
+                    stageSize: input.stageSize,
+                    recordsTelemetry: false
+                )
             }
         }
     }
@@ -538,7 +555,10 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
         }
     }
 
-    func measuredLayout(stageSize: CGSize) -> PlaybackSubtitleMenuLayout {
+    func measuredLayout(
+        stageSize: CGSize,
+        recordsTelemetry: Bool = false
+    ) -> PlaybackSubtitleMenuLayout {
         let startedAt = ProcessInfo.processInfo.systemUptime
         let bounds = PlaybackChromeMoreMenuOverlay.bounds(
             stageSize: stageSize,
@@ -557,13 +577,15 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
                 )
             }
         )
-        let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000)
-        DebugInteractionLatencyProbe.markMenuTriggerContext(
-            menuID: "player_subtitle_menu",
-            trigger: "chrome_subtitle_button",
-            startedAt: startedAt,
-            measureMs: measureMs
-        )
+        if recordsTelemetry {
+            let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000)
+            DebugInteractionLatencyProbe.markMenuTriggerContext(
+                menuID: "player_subtitle_menu",
+                trigger: "chrome_subtitle_button",
+                startedAt: startedAt,
+                measureMs: measureMs
+            )
+        }
         return layout
     }
 }

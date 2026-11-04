@@ -179,6 +179,27 @@ enum DebugInteractionLatencyProbe {
         #endif
     }
 
+    static func hasPendingNavigation(domain: String = "workbench") -> Bool {
+        #if DEBUG
+        guard isEnabled else { return false }
+        state.lock.lock()
+        let hasPending = state.pendingNavigationsByDomain[domain] != nil
+        state.lock.unlock()
+        return hasPending
+        #else
+        return false
+        #endif
+    }
+
+    static func cancelPendingNavigation(domain: String = "workbench") {
+        #if DEBUG
+        guard isEnabled else { return }
+        state.lock.lock()
+        state.pendingNavigationsByDomain.removeValue(forKey: domain)
+        state.lock.unlock()
+        #endif
+    }
+
     static func recordNavigationPreparation(
         domain: String = "workbench",
         from fallbackFromSurface: String,
@@ -248,10 +269,11 @@ enum DebugInteractionLatencyProbe {
         let existing = state.pendingNavigationsByDomain.removeValue(forKey: domain)
         state.lock.unlock()
 
-        let effectiveStart = startedAt ?? existing?.startedAt ?? syncPrepFinishedAt
-        let effectiveFrom = existing?.fromSurface ?? fromSurface
-        let effectiveTrigger = existing?.trigger ?? trigger
-        let syncPrepMs = existing?.syncPrepMilliseconds
+        let matchingExisting = existing?.toSurface == toSurface ? existing : nil
+        let effectiveStart = startedAt ?? matchingExisting?.startedAt ?? syncPrepFinishedAt
+        let effectiveFrom = matchingExisting?.fromSurface ?? fromSurface
+        let effectiveTrigger = matchingExisting?.trigger ?? trigger
+        let syncPrepMs = matchingExisting?.syncPrepMilliseconds
             ?? elapsedMilliseconds(since: effectiveStart, now: syncPrepFinishedAt)
         let effectiveDataReadyAt = dataReadyAt ?? syncPrepFinishedAt
         let dataReadyMs = elapsedMilliseconds(since: effectiveStart, now: effectiveDataReadyAt)
@@ -363,13 +385,38 @@ enum DebugInteractionLatencyProbe {
         guard isEnabled else { return }
         AppPerformanceProbe.breadcrumb("menu:\(menuID):\(trigger)")
         state.lock.lock()
-        state.activeMenuContext = (
-            menuID: menuID,
-            trigger: trigger,
-            kind: kind,
-            startedAt: startedAt,
-            measureMilliseconds: measureMilliseconds
-        )
+        if let existing = state.activeMenuContext, existing.menuID == menuID {
+            state.activeMenuContext = (
+                menuID: menuID,
+                trigger: existing.trigger,
+                kind: kind,
+                startedAt: min(existing.startedAt, startedAt),
+                measureMilliseconds: max(existing.measureMilliseconds, measureMilliseconds)
+            )
+        } else {
+            state.activeMenuContext = (
+                menuID: menuID,
+                trigger: trigger,
+                kind: kind,
+                startedAt: startedAt,
+                measureMilliseconds: measureMilliseconds
+            )
+        }
+        state.lock.unlock()
+        #endif
+    }
+
+    static func clearActiveMenuContext(menuID: String? = nil) {
+        #if DEBUG
+        guard isEnabled else { return }
+        state.lock.lock()
+        if let menuID {
+            if state.activeMenuContext?.menuID == menuID {
+                state.activeMenuContext = nil
+            }
+        } else {
+            state.activeMenuContext = nil
+        }
         state.lock.unlock()
         #endif
     }
@@ -810,7 +857,12 @@ enum DebugInteractionLatencyProbe {
         lastActionAgeMilliseconds: Double?
     ) {
         #if DEBUG
-        guard isEnabled, stalledMilliseconds >= 32 else { return }
+        guard isEnabled,
+              stalledMilliseconds >= 32,
+              !phase.hasPrefix("beforeWaiting->")
+        else {
+            return
+        }
         let ageText = lastActionAgeMilliseconds.map { formatMilliseconds($0) } ?? "none"
         emit(
             domain: .system,

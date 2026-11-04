@@ -145,6 +145,7 @@ extension AppCoordinator {
     func invalidatePlaybackSubtitleFocusForSourceReplacement() {
         cancelPlaybackSubtitleFocusActionTask()
         cancelPlaybackSubtitleFocusCueLoadTasks()
+        DebugInteractionLatencyProbe.cancelPendingNavigation(domain: "playback_overlay")
         guard let session = playback.subtitleFocusSession else {
             return
         }

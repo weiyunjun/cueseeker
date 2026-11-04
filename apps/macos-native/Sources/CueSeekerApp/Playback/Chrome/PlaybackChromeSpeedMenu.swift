@@ -27,12 +27,16 @@ struct PlaybackChromeSpeedMenuOverlay: View {
             let measureStartedAt = ProcessInfo.processInfo.systemUptime
             let menuSize = NSHostingView(rootView: menuView).fittingSize
             let measureMs = max(0, (ProcessInfo.processInfo.systemUptime - measureStartedAt) * 1_000)
-            let _ = DebugInteractionLatencyProbe.markMenuTriggerContext(
-                menuID: "player_speed_menu",
-                trigger: "chrome_speed_button",
-                startedAt: measureStartedAt,
-                measureMs: measureMs
-            )
+            let _ = {
+                if !playback.interfaceLayers.menuGate.isOpen(.playerSpeedMenu) {
+                    DebugInteractionLatencyProbe.markMenuTriggerContext(
+                        menuID: "player_speed_menu",
+                        trigger: "chrome_speed_button",
+                        startedAt: measureStartedAt,
+                        measureMs: measureMs
+                    )
+                }
+            }()
             let menuFrame = MenuPlacement.openingFrame(
                 anchor: buttonFrame,
                 menuSize: menuSize,

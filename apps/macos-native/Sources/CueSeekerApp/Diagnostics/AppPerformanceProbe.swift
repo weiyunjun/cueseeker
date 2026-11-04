@@ -346,7 +346,7 @@ enum AppPerformanceProbe {
             guard elapsedMilliseconds >= effectiveThreshold else {
                 return
             }
-            guard !(previous.previous == "beforeWaiting" && activityName == "afterWaiting") else {
+            guard previous.previous != "beforeWaiting" else {
                 return
             }
 
