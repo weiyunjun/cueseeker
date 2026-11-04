@@ -82,7 +82,7 @@ struct WorkbenchRecentView: View {
         }
         .onChange(of: appState.isPlaybackPageVisible) { isVisible in
             if !isVisible {
-                appState.reloadExcerptListOverview()
+                appState.refreshExcerptOnReappearanceIfNeeded()
                 appState.refreshRecentOnReappearanceIfNeeded()
             }
         }

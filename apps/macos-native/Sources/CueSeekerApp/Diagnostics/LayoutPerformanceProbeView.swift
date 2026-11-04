@@ -49,6 +49,10 @@ final class LayoutPerformanceProbeNSView: NSView {
         nil
     }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
     override func layout() {
         AppPerformanceProbe.measure(name, thresholdMilliseconds: thresholdMilliseconds) {
             super.layout()

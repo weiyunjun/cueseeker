@@ -495,7 +495,12 @@ extension LibraryDatabase {
         try statement.run()
 
         if markCompleted {
-            try upsertLibraryWatchState(videoFile: videoFile, state: .finished, updatedAt: updatedAt)
+            try upsertLibraryWatchState(
+                videoFile: videoFile,
+                resolvedVideoFileID: videoFileID,
+                state: .finished,
+                updatedAt: updatedAt
+            )
         } else if markStarted {
             let currentWatchState = try libraryPlaybackHistory(forVideoFile: videoFile).map {
                 LibraryWatchState(
@@ -506,7 +511,12 @@ extension LibraryDatabase {
                 )
             } ?? .unwatched
             if currentWatchState != .finished {
-                try upsertLibraryWatchState(videoFile: videoFile, state: .watching, updatedAt: updatedAt)
+                try upsertLibraryWatchState(
+                    videoFile: videoFile,
+                    resolvedVideoFileID: videoFileID,
+                    state: .watching,
+                    updatedAt: updatedAt
+                )
             }
         }
     }
@@ -522,11 +532,12 @@ extension LibraryDatabase {
 
     private func upsertLibraryWatchState(
         videoFile: URL,
+        resolvedVideoFileID: Int64? = nil,
         state: LibraryWatchState,
         updatedAt: Date
     ) throws {
         try database.withImmediateTransaction {
-            guard let videoFileID = try upsertVideoFile(videoFile) else {
+            guard let videoFileID = try resolvedVideoFileID ?? upsertVideoFile(videoFile) else {
                 return
             }
             let previousState = try database.prepare(

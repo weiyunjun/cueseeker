@@ -92,6 +92,8 @@ struct WorkbenchWorkspaceView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @ObservedObject var playbackRouteVisibility: PlaybackRouteVisibilityStore
+    var workbenchLeadingInset: CGFloat = 0
+    var workbenchTopInset: CGFloat = 0
     @Environment(\.colorScheme) private var colorScheme
     @State private var transitionTracker = WorkbenchSurfaceTransitionTracker()
     @State private var asyncPreparedRevision: UInt64 = 0
@@ -125,14 +127,17 @@ struct WorkbenchWorkspaceView: View {
 
             return GeometryReader { geometry in
                 let showsPlaybackRoute = appState.isPlaybackPageVisible
+                let workbenchWidth = max(0, geometry.size.width - workbenchLeadingInset)
+                let workbenchHeight = max(0, geometry.size.height - workbenchTopInset)
 
-                ZStack {
+                ZStack(alignment: .topLeading) {
                     mainContent
-                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .frame(width: workbenchWidth, height: workbenchHeight)
                         .frame(maxHeight: .infinity, alignment: .top)
                         .clipped()
+                        .padding(.leading, workbenchLeadingInset)
+                        .padding(.top, workbenchTopInset)
                         .allowsHitTesting(!showsPlaybackRoute)
-                        .disabled(showsPlaybackRoute)
                         .accessibilityHidden(showsPlaybackRoute)
 
                     if showsPlaybackRoute {
@@ -340,7 +345,6 @@ extension AppCoordinator {
                 return Self.areFirstScreenCoversReady(firstScreenRecentVideoCoverKeys())
             case .excerpts:
                 guard excerpt.hasLoadedListOverview,
-                      excerpt.listOverviewTask == nil,
                       !excerptNeedsReloadAfterIndexedContentMutation
                 else {
                     return false
@@ -378,8 +382,7 @@ extension AppCoordinator {
             if Self.isLibraryStatusFailed(detailStatus) {
                 return true
             }
-            guard library.completeLibraryFolderDetailTasks[folderPath] == nil,
-                  let detail = library.completeLibraryFolderDetailsByPath[folderPath],
+            guard let detail = library.completeLibraryFolderDetailsByPath[folderPath],
                   detail.folderPath == folderPath
             else {
                 return false
@@ -389,7 +392,6 @@ extension AppCoordinator {
             )
         case .excerptOverview:
             guard excerpt.hasLoadedListOverview,
-                  excerpt.listOverviewTask == nil,
                   !excerptNeedsReloadAfterIndexedContentMutation
             else {
                 return false

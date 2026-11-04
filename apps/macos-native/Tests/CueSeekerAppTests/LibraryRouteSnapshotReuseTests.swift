@@ -213,7 +213,14 @@ func deferredPlaybackHistoryFlushUpdatesSharedRecentAndLibraryDetail() async thr
         app.flushPendingLibraryPlaybackHistoryPresentations()
 
         #expect(app.pendingLibraryPlaybackHistoryPresentationVideoPaths.isEmpty)
+        #expect(app.library.testRecentWatchingStatus == .completed)
         #expect(app.library.completeLibraryFolderDetailsByPath[folderPath] != nil)
+        #expect(
+            app.library.completeLibraryFolderDetailsByPath[folderPath]?
+                .videos.first?.watchState == .watching
+        )
+        #expect(app.library.testRecentWatchingItems.first?.videoPath == fixture.videoURL.path)
+        #expect(app.library.testRecentWatchingItems.first?.watchState == .watching)
         await app.completeLibraryFolderDetailTasks[folderPath]?.value
         await app.testRecentWatchingTask?.value
 

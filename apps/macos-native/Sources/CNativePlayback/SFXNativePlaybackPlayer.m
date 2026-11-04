@@ -863,11 +863,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         }
     }
     if (previousSession != nil) {
-        if (!flushDisplay || SFXIsHTTPMediaPath(previousSession.path.UTF8String)) {
-            [previousSession cancelAsync];
-        } else {
-            [previousSession stopAndWait];
-        }
+        [previousSession cancelAsync];
     }
     if (flushDisplay) {
         [_nativeView setVideoOrientation:SFXVideoOrientationUp];

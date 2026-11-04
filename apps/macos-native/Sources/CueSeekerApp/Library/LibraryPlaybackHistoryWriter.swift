@@ -33,7 +33,7 @@ final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
     let database: LibraryDatabase?
     let queue = DispatchQueue(
         label: "app.cueseeker.library-playback-history",
-        qos: .utility
+        qos: .userInitiated
     )
 
     init(database: LibraryDatabase?) {

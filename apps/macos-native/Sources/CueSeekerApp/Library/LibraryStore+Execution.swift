@@ -413,7 +413,10 @@ extension LibraryStore {
         return "v\(LibraryCoverDisplayProfile.current.version)\n\(paths)"
     }
 
-    func refreshRecentWatching(force: Bool = false) {
+    func refreshRecentWatching(
+        force: Bool = false,
+        preservesExistingSnapshot: Bool = false
+    ) {
         if !force && panelModeProvider() == .recentWatching {
             recentNeedsReloadAfterIndexedMutation = true
             return
@@ -433,7 +436,10 @@ extension LibraryStore {
             return
         }
 
-        recentWatchingStatus = .loading
+        let hasExistingSnapshot = recentWatchingStatus == .completed || !recentWatchingItems.isEmpty
+        if !preservesExistingSnapshot || !hasExistingSnapshot {
+            recentWatchingStatus = .loading
+        }
         recentWatchingTask = Task { [weak self] in
             do {
                 let snapshot = try await Task.detached(priority: .userInitiated) {
@@ -443,7 +449,9 @@ extension LibraryStore {
                 guard !Task.isCancelled else { return }
 
                 self?.applyRecentWatching(snapshot)
-                self?.recentWatchingStatus = .completed
+                if self?.recentWatchingStatus != .completed {
+                    self?.recentWatchingStatus = .completed
+                }
             } catch {
                 guard !Task.isCancelled else { return }
                 AppLogger.shared.error(
@@ -457,7 +465,7 @@ extension LibraryStore {
         }
     }
 
-    func refreshTestRecentWatching() {
+    func refreshTestRecentWatching(preservesExistingSnapshot: Bool = false) {
         testRecentWatchingTask?.cancel()
 
         let folders = selectedFoldersProvider()
@@ -473,7 +481,10 @@ extension LibraryStore {
             return
         }
 
-        testRecentWatchingStatus = .loading
+        let hasExistingSnapshot = testRecentWatchingStatus == .completed || !testRecentWatchingItems.isEmpty
+        if !preservesExistingSnapshot || !hasExistingSnapshot {
+            testRecentWatchingStatus = .loading
+        }
         testRecentWatchingTask = Task { [weak self] in
             do {
                 let snapshot = try await Task.detached(priority: .userInitiated) {
@@ -487,7 +498,9 @@ extension LibraryStore {
                 guard !Task.isCancelled else { return }
 
                 self?.applyTestRecentWatching(snapshot)
-                self?.testRecentWatchingStatus = .completed
+                if self?.testRecentWatchingStatus != .completed {
+                    self?.testRecentWatchingStatus = .completed
+                }
             } catch {
                 guard !Task.isCancelled else { return }
                 AppLogger.shared.error(
@@ -501,7 +514,10 @@ extension LibraryStore {
         }
     }
 
-    func refreshLoadedTestRecentWatching(force: Bool = false) {
+    func refreshLoadedTestRecentWatching(
+        force: Bool = false,
+        preservesExistingSnapshot: Bool = false
+    ) {
         guard testRecentWatchingStatus != .idle || !testRecentWatchingItems.isEmpty else {
             return
         }
@@ -509,7 +525,7 @@ extension LibraryStore {
             recentNeedsReloadAfterIndexedMutation = true
             return
         }
-        refreshTestRecentWatching()
+        refreshTestRecentWatching(preservesExistingSnapshot: preservesExistingSnapshot)
     }
 
     func refreshCompleteLibrary(force: Bool = false) {
@@ -690,9 +706,13 @@ extension LibraryStore {
                         = .failed(L("status.folder_detail_unavailable"))
                     return
                 }
-                self.completeLibraryFolderDetailsByPath[folderPath] = detail
-                self.completeLibraryFolderDetailStatusesByPath[folderPath]
-                    = .completed
+                if self.completeLibraryFolderDetailsByPath[folderPath] != detail {
+                    self.completeLibraryFolderDetailsByPath[folderPath] = detail
+                }
+                if self.completeLibraryFolderDetailStatusesByPath[folderPath] != .completed {
+                    self.completeLibraryFolderDetailStatusesByPath[folderPath]
+                        = .completed
+                }
                 if !preservesExistingSnapshot {
                     AppLogger.shared.info(
                         .library,
@@ -827,6 +847,9 @@ extension LibraryStore {
         }
 
         libraryPlaybackHistoryRevision += 1
+        let didChangeWatchState = applyImmediatePlaybackHistoryPresentationUpdates(
+            affectedVideoPaths: affectedVideoPaths
+        )
         refreshCompleteLibraryFolderDetailsPreservingSnapshots(
             affectedVideoPaths: affectedVideoPaths
         )
@@ -835,9 +858,168 @@ extension LibraryStore {
             scope: uiProbeScope,
             details: "surface=playback_history videos=\(affectedVideoPaths.count)"
         )
-        refreshRecentWatching(force: true)
-        refreshLoadedTestRecentWatching(force: true)
-        onWatchStateChanged()
+        refreshRecentWatching(force: true, preservesExistingSnapshot: true)
+        refreshLoadedTestRecentWatching(force: true, preservesExistingSnapshot: true)
+        if didChangeWatchState {
+            onWatchStateChanged()
+        }
+    }
+
+    private func applyImmediatePlaybackHistoryPresentationUpdates(
+        affectedVideoPaths: Set<String>
+    ) -> Bool {
+        var previousWatchStatesByVideoPath: [String: LibraryWatchState] = [:]
+        for detail in completeLibraryFolderDetailsByPath.values {
+            for video in detail.videos where affectedVideoPaths.contains(video.videoPath) {
+                previousWatchStatesByVideoPath[video.videoPath] = video.watchState
+            }
+        }
+        for item in testRecentWatchingItems where affectedVideoPaths.contains(item.videoPath) {
+            if previousWatchStatesByVideoPath[item.videoPath] == nil {
+                previousWatchStatesByVideoPath[item.videoPath] = item.watchState
+            }
+        }
+        for item in recentWatchingItems where affectedVideoPaths.contains(item.videoPath) {
+            if previousWatchStatesByVideoPath[item.videoPath] == nil {
+                previousWatchStatesByVideoPath[item.videoPath] = item.watchState
+            }
+        }
+
+        var affectedFolderPaths = Set(
+            affectedVideoPaths.map {
+                URL.fromMediaPath($0).deletingLastPathComponent().mediaPath
+            }
+        )
+        for (folderPath, detail) in completeLibraryFolderDetailsByPath
+        where detail.videos.contains(where: { affectedVideoPaths.contains($0.videoPath) }) {
+            affectedFolderPaths.insert(folderPath)
+        }
+
+        guard let database = libraryDatabase,
+              affectedFolderPaths.count <= 4
+        else {
+            return true
+        }
+
+        let selectedFolders = selectedFoldersProvider()
+        let selectedPrefixes = selectedFolders.flatMap { AppCoordinator.folderPathPrefixes(for: $0) }
+        var didChangeWatchState = previousWatchStatesByVideoPath.count < affectedVideoPaths.count
+        var updatedDetailsByFolderPath: [String: CompleteLibraryFolderDetailPresentation] = [:]
+
+        for folderPath in affectedFolderPaths {
+            guard let detail = try? database.completeLibraryFolderDetail(folderPath: folderPath) else {
+                didChangeWatchState = true
+                continue
+            }
+            updatedDetailsByFolderPath[folderPath] = detail
+            for video in detail.videos where affectedVideoPaths.contains(video.videoPath) {
+                if previousWatchStatesByVideoPath[video.videoPath] != video.watchState {
+                    didChangeWatchState = true
+                }
+            }
+            if completeLibraryFolderDetailsByPath[folderPath] != nil {
+                if completeLibraryFolderDetailsByPath[folderPath] != detail {
+                    completeLibraryFolderDetailsByPath[folderPath] = detail
+                }
+                if completeLibraryFolderDetailStatusesByPath[folderPath] != .completed {
+                    completeLibraryFolderDetailStatusesByPath[folderPath] = .completed
+                }
+            }
+        }
+
+        guard !updatedDetailsByFolderPath.isEmpty, !selectedPrefixes.isEmpty else {
+            return didChangeWatchState
+        }
+
+        if recentWatchingStatus == .completed || !recentWatchingItems.isEmpty {
+            var updatedRecent = recentWatchingItems
+            var changed = false
+            for (folderPath, detail) in updatedDetailsByFolderPath {
+                let isInScope = detail.videos.contains {
+                    AppCoordinator.pathMatchesPrefixes($0.subtitlePath, prefixes: selectedPrefixes)
+                }
+                let candidate = isInScope
+                    ? detail.recentWatchingPresentation(includesNeverPlayed: false)
+                    : nil
+                if let index = updatedRecent.firstIndex(where: { $0.folderPath == folderPath }) {
+                    if let candidate {
+                        if updatedRecent[index] != candidate {
+                            updatedRecent[index] = candidate
+                            changed = true
+                        }
+                    } else {
+                        updatedRecent.remove(at: index)
+                        changed = true
+                    }
+                } else if let candidate {
+                    updatedRecent.append(candidate)
+                    changed = true
+                }
+            }
+            if changed {
+                updatedRecent.sort(by: Self.recentWatchingPresentationSort)
+                if updatedRecent.count > 12 {
+                    updatedRecent = Array(updatedRecent.prefix(12))
+                }
+                if recentWatchingItems != updatedRecent {
+                    recentWatchingItems = updatedRecent
+                }
+            }
+        }
+
+        if testRecentWatchingStatus == .completed || !testRecentWatchingItems.isEmpty {
+            var updatedTestRecent = testRecentWatchingItems
+            var changed = false
+            for (folderPath, detail) in updatedDetailsByFolderPath {
+                let isInScope = detail.videos.contains {
+                    AppCoordinator.pathMatchesPrefixes($0.subtitlePath, prefixes: selectedPrefixes)
+                }
+                let candidate = isInScope
+                    ? detail.recentWatchingPresentation(includesNeverPlayed: true)
+                    : nil
+                if let index = updatedTestRecent.firstIndex(where: { $0.folderPath == folderPath }) {
+                    if let candidate {
+                        if updatedTestRecent[index] != candidate {
+                            updatedTestRecent[index] = candidate
+                            changed = true
+                        }
+                    } else {
+                        updatedTestRecent.remove(at: index)
+                        changed = true
+                    }
+                } else if let candidate {
+                    updatedTestRecent.append(candidate)
+                    changed = true
+                }
+            }
+            if changed {
+                updatedTestRecent.sort(by: Self.recentWatchingPresentationSort)
+                if testRecentWatchingItems != updatedTestRecent {
+                    testRecentWatchingItems = updatedTestRecent
+                }
+            }
+        }
+
+        return didChangeWatchState
+    }
+
+    private static func recentWatchingPresentationSort(
+        _ lhs: RecentLibraryWatchingPresentation,
+        _ rhs: RecentLibraryWatchingPresentation
+    ) -> Bool {
+        let lhsHasHistory = !lhs.updatedAt.isEmpty
+        let rhsHasHistory = !rhs.updatedAt.isEmpty
+        if lhsHasHistory != rhsHasHistory {
+            return lhsHasHistory
+        }
+        if lhsHasHistory, lhs.updatedAt != rhs.updatedAt {
+            return lhs.updatedAt > rhs.updatedAt
+        }
+        let titleCompare = lhs.folderTitle.caseInsensitiveCompare(rhs.folderTitle)
+        if titleCompare != .orderedSame {
+            return titleCompare == .orderedAscending
+        }
+        return lhs.folderPath.caseInsensitiveCompare(rhs.folderPath) == .orderedAscending
     }
 
     func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
@@ -860,7 +1042,9 @@ extension LibraryStore {
     }
 
     func applyRecentWatching(_ snapshot: [RecentLibraryWatchingPresentation]) {
-        recentWatchingItems = snapshot
+        if recentWatchingItems != snapshot {
+            recentWatchingItems = snapshot
+        }
         recentWatchingRevision += 1
         UIInvalidationProbe.count(
             "UI.RecentWatchingSnapshot.rebuilt",
@@ -874,7 +1058,9 @@ extension LibraryStore {
     }
 
     func applyTestRecentWatching(_ snapshot: [RecentLibraryWatchingPresentation]) {
-        testRecentWatchingItems = snapshot
+        if testRecentWatchingItems != snapshot {
+            testRecentWatchingItems = snapshot
+        }
         testRecentWatchingRevision += 1
         UIInvalidationProbe.count(
             "UI.TestRecentWatchingSnapshot.rebuilt",

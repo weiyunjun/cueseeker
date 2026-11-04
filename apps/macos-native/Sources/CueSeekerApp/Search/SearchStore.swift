@@ -271,7 +271,7 @@ final class SearchStore: ObservableObject {
     }
 
     func cacheHydratedResults(_ results: [SubtitleSearchResult]) {
-        cueContentStore.install(results.map(\.cueContent))
+        cueContentStore.install(results.map(\.cueContent), publishesChange: false)
     }
 
     func cachedCueContent(for cueID: Int64) -> CueContent? {

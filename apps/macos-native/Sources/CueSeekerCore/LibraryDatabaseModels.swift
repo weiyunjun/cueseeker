@@ -662,6 +662,56 @@ public struct CompleteLibraryFolderDetailPresentation: Equatable, Sendable, Iden
             }
         )
     }
+
+    public func recentWatchingPresentation(
+        includesNeverPlayed: Bool
+    ) -> RecentLibraryWatchingPresentation? {
+        var bestPlayedVideo: CompleteLibraryVideoPresentation?
+        var bestPlayedUpdatedAt = ""
+        for video in videos {
+            guard let updatedAt = video.historyUpdatedAt, !updatedAt.isEmpty else {
+                continue
+            }
+            if bestPlayedVideo == nil || updatedAt > bestPlayedUpdatedAt {
+                bestPlayedVideo = video
+                bestPlayedUpdatedAt = updatedAt
+            }
+        }
+
+        let chosenVideo: CompleteLibraryVideoPresentation
+        let chosenUpdatedAt: String
+        if let bestPlayedVideo {
+            chosenVideo = bestPlayedVideo
+            chosenUpdatedAt = bestPlayedUpdatedAt
+        } else if includesNeverPlayed, let firstVideo = videos.first {
+            chosenVideo = firstVideo
+            chosenUpdatedAt = ""
+        } else {
+            return nil
+        }
+
+        return RecentLibraryWatchingPresentation(
+            videoFileID: chosenVideo.videoFileID,
+            subtitleFileID: chosenVideo.subtitleFileID,
+            videoPath: chosenVideo.videoPath,
+            videoName: chosenVideo.videoName,
+            duration: chosenVideo.duration,
+            subtitlePath: chosenVideo.subtitlePath,
+            subtitleFormat: chosenVideo.subtitleFormat,
+            displayTitle: chosenVideo.displayTitle,
+            fileExtension: chosenVideo.fileExtension,
+            folderPath: folderPath,
+            folderTitle: folderTitle,
+            episodeNumber: chosenVideo.episodeNumber,
+            positionMilliseconds: chosenVideo.positionMilliseconds,
+            playbackDuration: chosenVideo.playbackDuration,
+            startedAt: chosenVideo.startedAt,
+            completedAt: chosenVideo.completedAt,
+            updatedAt: chosenUpdatedAt,
+            coverPath: chosenVideo.coverPath,
+            coverRevision: chosenVideo.coverRevision
+        )
+    }
 }
 
 public struct CompleteLibraryFolderPresentation: Equatable, Sendable, Identifiable {
@@ -741,22 +791,38 @@ public enum RecentTimeSection: String, CaseIterable, Equatable, Sendable {
         }
     }
 
+    private static let timestampFormatterLock = NSLock()
+    nonisolated(unsafe) private static let fractionalISO8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    nonisolated(unsafe) private static let standardISO8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+    private static let sqliteTimestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter
+    }()
+
     private static func parseTimestamp(_ value: String) -> Date? {
-        let fractionalFormatter = ISO8601DateFormatter()
-        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractionalFormatter.date(from: value) {
+        guard !value.isEmpty else {
+            return nil
+        }
+        timestampFormatterLock.lock()
+        defer { timestampFormatterLock.unlock() }
+        if let date = fractionalISO8601Formatter.date(from: value) {
             return date
         }
-        let standardFormatter = ISO8601DateFormatter()
-        standardFormatter.formatOptions = [.withInternetDateTime]
-        if let date = standardFormatter.date(from: value) {
+        if let date = standardISO8601Formatter.date(from: value) {
             return date
         }
-        let sqliteFormatter = DateFormatter()
-        sqliteFormatter.locale = Locale(identifier: "en_US_POSIX")
-        sqliteFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-        sqliteFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return sqliteFormatter.date(from: value)
+        return sqliteTimestampFormatter.date(from: value)
     }
 }
 

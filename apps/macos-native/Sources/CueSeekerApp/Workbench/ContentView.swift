@@ -39,9 +39,10 @@ private struct ContentRootView: View {
 
             return GeometryReader { geometry in
                 let isCompactWindow = AppShellLayout.isCompactWindow(width: geometry.size.width)
-                let isDockedSidebarVisible = !hidesWorkbenchChrome
-                    && !isCompactWindow
+                let isWorkbenchDockedSidebarVisible = !isCompactWindow
                     && layoutState.isSidebarVisible
+                let isDockedSidebarVisible = !hidesWorkbenchChrome
+                    && isWorkbenchDockedSidebarVisible
                 let isOverlaySidebarVisible = !hidesWorkbenchChrome
                     && isCompactWindow
                     && layoutState.isSidebarVisible
@@ -50,20 +51,26 @@ private struct ContentRootView: View {
                     WorkbenchRedesignColors.bgCanvas
                         .ignoresSafeArea()
 
-                    HStack(spacing: 0) {
-                        if isDockedSidebarVisible {
-                            AppSidebar()
-                                .frame(width: AppShellLayout.sidebarWidth)
-                                .transition(.move(edge: .leading).combined(with: .opacity))
-                        }
+                    mainWorkspace(
+                        workbenchLeadingInset: isWorkbenchDockedSidebarVisible
+                            ? AppShellLayout.sidebarWidth
+                            : 0,
+                        workbenchTopInset: AppShellLayout.topBarHeight
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .environment(
+                        \.isWorkbenchSidebarVisible,
+                        isWorkbenchDockedSidebarVisible
+                    )
+                    .zIndex(hidesWorkbenchChrome ? 1 : 0)
 
-                        mainWorkspace
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .padding(.top, hidesWorkbenchChrome ? 0 : AppShellLayout.topBarHeight)
-                            .environment(
-                                \.isWorkbenchSidebarVisible,
-                                isDockedSidebarVisible
-                            )
+                    if isWorkbenchDockedSidebarVisible {
+                        AppSidebar()
+                            .frame(width: AppShellLayout.sidebarWidth)
+                            .opacity(hidesWorkbenchChrome ? 0 : 1)
+                            .allowsHitTesting(!hidesWorkbenchChrome)
+                            .accessibilityHidden(hidesWorkbenchChrome)
+                            .transition(.move(edge: .leading).combined(with: .opacity))
                     }
 
                     if !hidesWorkbenchChrome {
@@ -137,8 +144,15 @@ private struct ContentRootView: View {
     }
 
     @ViewBuilder
-    private var mainWorkspace: some View {
-        WorkbenchWorkspaceView(playbackRouteVisibility: playbackRouteVisibility)
+    private func mainWorkspace(
+        workbenchLeadingInset: CGFloat,
+        workbenchTopInset: CGFloat
+    ) -> some View {
+        WorkbenchWorkspaceView(
+            playbackRouteVisibility: playbackRouteVisibility,
+            workbenchLeadingInset: workbenchLeadingInset,
+            workbenchTopInset: workbenchTopInset
+        )
     }
 
     private func collapseSidebarForCompactWindowIfNeeded(

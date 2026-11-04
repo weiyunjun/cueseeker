@@ -62,13 +62,13 @@ final class LibraryStore: ObservableObject {
     @Published var libraryStatus: LibraryStatus = .idle
     @Published var libraryVideos: [LibraryVideo] = []
     @Published var libraryFolderGroups: [LibraryFolderGroup] = []
-    @Published var libraryPresentationRevision = 0
+    var libraryPresentationRevision = 0
     @Published var recentWatchingStatus: LibraryStatus = .idle
     @Published var recentWatchingItems: [RecentLibraryWatchingPresentation] = []
-    @Published var recentWatchingRevision = 0
+    var recentWatchingRevision = 0
     @Published var testRecentWatchingStatus: LibraryStatus = .idle
     @Published var testRecentWatchingItems: [RecentLibraryWatchingPresentation] = []
-    @Published var testRecentWatchingRevision = 0
+    var testRecentWatchingRevision = 0
     @Published var completeLibraryStatus: LibraryStatus = .idle
     @Published var completeLibraryFolderSummaries: [CompleteLibraryFolderSummaryPresentation] = []
     @Published var overviewSearchDraft = ""
@@ -125,7 +125,7 @@ final class LibraryStore: ObservableObject {
         let standardized = URL.fromMediaPath(folderPath).mediaPath
         return fileObjectStatusByFolderPath[folderPath] ?? fileObjectStatusByFolderPath[standardized] ?? .idle
     }
-    @Published var libraryPlaybackHistoryRevision = 0
+    var libraryPlaybackHistoryRevision = 0
     var selectedLibraryVideo: LibraryVideo?
     @Published var coverEditingSession: LibraryCoverEditingSession?
     @Published var renameSession: LibraryRenameSession?

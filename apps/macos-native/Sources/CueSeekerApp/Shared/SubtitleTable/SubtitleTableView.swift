@@ -880,20 +880,34 @@ struct SubtitleTableView: NSViewRepresentable {
                 pinnedPageChromeHost = host
             }
 
-            if let headerView {
+            if let headerView, headerView.superview !== pageChromeViewport {
                 pageChromeViewport.addSubview(headerView)
             }
             if let pinnedPageChromeHost, let scrollablePageChromeHost {
-                pageChromeViewport.addSubview(
-                    pinnedPageChromeHost,
-                    positioned: .above,
-                    relativeTo: nil
-                )
-                pageChromeViewport.addSubview(
-                    scrollablePageChromeHost,
-                    positioned: .below,
-                    relativeTo: pinnedPageChromeHost
-                )
+                let subviews = pageChromeViewport.subviews
+                let expectedOrderMatches: Bool
+                if let headerView {
+                    expectedOrderMatches = subviews.count == 3
+                        && subviews[0] === headerView
+                        && subviews[1] === scrollablePageChromeHost
+                        && subviews[2] === pinnedPageChromeHost
+                } else {
+                    expectedOrderMatches = subviews.count == 2
+                        && subviews[0] === scrollablePageChromeHost
+                        && subviews[1] === pinnedPageChromeHost
+                }
+                if !expectedOrderMatches {
+                    pageChromeViewport.addSubview(
+                        pinnedPageChromeHost,
+                        positioned: .above,
+                        relativeTo: nil
+                    )
+                    pageChromeViewport.addSubview(
+                        scrollablePageChromeHost,
+                        positioned: .below,
+                        relativeTo: pinnedPageChromeHost
+                    )
+                }
             }
         }
 
