@@ -507,7 +507,7 @@ where Data.Element: Identifiable {
     }
 }
 
-private struct LibraryGridViewportObserver: NSViewRepresentable {
+struct LibraryGridViewportObserver: NSViewRepresentable {
     let rowCount: Int
     let initialRowCount: Int
     let onVisibleRowRangeChange: (ClosedRange<Int>) -> Void
@@ -564,23 +564,32 @@ private struct LibraryGridViewportObserver: NSViewRepresentable {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             bindScrollObservationIfNeeded()
+            guard window != nil, superview != nil else {
+                return
+            }
             reportVisibleRowsIfNeeded()
         }
 
         override func viewDidMoveToSuperview() {
             super.viewDidMoveToSuperview()
             bindScrollObservationIfNeeded()
+            guard window != nil, superview != nil else {
+                return
+            }
             reportVisibleRowsIfNeeded()
         }
 
         override func layout() {
             super.layout()
             bindScrollObservationIfNeeded()
+            guard window != nil, superview != nil else {
+                return
+            }
             reportVisibleRowsIfNeeded()
         }
 
         private func bindScrollObservationIfNeeded() {
-            let clipView = enclosingScrollView?.contentView
+            let clipView = (window != nil && superview != nil) ? enclosingScrollView?.contentView : nil
             guard clipView !== observedClipView else {
                 return
             }
@@ -608,34 +617,73 @@ private struct LibraryGridViewportObserver: NSViewRepresentable {
             reportVisibleRowsIfNeeded()
         }
 
+        static func clampedRowIndex(
+            _ rawIndex: CGFloat,
+            maxRowIndex: Int
+        ) -> Int? {
+            guard rawIndex.isFinite, maxRowIndex >= 0 else {
+                return nil
+            }
+            let clamped = min(max(0, rawIndex), CGFloat(maxRowIndex))
+            return Int(clamped)
+        }
+
         private func reportVisibleRowsIfNeeded() {
-            guard rowCount > 0, bounds.height > 0 else {
+            guard
+                superview != nil,
+                window != nil,
+                observedClipView != nil,
+                rowCount > 0,
+                bounds.height.isFinite,
+                bounds.height >= 1
+            else {
                 return
             }
             let visible = visibleRect
-            guard visible.height > 0 else {
+            guard
+                visible.minY.isFinite,
+                visible.maxY.isFinite,
+                visible.height.isFinite,
+                visible.height >= 1
+            else {
                 return
             }
             let rowHeight = bounds.height / CGFloat(max(1, rowCount))
-            guard rowHeight > 0 else {
+            guard rowHeight.isFinite, rowHeight >= 1 else {
                 return
             }
+            let maxRowIndex = rowCount - 1
             let range: ClosedRange<Int>
             if visible.minY <= 1 {
+                guard
+                    let bottomVisibleRow = Self.clampedRowIndex(
+                        ceil(visible.maxY / rowHeight) - 1,
+                        maxRowIndex: maxRowIndex
+                    )
+                else {
+                    return
+                }
                 let lastVisible = min(
-                    rowCount - 1,
+                    maxRowIndex,
                     max(
                         initialRowCount - 1,
-                        Int(ceil(visible.maxY / rowHeight)) - 1
+                        bottomVisibleRow
                     )
                 )
                 range = 0...max(0, lastVisible)
             } else {
-                let firstRow = max(0, Int(floor(visible.minY / rowHeight)) - 1)
-                let lastRow = min(
-                    rowCount - 1,
-                    Int(ceil(visible.maxY / rowHeight)) + 1
-                )
+                guard
+                    let firstRow = Self.clampedRowIndex(
+                        floor(visible.minY / rowHeight) - 1,
+                        maxRowIndex: maxRowIndex
+                    ),
+                    let lastRow = Self.clampedRowIndex(
+                        ceil(visible.maxY / rowHeight) + 1,
+                        maxRowIndex: maxRowIndex
+                    )
+                else {
+                    return
+                }
                 range = firstRow...max(firstRow, lastRow)
             }
             guard range != lastReportedRange else {

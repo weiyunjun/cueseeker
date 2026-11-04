@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -310,6 +311,39 @@ func libraryCoverImagePipelineRemovesOnlyTheReplacedPath() async throws {
     let diagnostics = await pipeline.diagnostics()
     #expect(diagnostics.cachedKeys == [retained])
     #expect(diagnostics.totalCostBytes == 16)
+}
+
+@MainActor
+@Test
+func libraryGridViewportObserverHandlesTeardownAndExtremeFloatValuesWithoutOverflow() {
+    #expect(LibraryGridViewportObserver.ObserverView.clampedRowIndex(.nan, maxRowIndex: 10) == nil)
+    #expect(LibraryGridViewportObserver.ObserverView.clampedRowIndex(.infinity, maxRowIndex: 10) == nil)
+    #expect(LibraryGridViewportObserver.ObserverView.clampedRowIndex(-.infinity, maxRowIndex: 10) == nil)
+    #expect(
+        LibraryGridViewportObserver.ObserverView.clampedRowIndex(
+            CGFloat.greatestFiniteMagnitude,
+            maxRowIndex: 10
+        ) == 10
+    )
+    #expect(
+        LibraryGridViewportObserver.ObserverView.clampedRowIndex(
+            -CGFloat.greatestFiniteMagnitude,
+            maxRowIndex: 10
+        ) == 0
+    )
+
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 1e-24))
+    let observer = LibraryGridViewportObserver.ObserverView(
+        frame: NSRect(x: 0, y: 0, width: 800, height: 1e-24)
+    )
+    var reportedRanges: [ClosedRange<Int>] = []
+    observer.update(rowCount: 12, initialRowCount: 5) { range in
+        reportedRanges.append(range)
+    }
+    container.addSubview(observer)
+    observer.layout()
+    observer.removeFromSuperview()
+    #expect(reportedRanges.isEmpty)
 }
 
 @Test
