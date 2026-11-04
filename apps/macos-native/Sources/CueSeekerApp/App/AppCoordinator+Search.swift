@@ -245,6 +245,30 @@ extension AppCoordinator {
         )
     }
 
+    func startCountOnlySearch(
+        query: String,
+        debounce: Bool,
+        filterSetOverride: SubtitleSearchFilterSet? = nil,
+        folderScopeOverride: [URL]? = nil
+    ) {
+        pendingURLSchemeDirectPlayIntent = nil
+        let folders = folderScopeOverride ?? indexing.selectedFolders
+        search.startCountOnlySearch(
+            query: query,
+            debounce: debounce,
+            folders: folders,
+            languageFilter: .all,
+            watchStateFilter: .all,
+            databaseIsCompacting: indexing.databaseMaintenanceStatus.isCompacting,
+            shouldClearSelectionWhenUnavailable: !isPlaybackPageVisible,
+            filterSetOverride: filterSetOverride,
+            probeScope: uiProbeScope,
+            isContextCurrent: { [weak self] in
+                self != nil
+            }
+        )
+    }
+
     func refreshSearchNavigationSnapshot() {
         loadSearchNavigationSnapshot(opening: nil)
     }

@@ -54,6 +54,7 @@ typealias PlaybackTextSelectionHit = (
 @MainActor
 protocol PlaybackVirtualReelContentAdapter: AnyObject {
     var snapshot: PlaybackVirtualReelSnapshot { get }
+    var presentationStyleToken: AnyHashable { get }
     var measurementCacheCountForTesting: Int { get }
     var measuredOrdinalsForTesting: Set<Int> { get }
 
@@ -93,6 +94,10 @@ protocol PlaybackVirtualReelContentAdapter: AnyObject {
 }
 
 extension PlaybackVirtualReelContentAdapter {
+    var presentationStyleToken: AnyHashable {
+        AnyHashable(0)
+    }
+
     var measurementCacheCountForTesting: Int {
         0
     }
@@ -446,6 +451,10 @@ final class PlaybackSubtitleFocusCueReelAdapter:
 
     var measurementCacheCountForTesting: Int {
         measurementCache.count
+    }
+
+    var presentationStyleToken: AnyHashable {
+        AnyHashable(displayTitle)
     }
 
     var measuredOrdinalsForTesting: Set<Int> {

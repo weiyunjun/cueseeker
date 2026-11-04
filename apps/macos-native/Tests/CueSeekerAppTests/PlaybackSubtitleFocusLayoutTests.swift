@@ -3348,3 +3348,53 @@ func subtitleFocusScrollAndFadeReusePreparedLayoutsAndStaticRowBitmaps() throws 
     view.invalidate()
 }
 
+@MainActor
+@Test
+func subtitleFocusCompleteBatchExpansionPreservesVisibleRowBitmapsWithoutRedundantMisses() throws {
+    _ = NSApplication.shared
+    let initialWindowCues = focusLayoutCues(0..<240)
+    let completeBatchCues = focusLayoutCues(0..<1_200)
+    let view = PlaybackSubtitleFocusReelContainerView(
+        frame: CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    )
+    view.update(
+        cues: initialWindowCues,
+        totalCount: 1_200,
+        selectedOrdinal: 120,
+        displayTitle: "Bocchi the Rock! - 10",
+        contentGeneration: 7,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+    view.cacheDisplay(in: view.bounds, to: rep)
+    let visiblePlacementCount = view.placementsForTesting.filter {
+        $0.rect.intersects(view.bounds)
+    }.count
+    #expect(visiblePlacementCount > 0)
+
+    view.resetRowDrawCountersForTesting()
+    view.update(
+        cues: completeBatchCues,
+        totalCount: 1_200,
+        selectedOrdinal: 120,
+        displayTitle: "Bocchi the Rock! - 10",
+        contentGeneration: 7,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    view.cacheDisplay(in: view.bounds, to: rep)
+
+    #expect(view.rowBitmapCacheMissCountForTesting == 0)
+    #expect(view.rowBitmapCacheHitCountForTesting == visiblePlacementCount)
+    view.invalidate()
+}
+
+

@@ -73,6 +73,7 @@ final class SearchStore: ObservableObject {
     private(set) var hasMoreSearchResults = false
     @Published private(set) var resultRevision: UInt64 = 0
     private(set) var isPlaybackPruningActive = false
+    var isCountOnlySearchSnapshot = false
     private(set) var searchSnapshotMutationRevision: UInt64 = 0
     private(set) var pendingReappearanceRefreshMode: SearchReappearanceRefreshMode = .none
     @Published private(set) var activeFilterSet = SubtitleSearchFilterSet()
@@ -684,6 +685,7 @@ final class SearchStore: ObservableObject {
         nextCursor: SubtitleSearchCursor? = nil
     ) {
         commitResultMutation {
+            isCountOnlySearchSnapshot = false
             setLoadedSearchResults(results, orderedCueIDs: orderedCueIDs)
             searchStatus = status
             searchResultTotalCount = totalCount
@@ -705,6 +707,7 @@ final class SearchStore: ObservableObject {
     ) -> Bool {
         var completesSearch = false
         commitResultMutation {
+            isCountOnlySearchSnapshot = false
             let loadedResultCount: Int
             if appending {
                 let existingIDs = Set(searchResults.map(\.entryID))
@@ -764,6 +767,7 @@ final class SearchStore: ObservableObject {
             return false
         }
         commitResultMutation {
+            isCountOnlySearchSnapshot = false
             let loadedResultCount: Int
             if let prebuiltCompletion,
                !prebuiltCompletion.cueIDs.isEmpty {
@@ -821,6 +825,49 @@ final class SearchStore: ObservableObject {
             updateSearchSnapshotMutationRevision()
         }
         return true
+    }
+
+    @discardableResult
+    func commitCountOnlySearch(
+        totalCount: Int,
+        generation: UInt64
+    ) -> Bool {
+        guard generation == resultListGeneration else {
+            return false
+        }
+        let resolvedTotalCount = max(0, totalCount)
+        commitResultMutation {
+            setLoadedSearchResults([], orderedCueIDs: [])
+            isCountOnlySearchSnapshot = true
+            searchResultTotalCount = resolvedTotalCount
+            searchFileSummaries = []
+            searchCountState = .exact
+            searchKnownResultCount = resolvedTotalCount
+            searchKnownFileCount = 0
+            hasMoreSearchResults = false
+            loadedGlobalResultCount = 0
+            nextGlobalCursor = nil
+            searchNavigationSnapshot = nil
+            searchStatus = .completed
+            updateSearchSnapshotMutationRevision()
+        }
+        pendingReappearanceRefreshMode = resolvedTotalCount > 0 ? .rerunSearch : .none
+        return true
+    }
+
+    func promoteZeroCountOnlySearchToCompletedEmptyResults() {
+        guard isCountOnlySearchSnapshot,
+              searchStatus == .completed,
+              searchCountState == .exact,
+              searchResultTotalCount == 0
+        else {
+            return
+        }
+        commitResultMutation {
+            isCountOnlySearchSnapshot = false
+            pendingReappearanceRefreshMode = .none
+            setSearchFacetSnapshot(.empty, precomputedDistribution: .zero)
+        }
     }
 
     func activatePlaybackPruning() {
@@ -928,12 +975,15 @@ final class SearchStore: ObservableObject {
         resetPlaybackPruning()
         pendingReappearanceRefreshMode = .none
         updateSearchSnapshotMutationRevision()
-        let releasedRows = max(
-            loadedSearchResultCount,
-            searchResultCueIDs.count,
-            searchResultTotalCount
-        )
+        let releasedRows = isCountOnlySearchSnapshot
+            ? max(loadedSearchResultCount, searchResultCueIDs.count)
+            : max(
+                loadedSearchResultCount,
+                searchResultCueIDs.count,
+                searchResultTotalCount
+            )
         commitResultMutation {
+            isCountOnlySearchSnapshot = false
             setLoadedSearchResults([], orderedCueIDs: [])
             searchResultTotalCount = 0
             searchFileSummaries = []

@@ -51,6 +51,10 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         measurementCache.count
     }
 
+    var presentationStyleToken: AnyHashable {
+        AnyHashable(showsCueGroup)
+    }
+
     var measuredOrdinalsForTesting: Set<Int> {
         Set(measuredOrdinalAccess.keys)
     }

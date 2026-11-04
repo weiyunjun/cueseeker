@@ -16,6 +16,47 @@ private final class SearchReportedRows: @unchecked Sendable {
     var results: [SubtitleSearchResult] = []
 }
 
+private final class SearchInterruptibleReadHandle: @unchecked Sendable {
+    private let lock = NSLock()
+    private let database: SearchDatabase
+    private var token: UInt64 = 0
+    private var isCancelled = false
+
+    init(database: SearchDatabase) {
+        self.database = database
+    }
+
+    func begin() throws -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        if isCancelled {
+            throw CancellationError()
+        }
+        let assigned = database.beginInterruptibleRead()
+        token = assigned
+        return assigned
+    }
+
+    func end(_ assigned: UInt64) {
+        lock.lock()
+        if token == assigned {
+            token = 0
+        }
+        lock.unlock()
+        database.endInterruptibleRead(token: assigned)
+    }
+
+    func cancel() {
+        lock.lock()
+        isCancelled = true
+        let activeToken = token
+        lock.unlock()
+        if activeToken != 0 {
+            database.interruptRead(token: activeToken)
+        }
+    }
+}
+
 @MainActor
 extension SearchStore {
     nonisolated static let searchPageSize = 100
@@ -159,12 +200,15 @@ extension SearchStore {
                 let (firstPages, firstPageContinuation) = AsyncStream.makeStream(
                     of: SearchStorePageLoad.self
                 )
+                let interruptHandle = SearchInterruptibleReadHandle(database: database)
                 // Not `async let`: in release builds Swift 6.1 frees an async let
                 // with a result this large out of order, and the runtime aborts
                 // the App as the search finishes.
                 let scan = Task.detached(priority: .userInitiated) {
                     defer { firstPageContinuation.finish() }
                     let started = SearchPerformanceLogger.now()
+                    let interruptToken = try interruptHandle.begin()
+                    defer { interruptHandle.end(interruptToken) }
                     guard !appending else {
                         let page = try database.searchVisiblePage(
                             trimmedQuery,
@@ -288,25 +332,27 @@ extension SearchStore {
 
                 var publishedFirstPage = false
                 var consumedFirstPage = false
-                for await firstPage in firstPages where isCurrent() {
-                    self.commitVisibleSearchPage(firstPage.page, appending: false, offset: 0)
-                    onResultsChanged(generation)
-                    publishedFirstPage = true
-                    SearchPerformanceLogger.mark(
-                        run,
-                        "search_visible_page_loaded",
-                        resultCount: self.loadedSearchResultCueIDs.count,
-                        totalCount: self.searchResultTotalCount,
-                        fileSummaryCount: self.searchFileSummaries.count,
-                        groupCount: self.searchFileSummaries.count,
-                        renderedRowCount: self.loadedSearchResultCueIDs.count,
-                        status: "searching"
-                    )
-                    consumedFirstPage = onFirstPageResolved(firstPage.page.results.first)
-                }
                 let pageLoad = try await withTaskCancellationHandler {
-                    try await scan.value
+                    for await firstPage in firstPages where isCurrent() {
+                        self.commitVisibleSearchPage(firstPage.page, appending: false, offset: 0)
+                        onResultsChanged(generation)
+                        publishedFirstPage = true
+                        SearchPerformanceLogger.mark(
+                            run,
+                            "search_visible_page_loaded",
+                            resultCount: self.loadedSearchResultCueIDs.count,
+                            totalCount: self.searchResultTotalCount,
+                            fileSummaryCount: self.searchFileSummaries.count,
+                            groupCount: self.searchFileSummaries.count,
+                            renderedRowCount: self.loadedSearchResultCueIDs.count,
+                            status: "searching"
+                        )
+                        consumedFirstPage = onFirstPageResolved(firstPage.page.results.first)
+                    }
+                    return try await scan.value
                 } onCancel: {
+                    interruptHandle.cancel()
+                    firstPageContinuation.finish()
                     scan.cancel()
                 }
                 let page = pageLoad.page
@@ -450,6 +496,140 @@ extension SearchStore {
                 )
                 self.clearPerformanceRunIfActive(run)
                 _ = onFirstPageResolved(nil)
+            }
+        })
+    }
+
+    func startCountOnlySearch(
+        query: String,
+        debounce: Bool,
+        folders: [URL],
+        languageFilter: SubtitleSearchLanguageFilter,
+        watchStateFilter: SubtitleSearchWatchStateFilter,
+        databaseIsCompacting: Bool,
+        shouldClearSelectionWhenUnavailable: Bool,
+        filterSetOverride: SubtitleSearchFilterSet? = nil,
+        probeScope: String? = nil,
+        isContextCurrent: @escaping @MainActor () -> Bool
+    ) {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filterSet = filterSetOverride ?? activeFilterSet
+        let filterSignature = filterSet.cacheSignature
+        let scopeGeneration = folderScopeGeneration
+        let generation = prepareSearch(
+            appending: false,
+            filterSet: filterSet
+        )
+        let facetFilter = resultFacetFilter
+
+        if let activePerformanceRun {
+            SearchPerformanceLogger.mark(
+                activePerformanceRun,
+                "search_superseded_by_new_search"
+            )
+            updateActivePerformanceRun(nil)
+        }
+
+        resetResultLoadingState()
+
+        guard !trimmedQuery.isEmpty else {
+            markSearchIdle()
+            return
+        }
+
+        guard !folders.isEmpty else {
+            markSearchCompleted()
+            if shouldClearSelectionWhenUnavailable {
+                selectResult(nil)
+            }
+            return
+        }
+
+        isCountOnlySearchSnapshot = true
+        markPendingReappearanceRefresh(.rerunSearch)
+        markSearchInProgress()
+
+        guard !databaseIsCompacting else {
+            markSearchFailed(L("status.compaction_running"), hasMore: false)
+            return
+        }
+
+        guard let database else {
+            markSearchFailed(L("status.database_not_initialized"), hasMore: false)
+            return
+        }
+
+        UIInvalidationProbe.count(
+            "search.count_query_requested",
+            scope: probeScope,
+            details: "length=\(trimmedQuery.count)"
+        )
+        replaceSearchTask(Task { [weak self] in
+            guard let self else { return }
+            do {
+                if debounce {
+                    try await Task.sleep(
+                        nanoseconds: Self.searchInputDebounceNanoseconds
+                    )
+                }
+                let interruptHandle = SearchInterruptibleReadHandle(database: database)
+                let scan = Task.detached(priority: .userInitiated) {
+                    let started = SearchPerformanceLogger.now()
+                    let interruptToken = try interruptHandle.begin()
+                    defer { interruptHandle.end(interruptToken) }
+                    let totalCount = try database.searchResultCount(
+                        trimmedQuery,
+                        under: folders,
+                        languageFilter: languageFilter,
+                        watchStateFilter: watchStateFilter,
+                        filterSet: filterSet,
+                        facetFilter: facetFilter
+                    )
+                    let elapsedMs = SearchPerformanceLogger.elapsedMilliseconds(since: started)
+                    return (totalCount: totalCount, databaseSearchMilliseconds: elapsedMs)
+                }
+
+                let result = try await withTaskCancellationHandler {
+                    try await scan.value
+                } onCancel: {
+                    interruptHandle.cancel()
+                    scan.cancel()
+                }
+
+                guard !Task.isCancelled,
+                      generation == self.resultListGeneration,
+                      self.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                      self.resultFilterSetSignature == filterSignature,
+                      isContextCurrent()
+                else {
+                    return
+                }
+
+                self.commitCountOnlySearch(
+                    totalCount: result.totalCount,
+                    generation: generation
+                )
+                AppLogger.shared.info(
+                    .search,
+                    "Search count completed",
+                    fields: [
+                        ("query", trimmedQuery),
+                        ("results", "\(result.totalCount)"),
+                        ("filtered", "\(!facetFilter.isEmpty)"),
+                        ("db_ms", String(format: "%.1f", result.databaseSearchMilliseconds))
+                    ]
+                )
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled,
+                      self.acceptsFolderScope(folders, generation: scopeGeneration)
+                else {
+                    return
+                }
+                self.resetResultLoadingState()
+                let message = String(describing: error)
+                self.markSearchFailed(message, hasMore: false)
             }
         })
     }

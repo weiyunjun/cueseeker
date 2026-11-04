@@ -980,7 +980,7 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
 
 @MainActor
 @Test
-func playbackCommandPanelRootLiveSearchUpdatesExactCountAndReusesCompletedSearch() async throws {
+func playbackCommandPanelRootLiveSearchUpdatesExactCountAndLoadsResultsOnDemand() async throws {
     try await withKeyboardActionApp { app, _ in
         app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media")]
         app.playback.isPlaybackSurfaceExpanded = true
@@ -997,7 +997,9 @@ func playbackCommandPanelRootLiveSearchUpdatesExactCountAndReusesCompletedSearch
 
         await app.search.searchTask?.value
         #expect(app.search.searchStatus == .completed)
-        #expect(app.search.searchFacetSnapshot != nil)
+        #expect(app.search.isCountOnlySearchSnapshot)
+        #expect(app.search.loadedSearchResultCount == 0)
+        #expect(app.search.searchFacetSnapshot == nil)
         #expect(
             app.search.exactSearchResultTotalCount(
                 matchingQuery: "keyboard action  "
@@ -1009,25 +1011,46 @@ func playbackCommandPanelRootLiveSearchUpdatesExactCountAndReusesCompletedSearch
             ) == nil
         )
 
-        let completedGeneration = app.search.resultListGeneration
+        let countOnlyGeneration = app.search.resultListGeneration
         #expect(app.submitPlaybackCommandPanelSearch())
         #expect(app.playback.commandPanelPresentation?.page == .searchResults)
-        #expect(app.search.resultListGeneration == completedGeneration)
+        #expect(app.search.resultListGeneration > countOnlyGeneration)
+        await app.search.searchTask?.value
+        #expect(!app.search.isCountOnlySearchSnapshot)
         #expect(app.search.searchFacetSnapshot != nil)
         #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 30)
+        #expect(app.playback.commandPanelSearchWindow?.snapshot.loadedItemCount == 30)
 
-        // Returning to root, typing a new query, and submitting immediately
-        // during debounce reuses the in-flight search without restarting it.
+        // Returning to root with a zero-hit query promotes the count-only
+        // snapshot in-place without starting a second database scan.
         #expect(app.returnPlaybackCommandPanelToRoot())
-        app.updatePlaybackCommandPanelQuery("keyboard action cue 1")
-        let inFlightGeneration = app.search.resultListGeneration
-        #expect(app.search.searchStatus == .searching)
+        app.updatePlaybackCommandPanelQuery("definitely-not-a-matching-cue")
+        await app.search.searchTask?.value
+        #expect(app.search.isCountOnlySearchSnapshot)
+        #expect(
+            app.search.exactSearchResultTotalCount(
+                matchingQuery: "definitely-not-a-matching-cue"
+            ) == 0
+        )
+        let zeroCountGeneration = app.search.resultListGeneration
         #expect(app.submitPlaybackCommandPanelSearch())
         #expect(app.playback.commandPanelPresentation?.page == .searchResults)
-        #expect(app.search.resultListGeneration == inFlightGeneration)
+        #expect(app.search.resultListGeneration == zeroCountGeneration)
+        #expect(!app.search.isCountOnlySearchSnapshot)
+        #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 0)
+
+        // Exiting Playback after a Root count-only search automatically loads
+        // full search results when Workbench Search reappears.
+        #expect(app.returnPlaybackCommandPanelToRoot())
+        app.updatePlaybackCommandPanelQuery("keyboard action cue 1")
         await app.search.searchTask?.value
-        #expect(app.search.resultListGeneration == inFlightGeneration)
-        #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount ?? 0 > 0)
+        #expect(app.search.isCountOnlySearchSnapshot)
+        #expect(app.search.loadedSearchResultCount == 0)
+        app.refreshSearchOnReappearanceIfNeeded()
+        await app.search.searchTask?.value
+        #expect(!app.search.isCountOnlySearchSnapshot)
+        #expect(app.search.loadedSearchResultCount > 0)
+        #expect(app.search.searchFacetSnapshot != nil)
     }
 }
 

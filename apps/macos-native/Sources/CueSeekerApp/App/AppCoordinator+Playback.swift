@@ -811,7 +811,8 @@ extension AppCoordinator {
         format: SubtitleFormat,
         videoPath: String,
         startingAtMilliseconds startMilliseconds: Int,
-        fallbackEndMilliseconds: Int
+        fallbackEndMilliseconds: Int,
+        includesPreparationTimeWindow: Bool = true
     ) -> PlaybackSubtitleSource? {
         let playbackFormat: PlaybackSubtitleSourceFormat
         switch format {
@@ -822,17 +823,23 @@ extension AppCoordinator {
         }
 
         let videoURL = URL.fromMediaPath(videoPath)
+        let preparationTimeWindow = includesPreparationTimeWindow
+            ? playbackSubtitleTimeWindow(
+                forSubtitleFile: subtitleURL,
+                startingAtMilliseconds: startMilliseconds,
+                fallbackEndMilliseconds: fallbackEndMilliseconds
+            )
+            : PlaybackSubtitleTimeWindow(
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: fallbackEndMilliseconds
+            )
 
         return PlaybackSubtitleSource(
             url: subtitleURL,
             format: playbackFormat,
             matchedVideoURL: videoURL,
             initialTimestampMilliseconds: startMilliseconds,
-            preparationTimeWindow: playbackSubtitleTimeWindow(
-                forSubtitleFile: subtitleURL,
-                startingAtMilliseconds: startMilliseconds,
-                fallbackEndMilliseconds: fallbackEndMilliseconds
-            ),
+            preparationTimeWindow: preparationTimeWindow,
             renderCacheProvider: PlaybackSubtitleRenderCacheReader(databaseURL: databaseURL)
         )
     }

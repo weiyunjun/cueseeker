@@ -35,6 +35,9 @@ final class SQLiteDatabase: @unchecked Sendable {
     static let mmapSizeBytes: Int = 256 * 1024 * 1024
 
     private let lock = NSRecursiveLock()
+    private let interruptLock = NSLock()
+    private var nextInterruptToken: UInt64 = 0
+    private var activeInterruptToken: UInt64 = 0
     private var handle: OpaquePointer?
 
     init(
@@ -70,7 +73,44 @@ final class SQLiteDatabase: @unchecked Sendable {
     }
 
     deinit {
-        sqlite3_close(handle)
+        interruptLock.lock()
+        let currentHandle = handle
+        handle = nil
+        activeInterruptToken = 0
+        interruptLock.unlock()
+        if let currentHandle {
+            sqlite3_close(currentHandle)
+        }
+    }
+
+    func beginInterruptibleExecution() -> UInt64 {
+        interruptLock.lock()
+        defer { interruptLock.unlock() }
+        nextInterruptToken &+= 1
+        if nextInterruptToken == 0 {
+            nextInterruptToken = 1
+        }
+        activeInterruptToken = nextInterruptToken
+        return activeInterruptToken
+    }
+
+    func endInterruptibleExecution(token: UInt64) {
+        interruptLock.lock()
+        if activeInterruptToken == token {
+            activeInterruptToken = 0
+        }
+        interruptLock.unlock()
+    }
+
+    func interrupt(token: UInt64) {
+        guard token != 0 else {
+            return
+        }
+        interruptLock.lock()
+        if activeInterruptToken == token, let handle {
+            sqlite3_interrupt(handle)
+        }
+        interruptLock.unlock()
     }
 
     func execute(_ sql: String) throws {
@@ -317,8 +357,16 @@ final class SQLiteStatement {
                 return true
             case SQLITE_DONE:
                 return false
+            case SQLITE_INTERRUPT:
+                sqlite3_reset(statement)
+                throw CancellationError()
             default:
-                throw SQLiteDatabaseError.stepFailed(database.lastErrorMessage)
+                let message = database.lastErrorMessage
+                sqlite3_reset(statement)
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
+                throw SQLiteDatabaseError.stepFailed(message)
             }
         }
     }

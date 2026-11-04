@@ -524,6 +524,33 @@ public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiabl
             coverRevision: revision
         )
     }
+
+    public func replacingPlaybackHistory(_ history: LibraryPlaybackHistory?) -> Self {
+        Self(
+            videoFileID: videoFileID,
+            subtitleFileID: subtitleFileID,
+            videoPath: videoPath,
+            videoName: videoName,
+            fileSize: fileSize,
+            videoCodec: videoCodec,
+            videoWidth: videoWidth,
+            videoHeight: videoHeight,
+            frameRate: frameRate,
+            duration: duration,
+            subtitlePath: subtitlePath,
+            subtitleFormat: subtitleFormat,
+            displayTitle: displayTitle,
+            fileExtension: fileExtension,
+            episodeNumber: episodeNumber,
+            positionMilliseconds: history?.positionMilliseconds ?? 0,
+            playbackDuration: history?.duration,
+            startedAt: history?.startedAt,
+            completedAt: history?.completedAt,
+            historyUpdatedAt: history?.updatedAt,
+            coverPath: coverPath,
+            coverRevision: coverRevision
+        )
+    }
 }
 
 public struct CompleteLibraryFolderSummaryPresentation: Equatable, Sendable, Identifiable {
@@ -659,6 +686,24 @@ public struct CompleteLibraryFolderDetailPresentation: Equatable, Sendable, Iden
                 video.videoPath == videoPath
                     ? video.replacingCover(path: coverPath, revision: coverRevision)
                     : video
+            }
+        )
+    }
+
+    public func replacingPlaybackHistories(
+        _ historiesByVideoPath: [String: LibraryPlaybackHistory?]
+    ) -> Self {
+        guard !historiesByVideoPath.isEmpty else {
+            return self
+        }
+        return Self(
+            folderPath: folderPath,
+            folderTitle: folderTitle,
+            videos: videos.map { video in
+                guard let history = historiesByVideoPath[video.videoPath] else {
+                    return video
+                }
+                return video.replacingPlaybackHistory(history)
             }
         )
     }

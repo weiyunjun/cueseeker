@@ -147,12 +147,14 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         var duration: TimeInterval
     }
 
+    private static let sRGBColorSpace = CGColorSpace(name: CGColorSpace.sRGB)
+
     private struct RowBitmapCacheKey: Hashable {
         let itemID: AnyHashable
         let ordinal: Int
         let datasetID: AnyHashable
         let generation: UInt64
-        let revision: UInt64
+        let presentationStyleToken: AnyHashable
         let pixelWidth: Int
         let pixelHeight: Int
         let isSelectedSteadyState: Bool
@@ -183,13 +185,14 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     )
     private var contentAdapter: (any PlaybackVirtualReelContentAdapter)?
     private var contentSnapshot: PlaybackVirtualReelSnapshot?
+    private var lastPresentationStyleToken = AnyHashable(0)
     private var selectedOrdinal: Int?
     private var cueFocusAnimations: [Int: CueFocusAnimation] = [:]
     private var focusAnimationTimer: Timer?
     private var focusDisplayLink: AnyObject?
     private var focusFadeInDebounceDeadline: TimeInterval?
     private var focusClockTime: TimeInterval = ProcessInfo.processInfo.systemUptime
-    private let rowBitmapCacheCapacity = 32
+    private let rowBitmapCacheCapacity = 18
     private var rowBitmapCache: [RowBitmapCacheKey: RowBitmapCacheEntry] = [:]
     private var rowBitmapCacheAccessSequence: UInt64 = 0
     private(set) var rowBitmapCacheHitCountForTesting = 0
@@ -221,6 +224,13 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
 
     override var acceptsFirstResponder: Bool {
         false
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            rowBitmapCache.removeAll(keepingCapacity: false)
+        }
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -262,11 +272,13 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         guard snapshot.isValid else {
             return
         }
+        let presentationStyleToken = contentAdapter.presentationStyleToken
         if snapshot == contentSnapshot {
             if let previousAdapter = self.contentAdapter,
                previousAdapter !== contentAdapter {
                 previousAdapter.invalidate()
                 self.contentAdapter = contentAdapter
+                lastPresentationStyleToken = presentationStyleToken
                 rowBitmapCache.removeAll(keepingCapacity: true)
                 resolveLocalPlacementsIfNeeded()
                 needsDisplay = true
@@ -286,7 +298,13 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
             }
             return
         }
-        clearTextSelection()
+        let isSameDataset = contentSnapshot?.belongsToSameDataset(as: snapshot) == true
+        let preservesRowBitmaps = isSameDataset
+            && self.contentAdapter === contentAdapter
+            && lastPresentationStyleToken == presentationStyleToken
+        if !preservesRowBitmaps {
+            clearTextSelection()
+        }
         if let previousAdapter = self.contentAdapter,
            previousAdapter !== contentAdapter {
             previousAdapter.invalidate()
@@ -298,11 +316,17 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
             cueFocusAnimations.removeAll(keepingCapacity: true)
             placements.removeAll(keepingCapacity: true)
         }
-        rowBitmapCache.removeAll(keepingCapacity: true)
+        if !preservesRowBitmaps {
+            rowBitmapCache.removeAll(keepingCapacity: true)
+        }
+        let previousPlacements = placements
         self.contentAdapter = contentAdapter
         contentSnapshot = snapshot
+        lastPresentationStyleToken = presentationStyleToken
         resolveLocalPlacementsIfNeeded()
-        needsDisplay = true
+        if !preservesRowBitmaps || placements != previousPlacements {
+            needsDisplay = true
+        }
     }
 
     func setImmediateSelection(_ ordinal: Int?) {
@@ -584,9 +608,11 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         guard self.layout != layout else {
             return
         }
+        let previousViewportSize = self.layout.viewportSize
         if self.layout.contentWidth != layout.contentWidth {
             clearTextSelection()
         }
+        let previousPlacements = placements
         self.layout = layout
         UIInvalidationProbe.count(
             "playback.subtitle_focus.layout_update",
@@ -594,7 +620,10 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
             details: "ordinal=\(layout.fractionalOrdinal)"
         )
         resolveLocalPlacementsIfNeeded()
-        needsDisplay = true
+        if placements != previousPlacements
+            || previousViewportSize != layout.viewportSize {
+            needsDisplay = true
+        }
     }
 
     func invalidate() {
@@ -602,10 +631,11 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         stopFocusAnimationTimer()
         focusFadeInDebounceDeadline = nil
         cueFocusAnimations.removeAll(keepingCapacity: false)
-        rowBitmapCache.removeAll(keepingCapacity: true)
+        rowBitmapCache.removeAll(keepingCapacity: false)
         contentAdapter?.invalidate()
         contentAdapter = nil
         contentSnapshot = nil
+        lastPresentationStyleToken = AnyHashable(0)
         selectedOrdinal = nil
         collageSelectedCueIDs = nil
         collageCanSelectAnotherCue = true
@@ -663,12 +693,14 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
                     from: [.darkAqua, .aqua]
                 ) == .darkAqua
                 let snapshot = contentSnapshot ?? contentAdapter?.snapshot
+                let presentationStyleToken = contentAdapter?.presentationStyleToken
+                    ?? lastPresentationStyleToken
                 let key = RowBitmapCacheKey(
                     itemID: placement.itemID,
                     ordinal: placement.ordinal,
                     datasetID: snapshot?.datasetID ?? AnyHashable(0),
                     generation: snapshot?.generation ?? 0,
-                    revision: snapshot?.revision ?? 0,
+                    presentationStyleToken: presentationStyleToken,
                     pixelWidth: pixelWidth,
                     pixelHeight: pixelHeight,
                     isSelectedSteadyState: isSelectedSteadyState,
@@ -686,16 +718,20 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
                     continue
                 }
                 rowBitmapCacheMissCountForTesting += 1
-                if let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-                   let bitmapContext = CGContext(
-                       data: nil,
-                       width: pixelWidth,
-                       height: pixelHeight,
-                       bitsPerComponent: 8,
-                       bytesPerRow: 0,
-                       space: colorSpace,
-                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                   ) {
+                let renderedImage: CGImage? = autoreleasepool {
+                    guard let colorSpace = Self.sRGBColorSpace,
+                          let bitmapContext = CGContext(
+                              data: nil,
+                              width: pixelWidth,
+                              height: pixelHeight,
+                              bitsPerComponent: 8,
+                              bytesPerRow: 0,
+                              space: colorSpace,
+                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                          )
+                    else {
+                        return nil
+                    }
                     bitmapContext.translateBy(x: 0, y: CGFloat(pixelHeight))
                     bitmapContext.scaleBy(x: scale, y: -scale)
                     bitmapContext.translateBy(
@@ -716,21 +752,22 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
                         selectedTextRange: nil
                     )
                     NSGraphicsContext.current = previousGraphicsContext
-                    if let image = bitmapContext.makeImage() {
-                        rowBitmapCacheAccessSequence &+= 1
-                        if rowBitmapCache.count >= rowBitmapCacheCapacity,
-                           let oldestKey = rowBitmapCache.min(by: {
-                               $0.value.lastAccess < $1.value.lastAccess
-                           })?.key {
-                            rowBitmapCache.removeValue(forKey: oldestKey)
-                        }
-                        rowBitmapCache[key] = RowBitmapCacheEntry(
-                            image: image,
-                            lastAccess: rowBitmapCacheAccessSequence
-                        )
-                        drawCachedRowImage(image, in: placement.rect)
-                        continue
+                    return bitmapContext.makeImage()
+                }
+                if let image = renderedImage {
+                    rowBitmapCacheAccessSequence &+= 1
+                    if rowBitmapCache.count >= rowBitmapCacheCapacity,
+                       let oldestKey = rowBitmapCache.min(by: {
+                           $0.value.lastAccess < $1.value.lastAccess
+                       })?.key {
+                        rowBitmapCache.removeValue(forKey: oldestKey)
                     }
+                    rowBitmapCache[key] = RowBitmapCacheEntry(
+                        image: image,
+                        lastAccess: rowBitmapCacheAccessSequence
+                    )
+                    drawCachedRowImage(image, in: placement.rect)
+                    continue
                 }
                 drawRowDirectly(
                     placement: placement,

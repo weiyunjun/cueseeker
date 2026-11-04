@@ -101,11 +101,20 @@ extension AppCoordinator {
             return false
         }
 
-        let isReusingRootLiveSearch = previousPage == .root
+        let matchesCurrentSnapshotQuery = previousPage == .root
             && search.searchQuery.trimmingCharacters(
                 in: .whitespacesAndNewlines
             ) == trimmedQuery
             && !search.hasMutatedSinceSearchSnapshot
+        if matchesCurrentSnapshotQuery,
+           search.isCountOnlySearchSnapshot,
+           search.searchStatus == .completed,
+           search.searchCountState == .exact,
+           search.searchResultTotalCount == 0 {
+            search.promoteZeroCountOnlySearchToCompletedEmptyResults()
+        }
+        let isReusingRootLiveSearch = matchesCurrentSnapshotQuery
+            && !search.isCountOnlySearchSnapshot
             && (search.searchStatus == .searching
                 || (search.searchStatus == .completed
                     && search.searchCountState == .exact))
@@ -170,7 +179,17 @@ extension AppCoordinator {
         else {
             return
         }
-        updateSearchQuery(normalizedQuery)
+        search.updateQuery(normalizedQuery)
+        let updatedQuery = search.searchQuery
+        UIInvalidationProbe.mark(
+            "ACTION UI.SearchQuery.changed",
+            details: "length=\(updatedQuery.count)"
+        )
+        search.updateActiveFilterSet(SubtitleSearchFilterSet())
+        startCountOnlySearch(
+            query: updatedQuery,
+            debounce: true
+        )
     }
 
     @discardableResult

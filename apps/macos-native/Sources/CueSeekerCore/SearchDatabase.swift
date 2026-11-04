@@ -15,6 +15,18 @@ public final class SearchDatabase: @unchecked Sendable {
         database = try SQLiteDatabase(path: path, access: access, directIO: directIO)
     }
 
+    public func beginInterruptibleRead() -> UInt64 {
+        database.beginInterruptibleExecution()
+    }
+
+    public func endInterruptibleRead(token: UInt64) {
+        database.endInterruptibleExecution(token: token)
+    }
+
+    public func interruptRead(token: UInt64) {
+        database.interrupt(token: token)
+    }
+
     public func cueFacetDistribution() throws -> CueFacetDistribution {
         try CueFacetCountCache.load(from: database)
     }
@@ -28,13 +40,85 @@ public final class SearchDatabase: @unchecked Sendable {
             return 0
         }
 
-        return try searchPage(
+        return try searchResultCount(
             trimmedQuery,
-            limit: 1,
-            cursor: .start,
-            under: folders,
-            mode: .exact
-        ).totalCount
+            under: folders
+        )
+    }
+
+    public func searchResultCount(
+        _ query: String,
+        under folders: [URL]? = nil,
+        inSubtitlePath subtitlePath: String? = nil,
+        languageFilter: SubtitleSearchLanguageFilter = .all,
+        watchStateFilter: SubtitleSearchWatchStateFilter = .all,
+        filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
+        facetFilter: CueFacetFilter = CueFacetFilter()
+    ) throws -> Int {
+        let emitter = SearchDiagnosticEmitter(sink: nil)
+        guard let scope = resolveSearchPageScope(
+            query: query,
+            appliedCursor: .start,
+            folders: folders,
+            subtitlePath: subtitlePath,
+            languageFilter: languageFilter,
+            watchStateFilter: watchStateFilter,
+            filterSet: filterSet,
+            emitter: emitter
+        ) else {
+            return 0
+        }
+
+        do {
+            return try database.withReadTransaction {
+                try Task.checkCancellation()
+                try requireCompleteSearchOrderRows(
+                    pathPrefixes: scope.pathPrefixes,
+                    subtitlePath: scope.subtitlePathFilter
+                )
+
+                let allowedFiles = try searchCountAllowedFiles(
+                    pathPrefixes: scope.pathPrefixes,
+                    subtitlePath: scope.subtitlePathFilter,
+                    watchStateFilter: watchStateFilter,
+                    facetFilter: facetFilter
+                )
+                guard !allowedFiles.isEmpty else {
+                    return 0
+                }
+
+                let hitRowIDs = try matchingFTSHitRowIDsForCount(
+                    matching: scope.plan.ftsQuery,
+                    allowedFiles: allowedFiles
+                )
+                guard !hitRowIDs.isEmpty else {
+                    return 0
+                }
+
+                let languageFilterCodes = Self.languageCodesForSearchFilter(languageFilter)
+                let requiredLanguageMask = languageFilterCodes.isEmpty
+                    ? 0
+                    : CueLineLanguages.mask(for: Set(languageFilterCodes))
+                let facetLanguageMask = facetFilter.languages.isEmpty
+                    ? 0
+                    : CueLineLanguages.mask(for: facetFilter.languages)
+
+                return try countMatchingCoveringCueLines(
+                    forFTSRowIDs: hitRowIDs,
+                    allowedFiles: allowedFiles,
+                    matching: scope.plan,
+                    requiredLanguageMask: requiredLanguageMask,
+                    facetLanguageMask: facetLanguageMask,
+                    facetFilter: facetFilter,
+                    filterSet: filterSet
+                )
+            }
+        } catch {
+            if Self.isFTSSyntaxError(error) {
+                return 0
+            }
+            throw error
+        }
     }
 
     private static func cueTimeRange(startMilliseconds: Int, endMilliseconds: Int) -> String {
@@ -1974,7 +2058,7 @@ public final class SearchDatabase: @unchecked Sendable {
         var stepped = 0
         while try statement.step() {
             stepped += 1
-            if stepped % 4096 == 0 {
+            if (stepped & 255) == 0 {
                 try Task.checkCancellation()
             }
             let rowID = statement.int64Column(0)
@@ -2051,6 +2135,9 @@ public final class SearchDatabase: @unchecked Sendable {
 
         while try statement.step() {
             totalLineCount += 1
+            if (totalLineCount & 127) == 0 {
+                try Task.checkCancellation()
+            }
             let ftsRowID = statement.int64Column(0)
             if ftsRowID != currentFTSRowID {
                 if !currentRecords.isEmpty {
@@ -2090,6 +2177,215 @@ public final class SearchDatabase: @unchecked Sendable {
             multiLineGroupCount: multiLineGroupCount,
             totalLineCount: totalLineCount
         )
+    }
+
+    private func searchCountAllowedFiles(
+        pathPrefixes: [String]?,
+        subtitlePath: String?,
+        watchStateFilter: SubtitleSearchWatchStateFilter,
+        facetFilter: CueFacetFilter
+    ) throws -> [Int64: String] {
+        let scopeCondition = pathPrefixes.map {
+            let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
+                .joined(separator: " OR ")
+            return "AND (\(conditions))"
+        } ?? ""
+        let subtitlePathCondition = subtitlePath.map { _ in "AND sf.subtitle_path = ?" } ?? ""
+        let watchStateValues = watchStateFilter.states.map(\.rawValue)
+        let watchStateCondition: String
+        if watchStateValues.isEmpty {
+            watchStateCondition = ""
+        } else {
+            let placeholders = Array(repeating: "?", count: watchStateValues.count)
+                .joined(separator: ", ")
+            watchStateCondition = "AND ws.state IN (\(placeholders))"
+        }
+        let statement = try database.prepare(
+            """
+            SELECT sf.id,
+                   sor.display_title,
+                   COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)'),
+                   sor.folder_path
+            FROM subtitle_search_order_rows sor
+            JOIN subtitle_files sf ON sf.id = sor.subtitle_file_id
+            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
+            LEFT JOIN library_watch_states ws ON ws.video_file_id = vf.id
+            WHERE 1 = 1
+            \(scopeCondition)
+            \(subtitlePathCondition)
+            \(watchStateCondition);
+            """
+        )
+        var bindIndex = try bindPathPrefixes(pathPrefixes, to: statement, startingAt: 1)
+        if let subtitlePath {
+            try statement.bind(subtitlePath, at: bindIndex)
+            bindIndex += 1
+        }
+        for watchStateValue in watchStateValues {
+            try statement.bind(watchStateValue, at: bindIndex)
+            bindIndex += 1
+        }
+
+        let excludedFolders = facetFilter.excludedFolders
+        let requiredWatchStates = facetFilter.watchStates
+        var allowedFiles: [Int64: String] = [:]
+        while try statement.step() {
+            let fileID = statement.int64Column(0)
+            guard allowedFiles[fileID] == nil else {
+                continue
+            }
+            if !requiredWatchStates.isEmpty {
+                let watchState = LibraryWatchState(rawValue: statement.stringColumn(2)) ?? .unwatched
+                guard requiredWatchStates.contains(watchState) else {
+                    continue
+                }
+            }
+            if let excludedFolders {
+                let folderPath = statement.stringColumn(3)
+                guard !excludedFolders.contains(folderPath) else {
+                    continue
+                }
+            }
+            allowedFiles[fileID] = statement.stringColumn(1)
+        }
+        return allowedFiles
+    }
+
+    private func matchingFTSHitRowIDsForCount(
+        matching ftsQuery: String,
+        allowedFiles: [Int64: String]
+    ) throws -> [Int64] {
+        guard !allowedFiles.isEmpty else {
+            return []
+        }
+        let singleFileRange = allowedFiles.count == 1
+            ? allowedFiles.keys.first.map(SearchFTSRows.rowIDRange(forSubtitleFileID:))
+            : nil
+        let rangeCondition = singleFileRange == nil ? "" : "AND rowid >= ? AND rowid <= ?"
+        let statement = try database.prepare(
+            """
+            SELECT rowid
+            FROM subtitle_cue_groups_fts
+            WHERE subtitle_cue_groups_fts MATCH ?
+            \(rangeCondition);
+            """
+        )
+        try statement.bind(ftsQuery, at: 1)
+        if let singleFileRange {
+            try statement.bind(singleFileRange.lowerBound, at: 2)
+            try statement.bind(singleFileRange.upperBound, at: 3)
+        }
+
+        var rowIDs: [Int64] = []
+        var stepped = 0
+        while try statement.step() {
+            stepped += 1
+            if (stepped & 255) == 0 {
+                try Task.checkCancellation()
+            }
+            let rowID = statement.int64Column(0)
+            let fileID = SearchFTSRows.subtitleFileID(ofRowID: rowID)
+            if allowedFiles[fileID] != nil {
+                rowIDs.append(rowID)
+            }
+        }
+        return rowIDs
+    }
+
+    private func countMatchingCoveringCueLines(
+        forFTSRowIDs rowIDs: [Int64],
+        allowedFiles: [Int64: String],
+        matching plan: SearchQueryPlanner.Plan,
+        requiredLanguageMask: Int,
+        facetLanguageMask: Int,
+        facetFilter: CueFacetFilter,
+        filterSet: SubtitleSearchFilterSet
+    ) throws -> Int {
+        guard !rowIDs.isEmpty else {
+            return 0
+        }
+        let hasFilterSet = !filterSet.isEffectivelyEmpty
+        let hasDurationFilter = !facetFilter.durations.isEmpty
+        let hasCharacterFilter = !facetFilter.characters.isEmpty
+        let batchLimit = Self.exactSearchCandidateBatchMinimum
+        var totalCount = 0
+        var nextIndex = 0
+
+        while nextIndex < rowIDs.count {
+            try Task.checkCancellation()
+            let chunkEnd = min(nextIndex + batchLimit, rowIDs.count)
+            let chunkRowIDs = rowIDs[nextIndex..<chunkEnd]
+            nextIndex = chunkEnd
+
+            let placeholders = Array(repeating: "?", count: chunkRowIDs.count)
+                .joined(separator: ", ")
+            let statement = try database.prepare(
+                """
+                SELECT fts_rowid, duration_ms, character_width, language_mask, content
+                FROM subtitle_cue_lines INDEXED BY idx_subtitle_cue_lines_fts_covering
+                WHERE fts_rowid IN (\(placeholders));
+                """
+            )
+            for (offset, rowID) in chunkRowIDs.enumerated() {
+                try statement.bind(rowID, at: Int32(offset + 1))
+            }
+
+            var scannedLines = 0
+            while try statement.step() {
+                scannedLines += 1
+                if (scannedLines & 127) == 0 {
+                    try Task.checkCancellation()
+                }
+                let rawLanguageMask = statement.intColumn(3)
+                let effectiveMask = rawLanguageMask == 0 ? 32 : rawLanguageMask
+                if requiredLanguageMask != 0, (effectiveMask & requiredLanguageMask) == 0 {
+                    continue
+                }
+                if facetLanguageMask != 0, (effectiveMask & facetLanguageMask) == 0 {
+                    continue
+                }
+                if hasDurationFilter {
+                    let durationFacet = CueDurationFacet(
+                        durationMilliseconds: statement.intColumn(1)
+                    )
+                    guard facetFilter.durations.contains(durationFacet) else {
+                        continue
+                    }
+                }
+                if hasCharacterFilter {
+                    let characterFacet = CueCharacterFacet(
+                        characterCount: statement.intColumn(2)
+                    )
+                    guard facetFilter.characters.contains(characterFacet) else {
+                        continue
+                    }
+                }
+                let content = statement.stringColumn(4)
+                guard SearchQueryPlanner.matches(content, rule: plan.lineMatchRule) else {
+                    continue
+                }
+                if hasFilterSet {
+                    let fileID = SearchFTSRows.subtitleFileID(
+                        ofRowID: statement.int64Column(0)
+                    )
+                    guard let displayTitle = allowedFiles[fileID] else {
+                        continue
+                    }
+                    let displayLanguages = CueLineLanguages.languages(forMask: effectiveMask)
+                    guard filterSet.matches(
+                        display: displayTitle,
+                        cues: content,
+                        languages: Self.filterSetLanguageValues(displayLanguages)
+                    ) else {
+                        continue
+                    }
+                }
+                totalCount += 1
+            }
+        }
+
+        return totalCount
     }
 
     private func searchCandidates(forCueGroupIDs cueGroupIDs: [Int64]) throws -> [Int64: SearchCandidate] {

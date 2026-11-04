@@ -51,32 +51,36 @@ extension AppCoordinator {
         let timestampMilliseconds = Int(
             max(0, playbackViewModel.currentTime * 1_000).rounded(.down)
         )
+        let folderPath = URL.fromMediaPath(videoPath)
+            .deletingLastPathComponent()
+            .mediaPath
+        let cachedVideoPresentation = library
+            .completeLibraryFolderDetailsByPath[folderPath]?
+            .videos
+            .first { $0.videoPath == source.videoPath }
         let openSnapshot = PlaybackSubtitleFocusOpenSnapshot(
             source: source,
             timestampMilliseconds: timestampMilliseconds,
             wasPlaying: playbackViewModel.isPlaying,
-            videoPresentation: try? libraryDatabase?
-                .completeLibraryFolderDetail(
-                    folderPath: URL.fromMediaPath(videoPath)
-                        .deletingLastPathComponent()
-                        .mediaPath
-                )?
-                .videos
-                .first { $0.videoPath == source.videoPath },
+            videoPresentation: cachedVideoPresentation ?? (
+                try? libraryDatabase?
+                    .completeLibraryFolderDetail(folderPath: folderPath)?
+                    .videos
+                    .first { $0.videoPath == source.videoPath }
+            ),
             subtitleRenderSource: playbackSubtitleSource(
                 forSubtitleFile: URL.fromMediaPath(source.subtitlePath),
                 format: source.subtitleFormat,
                 videoPath: source.videoPath,
                 startingAtMilliseconds: timestampMilliseconds,
-                fallbackEndMilliseconds: timestampMilliseconds
+                fallbackEndMilliseconds: timestampMilliseconds,
+                includesPreparationTimeWindow: false
             )
         )
         let libraryStore: PlaybackLibrarySessionStore?
         if case .library = activePlaybackSource {
             libraryStore = makePlaybackLibrarySessionStore(
-                folderPath: URL.fromMediaPath(source.videoPath)
-                    .deletingLastPathComponent()
-                    .mediaPath,
+                folderPath: folderPath,
                 initialVideoPath: source.videoPath
             )
         } else {

@@ -870,27 +870,40 @@ extension LibraryStore {
         }
 
         libraryPlaybackHistoryRevision += 1
-        let didChangeWatchState = applyImmediatePlaybackHistoryPresentationUpdates(
+        let immediateUpdate = applyImmediatePlaybackHistoryPresentationUpdates(
             affectedVideoPaths: affectedVideoPaths
         )
-        refreshCompleteLibraryFolderDetailsPreservingSnapshots(
-            affectedVideoPaths: affectedVideoPaths
-        )
+        if !immediateUpdate.didUpdateAllCachedFolderDetailsInPlace {
+            refreshCompleteLibraryFolderDetailsPreservingSnapshots(
+                affectedVideoPaths: affectedVideoPaths
+            )
+        }
         UIInvalidationProbe.count(
             "library.snapshot_rebuild",
             scope: uiProbeScope,
             details: "surface=playback_history videos=\(affectedVideoPaths.count)"
         )
-        refreshRecentWatching(force: true, preservesExistingSnapshot: true)
-        refreshLoadedTestRecentWatching(force: true, preservesExistingSnapshot: true)
-        if didChangeWatchState {
+        if !immediateUpdate.didUpdateRecentWatchingInPlace {
+            refreshRecentWatching(force: true, preservesExistingSnapshot: true)
+        }
+        if !immediateUpdate.didUpdateTestRecentWatchingInPlace {
+            refreshLoadedTestRecentWatching(force: true, preservesExistingSnapshot: true)
+        }
+        if immediateUpdate.didChangeWatchState {
             onWatchStateChanged()
         }
     }
 
+    private struct ImmediatePlaybackHistoryPresentationUpdateResult {
+        let didChangeWatchState: Bool
+        let didUpdateAllCachedFolderDetailsInPlace: Bool
+        let didUpdateRecentWatchingInPlace: Bool
+        let didUpdateTestRecentWatchingInPlace: Bool
+    }
+
     private func applyImmediatePlaybackHistoryPresentationUpdates(
         affectedVideoPaths: Set<String>
-    ) -> Bool {
+    ) -> ImmediatePlaybackHistoryPresentationUpdateResult {
         var previousWatchStatesByVideoPath: [String: LibraryWatchState] = [:]
         for detail in completeLibraryFolderDetailsByPath.values {
             for video in detail.videos where affectedVideoPaths.contains(video.videoPath) {
@@ -921,7 +934,12 @@ extension LibraryStore {
         guard let database = libraryDatabase,
               affectedFolderPaths.count <= 4
         else {
-            return true
+            return ImmediatePlaybackHistoryPresentationUpdateResult(
+                didChangeWatchState: true,
+                didUpdateAllCachedFolderDetailsInPlace: false,
+                didUpdateRecentWatchingInPlace: false,
+                didUpdateTestRecentWatchingInPlace: false
+            )
         }
 
         let selectedFolders = selectedFoldersProvider()
@@ -930,7 +948,28 @@ extension LibraryStore {
         var updatedDetailsByFolderPath: [String: CompleteLibraryFolderDetailPresentation] = [:]
 
         for folderPath in affectedFolderPaths {
-            guard let detail = try? database.completeLibraryFolderDetail(folderPath: folderPath) else {
+            let resolvedDetail: CompleteLibraryFolderDetailPresentation?
+            if let existingDetail = completeLibraryFolderDetailsByPath[folderPath] {
+                var historiesByVideoPath: [String: LibraryPlaybackHistory?] = [:]
+                var failedLookup = false
+                for video in existingDetail.videos where affectedVideoPaths.contains(video.videoPath) {
+                    do {
+                        let history = try database.libraryPlaybackHistory(
+                            forVideoFile: URL.fromMediaPath(video.videoPath)
+                        )
+                        historiesByVideoPath[video.videoPath] = .some(history)
+                    } catch {
+                        failedLookup = true
+                        break
+                    }
+                }
+                resolvedDetail = failedLookup
+                    ? (try? database.completeLibraryFolderDetail(folderPath: folderPath))
+                    : existingDetail.replacingPlaybackHistories(historiesByVideoPath)
+            } else {
+                resolvedDetail = try? database.completeLibraryFolderDetail(folderPath: folderPath)
+            }
+            guard let detail = resolvedDetail else {
                 didChangeWatchState = true
                 continue
             }
@@ -950,13 +989,22 @@ extension LibraryStore {
             }
         }
 
+        let didUpdateAllFolders = updatedDetailsByFolderPath.count == affectedFolderPaths.count
         guard !updatedDetailsByFolderPath.isEmpty, !selectedPrefixes.isEmpty else {
-            return didChangeWatchState
+            return ImmediatePlaybackHistoryPresentationUpdateResult(
+                didChangeWatchState: didChangeWatchState,
+                didUpdateAllCachedFolderDetailsInPlace: didUpdateAllFolders,
+                didUpdateRecentWatchingInPlace: false,
+                didUpdateTestRecentWatchingInPlace: false
+            )
         }
 
+        var didUpdateRecentInPlace = false
         if recentWatchingStatus == .completed || !recentWatchingItems.isEmpty {
+            let previousCount = recentWatchingItems.count
             var updatedRecent = recentWatchingItems
             var changed = false
+            var removedAny = false
             for (folderPath, detail) in updatedDetailsByFolderPath {
                 let isInScope = detail.videos.contains {
                     AppCoordinator.pathMatchesPrefixes($0.subtitlePath, prefixes: selectedPrefixes)
@@ -973,6 +1021,7 @@ extension LibraryStore {
                     } else {
                         updatedRecent.remove(at: index)
                         changed = true
+                        removedAny = true
                     }
                 } else if let candidate {
                     updatedRecent.append(candidate)
@@ -988,8 +1037,12 @@ extension LibraryStore {
                     recentWatchingItems = updatedRecent
                 }
             }
+            didUpdateRecentInPlace = didUpdateAllFolders
+                && recentWatchingStatus == .completed
+                && !(removedAny && previousCount >= 12 && updatedRecent.count < 12)
         }
 
+        var didUpdateTestRecentInPlace = false
         if testRecentWatchingStatus == .completed || !testRecentWatchingItems.isEmpty {
             var updatedTestRecent = testRecentWatchingItems
             var changed = false
@@ -1021,9 +1074,16 @@ extension LibraryStore {
                     testRecentWatchingItems = updatedTestRecent
                 }
             }
+            didUpdateTestRecentInPlace = didUpdateAllFolders
+                && testRecentWatchingStatus == .completed
         }
 
-        return didChangeWatchState
+        return ImmediatePlaybackHistoryPresentationUpdateResult(
+            didChangeWatchState: didChangeWatchState,
+            didUpdateAllCachedFolderDetailsInPlace: didUpdateAllFolders,
+            didUpdateRecentWatchingInPlace: didUpdateRecentInPlace,
+            didUpdateTestRecentWatchingInPlace: didUpdateTestRecentInPlace
+        )
     }
 
     private static func recentWatchingPresentationSort(
