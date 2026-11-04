@@ -40,8 +40,8 @@ struct LibraryDecodedCoverImage: @unchecked Sendable {
 
 struct LibraryCoverImagePipelineConfiguration: Equatable, Sendable {
     static let production = LibraryCoverImagePipelineConfiguration(
-        costLimitBytes: 16 * 1_024 * 1_024,
-        countLimit: 64,
+        costLimitBytes: 64 * 1_024 * 1_024,
+        countLimit: 100,
         maxConcurrentDecodes: 4
     )
 
@@ -228,12 +228,36 @@ final class LibraryCoverImageMemoryCache: @unchecked Sendable {
         defer { lock.unlock() }
         return (totalCostBytes, cache.count)
     }
+
+    func trim(retainingMostRecentCount maxCount: Int) {
+        let clampedCount = max(0, maxCount)
+        lock.lock()
+        defer { lock.unlock() }
+        guard clampedCount > 0 else {
+            cache.removeAll(keepingCapacity: false)
+            failedKeys.removeAll(keepingCapacity: false)
+            totalCostBytes = 0
+            return
+        }
+        while cache.count > clampedCount {
+            guard let victim = cache.min(by: { lhs, rhs in
+                if lhs.value.lastAccess != rhs.value.lastAccess {
+                    return lhs.value.lastAccess < rhs.value.lastAccess
+                }
+                return lhs.key.deterministicSortKey < rhs.key.deterministicSortKey
+            }) else {
+                break
+            }
+            cache.removeValue(forKey: victim.key)
+            totalCostBytes = max(0, totalCostBytes - victim.value.cost)
+        }
+    }
 }
 
 actor LibraryCoverImagePipeline {
     typealias Decoder = @Sendable (LibraryCoverImageKey) -> LibraryDecodedCoverImage?
 
-    static let shared = LibraryCoverImagePipeline()
+    static let shared = LibraryCoverImagePipeline(installMemoryPressureMonitor: true)
     static let firstScreenPrewarmLimit = 20
 
     private struct InFlightRequest {
@@ -251,6 +275,7 @@ actor LibraryCoverImagePipeline {
     private let configuration: LibraryCoverImagePipelineConfiguration
     private let decoder: Decoder
     private let memoryCache: LibraryCoverImageMemoryCache
+    nonisolated(unsafe) private var memoryPressureSource: DispatchSourceMemoryPressure?
     private var requestGeneration: UInt64 = 0
     private var inFlight: [LibraryCoverImageKey: InFlightRequest] = [:]
     private var pendingKeys: [LibraryCoverImageKey] = []
@@ -258,11 +283,37 @@ actor LibraryCoverImagePipeline {
 
     init(
         configuration: LibraryCoverImagePipelineConfiguration = .production,
-        decoder: @escaping Decoder = LibraryCoverImageDecoder.decode
+        decoder: @escaping Decoder = LibraryCoverImageDecoder.decode,
+        installMemoryPressureMonitor: Bool = false
     ) {
         self.configuration = configuration
         self.decoder = decoder
-        self.memoryCache = LibraryCoverImageMemoryCache(configuration: configuration)
+        let cache = LibraryCoverImageMemoryCache(configuration: configuration)
+        self.memoryCache = cache
+        if installMemoryPressureMonitor {
+            let source = DispatchSource.makeMemoryPressureSource(
+                eventMask: [.warning, .critical],
+                queue: .global(qos: .utility)
+            )
+            source.setEventHandler { [weak cache] in
+                let isCritical = source.data.contains(.critical)
+                cache?.trim(
+                    retainingMostRecentCount: isCritical ? 0 : Self.firstScreenPrewarmLimit
+                )
+            }
+            source.resume()
+            self.memoryPressureSource = source
+        }
+    }
+
+    deinit {
+        memoryPressureSource?.cancel()
+    }
+
+    nonisolated func handleMemoryPressure(isCritical: Bool = false) {
+        memoryCache.trim(
+            retainingMostRecentCount: isCritical ? 0 : Self.firstScreenPrewarmLimit
+        )
     }
 
     nonisolated func cachedImage(for key: LibraryCoverImageKey) -> CGImage? {

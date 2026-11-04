@@ -417,7 +417,9 @@ extension AppCoordinator {
             switch section {
             case .videos:
                 hydrateTestRecentWatchingAsync()
-                await testRecentWatchingTask?.value
+                if !Self.isLibraryStatusResolved(library.testRecentWatchingStatus) {
+                    await testRecentWatchingTask?.value
+                }
                 let dataReadyAt = DebugInteractionLatencyProbe.now()
                 guard !Task.isCancelled else { return (dataReadyAt, .zero) }
                 let stats = await LibraryCoverImagePipeline.shared.prewarm(
@@ -426,7 +428,9 @@ extension AppCoordinator {
                 return (dataReadyAt, stats)
             case .excerpts:
                 loadExcerptListOverviewIfNeeded()
-                await excerpt.listOverviewTask?.value
+                if !excerpt.hasLoadedListOverview {
+                    await excerpt.listOverviewTask?.value
+                }
                 let dataReadyAt = DebugInteractionLatencyProbe.now()
                 guard !Task.isCancelled else { return (dataReadyAt, .zero) }
                 let stats = await LibraryCoverImagePipeline.shared.prewarm(
@@ -438,7 +442,9 @@ extension AppCoordinator {
             refreshLibraryOnReappearanceIfNeeded()
             hydrateCompleteLibraryAsync()
             hydrateTestRecentWatchingAsync()
-            await completeLibraryTask?.value
+            if !Self.isLibraryStatusResolved(library.completeLibraryStatus) {
+                await completeLibraryTask?.value
+            }
             let dataReadyAt = DebugInteractionLatencyProbe.now()
             guard !Task.isCancelled else { return (dataReadyAt, .zero) }
             let stats = await LibraryCoverImagePipeline.shared.prewarm(
@@ -449,7 +455,9 @@ extension AppCoordinator {
             refreshLibraryOnReappearanceIfNeeded()
             hydrateCompleteLibraryAsync()
             hydrateTestRecentWatchingAsync()
-            await completeLibraryTask?.value
+            if !Self.isLibraryStatusResolved(library.completeLibraryStatus) {
+                await completeLibraryTask?.value
+            }
             guard !Task.isCancelled else {
                 return (DebugInteractionLatencyProbe.now(), .zero)
             }
@@ -461,7 +469,9 @@ extension AppCoordinator {
                 return (DebugInteractionLatencyProbe.now(), .zero)
             }
             hydrateCompleteLibraryFolderDetailAsync(folderPath: folderPath)
-            await completeLibraryFolderDetailTasks[folderPath]?.value
+            if library.completeLibraryFolderDetailsByPath[folderPath] == nil {
+                await completeLibraryFolderDetailTasks[folderPath]?.value
+            }
             let dataReadyAt = DebugInteractionLatencyProbe.now()
             guard !Task.isCancelled else { return (dataReadyAt, .zero) }
             guard let folder = library.completeLibraryFolderSummaries.first(where: {
@@ -478,7 +488,9 @@ extension AppCoordinator {
         case .excerptOverview:
             refreshExcerptOnReappearanceIfNeeded()
             loadExcerptListOverviewIfNeeded()
-            await excerpt.listOverviewTask?.value
+            if !excerpt.hasLoadedListOverview {
+                await excerpt.listOverviewTask?.value
+            }
             let dataReadyAt = DebugInteractionLatencyProbe.now()
             guard !Task.isCancelled else { return (dataReadyAt, .zero) }
             let stats = await LibraryCoverImagePipeline.shared.prewarm(

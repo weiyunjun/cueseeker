@@ -39,43 +39,52 @@ struct LibraryCoverMoreButton: View {
     @State private var didOpenFromButton = false
 
     var body: some View {
-        WorkbenchIconButton(
-            icon: .dotsThree,
-            iconWeight: .fill,
-            isOpen: isOpen,
-            isFocused: isFocused,
-            defaultBackground: WorkbenchRedesignColors.libraryCoverActionBg,
-            hoverBackground: WorkbenchRedesignColors.libraryCoverActionBgHover,
-            pressedBackground: WorkbenchRedesignColors.libraryCoverActionBgPressed,
-            openBackground: WorkbenchRedesignColors.libraryCoverActionBgHover,
-            iconColor: WorkbenchRedesignColors.libraryTimeBadgeText,
-            openIconColor: WorkbenchRedesignColors.libraryTimeBadgeText,
-            isFrozen: layerContext.isFrozen && !isOpen,
-            onHoverChange: { hovered in
-                onHoverChange(hovered && isVisible)
-            },
-            action: {
-                didOpenFromButton = !isOpen
-                action()
-            }
-        )
-        .background(MenuAnchorProbe(handle: anchor))
-        .background(
-            GeometryReader { proxy in
-                let origin = proxy.frame(
-                    in: .named(LibraryCardContextMenuCoordinateSpace.name)
-                ).origin
-                Color.clear
-                    .onChange(of: origin) { newOrigin in
-                        guard isOpen, didOpenFromButton else {
-                            return
-                        }
-                        updateAnchor?(newOrigin)
+        Group {
+            if isVisible || isOpen || isFocused {
+                WorkbenchIconButton(
+                    icon: .dotsThree,
+                    iconWeight: .fill,
+                    isOpen: isOpen,
+                    isFocused: isFocused,
+                    defaultBackground: WorkbenchRedesignColors.libraryCoverActionBg,
+                    hoverBackground: WorkbenchRedesignColors.libraryCoverActionBgHover,
+                    pressedBackground: WorkbenchRedesignColors.libraryCoverActionBgPressed,
+                    openBackground: WorkbenchRedesignColors.libraryCoverActionBgHover,
+                    iconColor: WorkbenchRedesignColors.libraryTimeBadgeText,
+                    openIconColor: WorkbenchRedesignColors.libraryTimeBadgeText,
+                    isFrozen: layerContext.isFrozen && !isOpen,
+                    onHoverChange: { hovered in
+                        onHoverChange(hovered && isVisible)
+                    },
+                    action: {
+                        didOpenFromButton = !isOpen
+                        action()
                     }
+                )
+                .background(MenuAnchorProbe(handle: anchor))
+                .background {
+                    if isOpen && didOpenFromButton {
+                        GeometryReader { proxy in
+                            let origin = proxy.frame(
+                                in: .named(LibraryCardContextMenuCoordinateSpace.name)
+                            ).origin
+                            Color.clear
+                                .onChange(of: origin) { newOrigin in
+                                    guard isOpen, didOpenFromButton else {
+                                        return
+                                    }
+                                    updateAnchor?(newOrigin)
+                                }
+                        }
+                    }
+                }
+                .opacity(isVisible ? 1 : 0)
+                .allowsHitTesting(isVisible)
+                .padding(.trailing, WorkbenchLibraryMetrics.timeBadgeInset)
+                .padding(.bottom, WorkbenchLibraryMetrics.timeBadgeInset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             }
-        )
-        .opacity(isVisible ? 1 : 0)
-        .allowsHitTesting(isVisible)
+        }
         .onChange(of: isVisible) { visible in
             if !visible {
                 onHoverChange(false)
@@ -86,9 +95,6 @@ struct LibraryCoverMoreButton: View {
                 didOpenFromButton = false
             }
         }
-        .padding(.trailing, WorkbenchLibraryMetrics.timeBadgeInset)
-        .padding(.bottom, WorkbenchLibraryMetrics.timeBadgeInset)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
     }
 }
 
@@ -285,6 +291,7 @@ struct LibraryCoverWithBadge: View {
 }
 
 struct LibraryCachedCoverImage<Overlay: View>: View {
+    @Environment(\.isLibraryCoverDecodeActive) private var isCoverDecodeActive
     let coverPath: String?
     let coverRevision: String?
     var imageVerticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top
@@ -297,6 +304,11 @@ struct LibraryCachedCoverImage<Overlay: View>: View {
     private struct LoadedImage {
         let key: LibraryCoverImageKey
         let image: CGImage
+    }
+
+    private struct LoadTaskTrigger: Equatable {
+        let key: LibraryCoverImageKey?
+        let isActive: Bool
     }
 
     init(
@@ -363,8 +375,8 @@ struct LibraryCachedCoverImage<Overlay: View>: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
-        .task(id: key) {
-            await loadImage(for: key)
+        .task(id: LoadTaskTrigger(key: key, isActive: isCoverDecodeActive)) {
+            await loadImage(for: key, isDecodeActive: isCoverDecodeActive)
         }
         .onDisappear {
             activeRequestID = nil
@@ -383,22 +395,33 @@ struct LibraryCachedCoverImage<Overlay: View>: View {
     }
 
     @MainActor
-    private func loadImage(for key: LibraryCoverImageKey?) async {
+    private func loadImage(
+        for key: LibraryCoverImageKey?,
+        isDecodeActive: Bool
+    ) async {
         guard let key else {
             activeRequestID = nil
-            loadedImage = nil
-            loadFailed = false
+            if loadedImage != nil {
+                loadedImage = nil
+            }
+            if loadFailed {
+                loadFailed = false
+            }
             return
         }
 
-        if let cached = LibraryCoverImagePipeline.shared.cachedImage(for: key) {
+        if LibraryCoverImagePipeline.shared.cachedImage(for: key) != nil {
             if activeRequestID != nil {
                 activeRequestID = nil
             }
-            if loadedImage?.key != key || loadFailed {
-                loadedImage = LoadedImage(key: key, image: cached)
+            if loadFailed {
                 loadFailed = false
             }
+            return
+        }
+
+        guard isDecodeActive else {
+            activeRequestID = nil
             return
         }
 

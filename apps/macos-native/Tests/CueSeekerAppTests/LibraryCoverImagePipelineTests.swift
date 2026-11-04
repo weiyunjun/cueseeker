@@ -21,8 +21,8 @@ func libraryCoverImageKeyRequiresPathAndRevisionPair() {
 
 @Test
 func libraryCoverImagePipelineUsesDeterministicCostLRU() async throws {
-    #expect(LibraryCoverImagePipelineConfiguration.production.costLimitBytes == 16 * 1_024 * 1_024)
-    #expect(LibraryCoverImagePipelineConfiguration.production.countLimit == 64)
+    #expect(LibraryCoverImagePipelineConfiguration.production.costLimitBytes == 64 * 1_024 * 1_024)
+    #expect(LibraryCoverImagePipelineConfiguration.production.countLimit == 100)
     #expect(LibraryCoverImagePipelineConfiguration.production.maxConcurrentDecodes == 4)
     let probe = try LibraryCoverPipelineDecodeProbe(cost: 10)
     let pipeline = LibraryCoverImagePipeline(
@@ -376,6 +376,30 @@ func libraryCoverImagePipelinePrewarmPopulatesReadyStateAndTracksFailedKeys() as
     await pipeline.remove(path: failedKey.path)
     #expect(!pipeline.hasFailedDecode(for: failedKey))
     #expect(!pipeline.isReadyForPresentation(for: failedKey))
+}
+
+@Test
+func libraryCoverImagePipelineTrimsOnMemoryPressureRetainingMostRecentFirstScreenCovers() async throws {
+    let probe = try LibraryCoverPipelineDecodeProbe(cost: 16)
+    let pipeline = LibraryCoverImagePipeline(
+        configuration: .production,
+        decoder: probe.decode
+    )
+    let keys = (0..<25).map { coverPipelineKey("pressure-\($0)") }
+    for key in keys {
+        _ = try await pipeline.image(for: key)
+    }
+    #expect(pipeline.memoryCacheUsageSnapshot.count == 25)
+
+    pipeline.handleMemoryPressure(isCritical: false)
+    let afterWarning = await pipeline.diagnostics()
+    #expect(afterWarning.cachedKeys.count == LibraryCoverImagePipeline.firstScreenPrewarmLimit)
+    #expect(afterWarning.cachedKeys == Set(keys.suffix(LibraryCoverImagePipeline.firstScreenPrewarmLimit)))
+
+    pipeline.handleMemoryPressure(isCritical: true)
+    let afterCritical = await pipeline.diagnostics()
+    #expect(afterCritical.cachedKeys.isEmpty)
+    #expect(afterCritical.totalCostBytes == 0)
 }
 
 private func coverPipelineKey(_ name: String) -> LibraryCoverImageKey {

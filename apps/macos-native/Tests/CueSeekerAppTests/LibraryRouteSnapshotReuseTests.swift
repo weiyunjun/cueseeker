@@ -87,6 +87,12 @@ func libraryRouteHydrationReusesCompletedSnapshotsUntilExplicitRefresh() async t
         #expect(app.library.testRecentWatchingRevision == testRecentRevision)
         #expect(app.library.completeLibraryRevision == completeRevision)
 
+        app.refreshCompleteLibrary(preservesExistingSnapshot: true)
+        #expect(app.library.completeLibraryStatus == .completed)
+        await app.completeLibraryTask?.value
+        #expect(app.library.completeLibraryRevision == completeRevision + 1)
+        #expect(app.library.completeLibraryFolderDetailsByPath[folderPath] == sharedDetail)
+
         app.refreshLibrary()
         app.refreshRecentWatching()
         app.refreshTestRecentWatching()
@@ -100,7 +106,7 @@ func libraryRouteHydrationReusesCompletedSnapshotsUntilExplicitRefresh() async t
         #expect(app.library.libraryPresentationRevision == libraryRevision + 1)
         #expect(app.library.recentWatchingRevision == recentRevision + 1)
         #expect(app.library.testRecentWatchingRevision == testRecentRevision + 1)
-        #expect(app.library.completeLibraryRevision == completeRevision + 1)
+        #expect(app.library.completeLibraryRevision == completeRevision + 2)
         #expect(app.library.completeLibraryFolderDetailsByPath.isEmpty)
     }
 }

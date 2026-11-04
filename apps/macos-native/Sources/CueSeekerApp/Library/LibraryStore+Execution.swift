@@ -179,7 +179,10 @@ extension LibraryStore {
         )
     }
 
-    func refreshLibrary(force: Bool = false) {
+    func refreshLibrary(
+        force: Bool = false,
+        preservesExistingSnapshot: Bool = false
+    ) {
         if !force && panelModeProvider() == .testLibrary {
             libraryNeedsReloadAfterIndexedMutation = true
             return
@@ -193,7 +196,12 @@ extension LibraryStore {
             return
         }
 
-        libraryStatus = .loading
+        let hasExistingSnapshot = libraryStatus == .completed
+            || !libraryVideos.isEmpty
+            || !libraryFolderGroups.isEmpty
+        if !preservesExistingSnapshot || !hasExistingSnapshot {
+            libraryStatus = .loading
+        }
         guard let database = libraryDatabase else {
             applyLibraryPresentation([])
             libraryStatus = .failed(L("status.database_not_initialized"))
@@ -210,7 +218,9 @@ extension LibraryStore {
                 }
 
                 self?.applyLibraryPresentation(snapshot)
-                self?.libraryStatus = .completed
+                if self?.libraryStatus != .completed {
+                    self?.libraryStatus = .completed
+                }
             } catch {
                 guard !Task.isCancelled else {
                     return
@@ -370,13 +380,13 @@ extension LibraryStore {
                     return
                 }
                 if self.recentWatchingStatus != .idle {
-                    self.refreshRecentWatching()
+                    self.refreshRecentWatching(preservesExistingSnapshot: true)
                 }
                 if self.testRecentWatchingStatus != .idle {
-                    self.refreshTestRecentWatching()
+                    self.refreshTestRecentWatching(preservesExistingSnapshot: true)
                 }
                 if self.completeLibraryStatus != .idle {
-                    self.refreshCompleteLibrary()
+                    self.refreshCompleteLibrary(preservesExistingSnapshot: true)
                 }
             } catch {
                 guard let self,
@@ -528,7 +538,10 @@ extension LibraryStore {
         refreshTestRecentWatching(preservesExistingSnapshot: preservesExistingSnapshot)
     }
 
-    func refreshCompleteLibrary(force: Bool = false) {
+    func refreshCompleteLibrary(
+        force: Bool = false,
+        preservesExistingSnapshot: Bool = false
+    ) {
         if !force && panelModeProvider() == .testLibrary {
             libraryNeedsReloadAfterIndexedMutation = true
             return
@@ -548,7 +561,12 @@ extension LibraryStore {
             return
         }
 
-        completeLibraryStatus = .loading
+        let hasExistingSnapshot = completeLibraryStatus == .completed
+            || !completeLibraryFolderSummaries.isEmpty
+        let shouldPreserveExistingSnapshot = preservesExistingSnapshot && hasExistingSnapshot
+        if !shouldPreserveExistingSnapshot {
+            completeLibraryStatus = .loading
+        }
         let startedAt = DispatchTime.now().uptimeNanoseconds
         completeLibraryTask = Task { [weak self] in
             do {
@@ -567,8 +585,13 @@ extension LibraryStore {
                         ("elapsed_ms", String(format: "%.1f", elapsedMs))
                     ]
                 )
-                self?.applyCompleteLibrary(snapshot)
-                self?.completeLibraryStatus = .completed
+                self?.applyCompleteLibrary(
+                    snapshot,
+                    preservesUnchangedFolderDetails: shouldPreserveExistingSnapshot
+                )
+                if self?.completeLibraryStatus != .completed {
+                    self?.completeLibraryStatus = .completed
+                }
             } catch {
                 guard !Task.isCancelled else { return }
                 AppLogger.shared.error(
@@ -587,8 +610,8 @@ extension LibraryStore {
             return
         }
         libraryNeedsReloadAfterIndexedMutation = false
-        refreshLibrary(force: true)
-        refreshCompleteLibrary(force: true)
+        refreshLibrary(force: true, preservesExistingSnapshot: true)
+        refreshCompleteLibrary(force: true, preservesExistingSnapshot: true)
     }
 
     func loadCompleteLibraryFolderDetail(
@@ -1073,9 +1096,18 @@ extension LibraryStore {
         )
     }
 
-    func applyCompleteLibrary(_ snapshot: [CompleteLibraryFolderSummaryPresentation]) {
-        invalidateCompleteLibraryFolderDetails()
-        completeLibraryFolderSummaries = snapshot
+    func applyCompleteLibrary(
+        _ snapshot: [CompleteLibraryFolderSummaryPresentation],
+        preservesUnchangedFolderDetails: Bool = false
+    ) {
+        if preservesUnchangedFolderDetails {
+            pruneCompleteLibraryFolderDetails(against: snapshot)
+        } else {
+            invalidateCompleteLibraryFolderDetails()
+        }
+        if completeLibraryFolderSummaries != snapshot {
+            completeLibraryFolderSummaries = snapshot
+        }
         completeLibraryRevision += 1
         UIInvalidationProbe.count(
             "UI.CompleteLibrarySnapshot.rebuilt",
@@ -1086,6 +1118,42 @@ extension LibraryStore {
             scope: uiProbeScope,
             details: "surface=complete_library"
         )
+    }
+
+    private func pruneCompleteLibraryFolderDetails(
+        against snapshot: [CompleteLibraryFolderSummaryPresentation]
+    ) {
+        let previousSummariesByPath = Dictionary(
+            uniqueKeysWithValues: completeLibraryFolderSummaries.map { ($0.folderPath, $0) }
+        )
+        let nextSummariesByPath = Dictionary(
+            uniqueKeysWithValues: snapshot.map { ($0.folderPath, $0) }
+        )
+        let cachedPaths = Set(completeLibraryFolderDetailsByPath.keys)
+            .union(completeLibraryFolderDetailStatusesByPath.keys)
+            .union(completeLibraryFolderDetailTasks.keys)
+        for folderPath in cachedPaths {
+            guard let nextSummary = nextSummariesByPath[folderPath],
+                  let previousSummary = previousSummariesByPath[folderPath],
+                  nextSummary == previousSummary
+            else {
+                completeLibraryFolderDetailTasks[folderPath]?.cancel()
+                completeLibraryFolderDetailTasks.removeValue(forKey: folderPath)
+                completeLibraryFolderDetailRequestIDs.removeValue(forKey: folderPath)
+                completeLibraryFolderDetailsByPath.removeValue(forKey: folderPath)
+                completeLibraryFolderDetailStatusesByPath.removeValue(forKey: folderPath)
+                continue
+            }
+            if let cachedDetail = completeLibraryFolderDetailsByPath[folderPath],
+               cachedDetail.videos.count != nextSummary.episodeCount
+            {
+                completeLibraryFolderDetailTasks[folderPath]?.cancel()
+                completeLibraryFolderDetailTasks.removeValue(forKey: folderPath)
+                completeLibraryFolderDetailRequestIDs.removeValue(forKey: folderPath)
+                completeLibraryFolderDetailsByPath.removeValue(forKey: folderPath)
+                completeLibraryFolderDetailStatusesByPath.removeValue(forKey: folderPath)
+            }
+        }
     }
 
     func removeLibraryPresentation(under folder: URL) {

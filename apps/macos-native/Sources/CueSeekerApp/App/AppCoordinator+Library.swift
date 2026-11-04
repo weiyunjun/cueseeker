@@ -195,16 +195,30 @@ extension AppCoordinator {
         library.cancelLibraryDisplayRenditionTask()
     }
 
-    func refreshRecentWatching(force: Bool = false) {
-        library.refreshRecentWatching(force: force)
+    func refreshRecentWatching(
+        force: Bool = false,
+        preservesExistingSnapshot: Bool = false
+    ) {
+        library.refreshRecentWatching(
+            force: force,
+            preservesExistingSnapshot: preservesExistingSnapshot
+        )
     }
 
-    func refreshTestRecentWatching() {
-        library.refreshTestRecentWatching()
+    func refreshTestRecentWatching(preservesExistingSnapshot: Bool = false) {
+        library.refreshTestRecentWatching(
+            preservesExistingSnapshot: preservesExistingSnapshot
+        )
     }
 
-    func refreshLoadedTestRecentWatching(force: Bool = false) {
-        library.refreshLoadedTestRecentWatching(force: force)
+    func refreshLoadedTestRecentWatching(
+        force: Bool = false,
+        preservesExistingSnapshot: Bool = false
+    ) {
+        library.refreshLoadedTestRecentWatching(
+            force: force,
+            preservesExistingSnapshot: preservesExistingSnapshot
+        )
     }
 
     func refreshRecentOnReappearanceIfNeeded() {
@@ -212,13 +226,19 @@ extension AppCoordinator {
             return
         }
         recentNeedsReloadAfterIndexedMutation = false
-        refreshTestRecentWatching()
-        refreshRecentWatching(force: true)
+        refreshTestRecentWatching(preservesExistingSnapshot: true)
+        refreshRecentWatching(force: true, preservesExistingSnapshot: true)
         reloadExcerptListOverview()
     }
 
-    func refreshCompleteLibrary(force: Bool = false) {
-        library.refreshCompleteLibrary(force: force)
+    func refreshCompleteLibrary(
+        force: Bool = false,
+        preservesExistingSnapshot: Bool = false
+    ) {
+        library.refreshCompleteLibrary(
+            force: force,
+            preservesExistingSnapshot: preservesExistingSnapshot
+        )
     }
 
     func refreshLibraryOnReappearanceIfNeeded() {

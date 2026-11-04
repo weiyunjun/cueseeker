@@ -13,6 +13,10 @@ private struct MediaCardCoverSizeKey: EnvironmentKey {
     static let defaultValue: CGSize? = nil
 }
 
+private struct IsLibraryCoverDecodeActiveKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
 extension EnvironmentValues {
     var isWorkbenchSidebarVisible: Bool {
         get { self[IsWorkbenchSidebarVisibleKey.self] }
@@ -27,6 +31,11 @@ extension EnvironmentValues {
     var mediaCardCoverSize: CGSize? {
         get { self[MediaCardCoverSizeKey.self] }
         set { self[MediaCardCoverSizeKey.self] = newValue }
+    }
+
+    var isLibraryCoverDecodeActive: Bool {
+        get { self[IsLibraryCoverDecodeActiveKey.self] }
+        set { self[IsLibraryCoverDecodeActiveKey.self] = newValue }
     }
 }
 
@@ -323,6 +332,7 @@ where Data.Element: Identifiable {
     @Environment(\.mediaCardGridContainerWidth) private var environmentContainerWidth
     @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     @State private var measuredContainerWidth: CGFloat = 0
+    @State private var activeCoverRowRange: ClosedRange<Int>?
     private let items: [Data.Element]
     private let content: (Data.Element) -> ItemContent
 
@@ -405,12 +415,29 @@ where Data.Element: Identifiable {
         }
     }
 
+    private var initialPrewarmRowCount: Int {
+        let columns = max(1, resolvedColumnCount)
+        let limit = LibraryCoverImagePipeline.firstScreenPrewarmLimit
+        return max(1, (limit + columns - 1) / columns)
+    }
+
+    private func isRowCoverDecodeActive(_ rowIndex: Int) -> Bool {
+        guard items.count > LibraryCoverImagePipeline.firstScreenPrewarmLimit else {
+            return true
+        }
+        if let activeCoverRowRange {
+            return activeCoverRowRange.contains(rowIndex)
+        }
+        return rowIndex < initialPrewarmRowCount
+    }
+
     var body: some View {
+        let currentRows = rows
         VStack(
             alignment: .leading,
             spacing: WorkbenchControlMetrics.redesignLibraryRecentGridGap
         ) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, rowItems in
+            ForEach(Array(currentRows.enumerated()), id: \.offset) { rowIndex, rowItems in
                 HStack(
                     alignment: .top,
                     spacing: WorkbenchControlMetrics.redesignLibraryRecentGridGap
@@ -434,6 +461,10 @@ where Data.Element: Identifiable {
                         }
                     }
                 }
+                .environment(
+                    \.isLibraryCoverDecodeActive,
+                    isRowCoverDecodeActive(rowIndex)
+                )
             }
         }
         .environment(\.mediaCardCoverSize, coverSize)
@@ -459,6 +490,163 @@ where Data.Element: Identifiable {
                             measuredContainerWidth = width
                         }
                 }
+            }
+        }
+        .background {
+            if items.count > LibraryCoverImagePipeline.firstScreenPrewarmLimit {
+                LibraryGridViewportObserver(
+                    rowCount: currentRows.count,
+                    initialRowCount: initialPrewarmRowCount
+                ) { newRange in
+                    if activeCoverRowRange != newRange {
+                        activeCoverRowRange = newRange
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct LibraryGridViewportObserver: NSViewRepresentable {
+    let rowCount: Int
+    let initialRowCount: Int
+    let onVisibleRowRangeChange: (ClosedRange<Int>) -> Void
+
+    func makeNSView(context _: Context) -> ObserverView {
+        let view = ObserverView()
+        view.update(
+            rowCount: rowCount,
+            initialRowCount: initialRowCount,
+            onVisibleRowRangeChange: onVisibleRowRangeChange
+        )
+        return view
+    }
+
+    func updateNSView(_ nsView: ObserverView, context _: Context) {
+        nsView.update(
+            rowCount: rowCount,
+            initialRowCount: initialRowCount,
+            onVisibleRowRangeChange: onVisibleRowRangeChange
+        )
+    }
+
+    final class ObserverView: NSView {
+        private var rowCount = 0
+        private var initialRowCount = 1
+        private var onVisibleRowRangeChange: ((ClosedRange<Int>) -> Void)?
+        private weak var observedClipView: NSClipView?
+        private var lastReportedRange: ClosedRange<Int>?
+
+        override var isFlipped: Bool {
+            true
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            nil
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+
+        func update(
+            rowCount: Int,
+            initialRowCount: Int,
+            onVisibleRowRangeChange: @escaping (ClosedRange<Int>) -> Void
+        ) {
+            self.rowCount = rowCount
+            self.initialRowCount = max(1, initialRowCount)
+            self.onVisibleRowRangeChange = onVisibleRowRangeChange
+            bindScrollObservationIfNeeded()
+            reportVisibleRowsIfNeeded()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            bindScrollObservationIfNeeded()
+            reportVisibleRowsIfNeeded()
+        }
+
+        override func viewDidMoveToSuperview() {
+            super.viewDidMoveToSuperview()
+            bindScrollObservationIfNeeded()
+            reportVisibleRowsIfNeeded()
+        }
+
+        override func layout() {
+            super.layout()
+            bindScrollObservationIfNeeded()
+            reportVisibleRowsIfNeeded()
+        }
+
+        private func bindScrollObservationIfNeeded() {
+            let clipView = enclosingScrollView?.contentView
+            guard clipView !== observedClipView else {
+                return
+            }
+            if let observedClipView {
+                NotificationCenter.default.removeObserver(
+                    self,
+                    name: NSView.boundsDidChangeNotification,
+                    object: observedClipView
+                )
+            }
+            observedClipView = clipView
+            if let clipView {
+                clipView.postsBoundsChangedNotifications = true
+                NotificationCenter.default.addObserver(
+                    self,
+                    selector: #selector(clipViewBoundsDidChange(_:)),
+                    name: NSView.boundsDidChangeNotification,
+                    object: clipView
+                )
+            }
+        }
+
+        @objc
+        private func clipViewBoundsDidChange(_ notification: Notification) {
+            reportVisibleRowsIfNeeded()
+        }
+
+        private func reportVisibleRowsIfNeeded() {
+            guard rowCount > 0, bounds.height > 0 else {
+                return
+            }
+            let visible = visibleRect
+            guard visible.height > 0 else {
+                return
+            }
+            let rowHeight = bounds.height / CGFloat(max(1, rowCount))
+            guard rowHeight > 0 else {
+                return
+            }
+            let range: ClosedRange<Int>
+            if visible.minY <= 1 {
+                let lastVisible = min(
+                    rowCount - 1,
+                    max(
+                        initialRowCount - 1,
+                        Int(ceil(visible.maxY / rowHeight)) - 1
+                    )
+                )
+                range = 0...max(0, lastVisible)
+            } else {
+                let firstRow = max(0, Int(floor(visible.minY / rowHeight)) - 1)
+                let lastRow = min(
+                    rowCount - 1,
+                    Int(ceil(visible.maxY / rowHeight)) + 1
+                )
+                range = firstRow...max(firstRow, lastRow)
+            }
+            guard range != lastReportedRange else {
+                return
+            }
+            lastReportedRange = range
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.lastReportedRange == range else {
+                    return
+                }
+                self.onVisibleRowRangeChange?(range)
             }
         }
     }
@@ -559,7 +747,6 @@ struct LibraryCoverChooser<Content: View>: View {
                 isFocused: isFocused,
                 cornerRadius: WorkbenchControlMetrics.redesignLibraryCoverRadius
             )
-            .background(WorkbenchAccessibilityScrollRevealProbe(isActive: isFocused))
         }
         .buttonStyle(StaticButtonStyle())
         .focusable(false)

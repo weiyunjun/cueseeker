@@ -1201,7 +1201,9 @@ struct WorkbenchAccessibilityScrollRevealProbe: NSViewRepresentable {
     }
 
     func makeNSView(context _: Context) -> ProbeView {
-        ProbeView()
+        let view = ProbeView()
+        view.update(isFocused: isFocused)
+        return view
     }
 
     func updateNSView(_ nsView: ProbeView, context _: Context) {
@@ -1263,7 +1265,11 @@ extension View {
         let lineWidth = WorkbenchControlMetrics.redesignFocusRingWidth
         let color = isPlayerChrome ? PlaybackTheme.focusRing : WorkbenchRedesignColors.focusRing
         return self
-            .background(WorkbenchAccessibilityScrollRevealProbe(isFocused: isFocused))
+            .background {
+                if isFocused {
+                    WorkbenchAccessibilityScrollRevealProbe(isFocused: true)
+                }
+            }
             .overlay {
                 if isFocused {
                     if isCircular {

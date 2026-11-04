@@ -289,7 +289,7 @@ private struct LibraryVideoCard: View {
             .libraryCardContextMenuTrigger(
                 isEnabled: true,
                 ownerID: cardID,
-                items: contextMenuItems,
+                items: { contextMenuItems },
                 openContextMenu: { items, point, ownerID in
                     highlight.notePress(id: cardID)
                     openContextMenu(items, point, ownerID)
@@ -319,7 +319,6 @@ private struct LibraryVideoCard: View {
         _ accessibility: WorkbenchAccessibilityCoordinator?,
         layer: InterfaceLayer
     ) {
-        let items = contextMenuItems
         let anchor = moreMenuAnchor
         let id = cardID
         let toggle = toggleAnchorMenu
@@ -327,15 +326,15 @@ private struct LibraryVideoCard: View {
         switch layer {
         case .workbenchPage:
             accessibility?.registerMediaCardAction(id: id, ownerToken: token) {
-                toggle?(items, anchor, id)
+                toggle?(contextMenuItems, anchor, id)
             }
         case .playbackOverlay:
             accessibility?.registerPlaybackOverlayCardAction(id: id, ownerToken: token) {
-                toggle?(items, anchor, id)
+                toggle?(contextMenuItems, anchor, id)
             }
         case .commandPanel:
             accessibility?.registerCommandPanelCardAction(id: id, ownerToken: token) {
-                toggle?(items, anchor, id)
+                toggle?(contextMenuItems, anchor, id)
             }
         default:
             break
@@ -478,7 +477,7 @@ struct LibraryFolderCard: View {
             .libraryCardContextMenuTrigger(
                 isEnabled: isAvailable,
                 ownerID: cardID,
-                items: folderContextMenuItems,
+                items: { folderContextMenuItems },
                 openContextMenu: { items, point, ownerID in
                     highlight.notePress(id: cardID)
                     openContextMenu(items, point, ownerID)
@@ -499,7 +498,6 @@ struct LibraryFolderCard: View {
 
     private func syncAccessibilityAction(_ accessibility: WorkbenchAccessibilityCoordinator?) {
         let available = isAvailable
-        let items = folderContextMenuItems
         let anchor = moreMenuAnchor
         let id = cardID
         let toggle = toggleAnchorMenu
@@ -508,7 +506,7 @@ struct LibraryFolderCard: View {
             ownerToken: ObjectIdentifier(anchor)
         ) {
             guard available else { return }
-            toggle?(items, anchor, id)
+            toggle?(folderContextMenuItems, anchor, id)
         }
     }
 

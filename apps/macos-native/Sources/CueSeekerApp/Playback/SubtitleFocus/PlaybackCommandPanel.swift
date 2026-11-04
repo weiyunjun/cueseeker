@@ -998,9 +998,14 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
         _ onItemFramesChange: @escaping ([String: CGRect]) -> Void
     ) -> Grid
 
+    private final class ItemFramesStorage {
+        var framesByID: [String: CGRect] = [:]
+    }
+
     private let coordinateSpaceName =
         "playback-command-panel-recent-cards-scroll"
-    @State private var itemFramesByID: [String: CGRect] = [:]
+    @State private var itemFramesStorage = ItemFramesStorage()
+    @State private var itemFramesRevision: UInt64 = 0
     /// The page keeps navigating with its own ordinal; this owns which card is
     /// lit and decides when the pointer may move it.
     @StateObject private var highlight = CardHighlightModel(
@@ -1077,9 +1082,16 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
                         onGridLayoutChange(newColumnCount)
                     }
                 } else {
+                    let _ = itemFramesRevision
                     WorkbenchScrollView {
                         grid(highlight, coordinateSpaceName) { frames in
-                            itemFramesByID = frames
+                            guard itemFramesStorage.framesByID != frames else {
+                                return
+                            }
+                            itemFramesStorage.framesByID = frames
+                            if scrollRequest != nil {
+                                itemFramesRevision &+= 1
+                            }
                         }
                         .environment(\.mediaCardGridContainerWidth, gridWidth)
                         .background(alignment: .topLeading) {
@@ -1088,7 +1100,7 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
                                 restoresInitialOffset: false,
                                 scrollRequest: scrollRequest,
                                 isFirstRowSelection: isFirstRowSelection,
-                                itemFramesByID: itemFramesByID,
+                                itemFramesByID: itemFramesStorage.framesByID,
                                 topPadding: WorkbenchControlMetrics.redesignSpacing2,
                                 bottomPadding: WorkbenchControlMetrics.redesignSpacing2,
                                 onOffsetChanged: { _ in }

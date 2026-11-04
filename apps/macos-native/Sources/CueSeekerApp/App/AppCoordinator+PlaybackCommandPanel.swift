@@ -213,7 +213,9 @@ extension AppCoordinator {
 
         switch page {
         case .recentVideos:
-            refreshTestRecentWatching()
+            flushPendingLibraryPlaybackHistoryPresentations()
+            refreshRecentOnReappearanceIfNeeded()
+            refreshTestRecentWatching(preservesExistingSnapshot: true)
         case .recentExcerpts:
             refreshExcerptOnReappearanceIfNeeded()
             loadExcerptListOverviewIfNeeded()
@@ -701,7 +703,7 @@ extension AppCoordinator {
         if case .recentExcerpts = playback.commandPanelHeldPage {
             return false
         }
-        if excerpt.listOverviewTask != nil || excerptNeedsReloadAfterIndexedContentMutation {
+        if excerptNeedsReloadAfterIndexedContentMutation {
             return true
         }
         return !excerpt.hasLoadedListOverview && excerpt.recentListSummaries.isEmpty
@@ -753,13 +755,11 @@ extension AppCoordinator {
             return (DebugInteractionLatencyProbe.now(), .zero)
         case .recentVideos:
             if playback.commandPanelHeldPage == nil {
-                if library.testRecentWatchingStatus != .loading,
-                   isPlaybackCommandPanelRecentVideosLoading
-                {
+                if isPlaybackCommandPanelRecentVideosLoading {
                     refreshRecentOnReappearanceIfNeeded()
                     hydrateTestRecentWatchingAsync()
+                    await testRecentWatchingTask?.value
                 }
-                await testRecentWatchingTask?.value
                 guard !Task.isCancelled else {
                     return (DebugInteractionLatencyProbe.now(), .zero)
                 }
@@ -778,7 +778,9 @@ extension AppCoordinator {
             if playback.commandPanelHeldPage == nil {
                 refreshExcerptOnReappearanceIfNeeded()
                 loadExcerptListOverviewIfNeeded()
-                await excerpt.listOverviewTask?.value
+                if isPlaybackCommandPanelRecentExcerptsLoading {
+                    await excerpt.listOverviewTask?.value
+                }
                 guard !Task.isCancelled else {
                     return (DebugInteractionLatencyProbe.now(), .zero)
                 }

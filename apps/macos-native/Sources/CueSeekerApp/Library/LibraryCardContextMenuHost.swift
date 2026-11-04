@@ -34,6 +34,10 @@ private struct LibraryCardContextMenuToggleAnchorKey: EnvironmentKey {
     nonisolated(unsafe) static let defaultValue: (([LibraryCardContextMenuItem], MenuAnchorHandle, String) -> Void)? = nil
 }
 
+private struct LibraryCardMenuHostGeometryKey: EnvironmentKey {
+    static let defaultValue: LibraryCardMenuHostGeometry? = nil
+}
+
 extension EnvironmentValues {
     var libraryCardContextMenuAnchorUpdate: ((CGPoint) -> Void)? {
         get { self[LibraryCardContextMenuAnchorUpdateKey.self] }
@@ -62,6 +66,11 @@ extension EnvironmentValues {
     var libraryCardContextMenuAnchorOwner: String? {
         get { self[LibraryCardContextMenuAnchorOwnerKey.self] }
         set { self[LibraryCardContextMenuAnchorOwnerKey.self] = newValue }
+    }
+
+    fileprivate var libraryCardMenuHostGeometry: LibraryCardMenuHostGeometry? {
+        get { self[LibraryCardMenuHostGeometryKey.self] }
+        set { self[LibraryCardMenuHostGeometryKey.self] = newValue }
     }
 }
 
@@ -122,6 +131,13 @@ private final class LibraryCardMenuHostGeometry {
             return nil
         }
         return probe.convert(windowFrame, from: nil)
+    }
+
+    func convertPointFromView(_ point: CGPoint, in view: NSView) -> CGPoint? {
+        guard let probe, probe.window != nil, probe.window === view.window else {
+            return nil
+        }
+        return probe.convert(point, from: view)
     }
 }
 
@@ -208,6 +224,7 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                 \.libraryCardContextMenuAnchorOwner,
                 activeMenu?.anchorFrame != nil ? activeMenu?.ownerID : nil
             )
+            .environment(\.libraryCardMenuHostGeometry, geometry)
             .coordinateSpace(name: LibraryCardContextMenuCoordinateSpace.name)
             .background(LibraryCardMenuViewportProbe(geometry: geometry))
             .overlay(alignment: .topLeading) {
@@ -455,61 +472,127 @@ private struct LibraryCardContextMenu: View {
 private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
     let isEnabled: Bool
     let ownerID: String
-    let items: [LibraryCardContextMenuItem]
+    let items: () -> [LibraryCardContextMenuItem]
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
     @Environment(\.libraryCardContextMenuAnchorUpdate) private var updateAnchor
+    @Environment(\.libraryCardMenuHostGeometry) private var hostGeometry
     /// Set on the one card the open menu belongs to, so only that card reports
     /// where it moved to.
     @State private var localAnchorPoint: CGPoint?
 
     func body(content: Content) -> some View {
-        content.background(
-            GeometryReader { proxy in
-                let frame = proxy.frame(in: .named(LibraryCardContextMenuCoordinateSpace.name))
+        content
+            .background(
                 // An open menu is not a reason to refuse: the press that
                 // closed it is the same press that opens this card's menu.
                 LibraryCardRightClickMonitor(
                     isEnabled: isEnabled && !layerContext.isCovered,
                     menuGate: interfaceLayers?.menuGate
-                ) { localPoint in
+                ) { view, localPoint in
                     localAnchorPoint = localPoint
+                    let anchorPoint = hostGeometry?.convertPointFromView(
+                        localPoint,
+                        in: view
+                    ) ?? localPoint
                     openContextMenu(
-                        items,
-                        CGPoint(
-                            x: frame.minX + localPoint.x,
-                            y: frame.minY + localPoint.y
-                        ),
+                        items(),
+                        anchorPoint,
                         ownerID
                     )
                 }
-                .onChange(of: frame.origin) { origin in
-                    guard contextMenuOwnerID != nil, let localAnchorPoint else {
-                        return
-                    }
-                    updateAnchor?(
-                        CGPoint(
-                            x: origin.x + localAnchorPoint.x,
-                            y: origin.y + localAnchorPoint.y
-                        )
-                    )
-                }
-                .onChange(of: contextMenuOwnerID == nil) { isClosed in
-                    if isClosed {
-                        localAnchorPoint = nil
+            )
+            .background {
+                if contextMenuOwnerID == ownerID {
+                    GeometryReader { proxy in
+                        let origin = proxy.frame(
+                            in: .named(LibraryCardContextMenuCoordinateSpace.name)
+                        ).origin
+                        Color.clear
+                            .onChange(of: origin) { newOrigin in
+                                guard contextMenuOwnerID == ownerID,
+                                      let localAnchorPoint
+                                else {
+                                    return
+                                }
+                                updateAnchor?(
+                                    CGPoint(
+                                        x: newOrigin.x + localAnchorPoint.x,
+                                        y: newOrigin.y + localAnchorPoint.y
+                                    )
+                                )
+                            }
                     }
                 }
             }
-        )
+            .onChange(of: contextMenuOwnerID == ownerID) { isOwner in
+                if !isOwner {
+                    localAnchorPoint = nil
+                }
+            }
+    }
+}
+
+@MainActor
+private final class LibraryCardRightClickEventDispatcher {
+    static let shared = LibraryCardRightClickEventDispatcher()
+
+    private struct WeakEntry {
+        weak var view: LibraryCardRightClickMonitor.MonitoringView?
+    }
+
+    private var entries: [ObjectIdentifier: WeakEntry] = [:]
+    nonisolated(unsafe) private var monitor: Any?
+
+    func register(_ view: LibraryCardRightClickMonitor.MonitoringView) {
+        entries[ObjectIdentifier(view)] = WeakEntry(view: view)
+        ensureMonitorIfNeeded()
+    }
+
+    func unregister(_ view: LibraryCardRightClickMonitor.MonitoringView) {
+        entries.removeValue(forKey: ObjectIdentifier(view))
+        if entries.isEmpty, let monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+    }
+
+    private func ensureMonitorIfNeeded() {
+        guard monitor == nil else {
+            return
+        }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self] event in
+            guard let self else {
+                return event
+            }
+            return self.handleRightMouseDown(event)
+        }
+    }
+
+    private func handleRightMouseDown(_ event: NSEvent) -> NSEvent? {
+        for (id, entry) in entries {
+            guard let view = entry.view else {
+                entries.removeValue(forKey: id)
+                continue
+            }
+            if view.handleRightMouseDown(event) {
+                return nil
+            }
+        }
+        if entries.isEmpty, let monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+        return event
     }
 }
 
 private struct LibraryCardRightClickMonitor: NSViewRepresentable {
     let isEnabled: Bool
     let menuGate: MenuGate?
-    let onRightClick: (CGPoint) -> Void
+    let onRightClick: (MonitoringView, CGPoint) -> Void
 
     func makeNSView(context _: Context) -> MonitoringView {
         MonitoringView()
@@ -523,86 +606,78 @@ private struct LibraryCardRightClickMonitor: NSViewRepresentable {
         )
     }
 
+    static func dismantleNSView(_ nsView: MonitoringView, coordinator _: Void) {
+        LibraryCardRightClickEventDispatcher.shared.unregister(nsView)
+    }
+
     final class MonitoringView: NSView {
-        nonisolated(unsafe) private var monitor: Any?
         private var isEnabled = false
         private weak var menuGate: MenuGate?
-        private var onRightClick: ((CGPoint) -> Void)?
+        private var onRightClick: ((MonitoringView, CGPoint) -> Void)?
 
         override var isFlipped: Bool {
             true
         }
 
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            nil
+        }
+
         func update(
             isEnabled: Bool,
             menuGate: MenuGate?,
-            onRightClick: @escaping (CGPoint) -> Void
+            onRightClick: @escaping (MonitoringView, CGPoint) -> Void
         ) {
             self.isEnabled = isEnabled
             self.menuGate = menuGate
             self.onRightClick = onRightClick
-            updateMonitor()
+            updateRegistration()
         }
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            updateMonitor()
+            updateRegistration()
         }
 
-        deinit {
-            if let monitor {
-                NSEvent.removeMonitor(monitor)
-            }
-        }
-
-        private func updateMonitor() {
-            guard isEnabled, window != nil else {
-                removeMonitor()
-                return
-            }
-            guard monitor == nil else {
-                return
-            }
-            monitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self] event in
-                guard let self else {
-                    return event
-                }
-                guard event.window === self.window else {
-                    return event
-                }
-
-                let localPoint = self.convert(event.locationInWindow, from: nil)
-                // Only the part of the card the reader can actually see answers:
-                // a card the page has scrolled out of view must not claim a
-                // press made over whatever covers it.
-                guard self.bounds.intersection(self.visibleRect).contains(localPoint) else {
-                    return event
-                }
-
-                // Card monitors are installed when cards appear, before any
-                // menu opens, so they see a right-click before the gate's own
-                // monitor does. Routing through the gate first lets an open
-                // menu swallow a right-click inside its own surface or close
-                // before this card opens its menu.
-                (self.window as? CueSeekerWindow)?.activateWindowForFocusIfNeeded()
-                (self.window as? CueSeekerWindow)?.onMouseDownClearAccessibility?()
-                if let menuGate = self.menuGate {
-                    guard menuGate.route(event) != nil else {
-                        return nil
-                    }
-                }
-
-                self.onRightClick?(localPoint)
-                return nil
+        private func updateRegistration() {
+            if isEnabled, window != nil {
+                LibraryCardRightClickEventDispatcher.shared.register(self)
+            } else {
+                LibraryCardRightClickEventDispatcher.shared.unregister(self)
             }
         }
 
-        private func removeMonitor() {
-            guard let monitor else {
-                return
+        func handleRightMouseDown(_ event: NSEvent) -> Bool {
+            guard isEnabled,
+                  let window,
+                  event.window === window
+            else {
+                return false
             }
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
+
+            let localPoint = convert(event.locationInWindow, from: nil)
+            // Only the part of the card the reader can actually see answers:
+            // a card the page has scrolled out of view must not claim a
+            // press made over whatever covers it.
+            guard bounds.intersection(visibleRect).contains(localPoint) else {
+                return false
+            }
+
+            // Card monitors are installed when cards appear, before any
+            // menu opens, so they see a right-click before the gate's own
+            // monitor does. Routing through the gate first lets an open
+            // menu swallow a right-click inside its own surface or close
+            // before this card opens its menu.
+            (window as? CueSeekerWindow)?.activateWindowForFocusIfNeeded()
+            (window as? CueSeekerWindow)?.onMouseDownClearAccessibility?()
+            if let menuGate {
+                guard menuGate.route(event) != nil else {
+                    return true
+                }
+            }
+
+            onRightClick?(self, localPoint)
+            return true
         }
     }
 }
@@ -611,7 +686,7 @@ extension View {
     func libraryCardContextMenuTrigger(
         isEnabled: Bool,
         ownerID: String,
-        items: [LibraryCardContextMenuItem],
+        items: @escaping () -> [LibraryCardContextMenuItem],
         openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     ) -> some View {
         modifier(
