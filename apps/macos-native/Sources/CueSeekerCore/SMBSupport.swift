@@ -306,8 +306,19 @@ public final class SMBHostResolver: @unchecked Sendable {
     }
 
     private static func lookupAddrInfo(hostname: String, preferLoopback: Bool) -> String? {
+        if let ipv4 = lookupAddrInfo(hostname: hostname, family: AF_INET, preferLoopback: preferLoopback) {
+            return ipv4
+        }
+        return lookupAddrInfo(hostname: hostname, family: AF_INET6, preferLoopback: preferLoopback)
+    }
+
+    private static func lookupAddrInfo(
+        hostname: String,
+        family: Int32,
+        preferLoopback: Bool
+    ) -> String? {
         var hints = addrinfo()
-        hints.ai_family = AF_UNSPEC
+        hints.ai_family = family
         hints.ai_socktype = SOCK_STREAM
 
         var res: UnsafeMutablePointer<addrinfo>?

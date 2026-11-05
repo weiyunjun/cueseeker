@@ -266,41 +266,15 @@ csmb_error_code_t cnfs_list_exports(
     out_exports->names = NULL;
     out_exports->count = 0;
 
-    struct exportnode *exports = mount_getexports_timeout(host, 6000);
-    if (exports) {
-        size_t cap = 16;
-        size_t count = 0;
-        char **names = (char **)calloc(cap, sizeof(char *));
-        for (struct exportnode *cur = exports; cur != NULL; cur = cur->ex_next) {
-            if (!cur->ex_dir || cur->ex_dir[0] == '\0') {
-                continue;
-            }
-            char *norm = cnfs_normalize_abs_path(cur->ex_dir);
-            int dup = 0;
-            for (size_t i = 0; i < count; i++) {
-                if (strcmp(names[i], norm) == 0) {
-                    dup = 1;
-                    break;
-                }
-            }
-            if (dup) {
-                free(norm);
-                continue;
-            }
-            if (count == cap) {
-                cap *= 2;
-                names = (char **)realloc(names, cap * sizeof(char *));
-            }
-            names[count++] = norm;
-        }
-        mount_free_export_list(exports);
-        if (count > 0) {
-            out_exports->names = names;
-            out_exports->count = count;
-            return CSMB_OK;
-        }
-        free(names);
+    char **cached_names = NULL;
+    size_t cached_count = 0;
+    cnfs_get_exports_cached(host, 0, &cached_names, &cached_count);
+    if (cached_names && cached_count > 0) {
+        out_exports->names = cached_names;
+        out_exports->count = cached_count;
+        return CSMB_OK;
     }
+    free(cached_names);
 
     /* Fallback to NFSv4 pseudo-root "/" */
     struct nfs_context *nfs = cnfs_create_context(NFS_V4);
