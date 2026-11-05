@@ -67,7 +67,7 @@ flowchart TD
     SearchNext --> FindValid{"是否存在至少一个有效项?"}
 
     FindValid -- "存在有效项" --> JumpValid["自动跳转至第一个有效项播放<br>(恢复正常播放状态与写库追踪)"]
-    FindValid -- "无任何有效项" --> NoValidFeedback["播放页中央弹出 Playback Feedback (持续 1 秒):<br>- Search 来源: No Available Results<br>- Excerpt 来源: No Available Excerpts<br>- Library 来源: No Available Videos<br>(停留在当前界面，不强制退出)"]
+    FindValid -- "无任何有效项" --> NoValidFeedback["播放页左上角弹出 Playback Feedback (持续 1 秒):<br>- Search / Excerpt 来源: No Available Results<br>- Library 来源: No Available Videos<br>(停留在当前界面，不强制退出)"]
 ```
 
 ## 3. Part 2：浮层与工作区界面（Overlay, Command Panel, Recent）的冻结与离开返回流

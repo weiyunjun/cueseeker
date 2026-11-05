@@ -126,15 +126,17 @@
 
 #### Position
 
-- Anchor：Player Stage Center
-- 水平与垂直双向居中，内容变长时以中心为基准向两侧延伸，达到最大宽度后换行并向上下延伸
-- Layer：Above Video, Playback Overlay and Command Panel
+- Anchor：App 窗口左上角，不锚定视频画面
+- Padding Top：`--height-app-topbar` 与 `--spacing-3` 之和；当 `Player Error Banner` 同时可见时，排列在 `Player Error Banner` 下方 `--spacing-3` 处
+- Padding Leading：`--spacing-6`
+- Layer：Above Video（仅在播放器画面展示；当 `Playback Overlay` 或 `Command Panel` 打开时隐藏）
+- 不随 Player UI 隐藏
 
 #### Timing
 
 - Duration：Playback Feedback / Duration
-- 列表中没有有效项时导航（上一个、下一个、Auto Switch、视频播完自动播放下一个）：由 Playback Feedback 呈现（持续 1 秒），文案按来源为 `No Available Results`、`No Available Excerpts`、`No Available Videos`
-- 加载状态（Spinner）：常规操作 HUD 优先级高于加载 Spinner；无操作 HUD 时等待画面超过 `--delay-playback-loading-feedback` 仍未就绪则显示无文字加载 Spinner，有操作 HUD 时待操作 HUD 播放结束后再按 `--delay-playback-loading-feedback` 计时，超时仍未就绪才显示加载 Spinner；画面就绪或加载失败时立即消失
+- 列表中没有有效项时在播放器画面导航（上一个、下一个、Auto Switch、视频播完自动播放下一个）：由 Playback Feedback 呈现（持续 1 秒），文案按来源为 `No Available Results`、`No Available Videos`
+- 加载状态（Spinner + `Loading` 文案）：常规操作 HUD 优先级高于加载状态；无操作 HUD 时等待画面超过 `--delay-playback-loading-feedback` 仍未就绪则显示加载状态，有操作 HUD 时待操作 HUD 结束后再按 `--delay-playback-loading-feedback` 计时，超时仍未就绪才显示加载状态；画面就绪或加载失败时立即消失
 
 #### Components
 
@@ -143,9 +145,7 @@
 #### States
 
 - Hidden
-- Entering
 - Visible
-- Exiting
 
 ### L-07.5 Player Error Banner Layout
 
@@ -305,9 +305,9 @@
 | Command Panel / Recent Excerpt Lists | 摘录集数 | Open `Return` |
 | Command Panel / Search Results | 结果数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
 
-- Save to Excerpt List 打开 Excerpt Destination Submenu 选择目标列表，不直接保存；结果由 Playback Feedback 呈现，Icon 为实心书签
-- 对不在数据库中的项执行 Save to Excerpt List 或 Copy Deep Link 时拦截，由 Playback Feedback 呈现（持续 1 秒），Icon 为 warning，文案 `Not in Library`，面板保持打开；执行 Play 时关闭 Playback Overlay，进入黑屏播放界面并由 Player Error Banner 报错
-- 在 Command Panel 的 Recent Excerpt Lists 中打开没有有效项的列表时拦截，由 Playback Feedback 呈现（持续 1 秒），文案 `No Available Excerpts`，面板保持打开
+- Save to Excerpt List 打开 Excerpt Destination Submenu 选择目标列表，不直接保存；结果由当前界面右下角 Toast 呈现，成功时 Icon 为实心书签，失败或已存在时 Icon 为 warning
+- 对不在数据库中的项执行 Save to Excerpt List 或 Copy Deep Link 时拦截，由当前界面右下角 Toast 呈现（持续 3 秒），Icon 为 warning，文案 `Cue Not in Library`，面板保持打开；执行 Play 时关闭浮层，进入黑屏播放界面并由 Player Error Banner 报错；从 Playback Overlay 正常执行 Play 进入播放时不显示 `Play` Playback Feedback
+- 在 Command Panel 的 Recent Excerpt Lists 中打开没有有效项的列表时拦截，由 Command Panel 右下角 Toast 呈现（持续 3 秒），Icon 为 warning，文案 `No Available Results`，面板保持打开
 - `S`、`C`、`X`、`P`、`E` 为默认键位，Keycap 显示 Settings / Shortcuts 中的当前键位，修饰键（⌃、⌥、⇧、⌘）与主键各占一个 Keycap；快捷键已清空或冲突时不显示 Keycap
 
 #### States

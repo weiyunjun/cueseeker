@@ -234,7 +234,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-player-error`: `13px`
 - `--line-height-player-error`: `20px`
 - `--font-size-playback-feedback`: `18px`
-- `--font-size-toast`: `16px`
+- `--line-height-playback-feedback`: `26px`
+- `--font-size-toast`: `14px`
+- `--line-height-toast`: `20px`
+- `--font-weight-toast`: `400`
 - `--font-size-subtitle-focus-cue`: `24px`
 - `--line-height-subtitle-focus-cue`: `32px`
 - `--font-weight-subtitle-focus-cue`: `600`
@@ -290,7 +293,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--height-player-progress-time-capsule`: `22px`
 - `--height-player-cue-control`: `28px`
 - `--height-player-cue-control-bar`: `--height-player-cue-control` 与两倍 `--spacing-1` 之和 (`36px`)
-- `--height-playback-feedback`: `52px`
 - `--height-library-progress-bar`: `4px`
 - `--height-task-progress-bar`: `4px`
 - `--height-task-panel`: `500px`
@@ -354,11 +356,11 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-player-cue-gap-value`: `64px`
 - `--width-player-topbar-title-max`: `520px`
 - `--size-player-error-icon`: `16px`
-- `--size-playback-feedback-icon`: `31px`
+- `--size-playback-feedback-icon`: `23px`
 - `--size-playback-feedback-spinner`: `23px`
 - `--width-playback-feedback-max`: `520px`
-- `--size-toast-icon`: `23px`
-- `--width-toast-max`: `400px`
+- `--size-toast-icon`: `16px`
+- `--width-toast`: `260px`
 - `--width-tooltip-max`: `280px`
 - `--width-playback-cue-timeline-connector`: `1px`
 - `--width-subtitle-focus-content-max`: `960px`
@@ -502,7 +504,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--radius-app-sidebar-item`: `8px`
 - `--radius-settings-group`: `10px`
 - `--radius-settings-color-swatch`: `4px`
-- `--radius-playback-feedback`: `16px`
+- `--radius-playback-feedback`: `10px`
+- `--radius-toast`: `10px`
 - `--radius-player-error`: `10px`
 - `--radius-player-cue-control-bar`: `10px`
 - `--radius-player-cue-control`: `--radius-player-cue-control-bar` 减去 `--spacing-1` (`6px`)
@@ -570,7 +573,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 ### Toast Motion
 
-- `--duration-toast-motion`: `0.20s`
+- `--duration-toast-motion`: `0.36s`
+- `--distance-toast-motion`: `18px`
+- `--offset-toast-stack`: `9px`
+- `--scale-step-toast-stack`: `0.05`
 - `--easing-toast-motion`: `cubic-bezier(0.22, 1, 0.36, 1)`
 
 ### Dialog Motion

@@ -321,44 +321,45 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-toast-bg`
-  - Border Color：`--color-toast-border`
-  - Border Width：`1px`
-  - Radius：`--radius-playback-feedback`
-  - Shadow：None
+  - Background：`--color-bg-popover`
+  - Border Color：`--color-border-control`
+  - Border Width：`--border-width-control`
+  - Radius：`--radius-toast`
+  - Shadow：`--shadow-popover`
 - Icon
   - Presence：Optional
-  - Color：`--color-player-text-primary`（纯白色 `#FFFFFF`）
+  - Color：`--color-text-primary`
   - 与 Message 第一行垂直居中
 - Message
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-toast`
-  - Font Weight：`--font-weight-control`
+  - Line Height：`--line-height-toast`
+  - Font Weight：`--font-weight-toast`
   - Color：`--color-text-primary`
-  - 超出最大宽度换行，各行左对齐，不进入 Icon 所占宽度
+  - 超出可用宽度换行，各行左对齐，不进入 Icon 所占宽度
 
 ##### Motion
 
 - Duration：`--duration-toast-motion`
+- Distance：`--distance-toast-motion`
 - Easing：`--easing-toast-motion`
 
 ##### Presentation Inputs
 
 - Position
-  - Default：App Center
+  - Default：Bottom Right
 - Duration
-  - Default：`5s`
+  - Default：`1.5s`（轻提示）/ `3s`（报错与警示）
 - Motion
   - Default：Toast Motion
 
 ##### Sizes
 
+- Width：`--width-toast`
 - Icon Size：`--size-toast-icon`
-- Padding Inline：`--spacing-4`
-- Padding Block：`--spacing-3`
-- Icon to Message Gap：`--spacing-3`
-- Maximum Width：`--width-toast-max`
-- Viewport Margin Inline：`--spacing-6`
+- Padding Inline：`--padding-control-x`
+- Padding Block：`--spacing-2`
+- Icon to Message Gap：`--spacing-2`
 
 ##### States
 
@@ -456,42 +457,40 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-toast-bg`
-  - Border Color：`--color-toast-border`
+  - Background：`--color-player-topbar-gradient-start`
+  - Border：None
   - Radius：`--radius-playback-feedback`
   - Shadow：None
 - Icon
   - Presence：Optional
   - Color：`--color-player-text-primary`
   - 与 Label 第一行垂直居中
-- Label
-  - Presence：Optional
-  - Font Size：`--font-size-playback-feedback`
-  - Font Weight：`--font-weight-control`
-  - Color：`--color-player-text-primary`
-  - 数字等宽；超出最大宽度换行，各行左对齐，不进入 Icon 所占宽度
 - Spinner
-  - Presence：Optional（仅无文字加载态显示，居中承载 `C-09.4 Spinner`）
+  - Presence：Optional（仅加载态显示，位于 Label 左侧并与第一行垂直居中）
   - Track Color：`--color-playback-feedback-spinner-track`
   - Indicator Color：`--color-playback-feedback-spinner-indicator`
+- Label
+  - Presence：Required（加载态文案为 `Loading`）
+  - Font Size：`--font-size-playback-feedback`
+  - Line Height：`--line-height-playback-feedback`
+  - Font Weight：`--font-weight-control`
+  - Color：`--color-player-text-primary`
+  - 数字等宽；超出最大宽度换行，各行左对齐，不进入 Icon / Spinner 所占宽度
 
 ##### Motion
 
-- Duration：`--duration-toast-motion`
-- Easing：`--easing-toast-motion`
+- None（瞬时显隐）
 
 ##### Presentation Inputs
 
 - Duration
-- Motion
-  - Default：Toast Motion
 
 ##### Sizes
 
-- Minimum Height：`--height-playback-feedback`（仅显示 Spinner 时容器宽高固定为 `--height-playback-feedback`）
+- Width：随内容，不超过 Maximum Width
 - Icon Size：`--size-playback-feedback-icon`
 - Spinner Size：`--size-playback-feedback-spinner`
-- Padding Inline：`--spacing-4`
+- Padding Inline：`--padding-control-x`
 - Padding Block：`--spacing-2`
 - Icon to Label Gap：`--spacing-3`
 - Maximum Width：`--width-playback-feedback-max`
@@ -500,9 +499,7 @@
 ##### States
 
 - Hidden
-- Entering
 - Visible
-- Exiting
 
 ### C-09.6 Player Error Banner
 

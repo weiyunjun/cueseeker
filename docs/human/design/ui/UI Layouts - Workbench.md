@@ -131,19 +131,21 @@
 
 #### Position
 
-- Anchor：App Center，即 App 窗口中心，含 Sidebar 与顶栏
-- 最新一条 Toast 的中心与 Anchor 重合；较早的依次向上堆叠，最新一条的位置不随数量变化
-- Layer：Above Pages, Page Overlays, Command Panel and Dialogs
+- Anchor：Bottom Right（随当前所处界面自适应定位）
+  - Workbench（含模态 Dialog 打开时）：距离窗口右边缘 `--spacing-6`，距离窗口下边缘 `--spacing-6`
+  - Playback Overlay（Current / Playlist / Collage）：距离窗口右边缘 `--spacing-8`（与内容区右边缘对齐），底部位于 `Playback Footer` 上边缘上方 `--spacing-3`
+  - Command Panel：距离面板容器右内边缘 `--spacing-5`（与面板内容区右边缘对齐），底部位于面板内 `Playback Footer` 上边缘上方 `--spacing-3`
+- Layer：Above Pages, Playback Overlay, Command Panel and Dialogs
 
 #### Stacking
 
-- Item Gap：`--spacing-4`
-- Maximum Items：4；新的一条出现时，超出的最早一条立即消失
-- 新的一条与已显示的某条 Scenario ID 与文案都相同时，不新增，该条移到最新位置并重新计时
+- 最多同时展示 3 层折叠堆叠（`depth = 0, 1, 2`）；新的一条出现时，超出的最早一条立即移除
+- 连续触发相同或不同 Toast 时，均作为新卡片从底部向上推入（位移 `--distance-toast-motion`），既有卡片依次退居后层
+- 后方叠层（`depth = 1, 2`）以顶部中心为缩放基准，每层递减 `--scale-step-toast-stack`、向上偏移 `--offset-toast-stack`，保持 100% 不透明；后方叠层高度跟随最前层卡片并隐藏内部图文，仅露出顶部圆角折叠边缘
 
 #### Timing
 
-- Duration：Toast / Duration，自出现起计时，到时消失；焦点、指针悬停与窗口是否可见都不影响计时
+- Duration：Toast / Duration，各条独立自出现起计时，到时消失；焦点、指针悬停与窗口是否可见都不影响计时
 
 #### Components
 

@@ -113,7 +113,7 @@
 | **3.1 App Shell** | `L-01.1` | App Sidebar Layout | 主窗口左侧导航栏与自动收起阈值 |
 | | `L-01.2` | App Topbar Layout | 主窗口顶栏（红绿灯、Sidebar Toggle、前进后退、标题、Task/Settings 入口） |
 | | `L-01.3` | Workbench Titled Page Layout | 工作台通用页面容器、内边距与滚动条通道 |
-| | `L-01.4` | Toast Layout | 窗口中心最多 4 条 Toast 堆叠与同 ID 刷新计时 |
+| | `L-01.4` | Toast Layout | 界面右下角最多 3 层 Toast 折叠堆叠 |
 | **3.2 Settings** | `L-02.1` | Settings Window Layout | 独立设置窗口尺寸与分栏结构 |
 | | `L-02.2` | Settings Sidebar Layout | 设置窗口左侧分类导航列表 |
 | | `L-02.3` | Settings Category Layout | 设置分类页分组卡片（Group Stack）与行排版 |
@@ -151,7 +151,7 @@
 | **3.7 Player** | `L-07.1` | Player Topbar Layout | 播放页渐变顶栏（红绿灯、返回、居中标题、Task/Settings 入口） |
 | | `L-07.2` | Player Bottom Control Bar Layout | 播放页底栏（进度条区 + 左右播控按钮组） |
 | | `L-07.3` | Player Progress Scrubber Layout | 进度条与悬停时间胶囊组合布局 |
-| | `L-07.4` | Playback Feedback Overlay Layout | 播放舞台中央 HUD / 反馈层 |
+| | `L-07.4` | Playback Feedback Overlay Layout | 播放窗口左上角 HUD / 反馈层 |
 | | `L-07.5` | Player Error Banner Layout | 播放窗口左上角多行红色报错横幅 |
 | **3.8 Playback Overlay** | `L-08.1` | Playback Overlay Layout | 播放页内浮层容器（顶栏 + 内容区 + 底栏） |
 | | `L-08.2` | Playback Topbar Layout | Playback Overlay 顶栏（红绿灯、返回播放、居中 Tabs、功能入口） |

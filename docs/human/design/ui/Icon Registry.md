@@ -56,8 +56,8 @@
 | --- | --- | --- | --- |
 | `squares-four` | Regular | Library | Sidebar Item / Library |
 | `folder` | Regular | 文件夹 | Sidebar Item / File；File Page / Add Folder 菜单 / Local Folder；表格行菜单 / Open Subtitle Folder；Library 卡片菜单 / Open Folder；Library File Tree / Root Path、Object Folder；Export to Anki Dialog / Location |
-| `bookmark-simple` | Regular | Excerpt | Sidebar Item / Excerpt；Command Panel Root / Recent Excerpt Lists；表格行菜单、Search / Excerpt Toolbar / Remove Excerpt；Playback Feedback（移出 Excerpt）；Excerpt List 封面占位，57px |
-| `bookmark-simple` | Fill | 已存入 Excerpt | Playback Feedback（Save to Excerpt List） |
+| `bookmark-simple` | Regular | Excerpt | Sidebar Item / Excerpt；Command Panel Root / Recent Excerpt Lists；表格行菜单、Search / Excerpt Toolbar / Remove Excerpt；Excerpt List 封面占位，57px |
+| `bookmark-simple` | Fill | 已存入 Excerpt | Toast（Save to Excerpt List / Move / Duplicate） |
 | `clock` | Regular | 最近、时长 | Sidebar Item / Recent；Filter Menu / Duration |
 | `gear` | Regular | 设置 | Settings Entry |
 | `tray` | Regular | 任务 | Task Entry |
@@ -83,7 +83,7 @@
 
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
-| `warning` | Regular | 警告、失败 | File Page / Index Status（失败）；Settings / Maintenance（失败）；Player Error Banner（视频加载失败、字幕加载失败、播放器其它错误、播放或打开不在数据库中的项）；Playback Feedback（无字幕、不在数据库中）；Toast（台词不在媒体库中） |
+| `warning` | Regular | 警告、失败 | File Page / Index Status（失败）；Settings / Maintenance（失败）；Player Error Banner（视频加载失败、字幕加载失败、播放器其它错误、播放或打开不在数据库中的项）；Playback Feedback（播放列表无可用项）；Toast（报错、无字幕、不在媒体库中） |
 | `warning-circle` | Regular | 建议压缩数据库 | Settings / Maintenance |
 | `check-circle` | Regular | 成功、已看完 | File Page / Index Status（成功）；Settings / Maintenance（成功）；Library 卡片菜单 / Mark as Finished |
 | `check-circle` | Fill | 已选 | Checkbox / Checked |
@@ -105,8 +105,8 @@
 | `sign-out` | Regular | 退出选择 | Search / Excerpt Toolbar / Exit Selection |
 | `images-square` | Regular | 截图组 | 预留，暂无使用位置 |
 | `trash` | Regular | 删除 | Excerpt List 卡片菜单 / Delete List；Task Card / Delete Action |
-| `copy` | Regular | 复制 | Search / Excerpt Toolbar / Copy Table；表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Playback Overlay 选中文字菜单 / Copy Selected Text；Playback Feedback（复制） |
-| `export` | Regular | 导出、更换封面 | Search / Excerpt Toolbar / Export to Anki；Library 卡片菜单 / Change Cover；Playback Feedback（导出长截图） |
+| `copy` | Regular | 复制 | Search / Excerpt Toolbar / Copy Table；表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Playback Overlay 选中文字菜单 / Copy Selected Text；Toast（复制） |
+| `export` | Regular | 导出、更换封面 | Search / Excerpt Toolbar / Export to Anki；Library 卡片菜单 / Change Cover；Toast（导出长截图） |
 | `link-simple` | Regular | 链接 | Search / Excerpt Toolbar / Copy Deep Links；表格行菜单 / Copy Deep Link；Anki 卡片 / Deep Link，20px |
 | `info` | Regular | 简介、详情 | File Page 卡片菜单 / Get Info；Task Card 菜单 / Get Info |
 | `dots-three` | Regular | 更多 | 表格行 / More；File Page 卡片 / More；Task Card / More；Cover Summary / More |

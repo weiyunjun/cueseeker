@@ -11,8 +11,8 @@
    - 报错、警示、失效、已存在及不可用拦截统一使用 `warning`。
    - 成功与功能操作使用对应语义图标（`copy`、`export`、`bookmarkSimple`、`camera`、`play`、`pause` 等）。
 4. **出现位置与组件**：
-   - **Toast（App Center）**：窗口级 4 槽堆叠提示容器（Workbench 界面）。
-   - **Feedback & HUD（Playback Center）**：播放器画面中央单槽提示容器（Playback 界面）。
+   - **Toast（Bottom Right）**：界面右下角最多 3 层折叠堆叠提示容器（用于 Workbench、Playback Overlay 与 Command Panel 界面）。
+   - **Playback Feedback（Player Top-Left）**：播放器画面左上角单槽胶囊提示容器（仅用于视频播放画面直接触发的播放控制与状态反馈，无进出场动画）。
 
 ---
 
@@ -190,9 +190,9 @@
 
 ---
 
-## 四、播放界面反馈与 HUD（Playback Feedback & HUD）
+## 四、Playback Overlay 与 Command Panel 操作（Playback Toast）
 
-### 4.1 播放界面轻提示（1.5秒）
+### 4.1 轻提示（1.5秒）
 
 #### 16. 复制选中的字幕文本
 - 英文：Selected Text Copied
@@ -201,7 +201,7 @@
 - 图标：copy
 - 持续时间：1.5秒
 - Scenario ID：playback.feedback.selected_text_copied
-- 出现位置：Playback Center
+- 出现位置：Bottom Right
 - 动画：Default
 
 #### 17. 复制单句字幕台词
@@ -211,7 +211,7 @@
 - 图标：copy
 - 持续时间：1.5秒
 - Scenario ID：playback.feedback.cue_text_copied
-- 出现位置：Playback Center
+- 出现位置：Bottom Right
 - 动画：Default
 
 #### 18. 复制单句 Deep Link
@@ -221,117 +221,119 @@
 - 图标：copy
 - 持续时间：1.5秒
 - Scenario ID：playback.feedback.deep_link_copied
-- 出现位置：Playback Center
+- 出现位置：Bottom Right
 - 动画：Default
 
-#### 19. 复制视频截图
-- 英文：Screenshot Copied
-- 简体中文：已复制截图
-- 繁体中文：已拷貝截圖
-- 图标：camera
-- 持续时间：1.5秒
-- Scenario ID：playback.feedback.screenshot_copied
-- 出现位置：Playback Center
-- 动画：Default
-
-#### 20. 移出当前摘录
-- 英文：Excerpt Removed
-- 简体中文：已移除摘录
-- 繁体中文：已移除摘錄
-- 图标：bookmarkSimple
-- 持续时间：1.5秒
-- Scenario ID：playback.feedback.excerpt_removed
-- 出现位置：Playback Center
-- 动画：Default
-
-#### 21. 复制台词长截图
+#### 19. 复制台词长截图
 - 英文：Collage Copied
 - 简体中文：已复制长截图
 - 繁体中文：已拷貝長截圖
 - 图标：copy
 - 持续时间：1.5秒
 - Scenario ID：playback.feedback.collage_copied
-- 出现位置：Playback Center
+- 出现位置：Bottom Right
 - 动画：Default
 
-#### 22. 导出台词长截图
+#### 20. 导出台词长截图
 - 英文：Collage Exported
 - 简体中文：已导出长截图
 - 繁体中文：已匯出長截圖
 - 图标：export
 - 持续时间：1.5秒
 - Scenario ID：playback.feedback.collage_exported
-- 出现位置：Playback Center
+- 出现位置：Bottom Right
 - 动画：Default
 
 ---
 
-### 4.2 播放界面报错与警示（3秒）
+### 4.2 报错与警示（3秒）
 
-#### 23. 当前画面无字幕
+#### 21. 当前无字幕
 - 英文：No Subtitle
 - 简体中文：无字幕
 - 繁体中文：沒有字幕
 - 图标：warning
 - 持续时间：3秒
 - Scenario ID：playback.feedback.no_subtitle
-- 出现位置：Playback Center
+- 出现位置：Bottom Right
 - 动画：Default
 
-#### 24. 复制失败
+#### 22. 复制失败
 - 英文：Copy Failed
 - 简体中文：复制失败
 - 繁体中文：拷貝失敗
 - 图标：warning
 - 持续时间：3秒
 - Scenario ID：playback.feedback.copy_failed
-- 出现位置：Playback Center
+- 出现位置：Bottom Right
 - 动画：Default
 
-#### 25. 导出失败
+#### 23. 导出失败
 - 英文：Export Failed
 - 简体中文：导出失败
 - 繁体中文：匯出失敗
 - 图标：warning
 - 持续时间：3秒
 - Scenario ID：playback.feedback.export_failed
-- 出现位置：Playback Center
+- 出现位置：Bottom Right
 - 动画：Default
 
-#### 26. 台词长截图未就绪
+#### 24. 台词长截图未就绪
 - 英文：Collage Not Ready
 - 简体中文：长截图未就绪
 - 繁体中文：長截圖未就緒
 - 图标：warning
 - 持续时间：3秒
 - Scenario ID：playback.feedback.collage_not_ready
-- 出现位置：Playback Center
+- 出现位置：Bottom Right
 - 动画：Default
 
-#### 27. 台词长截图未选择台词
+#### 25. 台词长截图未选择台词
 - 英文：Select at Least One Cue
 - 简体中文：请至少选择一条台词
 - 繁体中文：請至少選擇一條台詞
 - 图标：warning
 - 持续时间：3秒
 - Scenario ID：playback.feedback.collage_no_cue_selected
-- 出现位置：Playback Center
+- 出现位置：Bottom Right
 - 动画：Default
 
-#### 28. 播放中台词不在媒体库中
+#### 26. 台词不在媒体库中
 - 英文：Cue Not in Library
 - 简体中文：台词不在媒体库中
 - 繁体中文：台詞不在媒體庫中
 - 图标：warning
 - 持续时间：3秒
 - Scenario ID：playback.feedback.not_in_library
-- 出现位置：Playback Center
+- 出现位置：Bottom Right
 - 动画：Default
-- 说明：在 Playback Overlay 中，当已播放视频已从媒体库移除，用户尝试保存到摘录或复制 Deep Link 时触发拦截。
+- 说明：在 Playback Overlay 或 Command Panel 中，当所属视频已从媒体库移除，用户尝试保存到摘录或复制 Deep Link 时触发拦截。
 
 ---
 
-### 4.3 播放器常规 HUD（1秒）
+## 四（续）、播放器画面反馈与 HUD（Playback Feedback）
+
+### 4.3 播放器画面反馈（Player Top-Left）
+
+#### 27. 复制视频截图
+- 英文：Screenshot Copied
+- 简体中文：已复制截图
+- 繁体中文：已拷貝截圖
+- 图标：camera
+- 持续时间：1.5秒
+- Scenario ID：playback.feedback.screenshot_copied
+- 出现位置：Player Top-Left
+- 动画：None
+
+#### 28. 加载中
+- 英文：Loading
+- 简体中文：加载中
+- 繁体中文：加載中
+- 图标：Spinner
+- 持续时间：随加载状态（延迟 300ms 出现，画面就绪或失败时消失）
+- Scenario ID：playback.hud.loading
+- 出现位置：Player Top-Left
+- 动画：None
 
 #### 29. 播放 / 暂停
 - 英文：Play / Pause
@@ -340,8 +342,8 @@
 - 图标：play (fill) / pause (fill)
 - 持续时间：1秒
 - Scenario ID：playback.hud.play_pause
-- 出现位置：Playback Center
-- 动画：Default
+- 出现位置：Player Top-Left
+- 动画：None
 
 #### 30. 自动暂停
 - 英文：Auto Pause
@@ -350,8 +352,8 @@
 - 图标：pause (fill)
 - 持续时间：1秒
 - Scenario ID：playback.hud.auto_pause
-- 出现位置：Playback Center
-- 动画：Default
+- 出现位置：Player Top-Left
+- 动画：None
 
 #### 31. 快进 / 快退
 - 英文：+ {N}s / - {N}s
@@ -360,8 +362,8 @@
 - 图标：caretRight / caretLeft
 - 持续时间：1秒（松手后）
 - Scenario ID：playback.hud.seek
-- 出现位置：Playback Center
-- 动画：Default
+- 出现位置：Player Top-Left
+- 动画：None
 
 #### 32. 音量调节与静音
 - 英文：{volume}% / Muted
@@ -370,8 +372,8 @@
 - 图标：speakerSimpleHigh / speakerSimpleLow / speakerSimpleX
 - 持续时间：1秒
 - Scenario ID：playback.hud.volume
-- 出现位置：Playback Center
-- 动画：Default
+- 出现位置：Player Top-Left
+- 动画：None
 
 #### 33. 倍速调节
 - 英文：{speed}x
@@ -380,8 +382,8 @@
 - 图标：speedometer
 - 持续时间：1秒
 - Scenario ID：playback.hud.speed
-- 出现位置：Playback Center
-- 动画：Default
+- 出现位置：Player Top-Left
+- 动画：None
 
 #### 34. 字幕开关与切换
 - 英文：Subtitles On / Subtitles Off / Subtitle Switched
@@ -390,8 +392,8 @@
 - 图标：subtitles
 - 持续时间：1秒
 - Scenario ID：playback.hud.subtitles
-- 出现位置：Playback Center
-- 动画：Default
+- 出现位置：Player Top-Left
+- 动画：None
 
 #### 35. 全屏切换
 - 英文：Enter Fullscreen / Exit Fullscreen
@@ -400,8 +402,8 @@
 - 图标：无
 - 持续时间：1秒
 - Scenario ID：playback.hud.fullscreen
-- 出现位置：Playback Center
-- 动画：Default
+- 出现位置：Player Top-Left
+- 动画：None
 
 #### 36. 播放列表导航
 - 英文：Previous Result / Next Result / Previous Library Video / Next Library Video / Previous Excerpt / Next Excerpt
@@ -410,8 +412,8 @@
 - 图标：caretLeft / caretRight
 - 持续时间：1秒
 - Scenario ID：playback.hud.navigation
-- 出现位置：Playback Center
-- 动画：Default
+- 出现位置：Player Top-Left
+- 动画：None
 
 #### 37. 播放列表到达边界
 - 英文：Already at First Result / Already at Last Result / Already at First Video / Already at Last Video / Already at First Excerpt / Already at Last Excerpt
@@ -420,19 +422,19 @@
 - 图标：caretLeft / caretRight
 - 持续时间：1秒
 - Scenario ID：playback.hud.navigation_edge
-- 出现位置：Playback Center
-- 动画：Default
+- 出现位置：Player Top-Left
+- 动画：None
 
 #### 38. 播放列表无可用结果
 - 英文：No Available Results
 - 简体中文：没有可用的结果
 - 繁体中文：沒有可用的結果
 - 图标：warning
-- 持续时间：1秒
+- 持续时间：1秒（Player Top-Left）/ 3秒（Command Panel 右下角 Toast）
 - Scenario ID：playback.hud.no_available_results
-- 出现位置：Playback Center
-- 动画：Default
-- 说明：播放列表中所有项目失效不可用时统一触发（Search 与 Excerpt 进入均统一为此提示）。
+- 出现位置：Player Top-Left（播放器画面切集无有效项时）/ Bottom Right（Command Panel 中打开无有效项的 Recent Excerpt List 时）
+- 动画：None（Player Top-Left）/ Default（Toast）
+- 说明：播放列表中所有项目失效不可用时触发（Search 与 Excerpt 均统一为此提示）。
 
 #### 39. 播放列表无可用视频
 - 英文：No Available Videos
@@ -441,8 +443,8 @@
 - 图标：warning
 - 持续时间：1秒
 - Scenario ID：playback.hud.no_available_videos
-- 出现位置：Playback Center
-- 动画：Default
+- 出现位置：Player Top-Left
+- 动画：None
 
 ---
 
