@@ -181,7 +181,7 @@ private struct ExcerptListCard: View {
                     cover(isActionFocused: isActionFocused)
                 }
             }
-            .onHover { highlight.noteHover($0, id: cardID) }
+            .onWindowFocusAwareHover { highlight.noteHover($0, id: cardID) }
             .libraryCardContextMenuTrigger(
                 isEnabled: true,
                 ownerID: cardID,

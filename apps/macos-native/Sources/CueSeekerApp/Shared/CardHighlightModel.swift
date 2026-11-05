@@ -440,8 +440,10 @@ final class CardHighlightModel: ObservableObject {
                 followsPointer: false
             )
         }
-        rawHoveredID = nil
-        hoveredActionButtonCardID = nil
+        if hostView?.window != nil {
+            rawHoveredID = nil
+            hoveredActionButtonCardID = nil
+        }
         isScrolling = false
         guard !isFrozen else {
             return
@@ -455,6 +457,14 @@ final class CardHighlightModel: ObservableObject {
         isWindowFocused = true
         guard !isFrozen, !isScrolling, !isSuppressedByKeyboard else {
             return
+        }
+        if let rawHoveredID {
+            AppPointerShape.noteCardHover(
+                true,
+                id: rawHoveredID,
+                showsHand: effectiveShowsHand(for: rawHoveredID, baseShowsHand: rawHoveredShowsHand),
+                followsPointer: !AppCursorVisibility.isCursorHidden
+            )
         }
         syncHoveredID()
     }

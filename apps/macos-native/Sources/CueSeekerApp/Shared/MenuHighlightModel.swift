@@ -437,7 +437,9 @@ final class MenuHighlightModel: ObservableObject {
 
     func noteWindowDidResignFocus() {
         isWindowFocused = false
-        rawHoveredPosition = nil
+        if hostView?.window != nil {
+            rawHoveredPosition = nil
+        }
         isScrolling = false
         if !isSuppressedByKeyboard, pinnedPosition == nil, highlightedPosition != nil {
             highlightedPosition = nil

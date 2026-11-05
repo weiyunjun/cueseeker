@@ -62,7 +62,7 @@ struct RowActionMenu: View {
                     switch element {
                     case .divider:
                         WorkbenchMenuDivider()
-                            .onHover { isHovered in
+                            .onWindowFocusAwareHover { isHovered in
                                 submenuState.noteItemHover(
                                     isHovered,
                                     at: position,

@@ -38,6 +38,7 @@ final class PointerHoverScrollState: ObservableObject {
                     self?.cancelScrollDebounceForWindowResign()
                     CardHighlightModel.broadcastWindowDidResignFocus(in: window)
                     MenuHighlightModel.broadcastWindowDidResignFocus(in: window)
+                    WindowFocusHoverSession.syncWindowDidResignFocus(in: window)
                     PointerHoverSession.syncWindowFocusChanged(in: window)
                 }
             }
@@ -56,6 +57,7 @@ final class PointerHoverScrollState: ObservableObject {
                     let window = notification.object as? NSWindow
                     CardHighlightModel.broadcastWindowDidBecomeKey(in: window)
                     MenuHighlightModel.broadcastWindowDidBecomeKey(in: window)
+                    WindowFocusHoverSession.syncWindowDidBecomeKey(in: window)
                     PointerHoverSession.syncWindowFocusChanged(in: window)
                     if let keyWindow = window ?? NSApp?.keyWindow,
                        AppPointerShape.manages(keyWindow) {
@@ -603,6 +605,7 @@ final class PointerHoverSession: ObservableObject {
             let scrollState = PointerHoverScrollState.shared
             let isCursorHidden = AppCursorVisibility.isCursorHidden
             let windowFocused = isWindowFocused
+            (probeView as? PointerHoverProbeView)?.setAssumesMouseInside(windowFocused && pointerInside)
             let canFollowPointer = windowFocused
                 && !scrollState.isScrolling
                 && !scrollState.isSuppressedByKeyboardOrController
@@ -633,6 +636,9 @@ final class PointerHoverSession: ObservableObject {
     }
 
     func report(_ isHovered: Bool) {
+        if !isHovered {
+            (probeView as? PointerHoverProbeView)?.setAssumesMouseInside(false)
+        }
         let scrollState = PointerHoverScrollState.shared
         let isCursorHidden = AppCursorVisibility.isCursorHidden
         let windowFocused = isWindowFocused
@@ -757,8 +763,8 @@ final class PointerHoverSession: ObservableObject {
            !scrollState.isScrolling,
            !isCursorHidden,
            !scrollState.isSuppressedByKeyboardOrController,
-           gate.hasActiveHover,
            let pointerInside = currentPointerInsideView() {
+            (probeView as? PointerHoverProbeView)?.setAssumesMouseInside(pointerInside)
             syncPointerHandShape(pointerInside, followsPointer: true)
             let delivered = gate.report(
                 pointerInside,
@@ -773,6 +779,9 @@ final class PointerHoverSession: ObservableObject {
                 action?(delivered)
             }
             return
+        }
+        if !windowFocused {
+            (probeView as? PointerHoverProbeView)?.setAssumesMouseInside(false)
         }
         let delivered = gate.freezeChanged(
             isFrozen: isFrozen,
@@ -857,12 +866,21 @@ final class PointerHoverSession: ObservableObject {
 
 final class PointerHoverProbeView: NSView {
     weak var session: PointerHoverSession?
+    private(set) var assumesMouseInside = false
     var tracksLocation = false {
         didSet {
             if oldValue != tracksLocation {
                 updateTrackingAreas()
             }
         }
+    }
+
+    func setAssumesMouseInside(_ value: Bool) {
+        guard assumesMouseInside != value else {
+            return
+        }
+        assumesMouseInside = value
+        updateTrackingAreas()
     }
 
     override var isFlipped: Bool {
@@ -884,17 +902,25 @@ final class PointerHoverProbeView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach(removeTrackingArea)
-        guard tracksLocation else {
-            return
-        }
-        addTrackingArea(
-            NSTrackingArea(
-                rect: .zero,
-                options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
-                owner: self,
-                userInfo: nil
+        if tracksLocation {
+            addTrackingArea(
+                NSTrackingArea(
+                    rect: .zero,
+                    options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
+                    owner: self,
+                    userInfo: nil
+                )
             )
-        )
+        } else if assumesMouseInside {
+            addTrackingArea(
+                NSTrackingArea(
+                    rect: .zero,
+                    options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect, .assumeInside],
+                    owner: self,
+                    userInfo: nil
+                )
+            )
+        }
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -912,6 +938,14 @@ final class PointerHoverProbeView: NSView {
     }
 
     override func mouseExited(with event: NSEvent) {
+        if assumesMouseInside {
+            assumesMouseInside = false
+            updateTrackingAreas()
+            if !tracksLocation {
+                session?.report(false)
+                return
+            }
+        }
         guard tracksLocation else {
             return
         }
@@ -1039,5 +1073,199 @@ private struct PointerHoverLocationModifier: ViewModifier {
             .onDisappear {
                 session.unregisterScrollListener()
             }
+    }
+}
+
+@MainActor
+final class WindowFocusHoverSession: ObservableObject {
+    private struct WeakBox {
+        weak var value: WindowFocusHoverSession?
+    }
+
+    private static var registeredSessions: [ObjectIdentifier: WeakBox] = [:]
+
+    static func syncWindowDidResignFocus(in window: NSWindow? = nil) {
+        registeredSessions = registeredSessions.filter { $0.value.value != nil }
+        for box in registeredSessions.values {
+            guard let session = box.value else {
+                continue
+            }
+            if let window,
+               let sessionWindow = session.probeView?.window,
+               sessionWindow !== window {
+                continue
+            }
+            session.handleWindowDidResignFocus()
+        }
+    }
+
+    static func syncWindowDidBecomeKey(in window: NSWindow? = nil) {
+        registeredSessions = registeredSessions.filter { $0.value.value != nil }
+        for box in registeredSessions.values {
+            guard let session = box.value else {
+                continue
+            }
+            if let window,
+               let sessionWindow = session.probeView?.window,
+               sessionWindow !== window {
+                continue
+            }
+            session.handleWindowDidBecomeKey()
+        }
+    }
+
+    var action: ((Bool) -> Void)?
+    weak var probeView: WindowFocusHoverProbeView?
+
+    init() {
+        Self.registeredSessions[ObjectIdentifier(self)] = WeakBox(value: self)
+    }
+
+    deinit {
+        let key = ObjectIdentifier(self)
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                Self.registeredSessions.removeValue(forKey: key)
+            }
+        } else {
+            Task { @MainActor in
+                Self.registeredSessions.removeValue(forKey: key)
+            }
+        }
+    }
+
+    func report(_ isHovered: Bool) {
+        if !isHovered {
+            probeView?.setAssumesMouseInside(false)
+        }
+        action?(isHovered)
+    }
+
+    func handleWindowDidResignFocus() {
+        probeView?.setAssumesMouseInside(false)
+    }
+
+    func handleWindowDidBecomeKey() {
+        guard let pointerInside = currentPointerInsideView() else {
+            return
+        }
+        probeView?.setAssumesMouseInside(pointerInside)
+        if pointerInside {
+            action?(true)
+        }
+    }
+
+    private func currentPointerInsideView() -> Bool? {
+        guard let probeView,
+              let window = probeView.window,
+              !probeView.isHiddenOrHasHiddenAncestor,
+              probeView.bounds.width > 0,
+              probeView.bounds.height > 0
+        else {
+            return nil
+        }
+        guard NSApp.isActive,
+              window.isKeyWindow,
+              NSWindow.windowNumber(
+                  at: NSEvent.mouseLocation,
+                  belowWindowWithWindowNumber: 0
+              ) == window.windowNumber
+        else {
+            return false
+        }
+        let locationInWindow = window.mouseLocationOutsideOfEventStream
+        let localPoint = probeView.convert(locationInWindow, from: nil)
+        let visibleBounds = probeView.bounds.intersection(probeView.visibleRect)
+        return !visibleBounds.isEmpty && visibleBounds.contains(localPoint)
+    }
+}
+
+final class WindowFocusHoverProbeView: NSView {
+    weak var session: WindowFocusHoverSession?
+    private(set) var assumesMouseInside = false
+
+    func setAssumesMouseInside(_ value: Bool) {
+        guard assumesMouseInside != value else {
+            return
+        }
+        assumesMouseInside = value
+        updateTrackingAreas()
+    }
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        guard assumesMouseInside else {
+            return
+        }
+        addTrackingArea(
+            NSTrackingArea(
+                rect: .zero,
+                options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect, .assumeInside],
+                owner: self,
+                userInfo: nil
+            )
+        )
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        guard assumesMouseInside else {
+            return
+        }
+        assumesMouseInside = false
+        updateTrackingAreas()
+        session?.report(false)
+    }
+}
+
+private struct WindowFocusHoverProbe: NSViewRepresentable {
+    let session: WindowFocusHoverSession
+
+    func makeNSView(context: Context) -> WindowFocusHoverProbeView {
+        let view = WindowFocusHoverProbeView()
+        view.session = session
+        session.probeView = view
+        return view
+    }
+
+    func updateNSView(_ nsView: WindowFocusHoverProbeView, context: Context) {
+        nsView.session = session
+        session.probeView = nsView
+    }
+}
+
+private struct WindowFocusAwareHoverModifier: ViewModifier {
+    let action: (Bool) -> Void
+    @StateObject private var session = WindowFocusHoverSession()
+
+    func body(content: Content) -> some View {
+        let _ = {
+            session.action = action
+        }()
+        content
+            .background(WindowFocusHoverProbe(session: session))
+            .onHover { isHovered in
+                session.action = action
+                session.report(isHovered)
+            }
+            .onDisappear {
+                session.handleWindowDidResignFocus()
+            }
+    }
+}
+
+extension View {
+    /// Like `.onHover`, but re-evaluates whether the pointer is inside the view
+    /// when the hosting window regains focus without moving the mouse.
+    func onWindowFocusAwareHover(perform action: @escaping (Bool) -> Void) -> some View {
+        modifier(WindowFocusAwareHoverModifier(action: action))
     }
 }

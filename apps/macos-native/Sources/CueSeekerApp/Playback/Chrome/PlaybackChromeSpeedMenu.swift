@@ -194,7 +194,7 @@ struct PlaybackChromeMenuButtonStyle: ButtonStyle {
                     }
                 }
             )
-            .onHover { isHovered in
+            .onWindowFocusAwareHover { isHovered in
                 onHoverChange(suppressesInteraction ? false : isHovered)
             }
             .onChange(of: suppressesInteraction) { isSuppressed in

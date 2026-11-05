@@ -285,7 +285,7 @@ private struct LibraryVideoCard: View {
                     .allowsHitTesting(false)
                 }
             }
-            .onHover { highlight.noteHover($0, id: cardID, showsHand: true) }
+            .onWindowFocusAwareHover { highlight.noteHover($0, id: cardID, showsHand: true) }
             .libraryCardContextMenuTrigger(
                 isEnabled: true,
                 ownerID: cardID,
@@ -473,7 +473,7 @@ struct LibraryFolderCard: View {
                     cover(isActionFocused: isActionFocused)
                 }
             }
-            .onHover { highlight.noteHover($0, id: cardID, showsHand: isAvailable) }
+            .onWindowFocusAwareHover { highlight.noteHover($0, id: cardID, showsHand: isAvailable) }
             .libraryCardContextMenuTrigger(
                 isEnabled: isAvailable,
                 ownerID: cardID,

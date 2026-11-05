@@ -136,7 +136,7 @@ struct PointerHoverGateTests {
         #expect(cardHighlight.hoveredID == nil)
         #expect(menuHighlight.hoveredPosition == nil)
 
-        // Regaining window focus re-enables hover tracking.
+        // Regaining window focus immediately restores stationary Hover and re-enables hover tracking.
         NotificationCenter.default.post(
             name: NSApplication.didBecomeActiveNotification,
             object: nil
@@ -144,6 +144,9 @@ struct PointerHoverGateTests {
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
         #expect(cardHighlight.isWindowFocused)
         #expect(menuHighlight.isWindowFocused)
+        #expect(cardHighlight.hoveredID == "card-1")
+        #expect(AppPointerShape.model.shape == .grab)
+        #expect(menuHighlight.hoveredPosition == 1)
         cardHighlight.noteHover(true, id: "card-2", showsHand: true)
         menuHighlight.noteHover(true, at: 2)
         #expect(cardHighlight.hoveredID == "card-2")

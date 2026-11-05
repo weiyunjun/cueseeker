@@ -114,7 +114,7 @@ struct WorkbenchPopoverRow: View {
             }
         )
         .contentShape(Rectangle())
-        .onHover { inside in
+        .onWindowFocusAwareHover { inside in
             onHoverChange?(inside)
             isHovered = isEnabled && inside
         }
