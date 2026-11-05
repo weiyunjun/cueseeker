@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,20 +14,152 @@
 #include <smb2/libsmb2-raw.h>
 #include <smb2/libsmb2-dcerpc-srvsvc.h>
 
+#define CSMB_SHARE_CACHE_CAP 16
+#define CSMB_SHARE_CACHE_TTL 120
+#define CSMB_SESSION_POOL_CAP 8
+#define CSMB_SESSION_POOL_TTL 120
+#define CSMB_ANON_CACHE_CAP 16
+
+typedef struct {
+    char *host;
+    int port;
+    char *username;
+    char *password;
+    char **names;
+    size_t count;
+    time_t fetched_at;
+} csmb_share_cache_entry_t;
+
+typedef struct {
+    char *host;
+    int port;
+    char *share;
+    char *username;
+    char *password;
+    struct smb2_context *smb2;
+    time_t last_used;
+} csmb_pooled_session_t;
+
+typedef struct {
+    char *host;
+    int port;
+    int prefer_null_password;
+    time_t updated_at;
+} csmb_anon_mode_entry_t;
+
 struct csmb_session {
     struct smb2_context *smb2;
+    char *host;
+    int port;
+    char *share;
+    char *username;
+    char *password;
+    int was_reused;
+    int tainted;
 };
 
 struct csmb_file {
+    csmb_session_t *session;
     struct smb2_context *smb2;
     struct smb2fh *fh;
 };
+
+static pthread_mutex_t g_csmb_mutex = PTHREAD_MUTEX_INITIALIZER;
+static csmb_share_cache_entry_t g_share_cache[CSMB_SHARE_CACHE_CAP];
+static csmb_pooled_session_t g_smb_pool[CSMB_SESSION_POOL_CAP];
+static csmb_anon_mode_entry_t g_anon_cache[CSMB_ANON_CACHE_CAP];
 
 static char *csmb_strdup(const char *str) {
     if (!str) {
         return strdup("");
     }
     return strdup(str);
+}
+
+static void csmb_free_string_array(char **items, size_t count) {
+    if (!items) {
+        return;
+    }
+    for (size_t i = 0; i < count; i++) {
+        free(items[i]);
+    }
+    free(items);
+}
+
+static char **csmb_copy_string_array(char **items, size_t count) {
+    if (!items || count == 0) {
+        return NULL;
+    }
+    char **copy = (char **)calloc(count, sizeof(char *));
+    if (!copy) {
+        return NULL;
+    }
+    for (size_t i = 0; i < count; i++) {
+        copy[i] = csmb_strdup(items[i]);
+    }
+    return copy;
+}
+
+static int csmb_preferred_anon_mode(const char *host, int port) {
+    if (!host || !host[0]) {
+        return 0;
+    }
+    int mode = 0;
+    pthread_mutex_lock(&g_csmb_mutex);
+    for (size_t i = 0; i < CSMB_ANON_CACHE_CAP; i++) {
+        if (g_anon_cache[i].host &&
+            g_anon_cache[i].port == port &&
+            strcmp(g_anon_cache[i].host, host) == 0) {
+            mode = g_anon_cache[i].prefer_null_password;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_csmb_mutex);
+    return mode;
+}
+
+static void csmb_record_anon_mode(const char *host, int port, int prefer_null_password) {
+    if (!host || !host[0]) {
+        return;
+    }
+    time_t now = time(NULL);
+    pthread_mutex_lock(&g_csmb_mutex);
+    size_t slot = 0;
+    int found = 0;
+    for (size_t i = 0; i < CSMB_ANON_CACHE_CAP; i++) {
+        if (g_anon_cache[i].host &&
+            g_anon_cache[i].port == port &&
+            strcmp(g_anon_cache[i].host, host) == 0) {
+            slot = i;
+            found = 1;
+            break;
+        }
+    }
+    if (!found) {
+        for (size_t i = 0; i < CSMB_ANON_CACHE_CAP; i++) {
+            if (!g_anon_cache[i].host) {
+                slot = i;
+                found = 1;
+                break;
+            }
+        }
+    }
+    if (!found) {
+        time_t oldest = g_anon_cache[0].updated_at;
+        slot = 0;
+        for (size_t i = 1; i < CSMB_ANON_CACHE_CAP; i++) {
+            if (g_anon_cache[i].updated_at < oldest) {
+                oldest = g_anon_cache[i].updated_at;
+                slot = i;
+            }
+        }
+    }
+    free(g_anon_cache[slot].host);
+    g_anon_cache[slot].host = csmb_strdup(host);
+    g_anon_cache[slot].port = port;
+    g_anon_cache[slot].prefer_null_password = prefer_null_password;
+    g_anon_cache[slot].updated_at = now;
+    pthread_mutex_unlock(&g_csmb_mutex);
 }
 
 static void csmb_set_error(char **out_error_message, const char *msg) {
@@ -166,6 +299,7 @@ static csmb_error_code_t csmb_connect_context(
     int is_anonymous = (username == NULL || username[0] == '\0') &&
                        (password == NULL || password[0] == '\0');
     int max_attempts = is_anonymous ? 2 : 1;
+    int preferred_anon_null = is_anonymous ? csmb_preferred_anon_mode(host, port) : 0;
     csmb_error_code_t last_code = CSMB_ERR_CONNECTION;
 
     for (int attempt = 0; attempt < max_attempts; attempt++) {
@@ -178,13 +312,17 @@ static csmb_error_code_t csmb_connect_context(
         smb2_set_security_mode(smb2, SMB2_NEGOTIATE_SIGNING_ENABLED);
         smb2_set_timeout(smb2, 15);
 
+        int use_null_password = (attempt == 0) ? preferred_anon_null : !preferred_anon_null;
         char *effective_user = NULL;
-        csmb_apply_credentials(smb2, username, password, attempt == 1, &effective_user);
+        csmb_apply_credentials(smb2, username, password, use_null_password, &effective_user);
 
         int rc = smb2_connect_share(smb2, server, share, effective_user);
         free(effective_user);
 
         if (rc == 0) {
+            if (is_anonymous) {
+                csmb_record_anon_mode(host, port, use_null_password);
+            }
             *out_smb2 = smb2;
             return CSMB_OK;
         }
@@ -201,6 +339,34 @@ static csmb_error_code_t csmb_connect_context(
     }
 
     return last_code;
+}
+
+static int csmb_reconnect_reused_session(csmb_session_t *session) {
+    if (!session || !session->was_reused) {
+        return 0;
+    }
+    session->was_reused = 0;
+    if (session->smb2) {
+        smb2_destroy_context(session->smb2);
+        session->smb2 = NULL;
+    }
+    struct smb2_context *fresh = NULL;
+    csmb_error_code_t code = csmb_connect_context(
+        session->host,
+        session->port,
+        session->share,
+        session->username,
+        session->password,
+        &fresh,
+        NULL
+    );
+    if (code != CSMB_OK || !fresh) {
+        session->tainted = 1;
+        return 0;
+    }
+    session->smb2 = fresh;
+    session->tainted = 0;
+    return 1;
 }
 
 struct csmb_share_enum_state {
@@ -268,6 +434,31 @@ csmb_error_code_t csmb_list_shares(
     out_shares->names = NULL;
     out_shares->count = 0;
 
+    const char *norm_host = host ? host : "";
+    const char *norm_user = username ? username : "";
+    const char *norm_pass = password ? password : "";
+    time_t now = time(NULL);
+
+    pthread_mutex_lock(&g_csmb_mutex);
+    for (size_t i = 0; i < CSMB_SHARE_CACHE_CAP; i++) {
+        if (g_share_cache[i].host &&
+            g_share_cache[i].port == port &&
+            strcmp(g_share_cache[i].host, norm_host) == 0 &&
+            strcmp(g_share_cache[i].username, norm_user) == 0 &&
+            strcmp(g_share_cache[i].password, norm_pass) == 0 &&
+            (now - g_share_cache[i].fetched_at) < CSMB_SHARE_CACHE_TTL &&
+            g_share_cache[i].count > 0) {
+            char **copied = csmb_copy_string_array(g_share_cache[i].names, g_share_cache[i].count);
+            if (copied) {
+                out_shares->names = copied;
+                out_shares->count = g_share_cache[i].count;
+                pthread_mutex_unlock(&g_csmb_mutex);
+                return CSMB_OK;
+            }
+        }
+    }
+    pthread_mutex_unlock(&g_csmb_mutex);
+
     struct smb2_context *smb2 = NULL;
     csmb_error_code_t code = csmb_connect_context(
         host,
@@ -325,6 +516,55 @@ csmb_error_code_t csmb_list_shares(
 
     smb2_disconnect_share(smb2);
     smb2_destroy_context(smb2);
+
+    if (state.list.count > 0 && norm_host[0] != '\0') {
+        pthread_mutex_lock(&g_csmb_mutex);
+        size_t slot = 0;
+        int found = 0;
+        for (size_t i = 0; i < CSMB_SHARE_CACHE_CAP; i++) {
+            if (g_share_cache[i].host &&
+                g_share_cache[i].port == port &&
+                strcmp(g_share_cache[i].host, norm_host) == 0 &&
+                strcmp(g_share_cache[i].username, norm_user) == 0 &&
+                strcmp(g_share_cache[i].password, norm_pass) == 0) {
+                slot = i;
+                found = 1;
+                break;
+            }
+        }
+        if (!found) {
+            for (size_t i = 0; i < CSMB_SHARE_CACHE_CAP; i++) {
+                if (!g_share_cache[i].host) {
+                    slot = i;
+                    found = 1;
+                    break;
+                }
+            }
+        }
+        if (!found) {
+            time_t oldest = g_share_cache[0].fetched_at;
+            slot = 0;
+            for (size_t i = 1; i < CSMB_SHARE_CACHE_CAP; i++) {
+                if (g_share_cache[i].fetched_at < oldest) {
+                    oldest = g_share_cache[i].fetched_at;
+                    slot = i;
+                }
+            }
+        }
+        free(g_share_cache[slot].host);
+        free(g_share_cache[slot].username);
+        free(g_share_cache[slot].password);
+        csmb_free_string_array(g_share_cache[slot].names, g_share_cache[slot].count);
+        g_share_cache[slot].host = csmb_strdup(norm_host);
+        g_share_cache[slot].port = port;
+        g_share_cache[slot].username = csmb_strdup(norm_user);
+        g_share_cache[slot].password = csmb_strdup(norm_pass);
+        g_share_cache[slot].names = csmb_copy_string_array(state.list.names, state.list.count);
+        g_share_cache[slot].count = g_share_cache[slot].names ? state.list.count : 0;
+        g_share_cache[slot].fetched_at = time(NULL);
+        pthread_mutex_unlock(&g_csmb_mutex);
+    }
+
     *out_shares = state.list;
     return CSMB_OK;
 }
@@ -355,6 +595,52 @@ csmb_error_code_t csmb_session_connect(
     }
     *out_session = NULL;
 
+    const char *norm_host = host ? host : "";
+    const char *norm_share = share ? share : "";
+    const char *norm_user = username ? username : "";
+    const char *norm_pass = password ? password : "";
+    time_t now = time(NULL);
+
+    pthread_mutex_lock(&g_csmb_mutex);
+    for (size_t i = 0; i < CSMB_SESSION_POOL_CAP; i++) {
+        if (g_smb_pool[i].smb2 &&
+            g_smb_pool[i].host && strcmp(g_smb_pool[i].host, norm_host) == 0 &&
+            g_smb_pool[i].port == port &&
+            g_smb_pool[i].share && strcmp(g_smb_pool[i].share, norm_share) == 0 &&
+            g_smb_pool[i].username && strcmp(g_smb_pool[i].username, norm_user) == 0 &&
+            g_smb_pool[i].password && strcmp(g_smb_pool[i].password, norm_pass) == 0) {
+            if ((now - g_smb_pool[i].last_used) < CSMB_SESSION_POOL_TTL) {
+                csmb_session_t *reused = (csmb_session_t *)calloc(1, sizeof(csmb_session_t));
+                if (reused) {
+                    reused->smb2 = g_smb_pool[i].smb2;
+                    reused->host = g_smb_pool[i].host;
+                    reused->port = g_smb_pool[i].port;
+                    reused->share = g_smb_pool[i].share;
+                    reused->username = g_smb_pool[i].username;
+                    reused->password = g_smb_pool[i].password;
+                    reused->was_reused = 1;
+                    reused->tainted = 0;
+                    memset(&g_smb_pool[i], 0, sizeof(g_smb_pool[i]));
+                    pthread_mutex_unlock(&g_csmb_mutex);
+                    *out_session = reused;
+                    return CSMB_OK;
+                }
+            } else {
+                struct smb2_context *expired = g_smb_pool[i].smb2;
+                free(g_smb_pool[i].host);
+                free(g_smb_pool[i].share);
+                free(g_smb_pool[i].username);
+                free(g_smb_pool[i].password);
+                memset(&g_smb_pool[i], 0, sizeof(g_smb_pool[i]));
+                pthread_mutex_unlock(&g_csmb_mutex);
+                smb2_disconnect_share(expired);
+                smb2_destroy_context(expired);
+                pthread_mutex_lock(&g_csmb_mutex);
+            }
+        }
+    }
+    pthread_mutex_unlock(&g_csmb_mutex);
+
     struct smb2_context *smb2 = NULL;
     csmb_error_code_t code = csmb_connect_context(
         host,
@@ -376,6 +662,13 @@ csmb_error_code_t csmb_session_connect(
         return CSMB_ERR_CONNECTION;
     }
     session->smb2 = smb2;
+    session->host = csmb_strdup(norm_host);
+    session->port = port;
+    session->share = csmb_strdup(norm_share);
+    session->username = csmb_strdup(norm_user);
+    session->password = csmb_strdup(norm_pass);
+    session->was_reused = 0;
+    session->tainted = 0;
     *out_session = session;
     return CSMB_OK;
 }
@@ -384,11 +677,69 @@ void csmb_session_disconnect(csmb_session_t *session) {
     if (!session) {
         return;
     }
-    if (session->smb2) {
-        smb2_disconnect_share(session->smb2);
-        smb2_destroy_context(session->smb2);
-        session->smb2 = NULL;
+    if (!session->smb2 || session->tainted) {
+        if (session->smb2) {
+            smb2_disconnect_share(session->smb2);
+            smb2_destroy_context(session->smb2);
+            session->smb2 = NULL;
+        }
+        free(session->host);
+        free(session->share);
+        free(session->username);
+        free(session->password);
+        free(session);
+        return;
     }
+
+    struct smb2_context *evicted_smb2 = NULL;
+    char *evicted_host = NULL;
+    char *evicted_share = NULL;
+    char *evicted_user = NULL;
+    char *evicted_pass = NULL;
+
+    pthread_mutex_lock(&g_csmb_mutex);
+    size_t slot = 0;
+    int found = 0;
+    for (size_t i = 0; i < CSMB_SESSION_POOL_CAP; i++) {
+        if (!g_smb_pool[i].smb2) {
+            slot = i;
+            found = 1;
+            break;
+        }
+    }
+    if (!found) {
+        time_t oldest = g_smb_pool[0].last_used;
+        slot = 0;
+        for (size_t i = 1; i < CSMB_SESSION_POOL_CAP; i++) {
+            if (g_smb_pool[i].last_used < oldest) {
+                oldest = g_smb_pool[i].last_used;
+                slot = i;
+            }
+        }
+        evicted_smb2 = g_smb_pool[slot].smb2;
+        evicted_host = g_smb_pool[slot].host;
+        evicted_share = g_smb_pool[slot].share;
+        evicted_user = g_smb_pool[slot].username;
+        evicted_pass = g_smb_pool[slot].password;
+    }
+    g_smb_pool[slot].smb2 = session->smb2;
+    g_smb_pool[slot].host = session->host;
+    g_smb_pool[slot].port = session->port;
+    g_smb_pool[slot].share = session->share;
+    g_smb_pool[slot].username = session->username;
+    g_smb_pool[slot].password = session->password;
+    g_smb_pool[slot].last_used = time(NULL);
+    pthread_mutex_unlock(&g_csmb_mutex);
+
+    if (evicted_smb2) {
+        smb2_disconnect_share(evicted_smb2);
+        smb2_destroy_context(evicted_smb2);
+        free(evicted_host);
+        free(evicted_share);
+        free(evicted_user);
+        free(evicted_pass);
+    }
+
     free(session);
 }
 
@@ -410,6 +761,17 @@ csmb_error_code_t csmb_session_stat(
     memset(&st, 0, sizeof(st));
 
     int rc = smb2_stat(session->smb2, norm_path, &st);
+    if (rc < 0 && session->was_reused && csmb_classify_error(session->smb2, rc) == CSMB_ERR_CONNECTION) {
+        if (csmb_reconnect_reused_session(session)) {
+            memset(&st, 0, sizeof(st));
+            rc = smb2_stat(session->smb2, norm_path, &st);
+        } else {
+            csmb_set_error(out_error_message, "SMB session reconnect failed");
+            return CSMB_ERR_CONNECTION;
+        }
+    }
+    session->was_reused = 0;
+
     if (rc < 0) {
         if (norm_path[0] == '\0') {
             struct smb2dir *dir = smb2_opendir(session->smb2, "");
@@ -422,6 +784,9 @@ csmb_error_code_t csmb_session_stat(
             }
         }
         csmb_error_code_t code = csmb_classify_error(session->smb2, rc);
+        if (code == CSMB_ERR_CONNECTION) {
+            session->tainted = 1;
+        }
         csmb_set_error(out_error_message, smb2_get_error(session->smb2));
         return code;
     }
@@ -452,29 +817,44 @@ csmb_error_code_t csmb_session_list_directory(
     out_list->count = 0;
 
     const char *norm_path = csmb_normalize_rel_path(rel_path);
-    if (norm_path[0] != '\0') {
-        int is_dir = 0;
-        csmb_error_code_t stat_code = csmb_session_stat(
-            session,
-            norm_path,
-            &is_dir,
-            NULL,
-            NULL,
-            out_error_message
-        );
-        if (stat_code != CSMB_OK) {
-            return stat_code;
-        }
-        if (!is_dir) {
-            csmb_set_error(out_error_message, "Target SMB path is not a directory");
-            return CSMB_ERR_NOT_DIR;
+    struct smb2dir *dir = smb2_opendir(session->smb2, norm_path);
+    if (!dir && session->was_reused && csmb_classify_error(session->smb2, -EIO) == CSMB_ERR_CONNECTION) {
+        if (csmb_reconnect_reused_session(session)) {
+            dir = smb2_opendir(session->smb2, norm_path);
+        } else {
+            csmb_set_error(out_error_message, "SMB session reconnect failed");
+            return CSMB_ERR_CONNECTION;
         }
     }
+    session->was_reused = 0;
 
-    struct smb2dir *dir = smb2_opendir(session->smb2, norm_path);
     if (!dir) {
         csmb_error_code_t code = csmb_classify_error(session->smb2, -EIO);
-        csmb_set_error(out_error_message, smb2_get_error(session->smb2));
+        char *open_err = csmb_strdup(smb2_get_error(session->smb2));
+        if (norm_path[0] != '\0' && code != CSMB_ERR_AUTH && code != CSMB_ERR_NOT_FOUND) {
+            int is_dir = 0;
+            csmb_error_code_t stat_code = csmb_session_stat(
+                session,
+                norm_path,
+                &is_dir,
+                NULL,
+                NULL,
+                NULL
+            );
+            if (stat_code == CSMB_OK && !is_dir) {
+                free(open_err);
+                csmb_set_error(out_error_message, "Target SMB path is not a directory");
+                return CSMB_ERR_NOT_DIR;
+            }
+            if (stat_code != CSMB_OK && stat_code != CSMB_ERR_CONNECTION) {
+                code = stat_code;
+            }
+        }
+        if (code == CSMB_ERR_CONNECTION) {
+            session->tainted = 1;
+        }
+        csmb_set_error(out_error_message, open_err);
+        free(open_err);
         return code;
     }
 
@@ -553,8 +933,21 @@ csmb_error_code_t csmb_session_read_file_range(
 
     const char *norm_path = csmb_normalize_rel_path(rel_path);
     struct smb2fh *fh = smb2_open(session->smb2, norm_path, O_RDONLY);
+    if (!fh && session->was_reused && csmb_classify_error(session->smb2, -EIO) == CSMB_ERR_CONNECTION) {
+        if (csmb_reconnect_reused_session(session)) {
+            fh = smb2_open(session->smb2, norm_path, O_RDONLY);
+        } else {
+            csmb_set_error(out_error_message, "SMB session reconnect failed");
+            return CSMB_ERR_CONNECTION;
+        }
+    }
+    session->was_reused = 0;
+
     if (!fh) {
         csmb_error_code_t code = csmb_classify_error(session->smb2, -EIO);
+        if (code == CSMB_ERR_CONNECTION) {
+            session->tainted = 1;
+        }
         csmb_set_error(out_error_message, smb2_get_error(session->smb2));
         return code;
     }
@@ -563,6 +956,9 @@ csmb_error_code_t csmb_session_read_file_range(
     memset(&st, 0, sizeof(st));
     if (smb2_fstat(session->smb2, fh, &st) < 0) {
         csmb_error_code_t code = csmb_classify_error(session->smb2, -EIO);
+        if (code == CSMB_ERR_CONNECTION) {
+            session->tainted = 1;
+        }
         csmb_set_error(out_error_message, smb2_get_error(session->smb2));
         smb2_close(session->smb2, fh);
         return code;
@@ -605,6 +1001,9 @@ csmb_error_code_t csmb_session_read_file_range(
         );
         if (n < 0) {
             csmb_error_code_t code = csmb_classify_error(session->smb2, n);
+            if (code == CSMB_ERR_CONNECTION) {
+                session->tainted = 1;
+            }
             csmb_set_error(out_error_message, smb2_get_error(session->smb2));
             free(buffer);
             smb2_close(session->smb2, fh);
@@ -642,8 +1041,21 @@ csmb_error_code_t csmb_file_open(
 
     const char *norm_path = csmb_normalize_rel_path(rel_path);
     struct smb2fh *fh = smb2_open(session->smb2, norm_path, O_RDONLY);
+    if (!fh && session->was_reused && csmb_classify_error(session->smb2, -EIO) == CSMB_ERR_CONNECTION) {
+        if (csmb_reconnect_reused_session(session)) {
+            fh = smb2_open(session->smb2, norm_path, O_RDONLY);
+        } else {
+            csmb_set_error(out_error_message, "SMB session reconnect failed");
+            return CSMB_ERR_CONNECTION;
+        }
+    }
+    session->was_reused = 0;
+
     if (!fh) {
         csmb_error_code_t code = csmb_classify_error(session->smb2, -EIO);
+        if (code == CSMB_ERR_CONNECTION) {
+            session->tainted = 1;
+        }
         csmb_set_error(out_error_message, smb2_get_error(session->smb2));
         return code;
     }
@@ -653,6 +1065,9 @@ csmb_error_code_t csmb_file_open(
         memset(&st, 0, sizeof(st));
         if (smb2_fstat(session->smb2, fh, &st) < 0) {
             csmb_error_code_t code = csmb_classify_error(session->smb2, -EIO);
+            if (code == CSMB_ERR_CONNECTION) {
+                session->tainted = 1;
+            }
             csmb_set_error(out_error_message, smb2_get_error(session->smb2));
             smb2_close(session->smb2, fh);
             return code;
@@ -666,6 +1081,7 @@ csmb_error_code_t csmb_file_open(
         csmb_set_error(out_error_message, "Out of memory");
         return CSMB_ERR_CONNECTION;
     }
+    file->session = session;
     file->smb2 = session->smb2;
     file->fh = fh;
     *out_file = file;
@@ -697,6 +1113,9 @@ csmb_error_code_t csmb_file_pread(
     int n = smb2_pread(file->smb2, file->fh, buffer, count, offset);
     if (n < 0) {
         csmb_error_code_t code = csmb_classify_error(file->smb2, n);
+        if (code == CSMB_ERR_CONNECTION && file->session) {
+            file->session->tainted = 1;
+        }
         csmb_set_error(out_error_message, smb2_get_error(file->smb2));
         return code;
     }
@@ -731,8 +1150,21 @@ csmb_error_code_t csmb_session_rename(
     const char *norm_new = csmb_normalize_rel_path(new_rel_path);
 
     int rc = smb2_rename(session->smb2, norm_old, norm_new);
+    if (rc < 0 && session->was_reused && csmb_classify_error(session->smb2, rc) == CSMB_ERR_CONNECTION) {
+        if (csmb_reconnect_reused_session(session)) {
+            rc = smb2_rename(session->smb2, norm_old, norm_new);
+        } else {
+            csmb_set_error(out_error_message, "SMB session reconnect failed");
+            return CSMB_ERR_CONNECTION;
+        }
+    }
+    session->was_reused = 0;
+
     if (rc < 0) {
         csmb_error_code_t code = csmb_classify_error(session->smb2, rc);
+        if (code == CSMB_ERR_CONNECTION) {
+            session->tainted = 1;
+        }
         csmb_set_error(out_error_message, smb2_get_error(session->smb2));
         return code;
     }

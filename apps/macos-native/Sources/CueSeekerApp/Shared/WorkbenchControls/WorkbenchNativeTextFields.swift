@@ -1,6 +1,14 @@
 import AppKit
 import SwiftUI
 
+private enum WorkbenchTextFieldFontMetrics {
+    private static let layoutManager = NSLayoutManager()
+
+    static func defaultLineHeight(for font: NSFont) -> CGFloat {
+        layoutManager.defaultLineHeight(for: font)
+    }
+}
+
 @MainActor
 final class WorkbenchNativeSingleLineTextField: NSTextField {
     override class var cellClass: AnyClass? {
@@ -39,7 +47,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
             ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
             weight: .regular
         )
-        let lineHeight = ceil(NSLayoutManager().defaultLineHeight(for: resolvedFont))
+        let lineHeight = ceil(WorkbenchTextFieldFontMetrics.defaultLineHeight(for: resolvedFont))
         return NSSize(width: NSView.noIntrinsicMetric, height: lineHeight)
     }
 
@@ -429,10 +437,11 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        ensureFieldEditorUsesTextKit1()
         if autofocus, !hasPerformedInitialAutofocus {
+            ensureFieldEditorUsesTextKit1()
             scheduleAutofocusIfNeeded()
         } else if wantsFocusFromSwiftUI, !isCurrentlyFocused {
+            ensureFieldEditorUsesTextKit1()
             scheduleSwiftUIFocusIfNeeded()
         }
     }
@@ -1035,7 +1044,6 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        ensureFieldEditorUsesTextKit1()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -1245,7 +1253,7 @@ final class WorkbenchSecureTextFieldCell: NSSecureTextFieldCell {
             ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
             weight: .regular
         )
-        let lineHeight = NSLayoutManager().defaultLineHeight(for: resolvedFont)
+        let lineHeight = WorkbenchTextFieldFontMetrics.defaultLineHeight(for: resolvedFont)
         var centered = baseRect
         centered.origin.y = theRect.origin.y + floor((theRect.height - lineHeight) / 2.0)
         centered.size.height = lineHeight

@@ -693,18 +693,18 @@ extension AppCoordinator {
             guard let destination = nodes.first(where: { $0.id == nodeID })?.destination else {
                 return false
             }
-            workbenchLayout.navigate(to: destination)
+            navigateWorkbench(to: destination, trigger: "accessibility_file_breadcrumb")
             return true
 
         case .fileCard(let path):
             switch workbenchLayout.currentRoute {
             case .file:
                 loadFileSubfolders(rootPath: path)
-                workbenchLayout.navigate(to: .fileFolder(rootPath: path))
+                navigateWorkbench(to: .fileFolder(rootPath: path), trigger: "accessibility_file_card")
                 return true
             case .fileFolder(let rootPath):
                 loadFileObjects(folderPath: path)
-                workbenchLayout.navigate(to: .fileFiles(rootPath: rootPath, folderPath: path))
+                navigateWorkbench(to: .fileFiles(rootPath: rootPath, folderPath: path), trigger: "accessibility_file_card")
                 return true
             default:
                 return false

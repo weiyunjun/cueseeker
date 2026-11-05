@@ -452,7 +452,7 @@ struct WorkbenchFileView: View {
             )
             .frame(minHeight: emptyMinHeight)
         } else {
-            VStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 ForEach(folders, id: \.self) { folder in
                     let rootPath = folder.mediaPath
                     let title = IndexingStore.displayName(for: folder)
@@ -505,9 +505,10 @@ struct WorkbenchFileView: View {
                         isCardFocused: accessibility?.isFocused(.fileCard(rootPath)) == true,
                         isActionFocused: accessibility?.isFocused(.fileCardActionButton(rootPath)) == true,
                         onTap: {
-                            appState.loadFileSubfolders(rootPath: rootPath)
-                            appState.workbenchLayout.navigate(
-                                to: .fileFolder(rootPath: rootPath)
+                            appState.hydrateFileSubfoldersAsync(rootPath: rootPath)
+                            appState.navigateWorkbench(
+                                to: .fileFolder(rootPath: rootPath),
+                                trigger: "file_card_open"
                             )
                         },
                         menuItems: items,
@@ -570,7 +571,7 @@ struct WorkbenchFileView: View {
             } else {
                 VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
                     if !partition.subfolders.isEmpty {
-                        VStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                        LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                             ForEach(partition.subfolders) { folder in
                                 let title = URL.fromMediaPath(folder.folderPath).lastPathComponent
                                 let items = [
@@ -603,9 +604,10 @@ struct WorkbenchFileView: View {
                                     isCardFocused: accessibility?.isFocused(.fileCard(folder.folderPath)) == true,
                                     isActionFocused: accessibility?.isFocused(.fileCardActionButton(folder.folderPath)) == true,
                                     onTap: {
-                                        appState.loadFileObjects(folderPath: folder.folderPath)
-                                        appState.workbenchLayout.navigate(
-                                            to: .fileFiles(rootPath: rootPath, folderPath: folder.folderPath)
+                                        appState.hydrateFileObjectsAsync(folderPath: folder.folderPath)
+                                        appState.navigateWorkbench(
+                                            to: .fileFiles(rootPath: rootPath, folderPath: folder.folderPath),
+                                            trigger: "file_card_open"
                                         )
                                     },
                                     menuItems: items,
@@ -690,7 +692,7 @@ struct WorkbenchFileView: View {
         folderPath: String,
         accessibility: WorkbenchAccessibilityCoordinator?
     ) -> some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+        LazyVStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             ForEach(objects) { object in
                 VStack(alignment: .leading, spacing: 0) {
                     Text(object.displayTitle)
@@ -936,7 +938,7 @@ struct WorkbenchFileView: View {
                         title: node.title,
                         isFocused: accessibility?.isFocused(.fileBreadcrumb(node.id)) == true
                     ) {
-                        appState.workbenchLayout.navigate(to: destination)
+                        appState.navigateWorkbench(to: destination, trigger: "file_breadcrumb")
                     }
                 } else {
                     Text(node.title)
@@ -1083,6 +1085,7 @@ private struct WorkbenchFileCard: View {
     @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     @State private var isHovered = false
     @State private var isPressed = false
+    @State private var actionRegistrationToken = NSObject()
 
     private var rowCornerRadius: CGFloat {
         showsCardChrome ? WorkbenchControlMetrics.redesignCornerRadius : 0
@@ -1143,14 +1146,20 @@ private struct WorkbenchFileCard: View {
                     )
                     .onAppear {
                         guard !cardID.isEmpty else { return }
-                        workbenchAccessibility?.registerFileCardAction(id: cardID) {
+                        workbenchAccessibility?.registerFileCardAction(
+                            id: cardID,
+                            ownerToken: ObjectIdentifier(actionRegistrationToken)
+                        ) {
                             let frame = buttonProxy.frame(in: .named(WorkbenchFileView.fileCardCoordinateSpaceName))
                             onOpenButtonMenu(frame)
                         }
                     }
                     .onDisappear {
                         guard !cardID.isEmpty else { return }
-                        workbenchAccessibility?.unregisterFileCardAction(id: cardID)
+                        workbenchAccessibility?.unregisterFileCardAction(
+                            id: cardID,
+                            ownerToken: ObjectIdentifier(actionRegistrationToken)
+                        )
                     }
                 }
                 .frame(

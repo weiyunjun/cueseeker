@@ -349,6 +349,8 @@ extension AppCoordinator {
         let session = makeSession()
         session.existingRootFolders = indexing.selectedFolders
         library[keyPath: sessionKeyPath] = session
+        reconcileWorkbenchAccessibilityFocus()
+        reconcileDialogAccessibilityFocus()
         DebugInteractionLatencyProbe.beginDialogOpen(
             dialogID: "remote_folder_\(String(describing: Session.self))",
             trigger: "open_remote_dialog",
@@ -362,6 +364,8 @@ extension AppCoordinator {
     ) {
         library[keyPath: sessionKeyPath]?.cancelValidation()
         library[keyPath: sessionKeyPath] = nil
+        reconcileDialogAccessibilityFocus()
+        reconcileWorkbenchAccessibilityFocus()
     }
 
     private func canStartRemoteConnection<Session: RemoteFolderDialogSessionProtocol>(
@@ -620,6 +624,8 @@ extension AppCoordinator {
 
         session.cancelValidation()
         library[keyPath: sessionKeyPath] = nil
+        reconcileDialogAccessibilityFocus()
+        reconcileWorkbenchAccessibilityFocus()
         addFolders(targetFolders)
     }
 }

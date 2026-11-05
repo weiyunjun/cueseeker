@@ -518,7 +518,7 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
 
     /// Closures registered by `WorkbenchFileView` cards and file rows for
     /// opening their `dots-three` menu by ID.
-    private var fileCardMenuOpeners: [String: () -> Void] = [:]
+    private var fileCardMenuOpeners: [String: RegisteredCardMenuOpener] = [:]
 
     private struct RegisteredDialogTextInput {
         let ownerToken: ObjectIdentifier?
@@ -1000,20 +1000,36 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         return true
     }
 
-    func registerFileCardAction(id: String, openMenu: @escaping () -> Void) {
-        fileCardMenuOpeners[id] = openMenu
+    func registerFileCardAction(
+        id: String,
+        ownerToken: ObjectIdentifier? = nil,
+        openMenu: @escaping () -> Void
+    ) {
+        fileCardMenuOpeners[id] = RegisteredCardMenuOpener(
+            ownerToken: ownerToken,
+            openMenu: openMenu
+        )
     }
 
-    func unregisterFileCardAction(id: String) {
+    func unregisterFileCardAction(
+        id: String,
+        ownerToken: ObjectIdentifier? = nil
+    ) {
+        if let ownerToken,
+           let existing = fileCardMenuOpeners[id],
+           let existingToken = existing.ownerToken,
+           existingToken != ownerToken {
+            return
+        }
         fileCardMenuOpeners.removeValue(forKey: id)
     }
 
     @discardableResult
     func activateFileCardAction(id: String) -> Bool {
-        guard let openMenu = fileCardMenuOpeners[id] else {
+        guard let entry = fileCardMenuOpeners[id] else {
             return false
         }
-        openMenu()
+        entry.openMenu()
         return true
     }
 

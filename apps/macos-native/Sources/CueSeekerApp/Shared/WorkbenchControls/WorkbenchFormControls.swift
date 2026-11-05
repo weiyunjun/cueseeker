@@ -319,7 +319,11 @@ struct WorkbenchFormTextField: View {
                         isFocused: isAccessibilityFocused,
                         cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
                     )
-                    .background(WorkbenchAccessibilityScrollRevealProbe(isActive: isAccessibilityFocused))
+                    .background {
+                        if isAccessibilityFocused {
+                            WorkbenchAccessibilityScrollRevealProbe(isActive: true)
+                        }
+                    }
                     .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
             }
         }
@@ -732,7 +736,11 @@ struct WorkbenchDialogFormTextField: View {
                         isFocused: isAccessibilityFocused,
                         cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
                     )
-                    .background(WorkbenchAccessibilityScrollRevealProbe(isActive: isAccessibilityFocused))
+                    .background {
+                        if isAccessibilityFocused {
+                            WorkbenchAccessibilityScrollRevealProbe(isActive: true)
+                        }
+                    }
                     .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
 
                     if reservesValidationLine {
@@ -819,7 +827,11 @@ struct WorkbenchDialogFormPasswordField: View {
                         isFocused: isAccessibilityFocused,
                         cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
                     )
-                    .background(WorkbenchAccessibilityScrollRevealProbe(isActive: isAccessibilityFocused))
+                    .background {
+                        if isAccessibilityFocused {
+                            WorkbenchAccessibilityScrollRevealProbe(isActive: true)
+                        }
+                    }
                     .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
 
                     if reservesValidationLine {

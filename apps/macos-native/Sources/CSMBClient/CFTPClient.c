@@ -2,10 +2,206 @@
 
 #include <ctype.h>
 #include <curl/curl.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#define CFTP_HANDLE_POOL_CAP 8
+#define CFTP_HANDLE_POOL_TTL 120
+#define CFTP_MLSD_CACHE_CAP 16
+
+typedef struct {
+    char *host;
+    int port;
+    char *username;
+    char *password;
+    CURL *curl;
+    time_t last_used;
+} cftp_pooled_handle_t;
+
+typedef struct {
+    char *host;
+    int port;
+    int mlsd_unsupported;
+    time_t updated_at;
+} cftp_mlsd_cache_entry_t;
+
+static pthread_mutex_t g_cftp_mutex = PTHREAD_MUTEX_INITIALIZER;
+static cftp_pooled_handle_t g_cftp_pool[CFTP_HANDLE_POOL_CAP];
+static cftp_mlsd_cache_entry_t g_cftp_mlsd_cache[CFTP_MLSD_CACHE_CAP];
+
+static char *cftp_strdup(const char *str) {
+    return strdup(str ? str : "");
+}
+
+static int cftp_is_mlsd_unsupported(const char *host, int port) {
+    if (!host || !host[0]) {
+        return 0;
+    }
+    int eff_port = port > 0 ? port : 21;
+    int unsupported = 0;
+    pthread_mutex_lock(&g_cftp_mutex);
+    for (size_t i = 0; i < CFTP_MLSD_CACHE_CAP; i++) {
+        if (g_cftp_mlsd_cache[i].host &&
+            g_cftp_mlsd_cache[i].port == eff_port &&
+            strcmp(g_cftp_mlsd_cache[i].host, host) == 0) {
+            unsupported = g_cftp_mlsd_cache[i].mlsd_unsupported;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_cftp_mutex);
+    return unsupported;
+}
+
+static void cftp_record_mlsd_unsupported(const char *host, int port) {
+    if (!host || !host[0]) {
+        return;
+    }
+    int eff_port = port > 0 ? port : 21;
+    time_t now = time(NULL);
+    pthread_mutex_lock(&g_cftp_mutex);
+    size_t slot = 0;
+    int found = 0;
+    for (size_t i = 0; i < CFTP_MLSD_CACHE_CAP; i++) {
+        if (g_cftp_mlsd_cache[i].host &&
+            g_cftp_mlsd_cache[i].port == eff_port &&
+            strcmp(g_cftp_mlsd_cache[i].host, host) == 0) {
+            slot = i;
+            found = 1;
+            break;
+        }
+    }
+    if (!found) {
+        for (size_t i = 0; i < CFTP_MLSD_CACHE_CAP; i++) {
+            if (!g_cftp_mlsd_cache[i].host) {
+                slot = i;
+                found = 1;
+                break;
+            }
+        }
+    }
+    if (!found) {
+        time_t oldest = g_cftp_mlsd_cache[0].updated_at;
+        slot = 0;
+        for (size_t i = 1; i < CFTP_MLSD_CACHE_CAP; i++) {
+            if (g_cftp_mlsd_cache[i].updated_at < oldest) {
+                oldest = g_cftp_mlsd_cache[i].updated_at;
+                slot = i;
+            }
+        }
+    }
+    free(g_cftp_mlsd_cache[slot].host);
+    g_cftp_mlsd_cache[slot].host = cftp_strdup(host);
+    g_cftp_mlsd_cache[slot].port = eff_port;
+    g_cftp_mlsd_cache[slot].mlsd_unsupported = 1;
+    g_cftp_mlsd_cache[slot].updated_at = now;
+    pthread_mutex_unlock(&g_cftp_mutex);
+}
+
+static CURL *cftp_acquire_handle(
+    const char *host,
+    int port,
+    const char *username,
+    const char *password
+) {
+    const char *norm_host = host ? host : "";
+    int eff_port = port > 0 ? port : 21;
+    const char *norm_user = username ? username : "";
+    const char *norm_pass = password ? password : "";
+    time_t now = time(NULL);
+
+    pthread_mutex_lock(&g_cftp_mutex);
+    for (size_t i = 0; i < CFTP_HANDLE_POOL_CAP; i++) {
+        if (g_cftp_pool[i].curl &&
+            g_cftp_pool[i].host && strcmp(g_cftp_pool[i].host, norm_host) == 0 &&
+            g_cftp_pool[i].port == eff_port &&
+            g_cftp_pool[i].username && strcmp(g_cftp_pool[i].username, norm_user) == 0 &&
+            g_cftp_pool[i].password && strcmp(g_cftp_pool[i].password, norm_pass) == 0) {
+            CURL *cached = g_cftp_pool[i].curl;
+            time_t last_used = g_cftp_pool[i].last_used;
+            free(g_cftp_pool[i].host);
+            free(g_cftp_pool[i].username);
+            free(g_cftp_pool[i].password);
+            memset(&g_cftp_pool[i], 0, sizeof(g_cftp_pool[i]));
+            if ((now - last_used) < CFTP_HANDLE_POOL_TTL) {
+                pthread_mutex_unlock(&g_cftp_mutex);
+                curl_easy_reset(cached);
+                return cached;
+            }
+            pthread_mutex_unlock(&g_cftp_mutex);
+            curl_easy_cleanup(cached);
+            pthread_mutex_lock(&g_cftp_mutex);
+        }
+    }
+    pthread_mutex_unlock(&g_cftp_mutex);
+
+    return curl_easy_init();
+}
+
+static void cftp_release_handle(
+    CURL *curl,
+    struct curl_slist *quote,
+    const char *host,
+    int port,
+    const char *username,
+    const char *password,
+    int discard
+) {
+    if (quote) {
+        curl_slist_free_all(quote);
+    }
+    if (!curl) {
+        return;
+    }
+    const char *norm_host = host ? host : "";
+    if (discard || norm_host[0] == '\0') {
+        curl_easy_cleanup(curl);
+        return;
+    }
+
+    int eff_port = port > 0 ? port : 21;
+    const char *norm_user = username ? username : "";
+    const char *norm_pass = password ? password : "";
+    CURL *evicted_curl = NULL;
+
+    pthread_mutex_lock(&g_cftp_mutex);
+    size_t slot = 0;
+    int found = 0;
+    for (size_t i = 0; i < CFTP_HANDLE_POOL_CAP; i++) {
+        if (!g_cftp_pool[i].curl) {
+            slot = i;
+            found = 1;
+            break;
+        }
+    }
+    if (!found) {
+        time_t oldest = g_cftp_pool[0].last_used;
+        slot = 0;
+        for (size_t i = 1; i < CFTP_HANDLE_POOL_CAP; i++) {
+            if (g_cftp_pool[i].last_used < oldest) {
+                oldest = g_cftp_pool[i].last_used;
+                slot = i;
+            }
+        }
+        evicted_curl = g_cftp_pool[slot].curl;
+        free(g_cftp_pool[slot].host);
+        free(g_cftp_pool[slot].username);
+        free(g_cftp_pool[slot].password);
+    }
+    g_cftp_pool[slot].curl = curl;
+    g_cftp_pool[slot].host = cftp_strdup(norm_host);
+    g_cftp_pool[slot].port = eff_port;
+    g_cftp_pool[slot].username = cftp_strdup(norm_user);
+    g_cftp_pool[slot].password = cftp_strdup(norm_pass);
+    g_cftp_pool[slot].last_used = time(NULL);
+    pthread_mutex_unlock(&g_cftp_mutex);
+
+    if (evicted_curl) {
+        curl_easy_cleanup(evicted_curl);
+    }
+}
 
 typedef struct {
     uint8_t *data;
@@ -180,15 +376,6 @@ static struct curl_slist *cftp_configure_common(CURL *curl, const char *username
     return quote;
 }
 
-static void cftp_cleanup_handle(CURL *curl, struct curl_slist *quote) {
-    if (curl) {
-        curl_easy_cleanup(curl);
-    }
-    if (quote) {
-        curl_slist_free_all(quote);
-    }
-}
-
 static csmb_error_code_t cftp_classify_curl_error(CURL *curl, CURLcode res) {
     long resp = 0;
     if (curl) {
@@ -349,7 +536,7 @@ csmb_error_code_t cftp_stat(
     if (out_size_bytes) *out_size_bytes = 0;
     if (out_modified_at_epoch) *out_modified_at_epoch = 0;
 
-    CURL *curl = curl_easy_init();
+    CURL *curl = cftp_acquire_handle(host, port, username, password);
     if (!curl) {
         cftp_set_error(out_error_message, "Failed to initialize libcurl");
         return CSMB_ERR_CONNECTION;
@@ -371,14 +558,14 @@ csmb_error_code_t cftp_stat(
 
     if (res == CURLE_OK) {
         if (out_is_directory) *out_is_directory = 1;
-        cftp_cleanup_handle(curl, quote);
+        cftp_release_handle(curl, quote, host, port, username, password, 0);
         return CSMB_OK;
     }
 
     csmb_error_code_t dir_code = cftp_classify_curl_error(curl, res);
     if (norm[0] == '\0' || dir_code == CSMB_ERR_AUTH || dir_code == CSMB_ERR_CONNECTION) {
         cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
-        cftp_cleanup_handle(curl, quote);
+        cftp_release_handle(curl, quote, host, port, username, password, 1);
         return dir_code;
     }
 
@@ -398,7 +585,7 @@ csmb_error_code_t cftp_stat(
             if (out_is_directory) *out_is_directory = 0;
             if (out_size_bytes) *out_size_bytes = (uint64_t)cl;
             if (out_modified_at_epoch) *out_modified_at_epoch = (ft > 0) ? (int64_t)ft : 0;
-            cftp_cleanup_handle(curl, quote);
+            cftp_release_handle(curl, quote, host, port, username, password, 0);
             return CSMB_OK;
         }
     }
@@ -408,7 +595,7 @@ csmb_error_code_t cftp_stat(
         file_code = CSMB_ERR_NOT_FOUND;
     }
     cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
-    cftp_cleanup_handle(curl, quote);
+    cftp_release_handle(curl, quote, host, port, username, password, file_code == CSMB_ERR_CONNECTION);
     return file_code;
 }
 
@@ -427,7 +614,7 @@ csmb_error_code_t cftp_list_directory(
     out_list->entries = NULL;
     out_list->count = 0;
 
-    CURL *curl = curl_easy_init();
+    CURL *curl = cftp_acquire_handle(host, port, username, password);
     if (!curl) {
         cftp_set_error(out_error_message, "Failed to initialize libcurl");
         return CSMB_ERR_CONNECTION;
@@ -443,26 +630,33 @@ csmb_error_code_t cftp_list_directory(
     memset(&buf, 0, sizeof(buf));
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cftp_write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
-    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "MLSD");
 
-    CURLcode res = curl_easy_perform(curl);
-    if (res == CURLE_OK) {
-        cftp_parse_mlsd_listing(buf.data ? (const char *)buf.data : "", out_list);
+    int skip_mlsd = cftp_is_mlsd_unsupported(host, port);
+    int attempted_mlsd = 0;
+    CURLcode res = CURLE_OK;
+
+    if (!skip_mlsd) {
+        attempted_mlsd = 1;
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "MLSD");
+        res = curl_easy_perform(curl);
+        if (res == CURLE_OK) {
+            cftp_parse_mlsd_listing(buf.data ? (const char *)buf.data : "", out_list);
+            free(buf.data);
+            free(url);
+            cftp_release_handle(curl, quote, host, port, username, password, 0);
+            return CSMB_OK;
+        }
+
+        csmb_error_code_t mlsd_code = cftp_classify_curl_error(curl, res);
         free(buf.data);
-        free(url);
-        cftp_cleanup_handle(curl, quote);
-        return CSMB_OK;
-    }
+        memset(&buf, 0, sizeof(buf));
 
-    csmb_error_code_t mlsd_code = cftp_classify_curl_error(curl, res);
-    free(buf.data);
-    memset(&buf, 0, sizeof(buf));
-
-    if (mlsd_code == CSMB_ERR_AUTH) {
-        cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
-        free(url);
-        cftp_cleanup_handle(curl, quote);
-        return CSMB_ERR_AUTH;
+        if (mlsd_code == CSMB_ERR_AUTH) {
+            cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
+            free(url);
+            cftp_release_handle(curl, quote, host, port, username, password, 1);
+            return CSMB_ERR_AUTH;
+        }
     }
 
     /* Fall back to standard LIST */
@@ -472,15 +666,18 @@ csmb_error_code_t cftp_list_directory(
     free(url);
 
     if (res == CURLE_OK) {
+        if (attempted_mlsd) {
+            cftp_record_mlsd_unsupported(host, port);
+        }
         cftp_parse_list_listing(buf.data ? (const char *)buf.data : "", out_list);
         free(buf.data);
-        cftp_cleanup_handle(curl, quote);
+        cftp_release_handle(curl, quote, host, port, username, password, 0);
         return CSMB_OK;
     }
 
     csmb_error_code_t list_code = cftp_classify_curl_error(curl, res);
     free(buf.data);
-    cftp_cleanup_handle(curl, quote);
+    cftp_release_handle(curl, quote, host, port, username, password, list_code == CSMB_ERR_CONNECTION);
 
     if (list_code == CSMB_ERR_NOT_FOUND && rel_path && rel_path[0] != '\0') {
         int is_dir = 0;
@@ -534,7 +731,7 @@ csmb_error_code_t cftp_read_file_range(
     uint64_t available = total_size - offset;
     uint64_t to_read = (max_length < available) ? max_length : available;
 
-    CURL *curl = curl_easy_init();
+    CURL *curl = cftp_acquire_handle(host, port, username, password);
     if (!curl) {
         cftp_set_error(out_error_message, "Failed to initialize libcurl");
         return CSMB_ERR_CONNECTION;
@@ -563,7 +760,7 @@ csmb_error_code_t cftp_read_file_range(
     free(url);
 
     if (res == CURLE_OK || (res == CURLE_WRITE_ERROR && buf.stopped_at_limit)) {
-        cftp_cleanup_handle(curl, quote);
+        cftp_release_handle(curl, quote, host, port, username, password, buf.stopped_at_limit);
         *out_buffer = buf.data;
         if (out_bytes_read) {
             *out_bytes_read = buf.length;
@@ -574,7 +771,7 @@ csmb_error_code_t cftp_read_file_range(
     csmb_error_code_t code = cftp_classify_curl_error(curl, res);
     cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
     free(buf.data);
-    cftp_cleanup_handle(curl, quote);
+    cftp_release_handle(curl, quote, host, port, username, password, 1);
     return code;
 }
 
@@ -594,7 +791,7 @@ csmb_error_code_t cftp_stream_file_range(
         return CSMB_OK;
     }
 
-    CURL *curl = curl_easy_init();
+    CURL *curl = cftp_acquire_handle(host, port, username, password);
     if (!curl) {
         cftp_set_error(out_error_message, "Failed to initialize libcurl");
         return CSMB_ERR_CONNECTION;
@@ -635,13 +832,13 @@ csmb_error_code_t cftp_stream_file_range(
     free(url);
 
     if (res == CURLE_OK || (res == CURLE_WRITE_ERROR && ctx.stopped_by_caller)) {
-        cftp_cleanup_handle(curl, quote);
+        cftp_release_handle(curl, quote, host, port, username, password, ctx.stopped_by_caller);
         return CSMB_OK;
     }
 
     csmb_error_code_t code = cftp_classify_curl_error(curl, res);
     cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
-    cftp_cleanup_handle(curl, quote);
+    cftp_release_handle(curl, quote, host, port, username, password, 1);
     return code;
 }
 
@@ -654,7 +851,7 @@ csmb_error_code_t cftp_rename(
     const char *password,
     char **out_error_message
 ) {
-    CURL *curl = curl_easy_init();
+    CURL *curl = cftp_acquire_handle(host, port, username, password);
     if (!curl) {
         cftp_set_error(out_error_message, "Failed to initialize libcurl");
         return CSMB_ERR_CONNECTION;
@@ -691,7 +888,7 @@ csmb_error_code_t cftp_rename(
     free(root_url);
 
     if (res == CURLE_OK) {
-        cftp_cleanup_handle(curl, quote);
+        cftp_release_handle(curl, quote, host, port, username, password, 0);
         return CSMB_OK;
     }
 
@@ -706,6 +903,6 @@ csmb_error_code_t cftp_rename(
         }
     }
     cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
-    cftp_cleanup_handle(curl, quote);
+    cftp_release_handle(curl, quote, host, port, username, password, 1);
     return code;
 }

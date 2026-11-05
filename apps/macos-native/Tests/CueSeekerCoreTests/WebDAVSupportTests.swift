@@ -776,4 +776,63 @@ struct WebDAVSupportTests {
         #expect(scoped.username == "admin")
         #expect(scoped.password == "secret")
     }
+
+    @Test
+    func connectAndBrowseDirectoryRemembersAListDAVOriginOnSubsequentConnections() async throws {
+        let suiteName = "CueSeeker.WebDAVOriginCacheTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+        defer { defaults.removePersistentDomainAndPlist(forName: suiteName) }
+
+        let requestedPaths = LockedBox<[String]>([])
+        let client = WebDAVClient(
+            configurationStore: WebDAVConfigurationStore(userDefaults: defaults)
+        ) { request in
+            let path = request.url?.path ?? ""
+            requestedPaths.withValue { $0.append(path) }
+            guard path.hasPrefix("/dav/") else {
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 405,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: nil
+                )!
+                return (Data(), response)
+            }
+            let xml = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <D:multistatus xmlns:D="DAV:">
+              <D:response>
+                <D:href>\(path.hasSuffix("/") ? path : path + "/")</D:href>
+                <D:propstat>
+                  <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                  <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+              </D:response>
+            </D:multistatus>
+            """
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 207,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/xml"]
+            )!
+            return (Data(xml.utf8), response)
+        }
+
+        _ = try await client.connectAndBrowseDirectory(
+            address: "http://192.168.1.99:5244/115/Movies",
+            username: "admin",
+            password: "secret"
+        )
+        #expect(requestedPaths.withValue { $0 } == ["/115/Movies", "/dav/115/Movies"])
+
+        requestedPaths.withValue { $0.removeAll() }
+        let second = try await client.connectAndBrowseDirectory(
+            address: "http://192.168.1.99:5244/115/Anime",
+            username: "admin",
+            password: "secret"
+        )
+        #expect(second.config.davRootPath == "http://192.168.1.99:5244/dav/115/Anime")
+        #expect(requestedPaths.withValue { $0 } == ["/dav/115/Anime"])
+    }
 }

@@ -246,15 +246,18 @@ public final class SMBHostResolver: @unchecked Sendable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return nil }
         let isLocalhost = normalized.caseInsensitiveCompare("localhost") == .orderedSame
+        let lower = normalized.lowercased()
+        let isSingleLabelHost = !normalized.contains(".") && !isLocalhost
 
-        // 1. Direct DNS / system resolver lookup (handles FQDNs, localhost, and explicit .local names)
-        if !normalized.contains(" "),
+        // 1. Direct DNS / system resolver lookup for FQDNs, localhost, and explicit .local names
+        if !isSingleLabelHost,
+           !normalized.contains(" "),
            let directIP = lookupAddrInfo(hostname: normalized, preferLoopback: isLocalhost) {
             return directIP
         }
 
-        // 2. Bonjour multicast DNS (.local) lookup
-        let lower = normalized.lowercased()
+        // 2. Bonjour multicast DNS (.local) lookup first for single-label LAN hostnames
+        // so we do not stall 2.4s-5.0s on upstream unicast DNS timeouts.
         if !lower.hasSuffix(".local") {
             if !normalized.contains(" "),
                let localIP = lookupAddrInfo(hostname: "\(normalized).local", preferLoopback: false) {
@@ -276,7 +279,14 @@ public final class SMBHostResolver: @unchecked Sendable {
             return bonjourIP
         }
 
-        // 4. NetBIOS lookup fallback via /usr/bin/smbutil lookup
+        // 4. Unicast DNS search-domain fallback for single-label hostnames
+        if isSingleLabelHost,
+           !normalized.contains(" "),
+           let directIP = lookupAddrInfo(hostname: normalized, preferLoopback: false) {
+            return directIP
+        }
+
+        // 5. NetBIOS lookup fallback via /usr/bin/smbutil lookup
         if let netbiosIP = resolveViaSMBUtilLookup(name: serviceQueryName) {
             return netbiosIP
         }

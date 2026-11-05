@@ -781,10 +781,25 @@ public final class WebDAVClient: @unchecked Sendable {
         let expiresAt: Date
     }
 
+    private static let sharedSessionDelegate = NoRedirectSessionDelegate()
+    private static let sharedURLSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.httpCookieAcceptPolicy = .never
+        config.httpShouldSetCookies = false
+        config.httpMaximumConnectionsPerHost = 6
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 60
+        config.httpAdditionalHeaders = ["User-Agent": defaultUserAgent]
+        return URLSession(configuration: config, delegate: sharedSessionDelegate, delegateQueue: nil)
+    }()
+
     private let configurationStore: WebDAVConfigurationStore
     private let lock = NSLock()
     private var customHTTPHandler: HTTPHandler?
     private var resolvedPlayableCache: [String: ResolvedCacheEntry] = [:]
+    private var knownAListDAVOrigins: Set<String> = []
     private let resolvedCacheTTL: TimeInterval = 60
 
     public init(
@@ -799,12 +814,14 @@ public final class WebDAVClient: @unchecked Sendable {
         lock.lock()
         customHTTPHandler = handler
         resolvedPlayableCache.removeAll()
+        knownAListDAVOrigins.removeAll()
         lock.unlock()
     }
 
     public func clearResolvedPlayableCache() {
         lock.lock()
         resolvedPlayableCache.removeAll()
+        knownAListDAVOrigins.removeAll()
         lock.unlock()
     }
 
@@ -842,6 +859,20 @@ public final class WebDAVClient: @unchecked Sendable {
 
         return try await Task.detached(priority: .userInitiated) { [self] in
             try Task.checkCancellation()
+            if self.prefersAListDAVFallback(for: rootURL),
+               let davFallbackURL = Self.alistDAVFallbackURL(for: rootURL) {
+                var fallbackConfig = initialConfig
+                fallbackConfig.davRootPath = davFallbackURL.mediaPath
+                do {
+                    try self.verifyPropfindCollection(at: davFallbackURL, config: fallbackConfig)
+                    return fallbackConfig
+                } catch let fallbackError as WebDAVError {
+                    try Task.checkCancellation()
+                    if case .authenticationFailed = fallbackError {
+                        throw fallbackError
+                    }
+                }
+            }
             do {
                 try self.verifyPropfindCollection(at: rootURL, config: initialConfig)
                 return initialConfig
@@ -854,6 +885,7 @@ public final class WebDAVClient: @unchecked Sendable {
                     var fallbackConfig = initialConfig
                     fallbackConfig.davRootPath = davFallbackURL.mediaPath
                     if (try? self.verifyPropfindCollection(at: davFallbackURL, config: fallbackConfig)) != nil {
+                        self.recordAListDAVFallbackOrigin(for: rootURL)
                         return fallbackConfig
                     }
                 }
@@ -892,6 +924,20 @@ public final class WebDAVClient: @unchecked Sendable {
 
         return try await Task.detached(priority: .userInitiated) { [self] in
             try Task.checkCancellation()
+            if self.prefersAListDAVFallback(for: rootURL),
+               let davFallbackURL = Self.alistDAVFallbackURL(for: rootURL) {
+                var fallbackConfig = initialConfig
+                fallbackConfig.davRootPath = davFallbackURL.mediaPath
+                do {
+                    let items = try self.listBrowserItems(at: rootURL, config: fallbackConfig)
+                    return (fallbackConfig, items)
+                } catch let fallbackError as WebDAVError {
+                    try Task.checkCancellation()
+                    if case .authenticationFailed = fallbackError {
+                        throw fallbackError
+                    }
+                }
+            }
             do {
                 let items = try self.listBrowserItems(at: rootURL, config: initialConfig)
                 return (initialConfig, items)
@@ -904,6 +950,7 @@ public final class WebDAVClient: @unchecked Sendable {
                     var fallbackConfig = initialConfig
                     fallbackConfig.davRootPath = davFallbackURL.mediaPath
                     if let items = try? self.listBrowserItems(at: rootURL, config: fallbackConfig) {
+                        self.recordAListDAVFallbackOrigin(for: rootURL)
                         return (fallbackConfig, items)
                     }
                 }
@@ -1630,6 +1677,8 @@ public final class WebDAVClient: @unchecked Sendable {
 
     private func performSingleHopRequest(_ request: URLRequest) throws -> (Data, HTTPURLResponse) {
         var preparedRequest = request
+        preparedRequest.cachePolicy = .reloadIgnoringLocalCacheData
+        preparedRequest.httpShouldHandleCookies = false
         if preparedRequest.value(forHTTPHeaderField: "User-Agent") == nil {
             preparedRequest.setValue(Self.defaultUserAgent, forHTTPHeaderField: "User-Agent")
         }
@@ -1642,20 +1691,33 @@ public final class WebDAVClient: @unchecked Sendable {
             return try handler(preparedRequest)
         }
 
-        let delegate = NoRedirectSessionDelegate()
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = preparedRequest.timeoutInterval
-        config.timeoutIntervalForResource = max(preparedRequest.timeoutInterval, 30)
-        config.httpAdditionalHeaders = ["User-Agent": Self.defaultUserAgent]
-        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
-        defer { session.finishTasksAndInvalidate() }
-
         let box = SynchronousHTTPBox()
-        let task = session.dataTask(with: preparedRequest) { data, response, error in
+        let task = Self.sharedURLSession.dataTask(with: preparedRequest) { data, response, error in
             box.complete(data: data, response: response, error: error)
         }
         task.resume()
         return try box.wait()
+    }
+
+    private func prefersAListDAVFallback(for url: URL) -> Bool {
+        let key = Self.originKey(for: url)
+        lock.lock()
+        defer { lock.unlock() }
+        return knownAListDAVOrigins.contains(key)
+    }
+
+    private func recordAListDAVFallbackOrigin(for url: URL) {
+        let key = Self.originKey(for: url)
+        lock.lock()
+        knownAListDAVOrigins.insert(key)
+        lock.unlock()
+    }
+
+    private static func originKey(for url: URL) -> String {
+        let scheme = url.scheme?.lowercased() ?? "http"
+        let host = url.host?.lowercased() ?? ""
+        let port = effectivePort(for: url)
+        return "\(scheme)://\(host):\(port)"
     }
 
     private func mapHTTPError(statusCode: Int) -> WebDAVError {

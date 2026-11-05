@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import CueSeekerCore
 import Foundation
 import SwiftUI
@@ -567,6 +568,61 @@ struct FileRouteNavigationTests {
         #expect(toastRequest.icon == .warning)
         #expect(toastRequest.duration == ToastDuration.alert)
         #expect(toastRequest.message == "Task record no longer exists")
+    }
+
+    @Test
+    func remoteFolderDialogsIsolateInvalidationsAndLazyFileCardActionsRespectOwnerToken() {
+        let suiteName = "RemoteDialogIsolationTests-\(UUID().uuidString)"
+        let defaults = UserDefaults.temporary(suiteName: suiteName)!
+        let databaseURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CueSeekerRemoteDialogIsolationTests-\(UUID().uuidString)")
+            .appendingPathExtension("sqlite")
+        defer {
+            defaults.removePersistentDomainAndPlist(forName: suiteName)
+            try? FileManager.default.removeItem(at: databaseURL)
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: databaseURL.path + "-wal"))
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: databaseURL.path + "-shm"))
+        }
+
+        let app = AppCoordinator(userDefaults: defaults, databaseURL: databaseURL)
+        var libraryInvalidationCount = 0
+        var remoteDialogInvalidationCount = 0
+        let libraryCancellable = app.library.objectWillChange.sink { _ in
+            libraryInvalidationCount += 1
+        }
+        let remoteDialogCancellable = app.library.remoteFolderDialog.objectWillChange.sink { _ in
+            remoteDialogInvalidationCount += 1
+        }
+        _ = (libraryCancellable, remoteDialogCancellable)
+
+        app.openWebDAVFolderDialog()
+        #expect(app.library.webdavDialogSession != nil)
+        #expect(libraryInvalidationCount == 0)
+        #expect(remoteDialogInvalidationCount == 1)
+
+        app.closeWebDAVFolderDialog()
+        #expect(app.library.webdavDialogSession == nil)
+        #expect(libraryInvalidationCount == 0)
+        #expect(remoteDialogInvalidationCount == 2)
+
+        // Verify lazy-stack ownerToken prevents stale onDisappear from unregistering a newer card action
+        let coordinator = WorkbenchAccessibilityCoordinator()
+        let firstOwnerObject = NSObject()
+        let secondOwnerObject = NSObject()
+        let firstOwner = ObjectIdentifier(firstOwnerObject)
+        let secondOwner = ObjectIdentifier(secondOwnerObject)
+        var triggeredBy = ""
+        coordinator.registerFileCardAction(id: "folder-1", ownerToken: firstOwner) {
+            triggeredBy = "first"
+        }
+        coordinator.registerFileCardAction(id: "folder-1", ownerToken: secondOwner) {
+            triggeredBy = "second"
+        }
+        coordinator.unregisterFileCardAction(id: "folder-1", ownerToken: firstOwner)
+        #expect(coordinator.activateFileCardAction(id: "folder-1") == true)
+        #expect(triggeredBy == "second")
+        coordinator.unregisterFileCardAction(id: "folder-1", ownerToken: secondOwner)
+        #expect(coordinator.activateFileCardAction(id: "folder-1") == false)
     }
 }
 

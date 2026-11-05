@@ -8,6 +8,14 @@ final class FileDetailDialogCenter: ObservableObject {
 }
 
 @MainActor
+final class RemoteFolderDialogCenter: ObservableObject {
+    @Published var webdavSession: WebDAVFolderDialogSession?
+    @Published var smbSession: SMBFolderDialogSession?
+    @Published var ftpSession: FTPFolderDialogSession?
+    @Published var nfsSession: NFSFolderDialogSession?
+}
+
+@MainActor
 final class LibraryStore: ObservableObject {
     var uiProbeScope: String
     let userDefaults: UserDefaults
@@ -27,6 +35,8 @@ final class LibraryStore: ObservableObject {
     var completeLibraryFolderDetailTasks: [String: Task<Void, Never>] = [:]
     var completeLibraryFolderDetailRequestIDs: [String: UUID] = [:]
     var completeLibraryFolderDetailGeneration: UInt64 = 0
+    var fileSubfolderTasks: [String: Task<Void, Never>] = [:]
+    var fileObjectTasks: [String: Task<Void, Never>] = [:]
     let libraryDisplayRenditionCommitGate: LibraryCoverDisplayRenditionCommitGate = LibraryCoverDisplayRenditionCommitGate()
     var libraryDisplayRenditionTask: Task<Void, Never>?
     var libraryDisplayRenditionAttemptedScopeKey: String?
@@ -134,10 +144,23 @@ final class LibraryStore: ObservableObject {
     var selectedLibraryVideo: LibraryVideo?
     @Published var coverEditingSession: LibraryCoverEditingSession?
     @Published var renameSession: LibraryRenameSession?
-    @Published var webdavDialogSession: WebDAVFolderDialogSession?
-    @Published var smbDialogSession: SMBFolderDialogSession?
-    @Published var ftpDialogSession: FTPFolderDialogSession?
-    @Published var nfsDialogSession: NFSFolderDialogSession?
+    let remoteFolderDialog = RemoteFolderDialogCenter()
+    var webdavDialogSession: WebDAVFolderDialogSession? {
+        get { remoteFolderDialog.webdavSession }
+        set { remoteFolderDialog.webdavSession = newValue }
+    }
+    var smbDialogSession: SMBFolderDialogSession? {
+        get { remoteFolderDialog.smbSession }
+        set { remoteFolderDialog.smbSession = newValue }
+    }
+    var ftpDialogSession: FTPFolderDialogSession? {
+        get { remoteFolderDialog.ftpSession }
+        set { remoteFolderDialog.ftpSession = newValue }
+    }
+    var nfsDialogSession: NFSFolderDialogSession? {
+        get { remoteFolderDialog.nfsSession }
+        set { remoteFolderDialog.nfsSession = newValue }
+    }
     let fileDetailDialog = FileDetailDialogCenter()
     var fileDetailSession: FileDetailDialogSession? {
         get { fileDetailDialog.session }

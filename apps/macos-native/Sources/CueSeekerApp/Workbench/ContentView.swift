@@ -86,6 +86,7 @@ private struct ContentRootView: View {
                         confirmation: appState.confirmation,
                         tasks: appState.tasks,
                         fileDetailDialog: appState.library.fileDetailDialog,
+                        remoteFolderDialog: appState.library.remoteFolderDialog,
                         isPlaybackPageVisible: hidesWorkbenchChrome
                     )
                     .zIndex(AppShellLayout.dialogLayerZIndex)
@@ -178,6 +179,7 @@ private struct ContentDialogLayerHost: View {
     /// layer has to be re-read when the panel opens or closes.
     @ObservedObject var tasks: TaskQueueStore
     @ObservedObject var fileDetailDialog: FileDetailDialogCenter
+    @ObservedObject var remoteFolderDialog: RemoteFolderDialogCenter
     @EnvironmentObject private var libraryStore: LibraryStore
     @EnvironmentObject private var excerptStore: ExcerptStore
     @EnvironmentObject private var filterDialog: CueFacetFilterDialogCenter
@@ -237,7 +239,7 @@ private struct ContentDialogLayerHost: View {
                 .workbenchDialog()
             }
 
-            if let session = libraryStore.webdavDialogSession {
+            if let session = remoteFolderDialog.webdavSession {
                 WebDAVFolderDialog(
                     session: session,
                     onConfirm: {
@@ -258,7 +260,7 @@ private struct ContentDialogLayerHost: View {
                 .workbenchDialog()
             }
 
-            if let session = libraryStore.smbDialogSession {
+            if let session = remoteFolderDialog.smbSession {
                 SMBFolderDialog(
                     session: session,
                     onConfirm: {
@@ -279,7 +281,7 @@ private struct ContentDialogLayerHost: View {
                 .workbenchDialog()
             }
 
-            if let session = libraryStore.ftpDialogSession {
+            if let session = remoteFolderDialog.ftpSession {
                 FTPFolderDialog(
                     session: session,
                     onConfirm: {
@@ -300,7 +302,7 @@ private struct ContentDialogLayerHost: View {
                 .workbenchDialog()
             }
 
-            if let session = libraryStore.nfsDialogSession {
+            if let session = remoteFolderDialog.nfsSession {
                 NFSFolderDialog(
                     session: session,
                     onConfirm: {
@@ -409,16 +411,16 @@ private struct ContentDialogLayerHost: View {
         if let session = libraryStore.renameSession {
             ids.append(session.id)
         }
-        if let session = libraryStore.webdavDialogSession {
+        if let session = remoteFolderDialog.webdavSession {
             ids.append(session.id)
         }
-        if let session = libraryStore.smbDialogSession {
+        if let session = remoteFolderDialog.smbSession {
             ids.append(session.id)
         }
-        if let session = libraryStore.ftpDialogSession {
+        if let session = remoteFolderDialog.ftpSession {
             ids.append(session.id)
         }
-        if let session = libraryStore.nfsDialogSession {
+        if let session = remoteFolderDialog.nfsSession {
             ids.append(session.id)
         }
         if let session = fileDetailDialog.session {

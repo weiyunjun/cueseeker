@@ -78,7 +78,10 @@ extension RemoteFolderDialogSessionProtocol {
     }
 
     func isFolderAlreadyAdded(_ folderURL: URL) -> Bool {
-        LibraryRootGroups.coveringRoot(
+        guard !existingRootFolders.isEmpty else {
+            return false
+        }
+        return LibraryRootGroups.coveringRoot(
             of: folderURL.standardizedMediaURL,
             in: existingRootFolders
         ) != nil
@@ -91,10 +94,27 @@ extension RemoteFolderDialogSessionProtocol {
         return isFolderAlreadyAdded(item.url)
     }
 
+    var disabledFolderItemIDs: Set<String> {
+        guard !existingRootFolders.isEmpty else {
+            return []
+        }
+        var result: Set<String> = []
+        for item in items where item.kind == .folder {
+            if isFolderAlreadyAdded(item.url) {
+                result.insert(item.id)
+            }
+        }
+        return result
+    }
+
     var activeSelectedFolderItems: [WebDAVBrowserItem] {
-        items.filter {
+        guard !selectedFolderPaths.isEmpty else {
+            return []
+        }
+        let disabledIDs = disabledFolderItemIDs
+        return items.filter {
             $0.kind == .folder
-                && !isFolderItemDisabled($0)
+                && !disabledIDs.contains($0.id)
                 && selectedFolderPaths.contains($0.id)
         }
     }
@@ -119,7 +139,10 @@ extension RemoteFolderDialogSessionProtocol {
         else {
             return false
         }
-        if !activeSelectedFolderItems.isEmpty {
+        let disabledIDs = disabledFolderItemIDs
+        if selectedFolderPaths.contains(where: { id in
+            !disabledIDs.contains(id) && items.contains(where: { $0.id == id && $0.kind == .folder })
+        }) {
             return true
         }
         if isAtHostRoot {
@@ -129,7 +152,7 @@ extension RemoteFolderDialogSessionProtocol {
             return false
         }
         let folderItems = items.filter { $0.kind == .folder }
-        if !folderItems.isEmpty && folderItems.allSatisfy({ isFolderItemDisabled($0) }) {
+        if !folderItems.isEmpty && folderItems.allSatisfy({ disabledIDs.contains($0.id) }) {
             return false
         }
         return true
@@ -311,13 +334,14 @@ struct RemoteFolderDialogContainer<
             WorkbenchEmptyHint(icon: .folder, message: L(style.emptyFolderItemsKey))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
+            let disabledIDs = session.disabledFolderItemIDs
             WorkbenchScrollView {
                 LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                     ForEach(session.items) { item in
                         WebDAVBrowserCard(
                             item: item,
                             folderIcon: style.folderIcon,
-                            isDisabled: item.kind == .folder && session.isFolderItemDisabled(item),
+                            isDisabled: item.kind == .folder && disabledIDs.contains(item.id),
                             isSelected: item.kind == .folder && session.selectedFolderPaths.contains(item.id),
                             isCardFocused: item.kind == .folder && accessibility?.isDialogFocused(.remoteFolderCard(item.id), dialogID: dialogID) == true,
                             isEnterButtonFocused: item.kind == .folder && accessibility?.isDialogFocused(.remoteFolderEnterButton(item.id), dialogID: dialogID) == true,
@@ -606,7 +630,9 @@ struct WebDAVBrowserCard: View {
             .background {
                 ZStack {
                     shape.fill(backgroundFillColor)
-                    WorkbenchAccessibilityScrollRevealProbe(isActive: isCardFocused)
+                    if isCardFocused {
+                        WorkbenchAccessibilityScrollRevealProbe(isActive: true)
+                    }
 
                     if isCardInteractive {
                         Button(action: onToggleSelection) {
@@ -653,7 +679,9 @@ struct WebDAVBrowserCard: View {
                 .background {
                     ZStack {
                         shape.fill(enterButtonBackgroundFillColor)
-                        WorkbenchAccessibilityScrollRevealProbe(isActive: isEnterButtonFocused)
+                        if isEnterButtonFocused {
+                            WorkbenchAccessibilityScrollRevealProbe(isActive: true)
+                        }
                     }
                 }
                 .overlay(
