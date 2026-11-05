@@ -198,6 +198,7 @@ func testSubtitleIndexerStoresRawCueCountAndReindexesWhenNull() throws {
 
     let storedMetadata = try #require(try indexingDatabase.subtitleFiles().first)
     #expect(storedMetadata.rawCueCount == 3)
+    #expect(storedMetadata.encoding == "UTF-8")
 
     let libraryDatabase = try LibraryDatabase(path: databaseURL)
     let detailInfo = try #require(
@@ -205,6 +206,7 @@ func testSubtitleIndexerStoresRawCueCountAndReindexesWhenNull() throws {
     )
     #expect(detailInfo.rawCueCount == 3)
     #expect(detailInfo.cueCount == 1)
+    #expect(detailInfo.encoding == "UTF-8")
 
     nonisolated(unsafe) var secondProgress: [ProgressStep] = []
     let secondResult = try indexer.index(
@@ -237,6 +239,35 @@ func testSubtitleIndexerStoresRawCueCountAndReindexesWhenNull() throws {
     #expect(!thirdResult.hasIndexedContentChanges)
     #expect(thirdProgress == [ProgressStep(0, 1), ProgressStep(1, 1)])
     #expect(try indexingDatabase.subtitleFiles().first?.rawCueCount == 3)
+
+    // Simulate a legacy row after Schema 64 -> 65 upgrade where raw_cue_count is present but encoding is NULL.
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        "UPDATE subtitle_files SET encoding = NULL;"
+    )
+    #expect(try indexingDatabase.subtitleFiles().first?.encoding == nil)
+    let nullEncodingDetailInfo = try #require(
+        try libraryDatabase.fileDetailSubtitleInfo(for: storedMetadata.subtitlePath)
+    )
+    #expect(nullEncodingDetailInfo.encoding == "-")
+
+    // Re-indexing backfills encoding without marking content changes.
+    let fourthResult = try indexer.index(folder: tempRoot, into: indexingDatabase)
+    #expect(fourthResult.indexedSubtitleFiles == 1)
+    #expect(fourthResult.skippedUnchangedSubtitleFiles == 0)
+    #expect(!fourthResult.hasIndexedContentChanges)
+    #expect(try indexingDatabase.subtitleFiles().first?.encoding == "UTF-8")
+
+    // Removing the physical files from disk still leaves the indexed snapshot intact for File Detail.
+    try FileManager.default.removeItem(at: subtitleURL)
+    try FileManager.default.removeItem(at: videoURL)
+    let snapshotSubtitleInfo = try #require(
+        try libraryDatabase.fileDetailSubtitleInfo(for: storedMetadata.subtitlePath)
+    )
+    #expect(snapshotSubtitleInfo.encoding == "UTF-8")
+    #expect(snapshotSubtitleInfo.rawCueCount == 3)
+    #expect(snapshotSubtitleInfo.cueCount == 1)
+    #expect(snapshotSubtitleInfo.fileSize > 0)
 }
 
 @Test

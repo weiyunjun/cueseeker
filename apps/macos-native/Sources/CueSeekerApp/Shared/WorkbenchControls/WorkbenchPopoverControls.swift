@@ -337,8 +337,64 @@ struct WorkbenchCardMenuState: Identifiable {
     }
 }
 
+@MainActor
+private final class WorkbenchCardRightClickEventDispatcher {
+    static let shared = WorkbenchCardRightClickEventDispatcher()
+
+    private struct WeakEntry {
+        weak var view: WorkbenchCardRightClickMonitor.MonitoringView?
+    }
+
+    private var entries: [ObjectIdentifier: WeakEntry] = [:]
+    nonisolated(unsafe) private var monitor: Any?
+
+    func register(_ view: WorkbenchCardRightClickMonitor.MonitoringView) {
+        entries[ObjectIdentifier(view)] = WeakEntry(view: view)
+        ensureMonitorIfNeeded()
+    }
+
+    func unregister(_ view: WorkbenchCardRightClickMonitor.MonitoringView) {
+        entries.removeValue(forKey: ObjectIdentifier(view))
+        if entries.isEmpty, let monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+    }
+
+    private func ensureMonitorIfNeeded() {
+        guard monitor == nil else {
+            return
+        }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self] event in
+            guard let self else {
+                return event
+            }
+            return self.handleRightMouseDown(event)
+        }
+    }
+
+    private func handleRightMouseDown(_ event: NSEvent) -> NSEvent? {
+        for (id, entry) in entries {
+            guard let view = entry.view else {
+                entries.removeValue(forKey: id)
+                continue
+            }
+            if view.handleRightMouseDown(event) {
+                return nil
+            }
+        }
+        if entries.isEmpty, let monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+        return event
+    }
+}
+
 struct WorkbenchCardRightClickMonitor: NSViewRepresentable {
     let isEnabled: Bool
+    var interfaceLayers: InterfaceLayerRegistry? = nil
+    var layer: InterfaceLayer? = nil
     let menuGate: MenuGate?
     let onRightClick: (CGPoint) -> Void
 
@@ -349,14 +405,21 @@ struct WorkbenchCardRightClickMonitor: NSViewRepresentable {
     func updateNSView(_ nsView: MonitoringView, context _: Context) {
         nsView.update(
             isEnabled: isEnabled,
+            interfaceLayers: interfaceLayers,
+            layer: layer,
             menuGate: menuGate,
             onRightClick: onRightClick
         )
     }
 
+    static func dismantleNSView(_ nsView: MonitoringView, coordinator _: Void) {
+        WorkbenchCardRightClickEventDispatcher.shared.unregister(nsView)
+    }
+
     final class MonitoringView: NSView {
-        nonisolated(unsafe) private var monitor: Any?
         private var isEnabled = false
+        private weak var interfaceLayers: InterfaceLayerRegistry?
+        private var interfaceLayer: InterfaceLayer?
         private weak var menuGate: MenuGate?
         private var onRightClick: ((CGPoint) -> Void)?
 
@@ -370,65 +433,57 @@ struct WorkbenchCardRightClickMonitor: NSViewRepresentable {
 
         func update(
             isEnabled: Bool,
+            interfaceLayers: InterfaceLayerRegistry?,
+            layer: InterfaceLayer?,
             menuGate: MenuGate?,
             onRightClick: @escaping (CGPoint) -> Void
         ) {
             self.isEnabled = isEnabled
+            self.interfaceLayers = interfaceLayers
+            self.interfaceLayer = layer
             self.menuGate = menuGate
             self.onRightClick = onRightClick
-            updateMonitor()
+            updateRegistration()
         }
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            updateMonitor()
+            updateRegistration()
         }
 
-        deinit {
-            if let monitor {
-                NSEvent.removeMonitor(monitor)
-            }
-        }
-
-        private func updateMonitor() {
-            guard isEnabled, window != nil else {
-                removeMonitor()
-                return
-            }
-            guard monitor == nil else {
-                return
-            }
-            monitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self] event in
-                guard let self else {
-                    return event
-                }
-                guard event.window === self.window else {
-                    return event
-                }
-
-                let localPoint = self.convert(event.locationInWindow, from: nil)
-                guard self.bounds.intersection(self.visibleRect).contains(localPoint) else {
-                    return event
-                }
-
-                (self.window as? CueSeekerWindow)?.onMouseDownClearAccessibility?()
-                if let menuGate = self.menuGate {
-                    guard menuGate.route(event) != nil else {
-                        return nil
-                    }
-                }
-
-                self.onRightClick?(localPoint)
-                return nil
+        private func updateRegistration() {
+            if isEnabled, window != nil {
+                WorkbenchCardRightClickEventDispatcher.shared.register(self)
+            } else {
+                WorkbenchCardRightClickEventDispatcher.shared.unregister(self)
             }
         }
 
-        private func removeMonitor() {
-            guard let monitor else {
-                return
+        func handleRightMouseDown(_ event: NSEvent) -> Bool {
+            guard isEnabled,
+                  let window,
+                  event.window === window
+            else {
+                return false
             }
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
+            if let interfaceLayers, let interfaceLayer, interfaceLayers.isCovered(interfaceLayer) {
+                return false
+            }
+
+            let localPoint = convert(event.locationInWindow, from: nil)
+            guard bounds.intersection(visibleRect).contains(localPoint) else {
+                return false
+            }
+
+            (window as? CueSeekerWindow)?.onMouseDownClearAccessibility?()
+            if let menuGate {
+                guard menuGate.route(event) != nil else {
+                    return true
+                }
+            }
+
+            onRightClick?(localPoint)
+            return true
         }
     }
 }

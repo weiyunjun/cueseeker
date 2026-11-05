@@ -85,6 +85,7 @@ private struct ContentRootView: View {
                         appState: appState,
                         confirmation: appState.confirmation,
                         tasks: appState.tasks,
+                        fileDetailDialog: appState.library.fileDetailDialog,
                         isPlaybackPageVisible: hidesWorkbenchChrome
                     )
                     .zIndex(AppShellLayout.dialogLayerZIndex)
@@ -176,6 +177,7 @@ private struct ContentDialogLayerHost: View {
     /// Observed because the window root presents the Task panel, so the dialog
     /// layer has to be re-read when the panel opens or closes.
     @ObservedObject var tasks: TaskQueueStore
+    @ObservedObject var fileDetailDialog: FileDetailDialogCenter
     @EnvironmentObject private var libraryStore: LibraryStore
     @EnvironmentObject private var excerptStore: ExcerptStore
     @EnvironmentObject private var filterDialog: CueFacetFilterDialogCenter
@@ -319,7 +321,7 @@ private struct ContentDialogLayerHost: View {
                 .workbenchDialog()
             }
 
-            if let session = libraryStore.fileDetailSession {
+            if let session = fileDetailDialog.session {
                 WorkbenchFileDetailDialog(
                     session: session,
                     menuGate: appState.interfaceLayers.menuGate,
@@ -419,7 +421,7 @@ private struct ContentDialogLayerHost: View {
         if let session = libraryStore.nfsDialogSession {
             ids.append(session.id)
         }
-        if let session = libraryStore.fileDetailSession {
+        if let session = fileDetailDialog.session {
             ids.append(session.id)
         }
         if let session = filterDialog.session {

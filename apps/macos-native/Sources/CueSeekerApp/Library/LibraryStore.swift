@@ -3,6 +3,11 @@ import CueSeekerCore
 import CueSeekerPlayback
 
 @MainActor
+final class FileDetailDialogCenter: ObservableObject {
+    @Published var session: FileDetailDialogSession?
+}
+
+@MainActor
 final class LibraryStore: ObservableObject {
     var uiProbeScope: String
     let userDefaults: UserDefaults
@@ -133,7 +138,11 @@ final class LibraryStore: ObservableObject {
     @Published var smbDialogSession: SMBFolderDialogSession?
     @Published var ftpDialogSession: FTPFolderDialogSession?
     @Published var nfsDialogSession: NFSFolderDialogSession?
-    @Published var fileDetailSession: FileDetailDialogSession?
+    let fileDetailDialog = FileDetailDialogCenter()
+    var fileDetailSession: FileDetailDialogSession? {
+        get { fileDetailDialog.session }
+        set { fileDetailDialog.session = newValue }
+    }
     var libraryPlaybackNavigationVideos: [LibraryVideo] = []
 
     func applyUserCoverSave(

@@ -29,7 +29,15 @@ public enum SubtitleTextDecoder {
         _ data: Data,
         format: SubtitleFormat
     ) throws -> String {
+        try decodeWithEncoding(data, format: format).contents
+    }
+
+    public static func decodeWithEncoding(
+        _ data: Data,
+        format: SubtitleFormat
+    ) throws -> (contents: String, encodingName: String) {
         if let markedEncoding = byteOrderMarkedEncoding(in: data) {
+            let encodingName = markedEncodingName(for: markedEncoding.encoding)
             if markedEncoding.encoding == .utf8 {
                 let contents: String? = autoreleasepool {
                     guard var decoded = String(data: data.dropFirst(markedEncoding.byteCount), encoding: .utf8) else {
@@ -41,7 +49,7 @@ public enum SubtitleTextDecoder {
                 guard let contents else {
                     throw SubtitleTextDecodingError.undecodableData
                 }
-                return try validated(contents, format: format)
+                return (try validated(contents, format: format), encodingName)
             }
             let encodedContents = Data(data.dropFirst(markedEncoding.byteCount))
             guard let contents = String(data: encodedContents, encoding: markedEncoding.encoding),
@@ -49,7 +57,7 @@ public enum SubtitleTextDecoder {
             else {
                 throw SubtitleTextDecodingError.undecodableData
             }
-            return try validated(contents, format: format)
+            return (try validated(contents, format: format), encodingName)
         }
 
         let utf8Contents: String? = autoreleasepool {
@@ -60,58 +68,50 @@ public enum SubtitleTextDecoder {
             return decoded
         }
         if let utf8Contents {
-            return try validated(utf8Contents, format: format)
+            return (try validated(utf8Contents, format: format), "UTF-8")
         }
 
-        let legacyContents: String? = autoreleasepool {
+        let legacyResult: (contents: String, encodingName: String)? = autoreleasepool {
             guard var decoded = detectLegacyEncoding(in: data) else {
                 return nil
             }
-            decoded.makeContiguousUTF8()
+            decoded.contents.makeContiguousUTF8()
             return decoded
         }
-        guard let legacyContents else {
+        guard let legacyResult else {
             throw SubtitleTextDecodingError.undecodableData
         }
-        return try validated(legacyContents, format: format)
+        return (try validated(legacyResult.contents, format: format), legacyResult.encodingName)
     }
 
     public static func detectedEncodingName(in data: Data) -> String {
         if let markedEncoding = byteOrderMarkedEncoding(in: data) {
-            switch markedEncoding.encoding {
-            case .utf8:
-                return "UTF-8 (BOM)"
-            case .utf16BigEndian:
-                return "UTF-16 BE"
-            case .utf16LittleEndian:
-                return "UTF-16 LE"
-            case .utf32BigEndian:
-                return "UTF-32 BE"
-            case .utf32LittleEndian:
-                return "UTF-32 LE"
-            default:
-                return "Unicode"
-            }
+            return markedEncodingName(for: markedEncoding.encoding)
         }
         if String(data: data, encoding: .utf8) != nil {
             return "UTF-8"
         }
-        var convertedString: NSString?
-        var usedLossyConversion = ObjCBool(false)
-        let rawEncoding = NSString.stringEncoding(
-            for: data,
-            encodingOptions: [.allowLossyKey: false],
-            convertedString: &convertedString,
-            usedLossyConversion: &usedLossyConversion
-        )
-        if rawEncoding != 0, !usedLossyConversion.boolValue {
-            let cfEncoding = CFStringConvertNSStringEncodingToEncoding(rawEncoding)
-            if let name = CFStringGetNameOfEncoding(cfEncoding) as String? {
-                return name
-            }
-            return String.localizedName(of: String.Encoding(rawValue: rawEncoding))
+        if let legacy = detectLegacyEncoding(in: data) {
+            return legacy.encodingName
         }
         return "UTF-8"
+    }
+
+    private static func markedEncodingName(for encoding: String.Encoding) -> String {
+        switch encoding {
+        case .utf8:
+            return "UTF-8 (BOM)"
+        case .utf16BigEndian:
+            return "UTF-16 BE"
+        case .utf16LittleEndian:
+            return "UTF-16 LE"
+        case .utf32BigEndian:
+            return "UTF-32 BE"
+        case .utf32LittleEndian:
+            return "UTF-32 LE"
+        default:
+            return "Unicode"
+        }
     }
 
     private static func byteOrderMarkedEncoding(
@@ -135,23 +135,32 @@ public enum SubtitleTextDecoder {
         return nil
     }
 
-    private static func detectLegacyEncoding(in data: Data) -> String? {
+    private static func detectLegacyEncoding(
+        in data: Data
+    ) -> (contents: String, encodingName: String)? {
         var convertedString: NSString?
         var usedLossyConversion = ObjCBool(false)
-        let encoding = NSString.stringEncoding(
+        let rawEncoding = NSString.stringEncoding(
             for: data,
             encodingOptions: [.allowLossyKey: false],
             convertedString: &convertedString,
             usedLossyConversion: &usedLossyConversion
         )
 
-        guard encoding != 0,
+        guard rawEncoding != 0,
               !usedLossyConversion.boolValue,
               let convertedString
         else {
             return nil
         }
-        return convertedString as String
+        let cfEncoding = CFStringConvertNSStringEncodingToEncoding(rawEncoding)
+        let encodingName: String
+        if let name = CFStringGetNameOfEncoding(cfEncoding) as String? {
+            encodingName = name
+        } else {
+            encodingName = String.localizedName(of: String.Encoding(rawValue: rawEncoding))
+        }
+        return (convertedString as String, encodingName)
     }
 
     private static func validated(

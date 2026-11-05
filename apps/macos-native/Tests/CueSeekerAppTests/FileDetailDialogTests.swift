@@ -589,4 +589,50 @@ struct FileDetailDialogTests {
         #expect(popoverHost.fittingSize.width == 672)
         #expect(popoverHost.fittingSize.height >= 3 * WorkbenchControlMetrics.redesignMenuItemHeight)
     }
+
+    @Test
+    func openingFileDetailDialogIsolatesLibraryStoreAndSynchronouslyFreezesDialogLayer() throws {
+        let suiteName = "CueSeekerFileDetailIsolationTests.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CueSeekerFileDetailIsolation-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer {
+            userDefaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: tempRoot)
+        }
+
+        let coordinator = AppCoordinator(
+            userDefaults: userDefaults,
+            databaseURL: tempRoot.appendingPathComponent("index.sqlite")
+        )
+
+        var libraryStoreInvalidateCount = 0
+        var fileDetailCenterInvalidateCount = 0
+        var accessibilityInvalidateCount = 0
+        let c1 = coordinator.library.objectWillChange.sink { _ in
+            libraryStoreInvalidateCount += 1
+        }
+        let c2 = coordinator.library.fileDetailDialog.objectWillChange.sink { _ in
+            fileDetailCenterInvalidateCount += 1
+        }
+        let c3 = coordinator.workbenchAccessibility.objectWillChange.sink { _ in
+            accessibilityInvalidateCount += 1
+        }
+        _ = (c1, c2, c3)
+
+        coordinator.requestVideoDetail(for: "/Missing/NonExistentVideo.mkv")
+        #expect(coordinator.library.fileDetailSession != nil)
+        #expect(coordinator.interfaceLayers.isOpen(.dialog))
+        #expect(coordinator.workbenchAccessibility.activeDialogID == .fileDetail)
+        #expect(libraryStoreInvalidateCount == 0)
+        #expect(fileDetailCenterInvalidateCount == 1)
+        #expect(accessibilityInvalidateCount == 0)
+
+        coordinator.closeFileDetailDialog()
+        #expect(coordinator.library.fileDetailSession == nil)
+        #expect(libraryStoreInvalidateCount == 0)
+        #expect(fileDetailCenterInvalidateCount == 2)
+        #expect(accessibilityInvalidateCount == 0)
+    }
 }

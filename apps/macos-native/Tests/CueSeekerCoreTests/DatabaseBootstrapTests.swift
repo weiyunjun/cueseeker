@@ -1526,7 +1526,7 @@ func schema63UpgradesTo64WithVideoContainerFormatColumn() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 64)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     let columns = try sqliteColumnNames(in: "video_files", databaseURL: databaseURL)
     #expect(columns.contains("container_format"))
     #expect(
@@ -1534,6 +1534,37 @@ func schema63UpgradesTo64WithVideoContainerFormatColumn() throws {
             at: databaseURL,
             sql: "SELECT CAST(duration_retry_pending AS TEXT) FROM video_files WHERE path = '/Media/sample.mp4';"
         ) == "1"
+    )
+}
+
+@Test
+func schema64UpgradesTo65WithSubtitleEncodingColumn() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        ALTER TABLE subtitle_files DROP COLUMN encoding;
+        INSERT INTO subtitle_files (subtitle_path, format, indexed_at)
+        VALUES ('/Media/sample.srt', 'srt', '2026-01-01T00:00:00Z');
+        PRAGMA user_version = 64;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 65)
+    let columns = try sqliteColumnNames(in: "subtitle_files", databaseURL: databaseURL)
+    #expect(columns.contains("encoding"))
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT COALESCE(encoding, 'NULL') FROM subtitle_files WHERE subtitle_path = '/Media/sample.srt';"
+        ) == "NULL"
     )
 }
 

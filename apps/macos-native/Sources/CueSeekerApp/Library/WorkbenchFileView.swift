@@ -1080,14 +1080,9 @@ private struct WorkbenchFileCard: View {
     let onOpenContextMenu: (CGPoint) -> Void
 
     @Environment(\.interfaceLayers) private var interfaceLayers
-    @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     @State private var isHovered = false
     @State private var isPressed = false
-
-    private var isLayerCovered: Bool {
-        interfaceLayers?.isCovered(layerContext.layer) ?? layerContext.isCovered
-    }
 
     private var rowCornerRadius: CGFloat {
         showsCardChrome ? WorkbenchControlMetrics.redesignCornerRadius : 0
@@ -1194,7 +1189,9 @@ private struct WorkbenchFileCard: View {
             ZStack {
                 shape.fill(cardBackgroundColor)
 
-                WorkbenchAccessibilityScrollRevealProbe(isActive: isCardFocused || isActionFocused)
+                if isCardFocused || isActionFocused {
+                    WorkbenchAccessibilityScrollRevealProbe(isActive: true)
+                }
 
                 if let onTap {
                     Button(action: onTap) {
@@ -1207,7 +1204,9 @@ private struct WorkbenchFileCard: View {
 
                 GeometryReader { cardProxy in
                     WorkbenchCardRightClickMonitor(
-                        isEnabled: !isLayerCovered,
+                        isEnabled: true,
+                        interfaceLayers: interfaceLayers,
+                        layer: .workbenchPage,
                         menuGate: interfaceLayers?.menuGate
                     ) { localPoint in
                         let frame = cardProxy.frame(in: .named(WorkbenchFileView.fileCardCoordinateSpaceName))

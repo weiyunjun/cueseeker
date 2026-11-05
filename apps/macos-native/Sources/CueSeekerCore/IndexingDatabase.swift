@@ -90,6 +90,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                     fileSize: file.fileSize,
                     modifiedAt: file.modifiedAt,
                     rawCueCount: file.rawCueCount,
+                    encoding: file.encoding,
                     videoFileSize: file.videoFileSize,
                     videoModifiedAt: file.videoModifiedAt,
                     languageAnalysis: file.languageAnalysis,
@@ -140,12 +141,14 @@ public final class IndexingDatabase: @unchecked Sendable {
                 let statement = try database.prepare(
                     """
                     UPDATE subtitle_files
-                    SET raw_cue_count = ?
+                    SET raw_cue_count = ?,
+                        encoding = ?
                     WHERE subtitle_path = ?;
                     """
                 )
                 try statement.bind(refresh.rawCueCount, at: 1)
-                try statement.bind(refresh.subtitleFile.mediaPath, at: 2)
+                try statement.bind(refresh.encoding, at: 2)
+                try statement.bind(refresh.subtitleFile.mediaPath, at: 3)
                 try statement.run()
             }
 
@@ -542,6 +545,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         fileSize: Int64?,
         modifiedAt: Date?,
         rawCueCount: Int? = nil,
+        encoding: String? = nil,
         videoFileSize: Int64? = nil,
         videoModifiedAt: Date? = nil,
         languageAnalysis: SubtitleLanguageAnalysis?,
@@ -555,6 +559,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             fileSize: fileSize,
             modifiedAt: modifiedAt,
             rawCueCount: rawCueCount,
+            encoding: encoding,
             libraryID: libraryID
         )
         let subtitleFileID = upsertedSubtitleFile.id
@@ -741,7 +746,8 @@ public final class IndexingDatabase: @unchecked Sendable {
             """
             SELECT sf.subtitle_path, sf.format, vf.path, vf.video_name,
                    vf.file_size, vf.modified_at, sf.file_size,
-                   sf.modified_at, sf.raw_cue_count, sf.indexed_at, sf.index_algorithm_version
+                   sf.modified_at, sf.raw_cue_count, sf.encoding,
+                   sf.indexed_at, sf.index_algorithm_version
             FROM subtitle_files sf
             LEFT JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             LEFT JOIN video_files vf ON vf.id = m.video_file_id
@@ -764,8 +770,9 @@ public final class IndexingDatabase: @unchecked Sendable {
                     modifiedAt: statement.nullableDoubleColumn(7)
                         .map(Date.init(timeIntervalSince1970:)),
                     rawCueCount: statement.nullableIntColumn(8),
-                    indexedAt: statement.stringColumn(9),
-                    indexAlgorithmVersion: statement.intColumn(10)
+                    encoding: statement.nullableStringColumn(9),
+                    indexedAt: statement.stringColumn(10),
+                    indexAlgorithmVersion: statement.intColumn(11)
                 )
             )
         }
@@ -1412,6 +1419,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         fileSize: Int64?,
         modifiedAt: Date?,
         rawCueCount: Int? = nil,
+        encoding: String? = nil,
         libraryID: Int64? = nil
     ) throws -> UpsertedSubtitleFile {
         let subtitleMediaPath = subtitleFile.mediaPath
@@ -1436,6 +1444,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                     file_size = ?,
                     modified_at = ?,
                     raw_cue_count = ?,
+                    encoding = ?,
                     indexed_at = ?,
                     index_algorithm_version = ?
                 WHERE id = ?;
@@ -1447,9 +1456,10 @@ public final class IndexingDatabase: @unchecked Sendable {
             try bindOptional(fileSize, to: statement, at: 6)
             try bindOptional(modifiedAt?.timeIntervalSince1970, to: statement, at: 7)
             try bindOptional(rawCueCount, to: statement, at: 8)
-            try statement.bind(now, at: 9)
-            try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 10)
-            try statement.bind(record.id, at: 11)
+            try bindOptional(encoding, to: statement, at: 9)
+            try statement.bind(now, at: 10)
+            try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 11)
+            try statement.bind(record.id, at: 12)
             try statement.run()
             try adoptTombstones(
                 forSubtitleFile: subtitleFile,
@@ -1469,10 +1479,11 @@ public final class IndexingDatabase: @unchecked Sendable {
                 file_size,
                 modified_at,
                 raw_cue_count,
+                encoding,
                 indexed_at,
                 index_algorithm_version
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id;
             """
         )
@@ -1483,8 +1494,9 @@ public final class IndexingDatabase: @unchecked Sendable {
         try bindOptional(fileSize, to: statement, at: 6)
         try bindOptional(modifiedAt?.timeIntervalSince1970, to: statement, at: 7)
         try bindOptional(rawCueCount, to: statement, at: 8)
-        try statement.bind(now, at: 9)
-        try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 10)
+        try bindOptional(encoding, to: statement, at: 9)
+        try statement.bind(now, at: 10)
+        try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 11)
 
         let id = try statement.step()
             ? statement.int64Column(0)
@@ -1682,6 +1694,18 @@ public final class IndexingDatabase: @unchecked Sendable {
 
     func bindOptional(
         _ value: Double?,
+        to statement: SQLiteStatement,
+        at index: Int32
+    ) throws {
+        if let value {
+            try statement.bind(value, at: index)
+        } else {
+            try statement.bindNull(at: index)
+        }
+    }
+
+    private func bindOptional(
+        _ value: String?,
         to statement: SQLiteStatement,
         at index: Int32
     ) throws {

@@ -53,6 +53,7 @@ struct PreparedSubtitleIndexFile: Sendable {
     let fileSize: Int64?
     let modifiedAt: Date?
     let rawCueCount: Int?
+    let encoding: String?
     let videoFileSize: Int64?
     let videoModifiedAt: Date?
     let languageAnalysis: SubtitleLanguageAnalysis
@@ -146,6 +147,7 @@ struct PreparedSubtitleBindingRefresh: Sendable {
 struct PreparedSubtitleRawCueCountRefresh: Sendable {
     let subtitleFile: URL
     let rawCueCount: Int
+    let encoding: String
 }
 
 struct PreparedLibraryIndex: Sendable {
@@ -412,7 +414,7 @@ public struct SubtitleIndexer {
                     modifiedAt: observation.modifiedAt
                )
             {
-                if metadata.rawCueCount != nil {
+                if metadata.rawCueCount != nil, metadata.encoding != nil {
                     keptSubtitlePaths.insert(subtitleMediaPath)
                     if isWebDAV {
                         let cachedURL = WebDAVSubtitleCache.shared.cachedFileURL(for: subtitleFile)
@@ -503,8 +505,11 @@ public struct SubtitleIndexer {
                 }
 
                 let contents: String
+                let encodingName: String
                 do {
-                    contents = try SubtitleTextDecoder.decode(data, format: format)
+                    let decoded = try SubtitleTextDecoder.decodeWithEncoding(data, format: format)
+                    contents = decoded.contents
+                    encodingName = decoded.encodingName
                 } catch {
                     recordFileFailure(
                         subtitleFile,
@@ -519,7 +524,8 @@ public struct SubtitleIndexer {
                 rawCueCountRefreshes.append(
                     PreparedSubtitleRawCueCountRefresh(
                         subtitleFile: subtitleFile,
-                        rawCueCount: rawCueCount
+                        rawCueCount: rawCueCount,
+                        encoding: encodingName
                     )
                 )
                 keptSubtitlePaths.insert(subtitleMediaPath)
@@ -564,8 +570,11 @@ public struct SubtitleIndexer {
                 }
 
                 let contents: String
+                let encodingName: String
                 do {
-                    contents = try SubtitleTextDecoder.decode(data, format: format)
+                    let decoded = try SubtitleTextDecoder.decodeWithEncoding(data, format: format)
+                    contents = decoded.contents
+                    encodingName = decoded.encodingName
                 } catch {
                     recordFileFailure(
                         subtitleFile,
@@ -640,6 +649,7 @@ public struct SubtitleIndexer {
                         fileSize: observation.fileSize,
                         modifiedAt: observation.modifiedAt,
                         rawCueCount: rawCueCount,
+                        encoding: encodingName,
                         videoFileSize: videoObservation?.fileSize,
                         videoModifiedAt: videoObservation?.modifiedAt,
                         languageAnalysis: languageAnalysis,

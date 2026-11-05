@@ -201,19 +201,12 @@ extension LibraryDatabase {
         let dbModifiedDate = modifiedAtSec.map { Date(timeIntervalSince1970: $0) }
 
         let fileURL = URL.fromMediaPath(path)
-        let attributes = path.isRemoteMediaPath
-            ? nil
-            : (try? FileManager.default.attributesOfItem(atPath: path))
-        let createdDate = attributes?[.creationDate] as? Date
-        let modifiedDate = (attributes?[.modificationDate] as? Date) ?? dbModifiedDate
-        let fileSize = (attributes?[.size] as? NSNumber)?.int64Value ?? dbFileSize
-
         let subtitles = (try? videoSubtitles(forVideoFile: fileURL))?.subtitles ?? []
 
         return FileDetailVideoInfo(
             path: path,
             name: name,
-            fileSize: fileSize,
+            fileSize: dbFileSize,
             duration: duration,
             videoWidth: videoWidth,
             videoHeight: videoHeight,
@@ -224,8 +217,8 @@ extension LibraryDatabase {
             containerFormat: containerFormat,
             audioTracks: tracks,
             subtitles: subtitles,
-            createdAt: createdDate,
-            modifiedAt: modifiedDate
+            createdAt: nil,
+            modifiedAt: dbModifiedDate
         )
     }
 
@@ -233,7 +226,7 @@ extension LibraryDatabase {
         let statement = try database.prepare(
             """
             SELECT sf.id, sf.subtitle_path, sf.format, sf.file_size, sf.modified_at,
-                   sf.raw_cue_count, vf.path AS video_path
+                   sf.raw_cue_count, sf.encoding, vf.path AS video_path
             FROM subtitle_files sf
             LEFT JOIN subtitle_video_matches m
               ON m.subtitle_file_id = sf.id AND m.is_active = 1
@@ -252,7 +245,8 @@ extension LibraryDatabase {
         let dbFileSize = statement.nullableInt64Column(3) ?? 0
         let dbModifiedDate = statement.nullableDoubleColumn(4).map { Date(timeIntervalSince1970: $0) }
         let dbRawCueCount = statement.nullableIntColumn(5)
-        let videoPath = statement.nullableStringColumn(6)
+        let dbEncoding = statement.nullableStringColumn(6)
+        let videoPath = statement.nullableStringColumn(7)
 
         let cueStatement = try database.prepare(
             """
@@ -264,42 +258,21 @@ extension LibraryDatabase {
         try cueStatement.bind(subtitleFileID, at: 1)
         let cueCount = try cueStatement.step() ? cueStatement.intColumn(0) : 0
 
-        let attributes = path.isRemoteMediaPath
-            ? nil
-            : (try? FileManager.default.attributesOfItem(atPath: path))
-        let createdDate = attributes?[.creationDate] as? Date
-        let modifiedDate = (attributes?[.modificationDate] as? Date) ?? dbModifiedDate
-        let fileSize = (attributes?[.size] as? NSNumber)?.int64Value ?? dbFileSize
-
         let subtitleURL = URL.fromMediaPath(path)
-        let encoding: String
-        let fallbackRawCueCount: Int?
-        if let data = try? WebDAVSubtitleCache.shared.readSubtitleData(from: subtitleURL) {
-            encoding = SubtitleTextDecoder.detectedEncodingName(in: data)
-            if dbRawCueCount == nil,
-               let contents = try? SubtitleTextDecoder.decode(data, format: format) {
-                fallbackRawCueCount = SubtitleRawCueCounter.count(in: contents, format: format)
-            } else {
-                fallbackRawCueCount = nil
-            }
-        } else {
-            encoding = "-"
-            fallbackRawCueCount = nil
-        }
-
-        let rawCueCount = dbRawCueCount ?? fallbackRawCueCount ?? cueCount
+        let encoding = (dbEncoding?.isEmpty == false) ? dbEncoding! : "-"
+        let rawCueCount = dbRawCueCount ?? cueCount
 
         return FileDetailSubtitleInfo(
             path: path,
             name: subtitleURL.lastPathComponent,
-            fileSize: fileSize,
+            fileSize: dbFileSize,
             format: format,
             encoding: encoding,
             cueCount: cueCount,
             rawCueCount: rawCueCount,
             associatedVideoPath: videoPath,
-            createdAt: createdDate,
-            modifiedAt: modifiedDate
+            createdAt: nil,
+            modifiedAt: dbModifiedDate
         )
     }
 

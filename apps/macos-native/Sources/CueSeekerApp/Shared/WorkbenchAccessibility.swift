@@ -434,7 +434,13 @@ enum PlaybackAccessibilityTarget: Equatable, Hashable {
 @MainActor
 final class WorkbenchAccessibilityCoordinator: ObservableObject {
     @Published private(set) var focusedTarget: WorkbenchAccessibilityTarget?
-    @Published var activeDialogID: WorkbenchDialogAccessibilityID?
+    var activeDialogID: WorkbenchDialogAccessibilityID? {
+        didSet {
+            if activeDialogID != oldValue, focusedDialogTarget != nil {
+                objectWillChange.send()
+            }
+        }
+    }
     @Published private(set) var focusedDialogTarget: WorkbenchDialogAccessibilityTarget?
 
     // Settings Window (Step 3: L-02 Settings)
@@ -445,7 +451,13 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     @Published var isShortcutRecording: Bool = false
 
     // Playback Surfaces (Step 4: L-07 Player Stage, L-08 Playback Overlay, L-09 Command Panel)
-    @Published var activePlaybackSurface: PlaybackAccessibilitySurface?
+    var activePlaybackSurface: PlaybackAccessibilitySurface? {
+        didSet {
+            if activePlaybackSurface != oldValue, focusedPlaybackTarget != nil {
+                objectWillChange.send()
+            }
+        }
+    }
     @Published private(set) var focusedPlaybackTarget: PlaybackAccessibilityTarget?
 
     /// Current column count of the active Workbench card grid (`Recent`,

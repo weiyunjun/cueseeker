@@ -688,6 +688,7 @@ final class AppCoordinator: ObservableObject {
             settings.confirmation.objectWillChange.eraseToAnyPublisher(),
             search.objectWillChange.eraseToAnyPublisher(),
             library.objectWillChange.eraseToAnyPublisher(),
+            library.fileDetailDialog.objectWillChange.eraseToAnyPublisher(),
             excerpt.objectWillChange.eraseToAnyPublisher(),
             indexing.objectWillChange.eraseToAnyPublisher(),
             tasks.objectWillChange.eraseToAnyPublisher(),

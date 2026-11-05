@@ -14,15 +14,16 @@ extension AppCoordinator {
             "File detail opened",
             fields: [("kind", "root_folder"), ("name", name)]
         )
+        let session: FileDetailDialogSession
         if let libraryDatabase,
            let info = try? libraryDatabase.fileDetailFolderInfo(
                for: folderPath,
                name: name,
                isRootFolder: true
            ) {
-            library.fileDetailSession = FileDetailDialogSession(kind: .folder(info))
+            session = FileDetailDialogSession(kind: .folder(info))
         } else {
-            library.fileDetailSession = FileDetailDialogSession(
+            session = FileDetailDialogSession(
                 kind: .folder(
                     FileDetailFolderInfo(
                         path: folderPath,
@@ -37,11 +38,10 @@ extension AppCoordinator {
                 )
             )
         }
-        DebugInteractionLatencyProbe.beginDialogOpen(
+        presentFileDetailDialog(
+            session,
             dialogID: "file_detail_root_folder",
-            trigger: "get_info",
-            startedAt: startedAt,
-            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
+            startedAt: startedAt
         )
     }
 
@@ -58,15 +58,16 @@ extension AppCoordinator {
             "File detail opened",
             fields: [("kind", "subfolder"), ("name", name)]
         )
+        let session: FileDetailDialogSession
         if let libraryDatabase,
            let info = try? libraryDatabase.fileDetailFolderInfo(
                for: standardizedPath,
                name: name,
                isRootFolder: false
            ) {
-            library.fileDetailSession = FileDetailDialogSession(kind: .folder(info))
+            session = FileDetailDialogSession(kind: .folder(info))
         } else {
-            library.fileDetailSession = FileDetailDialogSession(
+            session = FileDetailDialogSession(
                 kind: .folder(
                     FileDetailFolderInfo(
                         path: standardizedPath,
@@ -81,11 +82,10 @@ extension AppCoordinator {
                 )
             )
         }
-        DebugInteractionLatencyProbe.beginDialogOpen(
+        presentFileDetailDialog(
+            session,
             dialogID: "file_detail_subfolder",
-            trigger: "get_info",
-            startedAt: startedAt,
-            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
+            startedAt: startedAt
         )
     }
 
@@ -96,21 +96,21 @@ extension AppCoordinator {
             "File detail opened",
             fields: [("kind", "video"), ("file", URL.fromMediaPath(videoPath).lastPathComponent)]
         )
+        let session: FileDetailDialogSession
         if let libraryDatabase,
            let items = try? libraryDatabase.fileDetailPairedItems(forVideoPath: videoPath),
            !items.isEmpty {
             let initialIndex = items.firstIndex(where: { $0.isVideo && $0.path == videoPath }) ?? 0
-            library.fileDetailSession = FileDetailDialogSession(
+            session = FileDetailDialogSession(
                 pairedItems: items,
                 initialSelectedIndex: initialIndex
             )
         } else {
             let url = URL.fromMediaPath(videoPath)
-            let attrs = videoPath.isRemoteMediaPath ? nil : (try? FileManager.default.attributesOfItem(atPath: videoPath))
             let info = FileDetailVideoInfo(
                 path: videoPath,
                 name: url.lastPathComponent,
-                fileSize: (attrs?[.size] as? NSNumber)?.int64Value ?? 0,
+                fileSize: 0,
                 duration: nil,
                 videoWidth: nil,
                 videoHeight: nil,
@@ -120,16 +120,15 @@ extension AppCoordinator {
                 videoPixelFormat: nil,
                 audioTracks: [],
                 subtitles: [],
-                createdAt: attrs?[.creationDate] as? Date,
-                modifiedAt: attrs?[.modificationDate] as? Date
+                createdAt: nil,
+                modifiedAt: nil
             )
-            library.fileDetailSession = FileDetailDialogSession(kind: .video(info))
+            session = FileDetailDialogSession(kind: .video(info))
         }
-        DebugInteractionLatencyProbe.beginDialogOpen(
+        presentFileDetailDialog(
+            session,
             dialogID: "file_detail_video",
-            trigger: "get_info",
-            startedAt: startedAt,
-            syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
+            startedAt: startedAt
         )
     }
 
@@ -140,36 +139,49 @@ extension AppCoordinator {
             "File detail opened",
             fields: [("kind", "subtitle"), ("file", URL.fromMediaPath(subtitlePath).lastPathComponent)]
         )
+        let session: FileDetailDialogSession
         if let libraryDatabase,
            let items = try? libraryDatabase.fileDetailPairedItems(forSubtitlePath: subtitlePath),
            !items.isEmpty {
             let initialIndex = items.firstIndex(where: { !$0.isVideo && $0.path == subtitlePath }) ?? 0
-            library.fileDetailSession = FileDetailDialogSession(
+            session = FileDetailDialogSession(
                 pairedItems: items,
                 initialSelectedIndex: initialIndex
             )
         } else {
             let url = URL.fromMediaPath(subtitlePath)
-            let attrs = subtitlePath.isRemoteMediaPath ? nil : (try? FileManager.default.attributesOfItem(atPath: subtitlePath))
-            let encoding = (try? WebDAVSubtitleCache.shared.readSubtitleData(from: url))
-                .map { SubtitleTextDecoder.detectedEncodingName(in: $0) }
-                ?? "-"
             let info = FileDetailSubtitleInfo(
                 path: subtitlePath,
                 name: url.lastPathComponent,
-                fileSize: (attrs?[.size] as? NSNumber)?.int64Value ?? 0,
+                fileSize: 0,
                 format: SubtitleFormat(fileExtension: url.pathExtension) ?? .srt,
-                encoding: encoding,
+                encoding: "-",
                 cueCount: 0,
                 rawCueCount: 0,
                 associatedVideoPath: nil,
-                createdAt: attrs?[.creationDate] as? Date,
-                modifiedAt: attrs?[.modificationDate] as? Date
+                createdAt: nil,
+                modifiedAt: nil
             )
-            library.fileDetailSession = FileDetailDialogSession(kind: .subtitle(info))
+            session = FileDetailDialogSession(kind: .subtitle(info))
         }
-        DebugInteractionLatencyProbe.beginDialogOpen(
+        presentFileDetailDialog(
+            session,
             dialogID: "file_detail_subtitle",
+            startedAt: startedAt
+        )
+    }
+
+    private func presentFileDetailDialog(
+        _ session: FileDetailDialogSession,
+        dialogID: String,
+        startedAt: UInt64
+    ) {
+        interfaceLayers.setOpen(.dialog, true)
+        library.fileDetailSession = session
+        reconcileWorkbenchAccessibilityFocus()
+        reconcileDialogAccessibilityFocus()
+        DebugInteractionLatencyProbe.beginDialogOpen(
+            dialogID: dialogID,
             trigger: "get_info",
             startedAt: startedAt,
             syncPrepFinishedAt: DebugInteractionLatencyProbe.now()
@@ -178,5 +190,7 @@ extension AppCoordinator {
 
     func closeFileDetailDialog() {
         library.fileDetailSession = nil
+        reconcileDialogAccessibilityFocus()
+        reconcileWorkbenchAccessibilityFocus()
     }
 }

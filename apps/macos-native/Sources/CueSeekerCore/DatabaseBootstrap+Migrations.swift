@@ -562,6 +562,19 @@ extension DatabaseBootstrap {
         }
     }
 
+    /// Schema 65 stores the detected character encoding on `subtitle_files` so
+    /// the File Detail dialog reads subtitle metadata purely from the indexed
+    /// snapshot without accessing source files.
+    static func migrateSchema64To65(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let subtitleColumns = try columnNames(of: "subtitle_files", in: database)
+            if !subtitleColumns.isEmpty, !subtitleColumns.contains("encoding") {
+                try database.execute("ALTER TABLE subtitle_files ADD COLUMN encoding TEXT;")
+            }
+            try database.execute("PRAGMA user_version = 65;")
+        }
+    }
+
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(

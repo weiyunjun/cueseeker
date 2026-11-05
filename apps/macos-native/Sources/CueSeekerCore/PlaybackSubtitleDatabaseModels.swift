@@ -139,6 +139,7 @@ public struct SubtitleFileMetadata: Equatable, Sendable {
     public let fileSize: Int64?
     public let modifiedAt: Date?
     public let rawCueCount: Int?
+    public let encoding: String?
     public let indexedAt: String
     public let indexAlgorithmVersion: Int
 
@@ -152,6 +153,7 @@ public struct SubtitleFileMetadata: Equatable, Sendable {
         fileSize: Int64?,
         modifiedAt: Date?,
         rawCueCount: Int? = nil,
+        encoding: String? = nil,
         indexedAt: String,
         indexAlgorithmVersion: Int
     ) {
@@ -164,6 +166,7 @@ public struct SubtitleFileMetadata: Equatable, Sendable {
         self.fileSize = fileSize
         self.modifiedAt = modifiedAt
         self.rawCueCount = rawCueCount
+        self.encoding = encoding
         self.indexedAt = indexedAt
         self.indexAlgorithmVersion = indexAlgorithmVersion
     }

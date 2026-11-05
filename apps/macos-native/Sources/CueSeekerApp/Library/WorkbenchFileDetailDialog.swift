@@ -105,6 +105,11 @@ final class FileDetailDialogSession: ObservableObject, Identifiable {
     }
 }
 
+private final class FileDetailDialogLayoutMetrics {
+    var triggerFrame: CGRect = .zero
+    var dialogSize: CGSize = .zero
+}
+
 struct WorkbenchFileDetailDialog: View {
     private static let menuCoordinateSpaceName = "fileDetailPairedMenuSpace"
 
@@ -120,6 +125,7 @@ struct WorkbenchFileDetailDialog: View {
     @State private var isMenuOpen = false
     @State private var triggerFrame: CGRect = .zero
     @State private var dialogSize: CGSize = .zero
+    @State private var layoutMetrics = FileDetailDialogLayoutMetrics()
     @State private var menuPanelHeight: CGFloat = 0
     @StateObject private var menuHighlight = MenuHighlightModel()
     @State private var scrollController = WorkbenchScrollViewController()
@@ -166,10 +172,17 @@ struct WorkbenchFileDetailDialog: View {
                         GeometryReader { triggerProxy in
                             Color.clear
                                 .onAppear {
-                                    triggerFrame = triggerProxy.frame(in: .named(Self.menuCoordinateSpaceName))
+                                    let frame = triggerProxy.frame(in: .named(Self.menuCoordinateSpaceName))
+                                    layoutMetrics.triggerFrame = frame
+                                    if isMenuOpen, triggerFrame != frame {
+                                        triggerFrame = frame
+                                    }
                                 }
                                 .onChange(of: triggerProxy.frame(in: .named(Self.menuCoordinateSpaceName))) { newFrame in
-                                    triggerFrame = newFrame
+                                    layoutMetrics.triggerFrame = newFrame
+                                    if isMenuOpen, triggerFrame != newFrame {
+                                        triggerFrame = newFrame
+                                    }
                                 }
                         }
                     )
@@ -207,10 +220,17 @@ struct WorkbenchFileDetailDialog: View {
             GeometryReader { dialogProxy in
                 Color.clear
                     .onAppear {
-                        dialogSize = dialogProxy.size
+                        let size = dialogProxy.size
+                        layoutMetrics.dialogSize = size
+                        if isMenuOpen, dialogSize != size {
+                            dialogSize = size
+                        }
                     }
                     .onChange(of: dialogProxy.size) { newSize in
-                        dialogSize = newSize
+                        layoutMetrics.dialogSize = newSize
+                        if isMenuOpen, dialogSize != newSize {
+                            dialogSize = newSize
+                        }
                     }
             }
         )
@@ -300,6 +320,12 @@ struct WorkbenchFileDetailDialog: View {
             dismissMenu()
         } else {
             let startedAt = ProcessInfo.processInfo.systemUptime
+            if triggerFrame != layoutMetrics.triggerFrame {
+                triggerFrame = layoutMetrics.triggerFrame
+            }
+            if dialogSize != layoutMetrics.dialogSize {
+                dialogSize = layoutMetrics.dialogSize
+            }
             workbenchAccessibility?.clearDialog(keepTextInputFocus: false)
             menuHighlight.open(selectablePositions: Array(session.pairedItems.indices))
             DebugInteractionLatencyProbe.markMenuTriggerContext(

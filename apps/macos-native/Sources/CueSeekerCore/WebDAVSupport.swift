@@ -305,6 +305,10 @@ extension URL {
 
     private static func lexicallyNormalizedLocalFilePath(_ rawPath: String) -> String {
         if rawPath.hasPrefix("/"),
+           !rawPath.hasPrefix("/private/var/"),
+           rawPath != "/private/var",
+           !rawPath.hasPrefix("/private/tmp/"),
+           rawPath != "/private/tmp",
            !(rawPath.count > 1 && rawPath.hasSuffix("/")),
            !rawPath.hasSuffix("/."),
            !rawPath.hasSuffix("/.."),
@@ -335,6 +339,12 @@ extension URL {
                 continue
             }
             stack.append(part)
+        }
+
+        if stack.count >= 2,
+           stack[0] == "private",
+           (stack[1] == "var" || stack[1] == "tmp") {
+            stack.removeFirst()
         }
 
         return "/" + stack.joined(separator: "/")

@@ -139,20 +139,32 @@ struct WorkbenchDialogColumn: Layout {
     let spacing: CGFloat
     let maxHeight: CGFloat
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
-        let heights = heights(width: proposal.width, subviews: subviews)
+    struct Cache {
+        var width: CGFloat?
+        var maxHeight: CGFloat?
+        var subviewCount: Int = 0
+        var heights: [CGFloat] = []
+    }
+
+    func makeCache(subviews _: Subviews) -> Cache {
+        Cache()
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
         let width = proposal.width
             ?? subviews.map { $0.sizeThatFits(.unspecified).width }.max()
             ?? 0
+        let heights = resolvedHeights(width: width, subviews: subviews, cache: &cache)
         return CGSize(
             width: width,
             height: heights.reduce(0, +) + spacing * CGFloat(max(0, heights.count - 1))
         )
     }
 
-    func placeSubviews(in bounds: CGRect, proposal _: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
+    func placeSubviews(in bounds: CGRect, proposal _: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
         var y = bounds.minY
-        for (subview, height) in zip(subviews, heights(width: bounds.width, subviews: subviews)) {
+        let heights = resolvedHeights(width: bounds.width, subviews: subviews, cache: &cache)
+        for (subview, height) in zip(subviews, heights) {
             subview.place(
                 at: CGPoint(x: bounds.minX, y: y),
                 proposal: ProposedViewSize(width: bounds.width, height: height)
@@ -161,7 +173,13 @@ struct WorkbenchDialogColumn: Layout {
         }
     }
 
-    private func heights(width: CGFloat?, subviews: Subviews) -> [CGFloat] {
+    private func resolvedHeights(width: CGFloat?, subviews: Subviews, cache: inout Cache) -> [CGFloat] {
+        if cache.width == width,
+           cache.maxHeight == maxHeight,
+           cache.subviewCount == subviews.count,
+           cache.heights.count == subviews.count {
+            return cache.heights
+        }
         var heights = subviews.map {
             $0.sizeThatFits(ProposedViewSize(width: width, height: nil)).height
         }
@@ -170,6 +188,10 @@ struct WorkbenchDialogColumn: Layout {
         } else if heights.count == 2 {
             heights[1] = max(0, min(heights[1], maxHeight - heights[0] - spacing))
         }
+        cache.width = width
+        cache.maxHeight = maxHeight
+        cache.subviewCount = subviews.count
+        cache.heights = heights
         return heights
     }
 }
