@@ -120,6 +120,7 @@ final class PlaybackStore: ObservableObject {
     /// the store reports its layers — Playback Overlay, Command Panel — and
     /// the speed menu there instead of keeping coverage flags of its own.
     let interfaceLayers: InterfaceLayerRegistry
+    let toast: ToastCenter
 
     @Published private(set) var subtitleFocusSession: PlaybackSubtitleFocusSessionStore? {
         didSet {
@@ -430,9 +431,11 @@ final class PlaybackStore: ObservableObject {
     @MainActor
     init(
         userDefaults _: UserDefaults,
-        interfaceLayers: InterfaceLayerRegistry? = nil
+        interfaceLayers: InterfaceLayerRegistry? = nil,
+        toast: ToastCenter? = nil
     ) {
         self.interfaceLayers = interfaceLayers ?? InterfaceLayerRegistry()
+        self.toast = toast ?? ToastCenter()
         moreSubmenuState.parentHighlight = moreMenuHighlight
         // A submenu opens with no default highlight. Its trigger reports the
         // same submenu again when its frame moves, which must not reset the
@@ -497,7 +500,7 @@ final class PlaybackStore: ObservableObject {
         }
         session.srtSubtitleStyle = srtSubtitleStyle
         session.presentCollageFeedback = { [weak self] event in
-            self?.playbackViewModel?.showCollageFeedback(event)
+            self?.toast.show(PlaybackToastRequest.collage(event))
         }
         subtitleFocusSession = session
         clearError(on: .notInLibrary)

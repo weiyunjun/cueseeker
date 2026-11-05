@@ -290,6 +290,7 @@
 "playback.hud.muted" = "已静音";
 "playback.hud.seek_forward" = "+ %d秒";
 "playback.hud.seek_backward" = "- %d秒";
+"playback.hud.loading" = "加载中";
 
 /* Playback subtitle focus, collage and command panel */
 "playback.copy_selected_text" = "复制选中文本";

@@ -191,6 +191,111 @@ enum TaskToastRequest {
     }
 }
 
+enum PlaybackToastRequest {
+    private static func copy(_ scenarioID: String, _ message: String) -> ToastRequest {
+        ToastRequest(
+            scenarioID: scenarioID,
+            message: message,
+            icon: .copy,
+            duration: ToastDuration.light
+        )
+    }
+
+    private static func alert(_ scenarioID: String, _ message: String) -> ToastRequest {
+        ToastRequest(
+            scenarioID: scenarioID,
+            message: message,
+            icon: .warning,
+            duration: ToastDuration.alert
+        )
+    }
+
+    static var cueTextCopied: ToastRequest {
+        copy("playback.feedback.cue_text_copied", L("playback.hud.cue_text_copied"))
+    }
+
+    static var deepLinkCopied: ToastRequest {
+        copy("playback.feedback.deep_link_copied", L("playback.hud.deep_link_copied"))
+    }
+
+    static var selectedTextCopied: ToastRequest {
+        copy("playback.feedback.selected_text_copied", L("playback.hud.selected_text_copied"))
+    }
+
+    static var collageCopied: ToastRequest {
+        copy("playback.feedback.collage_copied", L("playback.hud.collage_copied"))
+    }
+
+    static var collageExported: ToastRequest {
+        ToastRequest(
+            scenarioID: "playback.feedback.collage_exported",
+            message: L("playback.hud.collage_exported"),
+            icon: .export,
+            duration: ToastDuration.light
+        )
+    }
+
+    static var noSubtitle: ToastRequest {
+        alert("playback.feedback.no_subtitle", L("playback.hud.no_subtitle"))
+    }
+
+    static var copyFailed: ToastRequest {
+        alert("playback.feedback.copy_failed", L("playback.hud.copy_failed"))
+    }
+
+    static var exportFailed: ToastRequest {
+        alert("playback.feedback.export_failed", L("playback.hud.export_failed"))
+    }
+
+    static var collageNotReady: ToastRequest {
+        alert("playback.feedback.collage_not_ready", L("playback.hud.collage_not_ready"))
+    }
+
+    static var collageNoCueSelected: ToastRequest {
+        alert(
+            "playback.feedback.collage_no_cue_selected",
+            L("playback.hud.collage_no_cue_selected")
+        )
+    }
+
+    static var cueNotInLibrary: ToastRequest {
+        alert("playback.feedback.not_in_library", L("playback.hud.not_in_library"))
+    }
+
+    static var noAvailableResults: ToastRequest {
+        alert("playback.hud.no_available_results", L("playback.hud.no_available_results"))
+    }
+
+    static func subtitleCopy(copied: Bool) -> ToastRequest {
+        copied ? cueTextCopied : noSubtitle
+    }
+
+    static func subtitleMarkdownLinkCopy(copied: Bool) -> ToastRequest {
+        copied ? deepLinkCopied : noSubtitle
+    }
+
+    static func selectedTextCopy(copied: Bool) -> ToastRequest {
+        copied ? selectedTextCopied : copyFailed
+    }
+
+    static func collage(_ event: PlaybackCollageFeedbackEvent) -> ToastRequest {
+        switch event {
+        case .noCueSelected:
+            collageNoCueSelected
+        case .notReady:
+            collageNotReady
+        case .copyFailed:
+            copyFailed
+        case .exportFailed:
+            exportFailed
+        case .copySucceeded:
+            collageCopied
+        case .exportSucceeded:
+            collageExported
+        }
+    }
+}
+
 extension ToastRequest {
     static var taskStatusChanged: ToastRequest {
         TaskToastRequest.taskStatusChanged
@@ -209,37 +314,57 @@ struct ToastItem: Identifiable, Equatable {
 
 @MainActor
 final class ToastCenter: ObservableObject {
-    static let maximumVisibleCount = 4
-    static let motion = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.20)
+    static let maximumVisibleCount = 3
+    static let motion = Animation.timingCurve(
+        0.22,
+        1,
+        0.36,
+        1,
+        duration: WorkbenchControlMetrics.redesignToastMotionDuration
+    )
 
     @Published private(set) var visibleItems: [ToastItem] = []
+    @Published private(set) var cueFooterHeightsBySurface: [PlaybackCueFooterSurface: CGFloat] = [:]
     private var expiryTask: Task<Void, Never>?
 
+    func setCueFooterHeight(_ height: CGFloat, for surface: PlaybackCueFooterSurface) {
+        let resolved = max(PlaybackCueFooterMetrics.minimumHeight, height)
+        guard abs((cueFooterHeightsBySurface[surface] ?? 0) - resolved) > 0.5 else {
+            return
+        }
+        cueFooterHeightsBySurface[surface] = resolved
+    }
+
+    func cueFooterHeight(for surface: PlaybackCueFooterSurface) -> CGFloat {
+        cueFooterHeightsBySurface[surface] ?? PlaybackCueFooterMetrics.minimumHeight
+    }
+
     func show(_ request: ToastRequest, now: Date = Date()) {
-        // Reporting the same result again is the same message, not a second
-        // one: it keeps its identity, takes the newest slot and starts its stay
-        // over.
-        let existingID = visibleItems.first {
-            $0.request.scenarioID == request.scenarioID
-                && $0.request.message == request.message
-        }?.id
+        // Every trigger pushes a new toast onto the folded stack rather than
+        // merging into an existing one; once more than 3 are up, the oldest is
+        // evicted immediately.
         let item = ToastItem(
-            id: existingID ?? UUID(),
+            id: UUID(),
             request: request,
             expiresAt: now.addingTimeInterval(request.duration)
         )
 
         withAnimation(Self.motion) {
-            visibleItems.removeAll { $0.id == item.id }
             visibleItems.append(item)
-            // A message that has to wait its turn arrives after the user has
-            // moved on, so the oldest one leaves instead of the newest waiting.
             if visibleItems.count > Self.maximumVisibleCount {
                 visibleItems.removeFirst(visibleItems.count - Self.maximumVisibleCount)
             }
         }
         announce(request.message)
         scheduleExpiry()
+    }
+
+    func dismissAll() {
+        expiryTask?.cancel()
+        expiryTask = nil
+        if !visibleItems.isEmpty {
+            visibleItems.removeAll()
+        }
     }
 
     func removeExpired(at now: Date = Date()) {
@@ -285,125 +410,133 @@ final class ToastCenter: ObservableObject {
     }
 }
 
-private struct NewestToastHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat { 0 }
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 struct ToastStackView: View {
     @ObservedObject var center: ToastCenter
-
-    @State private var newestHeight: CGFloat = 0
+    var trailingPadding: CGFloat = WorkbenchControlMetrics.redesignSpacing6
+    var bottomPadding: CGFloat = WorkbenchControlMetrics.redesignSpacing6
 
     var body: some View {
-        let newestHalfHeight = newestHeight / 2
+        let items = center.visibleItems
+        let frontmostItem = items.last
 
-        return VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            ForEach(Array(center.visibleItems.enumerated()), id: \.element.id) { index, item in
-                ToastView(item: item)
-                    .background(
-                        newestHeightReader(isNewest: index == center.visibleItems.count - 1)
-                    )
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .offset(y: 8)),
-                            removal: .opacity.combined(with: .offset(y: -8))
+        ZStack(alignment: .bottomTrailing) {
+            Color.clear
+
+            if let frontmostItem {
+                ZStack(alignment: .top) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        let depth = max(0, items.count - 1 - index)
+                        let isFrontmost = depth == 0
+                        let scale = max(
+                            0,
+                            1 - CGFloat(depth) * WorkbenchControlMetrics.redesignToastStackScaleStep
                         )
-                    )
-            }
-        }
-        // The message wraps at the smaller of its own ceiling and the space the
-        // window leaves beside the viewport margin.
-        .frame(maxWidth: WorkbenchControlMetrics.redesignToastMaxWidth)
-        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing6)
-        // The newest toast holds the window's centre and older ones stack above
-        // it, so the place the eye returns to never moves.
-        .alignmentGuide(VerticalAlignment.center) { dimensions in
-            dimensions[.bottom] - newestHalfHeight
-        }
-        .onPreferenceChange(NewestToastHeightKey.self) { height in
-            newestHeight = height
-        }
-        .allowsHitTesting(false)
-        .animation(ToastCenter.motion, value: center.visibleItems.map(\.id))
-    }
+                        let verticalOffset = -CGFloat(depth) * WorkbenchControlMetrics.redesignToastStackOffset
 
-    @ViewBuilder
-    private func newestHeightReader(isNewest: Bool) -> some View {
-        if isNewest {
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: NewestToastHeightKey.self,
-                    value: proxy.size.height
-                )
+                        ToastView(
+                            item: item,
+                            sizingItem: isFrontmost ? item : frontmostItem,
+                            showsContent: isFrontmost
+                        )
+                        .scaleEffect(scale, anchor: .top)
+                        .offset(y: verticalOffset)
+                        .zIndex(Double(ToastCenter.maximumVisibleCount - depth))
+                        .transition(
+                            .asymmetric(
+                                insertion: .offset(
+                                    y: WorkbenchControlMetrics.redesignToastMotionDistance
+                                )
+                                .combined(with: .opacity),
+                                removal: .opacity
+                            )
+                        )
+                    }
+                }
+                .padding(.trailing, trailingPadding)
+                .padding(.bottom, bottomPadding)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        .allowsHitTesting(false)
+        .animation(ToastCenter.motion, value: items.map(\.id))
     }
 }
 
 struct ToastView: View {
     let item: ToastItem
+    var sizingItem: ToastItem?
+    var showsContent: Bool = true
 
     var body: some View {
+        let effectiveItem = sizingItem ?? item
+
         HStack(
             alignment: .feedbackFirstLineCenter,
-            spacing: WorkbenchControlMetrics.redesignSpacing3
+            spacing: WorkbenchControlMetrics.redesignSpacing2
         ) {
-            if let icon = item.request.icon {
+            if let icon = effectiveItem.request.icon {
                 AppIconImage(
                     icon,
                     size: WorkbenchControlMetrics.redesignToastIconSize,
-                    weight: item.request.iconWeight
+                    weight: effectiveItem.request.iconWeight
                 )
-                .foregroundColor(Self.iconColor(for: item.request))
+                .foregroundColor(Self.iconColor(for: effectiveItem.request))
                 .alignmentGuide(.feedbackFirstLineCenter) { dimensions in
                     dimensions[VerticalAlignment.center]
                 }
             }
 
-            Text(item.request.message)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeToast,
-                    weight: WorkbenchControlMetrics.redesignFontWeightControl
-                ))
+            Text(effectiveItem.request.message)
+                .font(
+                    .system(
+                        size: WorkbenchControlMetrics.redesignFontSizeToast,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl
+                    )
+                    .monospacedDigit()
+                )
+                .lineSpacing(WorkbenchControlMetrics.redesignToastLeading)
+                .padding(.vertical, WorkbenchControlMetrics.redesignToastLeading / 2)
                 .foregroundColor(WorkbenchRedesignColors.toastText)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .alignmentGuide(.feedbackFirstLineCenter) { _ in
-                    WorkbenchControlMetrics.firstLineCenter(
-                        fontSize: WorkbenchControlMetrics.redesignFontSizeToast
-                    )
+                    WorkbenchControlMetrics.redesignLineHeightToast / 2
                 }
         }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
-        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing3)
+        .opacity(showsContent ? 1 : 0)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
+        .frame(
+            width: WorkbenchControlMetrics.redesignToastWidth,
+            alignment: .leading
+        )
         .background(surface)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(item.request.message)
+        .accessibilityHidden(!showsContent)
     }
 
     static func iconColor(for request: ToastRequest) -> Color {
-        .white
+        WorkbenchRedesignColors.textPrimary
     }
 
-    /// The unified Toast & Playback Feedback surface: dark translucent base with frosted glass and 1px border.
     private var surface: some View {
-        let shape = RoundedRectangle(cornerRadius: PlaybackChromeMetrics.feedbackRadius)
+        let shape = RoundedRectangle(
+            cornerRadius: WorkbenchControlMetrics.redesignToastRadius,
+            style: .continuous
+        )
 
         return shape
             .fill(WorkbenchRedesignColors.toastBg)
-            .background(
-                shape
-                    .fill(.ultraThinMaterial)
-                    .environment(\.colorScheme, .dark)
+            .shadowToken(
+                WorkbenchRedesignColors.shadowPopover,
+                cornerRadius: WorkbenchControlMetrics.redesignToastRadius
             )
             .overlay(
                 shape.strokeBorder(
                     WorkbenchRedesignColors.toastBorder,
-                    lineWidth: 1
+                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
                 )
             )
     }

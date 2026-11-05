@@ -8,28 +8,35 @@ enum ExcerptFeedbackState {
 }
 
 struct PlaybackFeedback: Identifiable, Equatable {
-    let id = UUID()
+    private static let loadingID = UUID()
+
+    let id: UUID
     let icon: AppIcon?
     let iconWeight: AppIconWeight?
     let showsSpinner: Bool
     let text: String?
 
     init(
+        id: UUID = UUID(),
         icon: AppIcon? = nil,
         iconWeight: AppIconWeight? = nil,
         showsSpinner: Bool = false,
         text: String?
     ) {
+        self.id = id
         self.icon = icon
         self.iconWeight = iconWeight
         self.showsSpinner = showsSpinner
         self.text = text
     }
 
-    static let loading = PlaybackFeedback(
-        showsSpinner: true,
-        text: nil
-    )
+    static var loading: PlaybackFeedback {
+        PlaybackFeedback(
+            id: loadingID,
+            showsSpinner: true,
+            text: L("playback.hud.loading")
+        )
+    }
 }
 
 @MainActor

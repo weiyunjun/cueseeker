@@ -1,74 +1,56 @@
 import SwiftUI
 
-/// Playback feedback has one anchor: the centre of the stage. Direction is
-/// carried by the icon, not by where the capsule lands, so every message
-/// arrives in the same place and the eye never has to look for it.
+/// Top-left player stage feedback (`C-09.5` / `L-07.4`). Appears and disappears
+/// immediately with no transition, using a flat dark translucent rounded mask
+/// (`--color-player-topbar-gradient-start`) with no border or shadow.
 struct PlaybackFeedbackOverlay: View {
     let feedback: PlaybackFeedback?
 
     var body: some View {
-        ZStack {
-            Color.clear
-
-            if let feedback {
-                capsule(feedback)
-                    // The message wraps at the smaller of its own ceiling and
-                    // the space the stage leaves beside the viewport margin.
-                    .frame(maxWidth: PlaybackChromeMetrics.feedbackMaxWidth)
-                    .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing6)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
-            }
+        if let feedback {
+            capsule(feedback)
+                .frame(
+                    maxWidth: PlaybackChromeMetrics.feedbackMaxWidth,
+                    alignment: .leading
+                )
+                .allowsHitTesting(false)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .allowsHitTesting(false)
-        // Only the capsule's presence animates. Its content is swapped in
-        // place, so a held-down seek key redraws the counter without the
-        // capsule fading underneath it.
-        .animation(ToastCenter.motion, value: feedback != nil)
+    }
+
+    private func capsule(_ feedback: PlaybackFeedback) -> some View {
+        HStack(
+            alignment: .feedbackFirstLineCenter,
+            spacing: WorkbenchControlMetrics.redesignSpacing3
+        ) {
+            feedbackLeadingGraphic(feedback)
+            feedbackText(feedback.text)
+        }
+        .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
+        .background(feedbackBackground)
     }
 
     @ViewBuilder
-    private func capsule(_ feedback: PlaybackFeedback) -> some View {
-        if feedback.showsSpinner && feedback.text == nil {
+    private func feedbackLeadingGraphic(_ feedback: PlaybackFeedback) -> some View {
+        if feedback.showsSpinner {
             WorkbenchSpinner(
-                size: PlaybackChromeMetrics.feedbackSpinnerSize,
+                size: PlaybackChromeMetrics.feedbackIconSize,
                 trackColor: PlaybackTheme.feedbackSpinnerTrack,
                 indicatorColor: PlaybackTheme.feedbackSpinnerIndicator
             )
-                .frame(
-                    width: PlaybackChromeMetrics.feedbackMinimumHeight,
-                    height: PlaybackChromeMetrics.feedbackMinimumHeight
-                )
-                .background(feedbackBackground)
-        } else {
-            HStack(
-                alignment: .feedbackFirstLineCenter,
-                spacing: WorkbenchControlMetrics.redesignSpacing3
-            ) {
-                feedbackIcon(feedback.icon, weight: feedback.iconWeight)
-                feedbackText(feedback.text)
+            .alignmentGuide(.feedbackFirstLineCenter) { dimensions in
+                dimensions[VerticalAlignment.center]
             }
-            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
-            // A single line stays inside the 52px floor, which still sets its
-            // height; the padding only takes over once a message wraps.
-            .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
-            .frame(minHeight: PlaybackChromeMetrics.feedbackMinimumHeight)
-            .background(feedbackBackground)
-        }
-    }
-
-    @ViewBuilder
-    private func feedbackIcon(_ icon: AppIcon?, weight: AppIconWeight?) -> some View {
-        if let icon {
+        } else if let icon = feedback.icon {
             AppIconImage(
                 icon,
                 size: PlaybackChromeMetrics.feedbackIconSize,
-                weight: weight
+                weight: feedback.iconWeight
             )
-                .foregroundColor(.white)
-                .alignmentGuide(.feedbackFirstLineCenter) { dimensions in
-                    dimensions[VerticalAlignment.center]
-                }
+            .foregroundColor(PlaybackTheme.textPrimary)
+            .alignmentGuide(.feedbackFirstLineCenter) { dimensions in
+                dimensions[VerticalAlignment.center]
+            }
         }
     }
 
@@ -86,35 +68,22 @@ struct PlaybackFeedbackOverlay: View {
                     // breathing while they do.
                     .monospacedDigit()
                 )
-                .foregroundColor(WorkbenchRedesignColors.toastText)
+                .lineSpacing(PlaybackChromeMetrics.feedbackLeading)
+                .padding(.vertical, PlaybackChromeMetrics.feedbackLeading / 2)
+                .foregroundColor(PlaybackTheme.textPrimary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .alignmentGuide(.feedbackFirstLineCenter) { _ in
-                    WorkbenchControlMetrics.firstLineCenter(
-                        fontSize: PlaybackChromeMetrics.feedbackFontSize
-                    )
+                    PlaybackChromeMetrics.feedbackLineHeight / 2
                 }
         }
     }
 
-    /// The unified Toast & Playback Feedback surface: dark translucent base with frosted glass and 1px border.
     private var feedbackBackground: some View {
-        let shape = RoundedRectangle(
-            cornerRadius: PlaybackChromeMetrics.feedbackRadius
+        RoundedRectangle(
+            cornerRadius: PlaybackChromeMetrics.feedbackRadius,
+            style: .continuous
         )
-
-        return shape
-            .fill(WorkbenchRedesignColors.toastBg)
-            .background(
-                shape
-                    .fill(.ultraThinMaterial)
-                    .environment(\.colorScheme, .dark)
-            )
-            .overlay(
-                shape.strokeBorder(
-                    WorkbenchRedesignColors.toastBorder,
-                    lineWidth: 1
-                )
-            )
+        .fill(PlaybackTheme.topbarGradientStart)
     }
 }

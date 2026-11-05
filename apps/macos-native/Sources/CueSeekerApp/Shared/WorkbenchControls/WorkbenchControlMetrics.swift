@@ -254,12 +254,30 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeBody: CGFloat = 14
     /// --font-size-caption: 12px
     static let redesignFontSizeCaption: CGFloat = 12
-    /// --font-size-toast: 16px
-    static let redesignFontSizeToast: CGFloat = 16
-    /// --size-toast-icon: 23px, one of the sizes the Icon Registry documents.
-    static let redesignToastIconSize: CGFloat = 23
-    /// --width-toast-max: 400px
-    static let redesignToastMaxWidth: CGFloat = 400
+    /// --font-size-toast: 14px
+    static let redesignFontSizeToast: CGFloat = 14
+    /// --line-height-toast: 20px
+    static let redesignLineHeightToast: CGFloat = 20
+    /// Extra vertical room added to 14pt medium text to reach the 20px line box.
+    static let redesignToastLeading: CGFloat = {
+        let font = NSFont.systemFont(ofSize: redesignFontSizeToast, weight: .medium)
+        return max(0, redesignLineHeightToast - (font.ascender - font.descender + font.leading))
+    }()
+    /// --size-toast-icon: 16px, one of the sizes the Icon Registry documents.
+    static let redesignToastIconSize: CGFloat = 16
+    /// --width-toast: 260px
+    static let redesignToastWidth: CGFloat = 260
+    static let redesignToastMaxWidth: CGFloat = redesignToastWidth
+    /// --radius-toast: 10px
+    static let redesignToastRadius: CGFloat = 10
+    /// --offset-toast-stack: 9px
+    static let redesignToastStackOffset: CGFloat = 9
+    /// --scale-toast-stack-step: 0.05
+    static let redesignToastStackScaleStep: CGFloat = 0.05
+    /// --distance-toast-motion: 18px
+    static let redesignToastMotionDistance: CGFloat = 18
+    /// --duration-toast-motion: 0.36s
+    static let redesignToastMotionDuration: Double = 0.36
     /// --width-tooltip-max: 280px
     static let redesignTooltipMaxWidth: CGFloat = 280
     /// --delay-tooltip-hover: 1s

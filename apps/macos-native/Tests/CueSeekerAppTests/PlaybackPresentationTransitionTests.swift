@@ -170,7 +170,7 @@ func playbackLoadingFeedbackAppearsAfter300msAndCountsDelayAfterTransientHUDComp
     #expect(viewModel.isLoadingFeedbackVisible)
     #expect(viewModel.effectiveFeedback == .loading)
     #expect(viewModel.effectiveFeedback?.showsSpinner == true)
-    #expect(viewModel.effectiveFeedback?.text == nil)
+    #expect(viewModel.effectiveFeedback?.text == "Loading")
 
     // Committing the target frame immediately dismisses the loading spinner.
     viewModel.player(

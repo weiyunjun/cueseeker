@@ -305,7 +305,7 @@ extension AppCoordinator {
             if playback.excerptDestinationMenu?.surface != .playbackOverlay,
                execution.target.cueID != nil,
                overlayTargetLeftLibrary(execution.target) {
-                playback.playbackViewModel?.showNotInLibraryFeedback()
+                toast.show(PlaybackToastRequest.cueNotInLibrary)
             } else {
                 togglePlaybackExcerptDestinationMenu(
                     surface: .playbackOverlay,
@@ -317,14 +317,14 @@ extension AppCoordinator {
             let copied = copyPlaybackSubtitleFocusCueText(
                 execution.target.primaryCueText
             )
-            playback.playbackViewModel?.showSubtitleCopyFeedback(copied: copied)
+            toast.show(PlaybackToastRequest.subtitleCopy(copied: copied))
             _ = session.finishKeyboardAction(execution)
         case .copyCueMarkdownLink:
             let copied: Bool
             if execution.target.cueID != nil,
                overlayTargetLeftLibrary(execution.target) {
                 // A link to a cue the library no longer holds leads nowhere.
-                playback.playbackViewModel?.showNotInLibraryFeedback()
+                toast.show(PlaybackToastRequest.cueNotInLibrary)
                 _ = session.finishKeyboardAction(execution)
                 return true
             } else if let cueID = execution.target.cueID {
@@ -336,8 +336,8 @@ extension AppCoordinator {
             } else {
                 copied = false
             }
-            playback.playbackViewModel?.showSubtitleMarkdownLinkCopyFeedback(
-                copied: copied
+            toast.show(
+                PlaybackToastRequest.subtitleMarkdownLinkCopy(copied: copied)
             )
             _ = session.finishKeyboardAction(execution)
         case .playFromThisCue:
@@ -372,11 +372,9 @@ extension AppCoordinator {
                     return true
                 }
                 playback.playbackStatus = .playing
-                playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
             case .playlist(let item):
                 invalidatePlaybackSubtitleFocusForSourceReplacement()
                 openPlaylistItem(item)
-                playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
             }
         }
         return true
@@ -393,7 +391,7 @@ extension AppCoordinator {
             return
         }
         guard let context, !context.cue.text.isEmpty else {
-            playback.playbackViewModel?.showExcerptFeedback(.unavailable)
+            toast.show(PlaybackToastRequest.noSubtitle)
             return
         }
         playback.openExcerptDestinationMenu(

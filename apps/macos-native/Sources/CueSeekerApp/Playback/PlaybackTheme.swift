@@ -578,19 +578,22 @@ enum PlaybackChromeMetrics {
         return max(0, errorLineHeight - (font.ascender - font.descender + font.leading))
     }()
 
-    /// --height-playback-feedback: 52px, a floor rather than a fixed height so
-    /// a wrapped message can grow past it.
-    static let feedbackMinimumHeight: CGFloat = 52
     /// --width-playback-feedback-max: 520px
     static let feedbackMaxWidth: CGFloat = 520
-    /// --radius-playback-feedback: 16px
-    static let feedbackRadius: CGFloat = 16
-    /// --size-playback-feedback-icon: 31px
-    static let feedbackIconSize: CGFloat = 31
-    /// --size-playback-feedback-spinner: 23px
-    static let feedbackSpinnerSize: CGFloat = 23
+    /// --radius-playback-feedback: 10px
+    static let feedbackRadius: CGFloat = 10
+    /// --size-playback-feedback-icon: 23px
+    static let feedbackIconSize: CGFloat = 23
+    static let feedbackSpinnerSize: CGFloat = feedbackIconSize
     /// --font-size-playback-feedback: 18px
     static let feedbackFontSize: CGFloat = 18
+    /// --line-height-playback-feedback: 26px
+    static let feedbackLineHeight: CGFloat = 26
+    /// Extra vertical room added to 18pt medium text to reach the 26px line box.
+    static let feedbackLeading: CGFloat = {
+        let font = NSFont.systemFont(ofSize: feedbackFontSize, weight: .medium)
+        return max(0, feedbackLineHeight - (font.ascender - font.descender + font.leading))
+    }()
     /// --delay-playback-loading-feedback: 300ms
     static let loadingFeedbackDelay: TimeInterval = 0.30
     static let loadingFeedbackDelayMilliseconds: UInt64 = 300

@@ -1266,7 +1266,8 @@ func subtitleFocusCopyKeyCopiesExactCueAndKeepsPausedSession() async throws {
         #expect(session.activeKeyboardAction == nil)
         #expect(session.currentSnapshot?.selectedOrdinal == 12)
         #expect(app.playback.playbackStatus == .paused)
-        #expect(app.playback.playbackViewModel?.feedback?.text == "Cue Text Copied")
+        #expect(app.toast.visibleItems.last?.request.message == "Cue Text Copied")
+        #expect(app.playback.playbackViewModel?.feedback == nil)
 
         #expect(app.handlePlaybackKeyDown(keyCode: 7, modifierFlagsRawValue: 0))
         #expect(
@@ -1274,9 +1275,10 @@ func subtitleFocusCopyKeyCopiesExactCueAndKeepsPausedSession() async throws {
                 == "[exact first exact third](cueseeker://cue?id=13)"
         )
         #expect(
-            app.playback.playbackViewModel?.feedback?.text
+            app.toast.visibleItems.last?.request.message
                 == "Deep Link Copied"
         )
+        #expect(app.playback.playbackViewModel?.feedback == nil)
 
         #expect(app.handlePlaybackKeyDown(
             keyCode: 8,
@@ -1447,7 +1449,8 @@ func playbackPlaylistCopyAndExcerptTargetTheSettledPrimaryCue() async throws {
             NSPasteboard.general.string(forType: .string)
                 == "  playlist first  \n\nplaylist third"
         )
-        #expect(app.playback.playbackViewModel?.feedback?.text == "Cue Text Copied")
+        #expect(app.toast.visibleItems.last?.request.message == "Cue Text Copied")
+        #expect(app.playback.playbackViewModel?.feedback == nil)
 
         #expect(app.handlePlaybackKeyDown(keyCode: 7, modifierFlagsRawValue: 0))
         #expect(
@@ -1455,9 +1458,10 @@ func playbackPlaylistCopyAndExcerptTargetTheSettledPrimaryCue() async throws {
                 == "[playlist first playlist third](cueseeker://cue?id=22)"
         )
         #expect(
-            app.playback.playbackViewModel?.feedback?.text
+            app.toast.visibleItems.last?.request.message
                 == "Deep Link Copied"
         )
+        #expect(app.playback.playbackViewModel?.feedback == nil)
         #expect(app.playback.subtitleFocusSession === session)
         #expect(window.selectedOrdinal == 0)
 
@@ -1514,7 +1518,8 @@ func playbackPlaylistExcerptItemWithoutACueIdentityOpensNoDestinationMenu() asyn
         // Nothing identifies the cue, so there is no destination to offer and
         // nothing to write.
         #expect(app.playback.excerptDestinationMenu == nil)
-        #expect(app.playback.playbackViewModel?.feedback?.text == "No Subtitle")
+        #expect(app.toast.visibleItems.last?.request.message == "No Subtitle")
+        #expect(app.playback.playbackViewModel?.feedback == nil)
         #expect(try excerptDatabase.excerptCount() == 0)
         #expect(session.activeKeyboardAction == nil)
         #expect(app.playback.subtitleFocusSession === session)
@@ -1559,7 +1564,7 @@ func playbackPlaylistEnterDispatchesSelectedTargetAndDestroysOverlaySession() as
         #expect(app.playback.subtitleFocusSession == nil)
         #expect(session.state == .closed)
         #expect(openedItem == item)
-        #expect(app.playback.playbackViewModel?.feedback?.text == "Play")
+        #expect(app.playback.playbackViewModel?.feedback == nil)
     }
 }
 
@@ -1616,7 +1621,7 @@ func playbackOverlayPlayActionUsesExactCueThenDestroysSession() async throws {
         #expect(app.playback.subtitleFocusSession == nil)
         #expect(session.state == .closed)
         #expect(app.playback.playbackStatus == .playing)
-        #expect(app.playback.playbackViewModel?.feedback?.text == "Play")
+        #expect(app.playback.playbackViewModel?.feedback == nil)
     }
 }
 
@@ -1666,7 +1671,7 @@ func subtitleFocusExcerptOpensTheDestinationMenuAndSavingRemembersTheList() asyn
             cueID: execution.context.cue.id,
             toListID: ExcerptListIdentity.defaultListID,
             listName: app.excerpt.listName(id: ExcerptListIdentity.defaultListID),
-            report: .playbackFeedback
+            report: .toast
         ))
         await app.excerptMutationTask?.value
 
@@ -1691,7 +1696,7 @@ private func saveThroughExcerptDestinationMenu(
         cueID: menu.cueID,
         toListID: listID,
         listName: app.excerpt.listName(id: listID),
-        report: .playbackFeedback
+        report: .toast
     )
     await app.excerptMutationTask?.value
     app.playback.closeExcerptDestinationMenu()

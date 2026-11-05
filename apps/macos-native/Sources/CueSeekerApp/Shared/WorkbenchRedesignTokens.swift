@@ -323,21 +323,27 @@ enum WorkbenchRedesignColors {
         )
 
         // Toast
-        static let toastBg = NSColor.dynamic(
+        // --color-toast-bg: same as --color-bg-popover (Light #FFFFFF, Dark #36363B)
+        static let toastBg = bgPopover
+        // --color-toast-border: same as --color-border-control (Light #E5E7EB, Dark #4A4A52)
+        static let toastBorder = borderControl
+        // --color-text-primary (Light #1F1F1F, Dark #E4E4E4)
+        static let toastText = textPrimary
+
+        // Tooltip
+        // --color-tooltip-bg: Light rgba(31, 31, 31, 0.90), Dark rgba(45, 45, 50, 0.92)
+        static let tooltipBg = NSColor.dynamic(
             lightHex: "#1F1F1F",
             lightAlpha: 0.90,
             darkHex: "#2D2D32",
             darkAlpha: 0.92
         )
-        static let toastBorder = NSColor.dynamic(
+        // --color-tooltip-border: rgba(255, 255, 255, 0.15)
+        static let tooltipBorder = NSColor.dynamic(
             lightHex: "#FFFFFF",
             lightAlpha: 0.15,
             darkHex: "#FFFFFF",
             darkAlpha: 0.15
-        )
-        static let toastText = NSColor.dynamic(
-            lightHex: "#FFFFFF",
-            darkHex: "#E4E4E4"
         )
     }
 
@@ -510,6 +516,10 @@ enum WorkbenchRedesignColors {
     static let toastBg = Color(nsColor: NS.toastBg)
     static let toastBorder = Color(nsColor: NS.toastBorder)
     static let toastText = Color(nsColor: NS.toastText)
+
+    // Tooltip
+    static let tooltipBg = Color(nsColor: NS.tooltipBg)
+    static let tooltipBorder = Color(nsColor: NS.tooltipBorder)
 
     // Shadow Dialog
     // --shadow-dialog: 0 18px 40px, one layer in both themes; only its

@@ -16,7 +16,7 @@ func toastCenterEvictsTheOldestInsteadOfQueueing() {
     }
 
     #expect(center.visibleItems.map(\.request.message) == [
-        "Toast 2", "Toast 3", "Toast 4", "Toast 5"
+        "Toast 3", "Toast 4", "Toast 5"
     ])
 
     center.removeExpired(at: start.addingTimeInterval(5.1))
@@ -25,7 +25,7 @@ func toastCenterEvictsTheOldestInsteadOfQueueing() {
 
 @MainActor
 @Test
-func toastCenterKeepsOneToastPerResultAndRestartsItsStay() {
+func toastCenterPushesRepeatedScenariosOntoTheFoldedStackAndExpiresIndependently() {
     let center = ToastCenter()
     let start = Date()
     let repeated = ExcerptToastRequest.saveSucceeded(listName: "Study")
@@ -35,8 +35,12 @@ func toastCenterKeepsOneToastPerResultAndRestartsItsStay() {
     center.show(ToastRequest(scenarioID: "scenario.other", message: "Other"), now: start)
     center.show(repeated, now: start.addingTimeInterval(1.0))
 
-    #expect(center.visibleItems.count == 2)
-    #expect(center.visibleItems.last?.id == firstID)
+    #expect(center.visibleItems.count == 3)
+    #expect(center.visibleItems.first?.id == firstID)
+    #expect(center.visibleItems.last?.id != firstID)
+    #expect(center.visibleItems.map(\.request.message) == [
+        repeated.message, "Other", repeated.message
+    ])
 
     center.removeExpired(at: start.addingTimeInterval(1.6))
     #expect(center.visibleItems.map(\.request.message) == [repeated.message])
@@ -149,17 +153,70 @@ func tableToastRequestsMatchTheUsageRegistry() {
     #expect(TableToastRequest.cueNotInLibrary(count: 2) == TableToastRequest.cuesNotInLibrary)
 }
 
+@Test
+func playbackToastRequestsMatchTheUsageRegistry() {
+    #expect(PlaybackToastRequest.cueTextCopied.message == "Cue Text Copied")
+    #expect(PlaybackToastRequest.cueTextCopied.icon == .copy)
+    #expect(PlaybackToastRequest.cueTextCopied.duration == 1.5)
+
+    #expect(PlaybackToastRequest.deepLinkCopied.message == "Deep Link Copied")
+    #expect(PlaybackToastRequest.deepLinkCopied.icon == .copy)
+    #expect(PlaybackToastRequest.deepLinkCopied.duration == 1.5)
+
+    #expect(PlaybackToastRequest.selectedTextCopied.message == "Selected Text Copied")
+    #expect(PlaybackToastRequest.selectedTextCopied.icon == .copy)
+    #expect(PlaybackToastRequest.selectedTextCopied.duration == 1.5)
+
+    #expect(PlaybackToastRequest.collageCopied.message == "Collage Copied")
+    #expect(PlaybackToastRequest.collageCopied.icon == .copy)
+    #expect(PlaybackToastRequest.collageCopied.duration == 1.5)
+
+    #expect(PlaybackToastRequest.collageExported.message == "Collage Exported")
+    #expect(PlaybackToastRequest.collageExported.icon == .export)
+    #expect(PlaybackToastRequest.collageExported.duration == 1.5)
+
+    #expect(PlaybackToastRequest.noSubtitle.message == "No Subtitle")
+    #expect(PlaybackToastRequest.noSubtitle.icon == .warning)
+    #expect(PlaybackToastRequest.noSubtitle.duration == 3.0)
+
+    #expect(PlaybackToastRequest.copyFailed.message == "Copy Failed")
+    #expect(PlaybackToastRequest.copyFailed.icon == .warning)
+    #expect(PlaybackToastRequest.copyFailed.duration == 3.0)
+
+    #expect(PlaybackToastRequest.exportFailed.message == "Export Failed")
+    #expect(PlaybackToastRequest.exportFailed.icon == .warning)
+    #expect(PlaybackToastRequest.exportFailed.duration == 3.0)
+
+    #expect(PlaybackToastRequest.collageNotReady.message == "Collage Not Ready")
+    #expect(PlaybackToastRequest.collageNotReady.icon == .warning)
+    #expect(PlaybackToastRequest.collageNotReady.duration == 3.0)
+
+    #expect(PlaybackToastRequest.collageNoCueSelected.message == "Select at Least One Cue")
+    #expect(PlaybackToastRequest.collageNoCueSelected.icon == .warning)
+    #expect(PlaybackToastRequest.collageNoCueSelected.duration == 3.0)
+
+    #expect(PlaybackToastRequest.cueNotInLibrary.message == "Cue Not in Library")
+    #expect(PlaybackToastRequest.cueNotInLibrary.icon == .warning)
+    #expect(PlaybackToastRequest.cueNotInLibrary.duration == 3.0)
+
+    #expect(PlaybackToastRequest.noAvailableResults.message == "No Available Results")
+    #expect(PlaybackToastRequest.noAvailableResults.icon == .warning)
+    #expect(PlaybackToastRequest.noAvailableResults.duration == 3.0)
+}
+
 @MainActor
 @Test
-func toastIconsAreAlwaysPureWhiteAcrossAllScenarios() {
-    #expect(ToastView.iconColor(for: TableToastRequest.copyCueText) == .white)
-    #expect(ToastView.iconColor(for: TableToastRequest.copyDeepLink) == .white)
-    #expect(ToastView.iconColor(for: TableToastRequest.copyCueGroupText) == .white)
-    #expect(ToastView.iconColor(for: TableToastRequest.copyTimeRange) == .white)
-    #expect(ToastView.iconColor(for: TableToastRequest.copyDeepLinks) == .white)
-    #expect(ToastView.iconColor(for: TableToastRequest.copyTable) == .white)
-    #expect(ToastView.iconColor(for: TableToastRequest.cueNotInLibrary) == .white)
-    #expect(ToastView.iconColor(for: ExcerptToastRequest.destinationAlreadyContainsCue(listName: "test2")) == .white)
-    #expect(ToastView.iconColor(for: ExcerptToastRequest.moveFailed) == .white)
-    #expect(ToastView.iconColor(for: ExcerptToastRequest.saveSucceeded(listName: "Study")) == .white)
+func toastIconsUseTextPrimaryAcrossAllScenarios() {
+    #expect(ToastView.iconColor(for: TableToastRequest.copyCueText) == WorkbenchRedesignColors.textPrimary)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyDeepLink) == WorkbenchRedesignColors.textPrimary)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyCueGroupText) == WorkbenchRedesignColors.textPrimary)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyTimeRange) == WorkbenchRedesignColors.textPrimary)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyDeepLinks) == WorkbenchRedesignColors.textPrimary)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyTable) == WorkbenchRedesignColors.textPrimary)
+    #expect(ToastView.iconColor(for: TableToastRequest.cueNotInLibrary) == WorkbenchRedesignColors.textPrimary)
+    #expect(ToastView.iconColor(for: PlaybackToastRequest.cueTextCopied) == WorkbenchRedesignColors.textPrimary)
+    #expect(ToastView.iconColor(for: PlaybackToastRequest.noSubtitle) == WorkbenchRedesignColors.textPrimary)
+    #expect(ToastView.iconColor(for: ExcerptToastRequest.destinationAlreadyContainsCue(listName: "test2")) == WorkbenchRedesignColors.textPrimary)
+    #expect(ToastView.iconColor(for: ExcerptToastRequest.moveFailed) == WorkbenchRedesignColors.textPrimary)
+    #expect(ToastView.iconColor(for: ExcerptToastRequest.saveSucceeded(listName: "Study")) == WorkbenchRedesignColors.textPrimary)
 }

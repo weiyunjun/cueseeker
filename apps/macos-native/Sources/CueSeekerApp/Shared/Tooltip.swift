@@ -555,7 +555,7 @@ struct TooltipSurfaceBackground: View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
         shape
-            .fill(WorkbenchRedesignColors.toastBg)
+            .fill(WorkbenchRedesignColors.tooltipBg)
             .background(
                 shape
                     .fill(.ultraThinMaterial)
@@ -567,7 +567,7 @@ struct TooltipSurfaceBackground: View {
             )
             .overlay(
                 shape.strokeBorder(
-                    WorkbenchRedesignColors.toastBorder,
+                    WorkbenchRedesignColors.tooltipBorder,
                     lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
                 )
             )

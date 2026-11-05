@@ -9,7 +9,7 @@ enum PlaybackCueFooterMetrics {
 /// Which surface the footer is drawn on. The two surfaces have different
 /// backgrounds, so each carries its own keycap and button colours; it also
 /// says which interface layer the buttons answer the pointer for.
-enum PlaybackCueFooterSurface: Equatable {
+enum PlaybackCueFooterSurface: Hashable {
     case playbackOverlay
     case commandPanel
 
@@ -316,6 +316,9 @@ struct PlaybackCueFooter: View {
                 )
             }
         }
+        .onPreferenceChange(PlaybackCueFooterHeightKey.self) { height in
+            appState.toast.setCueFooterHeight(height, for: surface)
+        }
         .background(MenuAnchorProbe(handle: hostAnchor))
         .overlayPreferenceValue(PlaybackExcerptMenuAnchorKey.self) { anchor in
             destinationMenuOverlay(anchor: anchor)
@@ -561,7 +564,7 @@ struct PlaybackCueFooter: View {
             cueID: menu.cueID,
             toListID: destination.id,
             listName: destination.title,
-            report: .playbackFeedback
+            report: .toast
         )
     }
 
@@ -571,7 +574,7 @@ struct PlaybackCueFooter: View {
             pendingTransfer: ExcerptListEditorPendingTransfer(
                 action: .saveToExcerpt,
                 target: .cue(menu.cueID),
-                report: .playbackFeedback
+                report: .toast
             )
         )
     }

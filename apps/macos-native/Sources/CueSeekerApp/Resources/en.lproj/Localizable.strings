@@ -290,6 +290,7 @@
 "playback.hud.muted" = "Muted";
 "playback.hud.seek_forward" = "+ %ds";
 "playback.hud.seek_backward" = "- %ds";
+"playback.hud.loading" = "Loading";
 
 /* Playback subtitle focus, collage and command panel */
 "playback.copy_selected_text" = "Copy Selected Text";

@@ -506,7 +506,8 @@ final class AppCoordinator: ObservableObject {
         cueContent = cueContentStore
         playback = PlaybackStore(
             userDefaults: userDefaults,
-            interfaceLayers: interfaceLayers
+            interfaceLayers: interfaceLayers,
+            toast: toast
         )
 
         var openedDatabase: IndexingDatabase?

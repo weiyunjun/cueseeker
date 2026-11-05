@@ -21,8 +21,7 @@ extension PlaybackCommandPanelPage {
 extension AppCoordinator {
     func copyPlaybackSelectedText(_ text: String) {
         let copied = CueClipboard.copy(text, to: .general)
-        playback.playbackViewModel?
-            .showSelectedTextCopyFeedback(copied: copied)
+        toast.show(PlaybackToastRequest.selectedTextCopy(copied: copied))
     }
 
     func searchPlaybackSelectedText(_ text: String) {
@@ -513,7 +512,7 @@ extension AppCoordinator {
         case .excerpt:
             if playback.excerptDestinationMenu?.surface != .commandPanel,
                !isInLibrary {
-                playback.playbackViewModel?.showNotInLibraryFeedback()
+                toast.show(PlaybackToastRequest.cueNotInLibrary)
                 return true
             }
             togglePlaybackExcerptDestinationMenu(
@@ -525,11 +524,10 @@ extension AppCoordinator {
                 result.content,
                 to: .general
             )
-            playback.playbackViewModel?
-                .showSubtitleCopyFeedback(copied: copied)
+            toast.show(PlaybackToastRequest.subtitleCopy(copied: copied))
         case .copyCueMarkdownLink:
             guard isInLibrary else {
-                playback.playbackViewModel?.showNotInLibraryFeedback()
+                toast.show(PlaybackToastRequest.cueNotInLibrary)
                 return true
             }
             let copied = CueClipboard.copyDeepLink(
@@ -537,8 +535,9 @@ extension AppCoordinator {
                 cueID: result.entryID,
                 to: .general
             )
-            playback.playbackViewModel?
-                .showSubtitleMarkdownLinkCopyFeedback(copied: copied)
+            toast.show(
+                PlaybackToastRequest.subtitleMarkdownLinkCopy(copied: copied)
+            )
         case .playFromThisCue:
             guard isInLibrary else {
                 showPlaybackItemNotInLibrary()
@@ -602,10 +601,7 @@ extension AppCoordinator {
         guard (try? excerptDatabase?.excerpts(listID: summary.list.id))?
             .contains(where: \.isValid) == true
         else {
-            playback.playbackViewModel?.showNoAvailableNavigationFeedback(
-                direction: nil,
-                text: L("playback.hud.no_available_results")
-            )
+            toast.show(PlaybackToastRequest.noAvailableResults)
             return true
         }
         guard dismissPlaybackCommandPanelForAction() else {

@@ -91,9 +91,14 @@ private struct ContentRootView: View {
                     )
                     .zIndex(AppShellLayout.dialogLayerZIndex)
 
-                    ToastStackView(center: appState.toast)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .zIndex(AppShellLayout.toastLayerZIndex)
+                    ContentToastLayerHost(
+                        center: appState.toast,
+                        playback: appState.playback,
+                        isPlaybackPageVisible: hidesWorkbenchChrome,
+                        windowSize: geometry.size
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .zIndex(AppShellLayout.toastLayerZIndex)
 
                     TooltipOverlayView(surface: .main)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -169,6 +174,94 @@ private struct ContentRootView: View {
             width: width,
             threshold: AppShellLayout.sidebarAutoCollapseWindowWidth
         )
+    }
+}
+
+private enum ToastHostSurface: Equatable {
+    case workbench
+    case playbackOverlay
+    case commandPanel
+}
+
+private struct ContentToastLayerHost: View {
+    @ObservedObject var center: ToastCenter
+    @ObservedObject var playback: PlaybackStore
+    let isPlaybackPageVisible: Bool
+    let windowSize: CGSize
+
+    private var activeSurface: ToastHostSurface? {
+        if !isPlaybackPageVisible {
+            return .workbench
+        }
+        if playback.commandPanelPresentation != nil {
+            return .commandPanel
+        }
+        if playback.subtitleFocusSession != nil {
+            return .playbackOverlay
+        }
+        return nil
+    }
+
+    var body: some View {
+        Group {
+            if let activeSurface {
+                let paddings = resolvedPaddings(for: activeSurface)
+                ToastStackView(
+                    center: center,
+                    trailingPadding: paddings.trailing,
+                    bottomPadding: paddings.bottom
+                )
+            } else {
+                Color.clear
+                    .allowsHitTesting(false)
+            }
+        }
+        .onChange(of: activeSurface) { _ in
+            center.dismissAll()
+        }
+    }
+
+    private func resolvedPaddings(
+        for surface: ToastHostSurface
+    ) -> (trailing: CGFloat, bottom: CGFloat) {
+        switch surface {
+        case .workbench:
+            return (
+                WorkbenchControlMetrics.redesignSpacing6,
+                WorkbenchControlMetrics.redesignSpacing6
+            )
+        case .playbackOverlay:
+            return (
+                WorkbenchControlMetrics.redesignSpacing8,
+                center.cueFooterHeight(for: .playbackOverlay)
+                    + WorkbenchControlMetrics.redesignSpacing3
+            )
+        case .commandPanel:
+            let panelWidth = min(
+                WorkbenchControlMetrics.redesignCommandPanelMaxWidth,
+                max(
+                    0,
+                    windowSize.width
+                        - WorkbenchControlMetrics.redesignCommandPanelViewportInset * 2
+                )
+            )
+            let panelHeight = min(
+                WorkbenchControlMetrics.redesignCommandPanelMaxHeight,
+                max(
+                    0,
+                    windowSize.height
+                        - WorkbenchControlMetrics.redesignCommandPanelViewportInset * 2
+                )
+            )
+            let panelHorizontalInset = max(0, (windowSize.width - panelWidth) / 2)
+            let panelVerticalInset = max(0, (windowSize.height - panelHeight) / 2)
+            return (
+                panelHorizontalInset + WorkbenchControlMetrics.redesignSpacing5,
+                panelVerticalInset
+                    + center.cueFooterHeight(for: .commandPanel)
+                    + WorkbenchControlMetrics.redesignSpacing3
+            )
+        }
     }
 }
 

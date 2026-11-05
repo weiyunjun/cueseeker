@@ -81,35 +81,39 @@ struct PlaybackPageView: View {
 
                 // Anchored to the window under the top bar, above the Playback
                 // Overlay and the Command Panel, and never hidden with the
-                // Player UI.
-                PlaybackErrorBanner(messages: playback.errorMessages)
-                    .frame(
-                        maxWidth: max(
-                            0,
-                            geometry.size.width - WorkbenchControlMetrics.redesignSpacing6 * 2
-                        ),
-                        alignment: .leading
-                    )
-                    .padding(.leading, WorkbenchControlMetrics.redesignSpacing6)
-                    .padding(
-                        .top,
-                        WorkbenchControlMetrics.redesignAppTopbarHeight
-                            + WorkbenchControlMetrics.redesignSpacing3
-                    )
-                    .frame(
-                        width: geometry.size.width,
-                        height: geometry.size.height,
-                        alignment: .topLeading
-                    )
-                    .allowsHitTesting(false)
+                // Player UI. Playback Feedback sits in the same top-leading
+                // column so it lands 12pt below any active error banner.
+                VStack(
+                    alignment: .leading,
+                    spacing: WorkbenchControlMetrics.redesignSpacing3
+                ) {
+                    if !playback.errorMessages.isEmpty {
+                        PlaybackErrorBanner(messages: playback.errorMessages)
+                            .frame(
+                                maxWidth: max(
+                                    0,
+                                    geometry.size.width - WorkbenchControlMetrics.redesignSpacing6 * 2
+                                ),
+                                alignment: .leading
+                            )
+                    }
 
-                // Keep command feedback above every playback-local overlay so
-                // Subtitle Focus S/C feedback remains visible while focus stays open.
-                if let viewModel = playback.playbackViewModel {
-                    PlaybackFeedbackLayer(viewModel: viewModel)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .allowsHitTesting(false)
+                    if !isPlaybackModalActive, let viewModel = playback.playbackViewModel {
+                        PlaybackFeedbackLayer(viewModel: viewModel)
+                    }
                 }
+                .padding(.leading, WorkbenchControlMetrics.redesignSpacing6)
+                .padding(
+                    .top,
+                    WorkbenchControlMetrics.redesignAppTopbarHeight
+                        + WorkbenchControlMetrics.redesignSpacing3
+                )
+                .frame(
+                    width: geometry.size.width,
+                    height: geometry.size.height,
+                    alignment: .topLeading
+                )
+                .allowsHitTesting(false)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }

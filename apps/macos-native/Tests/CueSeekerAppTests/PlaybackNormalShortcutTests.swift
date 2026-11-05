@@ -9,13 +9,15 @@ import Testing
 
 @MainActor
 @Test
-func selectedTextCopyUsesRequiredPlaybackFeedback() {
-    let viewModel = PlaybackViewModel(player: PlaybackPlayer())
+func selectedTextCopyUsesRequiredToast() throws {
+    try withNormalPlaybackApp { app, _ in
+        let viewModel = try #require(app.playback.playbackViewModel)
+        app.copyPlaybackSelectedText("selected text")
 
-    viewModel.showSelectedTextCopyFeedback(copied: true)
-
-    #expect(viewModel.feedback?.text == "Selected Text Copied")
-    #expect(viewModel.feedback?.icon == .copy)
+        #expect(app.toast.visibleItems.last?.request.message == "Selected Text Copied")
+        #expect(app.toast.visibleItems.last?.request.icon == .copy)
+        #expect(viewModel.feedback == nil)
+    }
 }
 
 @MainActor
