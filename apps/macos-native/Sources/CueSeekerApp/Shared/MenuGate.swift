@@ -161,7 +161,6 @@ final class MenuGate {
         )
         if isFirstMenu {
             let targetWindow = client.window() ?? CueSeekerWindow.activeKeyWindow
-            (targetWindow as? CueSeekerWindow)?.activateWindowForFocusIfNeeded()
             applyBarrier(to: targetWindow)
         }
         if client.kind.clearsTextSelection {
@@ -364,7 +363,6 @@ final class MenuGate {
 
         case .leftMouseDown, .rightMouseDown:
             if !isFromAnotherWindow {
-                (menuWindow as? CueSeekerWindow)?.activateWindowForFocusIfNeeded()
                 MenuHighlightModel.broadcastMouseDown()
             }
             switch MenuOutsidePress.decide(
@@ -388,9 +386,6 @@ final class MenuGate {
             }
 
         case .otherMouseDown, .leftMouseUp, .rightMouseUp, .otherMouseUp:
-            if event.type == .otherMouseDown, !isFromAnotherWindow {
-                (menuWindow as? CueSeekerWindow)?.activateWindowForFocusIfNeeded()
-            }
             // The middle press never closes a menu, and a release belongs to
             // the press it completes. Outside the menu both are spent.
             return MenuInputBarrier.passesNonDismissingButton(
@@ -408,9 +403,7 @@ final class MenuGate {
                event.type == .mouseMoved
                 || event.type == .leftMouseDragged
                 || event.type == .rightMouseDragged {
-                let isWindowFocused = (menuWindow as? CueSeekerWindow)?.isFocusedForHover
-                    ?? (NSApp.isActive && menuWindow?.isKeyWindow == true)
-                if isWindowFocused {
+                if NSApp.isActive && menuWindow?.isKeyWindow == true {
                     PointerHoverScrollState.shared.notePointerMoved()
                 }
             }

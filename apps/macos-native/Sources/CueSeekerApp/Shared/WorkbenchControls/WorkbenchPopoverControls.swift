@@ -410,7 +410,6 @@ struct WorkbenchCardRightClickMonitor: NSViewRepresentable {
                     return event
                 }
 
-                (self.window as? CueSeekerWindow)?.activateWindowForFocusIfNeeded()
                 (self.window as? CueSeekerWindow)?.onMouseDownClearAccessibility?()
                 if let menuGate = self.menuGate {
                     guard menuGate.route(event) != nil else {

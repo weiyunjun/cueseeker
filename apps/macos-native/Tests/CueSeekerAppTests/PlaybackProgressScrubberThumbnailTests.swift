@@ -273,37 +273,29 @@ func scrubberFreezesHoverLocationAndThumbnailWhileUpperLayerIsOpenAndRestoresSta
     .interfaceLayer(.playbackPage)
     .modifier(InterfaceLayerCoverageBridge(layers: layers))
 
-    let window = CueSeekerWindow(
-        contentRect: NSRect(x: -5_000, y: -5_000, width: 800, height: 200),
-        styleMask: [.borderless],
-        backing: .buffered,
-        defer: false
-    )
-    window.isWindowFocusedOverrideForTesting = true
-    let host = CueSeekerHostingView(rootView: rootView)
-    window.contentView = host
-    window.orderFrontRegardless()
-    defer {
-        window.contentView = nil
-        window.orderOut(nil)
-    }
+    let host = NSHostingView(rootView: rootView)
+    host.frame = NSRect(x: 0, y: 0, width: 800, height: 200)
     host.layoutSubtreeIfNeeded()
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
 
+    func findLocationProbe(in view: NSView) -> PointerHoverProbeView? {
+        if let probe = view as? PointerHoverProbeView, probe.tracksLocation {
+            return probe
+        }
+        for subview in view.subviews {
+            if let found = findLocationProbe(in: subview) {
+                return found
+            }
+        }
+        return nil
+    }
+    let probe = try #require(findLocationProbe(in: host))
+
     func sendMouseMoved(at point: CGPoint) {
-        host.mouseLocationOverrideForTesting = point
-        if let event = NSEvent.mouseEvent(
-            with: .mouseMoved,
-            location: point,
-            modifierFlags: [],
-            timestamp: ProcessInfo.processInfo.systemUptime,
-            windowNumber: window.windowNumber,
-            context: nil,
-            eventNumber: 0,
-            clickCount: 0,
-            pressure: 0
-        ) {
-            host.mouseMoved(with: event)
+        if probe.bounds.contains(point) {
+            probe.session?.reportLocation(point)
+        } else {
+            probe.session?.reportLocation(nil)
         }
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
     }
@@ -400,39 +392,27 @@ func stationaryScrubberPointerRefreshesThumbnailWhenSwitchingToEpisodeWithIdenti
     .interfaceLayer(.playbackPage)
     .modifier(InterfaceLayerCoverageBridge(layers: layers))
 
-    let window = CueSeekerWindow(
-        contentRect: NSRect(x: -5_000, y: -5_000, width: 800, height: 200),
-        styleMask: [.borderless],
-        backing: .buffered,
-        defer: false
-    )
-    window.isWindowFocusedOverrideForTesting = true
-    let host = CueSeekerHostingView(rootView: rootView)
-    window.contentView = host
-    window.orderFrontRegardless()
-    defer {
-        window.contentView = nil
-        window.orderOut(nil)
-    }
+    let host = NSHostingView(rootView: rootView)
+    host.frame = NSRect(x: 0, y: 0, width: 800, height: 200)
     host.layoutSubtreeIfNeeded()
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
 
+    func findLocationProbe(in view: NSView) -> PointerHoverProbeView? {
+        if let probe = view as? PointerHoverProbeView, probe.tracksLocation {
+            return probe
+        }
+        for subview in view.subviews {
+            if let found = findLocationProbe(in: subview) {
+                return found
+            }
+        }
+        return nil
+    }
+    let probe = try #require(findLocationProbe(in: host))
+
     // 1. Hover near the end of Episode 1 (x = 799 of 800 -> ~1419.314s = 23:39) and keep pointer stationary:
     let stationaryPoint = CGPoint(x: 799, y: 9)
-    host.mouseLocationOverrideForTesting = stationaryPoint
-    if let event = NSEvent.mouseEvent(
-        with: .mouseMoved,
-        location: stationaryPoint,
-        modifierFlags: [],
-        timestamp: ProcessInfo.processInfo.systemUptime,
-        windowNumber: window.windowNumber,
-        context: nil,
-        eventNumber: 0,
-        clickCount: 0,
-        pressure: 0
-    ) {
-        host.mouseMoved(with: event)
-    }
+    probe.session?.reportLocation(probe.convert(stationaryPoint, from: host))
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
 
     #expect(requestedEpisodesAndMilliseconds.count == 1)

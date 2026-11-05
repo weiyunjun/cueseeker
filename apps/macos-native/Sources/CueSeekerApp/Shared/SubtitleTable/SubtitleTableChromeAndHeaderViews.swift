@@ -404,7 +404,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -453,7 +453,8 @@ final class SubtitleVirtualTableHeaderView: NSView {
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
         guard let window,
-              ((window as? CueSeekerWindow)?.isFocusedForHover ?? (NSApp.isActive && window.isKeyWindow)),
+              NSApp.isActive,
+              window.isKeyWindow,
               !PointerHoverScrollState.shared.isScrolling
         else {
             return
@@ -472,7 +473,8 @@ final class SubtitleVirtualTableHeaderView: NSView {
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
         guard let window,
-              ((window as? CueSeekerWindow)?.isFocusedForHover ?? (NSApp.isActive && window.isKeyWindow)),
+              NSApp.isActive,
+              window.isKeyWindow,
               !PointerHoverScrollState.shared.isScrolling
         else {
             return
@@ -491,23 +493,14 @@ final class SubtitleVirtualTableHeaderView: NSView {
     func refreshHoverFromWindow() {
         guard !AppCursorVisibility.isCursorHidden,
               !PointerHoverScrollState.shared.isScrolling,
-              let window
+              let window,
+              NSApp.isActive,
+              window.isKeyWindow,
+              NSWindow.windowNumber(
+                  at: NSEvent.mouseLocation,
+                  belowWindowWithWindowNumber: 0
+              ) == window.windowNumber
         else {
-            clearHoverState()
-            return
-        }
-        let isWindowFocused = (window as? CueSeekerWindow)?.isFocusedForHover
-            ?? (NSApp.isActive && window.isKeyWindow)
-        guard isWindowFocused else {
-            clearHoverState()
-            return
-        }
-        let isPointerOverWindow = (window as? CueSeekerWindow)?.isWindowFocusedOverrideForTesting != nil
-            || NSWindow.windowNumber(
-                at: NSEvent.mouseLocation,
-                belowWindowWithWindowNumber: 0
-            ) == window.windowNumber
-        guard isPointerOverWindow else {
             clearHoverState()
             return
         }
@@ -534,14 +527,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             guard !PointerHoverScrollState.shared.isScrolling else {
                 return
             }
-            guard let window else {
-                isHeaderHovered = false
-                isIndexHeaderHovered = false
-                return
-            }
-            let isWindowFocused = (window as? CueSeekerWindow)?.isFocusedForHover
-                ?? (NSApp.isActive && window.isKeyWindow)
-            guard isWindowFocused else {
+            guard let window, NSApp.isActive, window.isKeyWindow else {
                 isHeaderHovered = false
                 isIndexHeaderHovered = false
                 return
@@ -935,7 +921,7 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
         }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -952,7 +938,8 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
 
     override func mouseMoved(with event: NSEvent) {
         guard let window,
-              ((window as? CueSeekerWindow)?.isFocusedForHover ?? (NSApp.isActive && window.isKeyWindow)),
+              NSApp.isActive,
+              window.isKeyWindow,
               !PointerHoverScrollState.shared.isScrolling
         else {
             return
@@ -1110,10 +1097,6 @@ struct SubtitleTablePageScrollGeometry: Equatable {
 final class SubtitleTablePageChromeHostingView: CueSeekerHostingView<AnyView> {
     weak var scrollView: NSScrollView?
     weak var coordinator: SubtitleTableView.Coordinator?
-
-    override var isHoverSyncSuppressedByCoveringLayer: Bool {
-        coordinator?.isPointerFrozen == true
-    }
 
     override func scrollWheel(with event: NSEvent) {
         scrollView?.scrollWheel(with: event)

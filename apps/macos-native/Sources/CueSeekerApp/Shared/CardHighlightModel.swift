@@ -88,6 +88,13 @@ final class CardHighlightModel: ObservableObject {
         }
     }
 
+    static func broadcastWindowDidBecomeKey() {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            box.value?.noteWindowDidBecomeKey()
+        }
+    }
+
     static func broadcastLayerFrozenChanged(
         _ isFrozen: Bool,
         in registry: InterfaceLayerRegistry? = nil,
@@ -132,6 +139,7 @@ final class CardHighlightModel: ObservableObject {
     private(set) var isFrozen = false
     private(set) var isScrolling = false
     private(set) var isSuppressedByKeyboard = false
+    private(set) var isWindowFocused = true
     private var rawHoveredID: String?
     private var rawHoveredShowsHand = true
     private var hoveredActionButtonCardID: String?
@@ -214,6 +222,7 @@ final class CardHighlightModel: ObservableObject {
         hoveredActionButtonCardID = nil
         isScrolling = false
         isSuppressedByKeyboard = false
+        isWindowFocused = true
     }
 
     /// Freezes or unfreezes `Hover` updates when a menu or covering layer opens
@@ -254,6 +263,9 @@ final class CardHighlightModel: ObservableObject {
 
     /// From a card's hover callback.
     func noteHover(_ isHovered: Bool, id: String, showsHand: Bool = true) {
+        guard isWindowFocused || !isHovered else {
+            return
+        }
         if isHovered {
             rawHoveredID = id
             rawHoveredShowsHand = showsHand
@@ -263,11 +275,12 @@ final class CardHighlightModel: ObservableObject {
                 hoveredActionButtonCardID = nil
             }
         }
-        let followsPointer = !isFrozen
+        let followsPointer = isWindowFocused
+            && !isFrozen
             && !isScrolling
             && !isSuppressedByKeyboard
             && !AppCursorVisibility.isCursorHidden
-        if !isFrozen, !isSuppressedByKeyboard {
+        if isWindowFocused, !isFrozen, !isSuppressedByKeyboard {
             AppPointerShape.noteCardHover(
                 isHovered,
                 id: id,
@@ -275,7 +288,7 @@ final class CardHighlightModel: ObservableObject {
                 followsPointer: followsPointer
             )
         }
-        guard !isFrozen, !isScrolling, !isSuppressedByKeyboard else {
+        guard isWindowFocused, !isFrozen, !isScrolling, !isSuppressedByKeyboard else {
             return
         }
         syncHoveredID()
@@ -304,6 +317,7 @@ final class CardHighlightModel: ObservableObject {
     /// From a right-click or left-click on a card. Updates `Hover` immediately
     /// to the pressed card without altering `Select` (`selectedID`).
     func notePress(id: String) {
+        isWindowFocused = true
         rawHoveredID = id
         isScrolling = false
         isSuppressedByKeyboard = false
@@ -329,6 +343,7 @@ final class CardHighlightModel: ObservableObject {
     }
 
     func notePointerMoved() {
+        isWindowFocused = true
         guard !isFrozen else {
             return
         }
@@ -374,6 +389,7 @@ final class CardHighlightModel: ObservableObject {
     }
 
     func noteWindowDidResignFocus() {
+        isWindowFocused = false
         if let rawHoveredID {
             AppPointerShape.noteCardHover(
                 false,
@@ -391,6 +407,14 @@ final class CardHighlightModel: ObservableObject {
         if hoveredID != nil {
             hoveredID = nil
         }
+    }
+
+    func noteWindowDidBecomeKey() {
+        isWindowFocused = true
+        guard !isFrozen, !isScrolling, !isSuppressedByKeyboard else {
+            return
+        }
+        syncHoveredID()
     }
 
     private func noteCursorHiddenChanged(_ isHidden: Bool) {

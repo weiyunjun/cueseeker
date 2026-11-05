@@ -26,7 +26,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
 
     /// AppKit answers these in the App; tests answer them directly.
     var hasWindowFocus: (NSWindow) -> Bool = {
-        ($0 as? CueSeekerWindow)?.isFocusedForHover ?? (NSApp.isActive && $0.isKeyWindow)
+        NSApp.isActive && $0.isKeyWindow
     }
     var pointerScreenLocation: () -> NSPoint = { NSEvent.mouseLocation }
 
@@ -392,7 +392,6 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             NSWindow.didResignKeyNotification,
             NSApplication.didBecomeActiveNotification,
             NSApplication.didResignActiveNotification,
-            .cueSeekerWindowFocusChanged,
         ] {
             focusObservers.append(
                 center.addObserver(

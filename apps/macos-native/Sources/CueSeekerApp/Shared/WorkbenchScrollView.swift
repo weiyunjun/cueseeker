@@ -404,43 +404,17 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
     func queryPointerInDocument() -> WorkbenchScrollViewController.PointerDocumentQueryResult {
         guard let scrollView,
               let documentView = scrollView.documentView,
-              let window = scrollView.window
+              let window = scrollView.window,
+              NSApp.isActive,
+              window.isKeyWindow,
+              NSWindow.windowNumber(
+                  at: NSEvent.mouseLocation,
+                  belowWindowWithWindowNumber: 0
+              ) == window.windowNumber
         else {
             return .windowNotFocused
         }
-        let isWindowFocused: Bool
-        if let cueSeekerWindow = window as? CueSeekerWindow {
-            isWindowFocused = cueSeekerWindow.isFocusedForHover
-        } else {
-            isWindowFocused = NSApp.isActive && window.isKeyWindow
-        }
-        guard isWindowFocused else {
-            return .windowNotFocused
-        }
-        var overrideLocation: CGPoint?
-        var current: NSView? = scrollView
-        while let candidate = current {
-            if let source = candidate as? CueSeekerHostingViewLocationOverride,
-               let point = source.mouseLocationOverrideForTesting {
-                overrideLocation = point
-                break
-            }
-            current = candidate.superview
-        }
-        if overrideLocation == nil {
-            overrideLocation = (window.contentView as? CueSeekerHostingViewLocationOverride)?
-                .mouseLocationOverrideForTesting
-        }
-        if overrideLocation == nil,
-           (window as? CueSeekerWindow)?.isWindowFocusedOverrideForTesting == nil {
-            guard NSWindow.windowNumber(
-                at: NSEvent.mouseLocation,
-                belowWindowWithWindowNumber: 0
-            ) == window.windowNumber else {
-                return .windowNotFocused
-            }
-        }
-        let locationInWindow = overrideLocation ?? window.mouseLocationOutsideOfEventStream
+        let locationInWindow = window.mouseLocationOutsideOfEventStream
         let clipView = scrollView.contentView
         let pointInClip = clipView.convert(locationInWindow, from: nil)
         guard clipView.bounds.contains(pointInClip) else {

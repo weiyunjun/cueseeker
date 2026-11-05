@@ -233,24 +233,6 @@ extension SubtitleTableView.Coordinator {
         headerView?.refreshHeaderHosts()
     }
 
-    @objc func windowFocusDidChange(_ notification: Notification) {
-        guard let window = documentView?.window,
-              notification.object as? NSWindow === window
-        else {
-            return
-        }
-        let isWindowFocused = (window as? CueSeekerWindow)?.isFocusedForHover
-            ?? (NSApp.isActive && window.isKeyWindow)
-        if isWindowFocused {
-            reevaluateHoverFromCurrentPointer()
-            headerView?.refreshHoverFromWindow()
-        } else {
-            clearHover()
-            headerView?.clearHoverState()
-        }
-        headerView?.refreshHeaderHosts()
-    }
-
     @objc func scrollDebounceDidSettle(_ notification: Notification) {
         guard !isCoveredByHigherLayer else {
             return
@@ -268,16 +250,13 @@ extension SubtitleTableView.Coordinator {
         else {
             return
         }
-        let isWindowFocused = (window as? CueSeekerWindow)?.isFocusedForHover
-            ?? (NSApp.isActive && window.isKeyWindow)
-        if !isWindowFocused {
+        guard NSApp.isActive && window.isKeyWindow else {
             clearHover()
             headerView?.clearHoverState()
             return
         }
         let screenPoint = NSEvent.mouseLocation
-        let isPointerOverWindow = (window as? CueSeekerWindow)?.isWindowFocusedOverrideForTesting != nil
-            || NSWindow.windowNumber(at: screenPoint, belowWindowWithWindowNumber: 0) == window.windowNumber
+        let isPointerOverWindow = NSWindow.windowNumber(at: screenPoint, belowWindowWithWindowNumber: 0) == window.windowNumber
         if isPointerOverWindow {
             handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
         } else {

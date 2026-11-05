@@ -67,6 +67,13 @@ final class MenuHighlightModel: ObservableObject {
         }
     }
 
+    static func broadcastWindowDidBecomeKey() {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            box.value?.noteWindowDidBecomeKey()
+        }
+    }
+
     static func broadcastMouseDown() {
         instances.removeAll { $0.value == nil }
         for box in instances {
@@ -109,6 +116,7 @@ final class MenuHighlightModel: ObservableObject {
     private(set) var isOpen = false
     private(set) var isScrolling = false
     private(set) var isSuppressedByKeyboard = false
+    private(set) var isWindowFocused = true
     private(set) var pinnedPosition: Int?
     private var rawHoveredPosition: Int?
 
@@ -143,6 +151,7 @@ final class MenuHighlightModel: ObservableObject {
         isOpen = true
         isScrolling = false
         isSuppressedByKeyboard = false
+        isWindowFocused = true
         pinnedPosition = nil
         rawHoveredPosition = nil
         highlightedPosition = nil
@@ -159,6 +168,7 @@ final class MenuHighlightModel: ObservableObject {
         rawHoveredPosition = nil
         isScrolling = false
         isSuppressedByKeyboard = false
+        isWindowFocused = true
     }
 
     /// Moves `highlightedPosition` by `offset` and reports whether the surface
@@ -344,12 +354,15 @@ final class MenuHighlightModel: ObservableObject {
     }
 
     func noteHover(_ isHovered: Bool, at position: Int) {
+        guard isWindowFocused || !isHovered else {
+            return
+        }
         if isHovered {
             rawHoveredPosition = selectablePositions.contains(position) ? position : nil
         } else if rawHoveredPosition == position {
             rawHoveredPosition = nil
         }
-        guard !isScrolling, !isSuppressedByKeyboard else {
+        guard isWindowFocused, !isScrolling, !isSuppressedByKeyboard else {
             return
         }
         syncHoveredPosition()
@@ -377,6 +390,7 @@ final class MenuHighlightModel: ObservableObject {
     }
 
     func notePointerMoved() {
+        isWindowFocused = true
         if isScrolling {
             isScrolling = false
         }
@@ -391,11 +405,20 @@ final class MenuHighlightModel: ObservableObject {
     }
 
     func noteWindowDidResignFocus() {
+        isWindowFocused = false
         rawHoveredPosition = nil
         isScrolling = false
         if !isSuppressedByKeyboard, pinnedPosition == nil, highlightedPosition != nil {
             highlightedPosition = nil
         }
+    }
+
+    func noteWindowDidBecomeKey() {
+        isWindowFocused = true
+        guard !isScrolling, !isSuppressedByKeyboard else {
+            return
+        }
+        syncHoveredPosition()
     }
 
     private func noteCursorHiddenChanged(_ isHidden: Bool) {
