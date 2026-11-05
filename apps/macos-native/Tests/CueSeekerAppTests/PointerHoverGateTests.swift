@@ -152,6 +152,66 @@ struct PointerHoverGateTests {
 
     @MainActor
     @Test
+    func openingSecondWindowKeepsUnfocusedMainWindowCardAndMenuHoverSuppressed() {
+        AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+        AppPointerShape.resetForTesting()
+        defer {
+            PointerHoverScrollState.shared.resetForTesting()
+            AppPointerShape.resetForTesting()
+        }
+
+        let mainWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let settingsWindow = NSWindow(
+            contentRect: NSRect(x: 40, y: 40, width: 280, height: 200),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let mainHostView = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 240))
+        mainWindow.contentView = mainHostView
+
+        let cardHighlight = CardHighlightModel(keepsCurrentWhenPointerLeaves: true)
+        cardHighlight.hostView = mainHostView
+        cardHighlight.setSelected("card-0")
+
+        let menuHighlight = MenuHighlightModel()
+        menuHighlight.hostView = mainHostView
+        menuHighlight.open(selectablePositions: [0, 1, 2], defaultPosition: 0)
+        defer { menuHighlight.close() }
+
+        // Simulate opening Settings window over the Main Window:
+        // mainWindow resigns key, settingsWindow becomes key, and the pointer moves.
+        NotificationCenter.default.post(
+            name: NSWindow.didResignKeyNotification,
+            object: mainWindow
+        )
+        NotificationCenter.default.post(
+            name: NSWindow.didBecomeKeyNotification,
+            object: settingsWindow
+        )
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        PointerHoverScrollState.shared.notePointerMoved()
+
+        #expect(!cardHighlight.isHostingWindowFocused)
+        #expect(!menuHighlight.isHostingWindowFocused)
+
+        // Hover callbacks from the unfocused Main Window remain suppressed and do not show a grab cursor.
+        cardHighlight.noteHover(true, id: "card-1", showsHand: true)
+        cardHighlight.noteActionButtonHover(true, id: "card-1")
+        menuHighlight.noteHover(true, at: 2)
+        #expect(cardHighlight.hoveredID == nil)
+        #expect(menuHighlight.hoveredPosition == nil)
+        #expect(AppPointerShape.model.shape == .arrow)
+    }
+
+    @MainActor
+    @Test
     func scrollingCardGridLocksHoverAndPointerUntilScrollDebounceSettles() {
         AppCursorVisibility.resetForTesting()
         PointerHoverScrollState.shared.resetForTesting()

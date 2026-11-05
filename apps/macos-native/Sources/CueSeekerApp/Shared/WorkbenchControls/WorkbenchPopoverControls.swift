@@ -264,6 +264,7 @@ struct WorkbenchPopoverPanel<Content: View>: View {
             .subtitleTableTextSelectionNonInteractiveRegion(
                 cornerRadius: cornerRadius
             )
+            .background(MenuHighlightWindowProbe(highlight: highlight))
             // The item highlighted when the menu opens can already be out of
             // reach — `Save to Excerpt` opens on the list saved to most
             // recently — so opening reveals it the same way a keyboard move

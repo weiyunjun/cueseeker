@@ -81,17 +81,47 @@ final class CardHighlightModel: ObservableObject {
         }
     }
 
-    static func broadcastWindowDidResignFocus() {
+    static func broadcastWindowDidResignFocus(in window: NSWindow? = nil) {
         instances.removeAll { $0.value == nil }
         for box in instances {
-            box.value?.noteWindowDidResignFocus()
+            guard let model = box.value else {
+                continue
+            }
+            if let window {
+                if let hostWindow = model.hostView?.window {
+                    guard hostWindow === window else {
+                        continue
+                    }
+                } else if !AppPointerShape.manages(window) {
+                    continue
+                }
+            }
+            model.noteWindowDidResignFocus()
         }
     }
 
-    static func broadcastWindowDidBecomeKey() {
+    static func broadcastWindowDidBecomeKey(in window: NSWindow? = nil) {
         instances.removeAll { $0.value == nil }
         for box in instances {
-            box.value?.noteWindowDidBecomeKey()
+            guard let model = box.value else {
+                continue
+            }
+            if let window {
+                if let hostWindow = model.hostView?.window {
+                    guard hostWindow === window else {
+                        continue
+                    }
+                } else if !AppPointerShape.manages(window) {
+                    continue
+                }
+            } else if let hostWindow = model.hostView?.window {
+                guard hostWindow.isKeyWindow else {
+                    continue
+                }
+            } else if !AppPointerShape.isManagedWindowFocused {
+                continue
+            }
+            model.noteWindowDidBecomeKey()
         }
     }
 
@@ -116,7 +146,15 @@ final class CardHighlightModel: ObservableObject {
     @Published private(set) var hoveredID: String?
 
     weak var registry: InterfaceLayerRegistry?
+    weak var hostView: NSView?
     var layer: InterfaceLayer = .workbenchPage
+
+    var isHostingWindowFocused: Bool {
+        if let window = hostView?.window {
+            return NSApp.isActive && window.isKeyWindow
+        }
+        return isWindowFocused && AppPointerShape.isManagedWindowFocused
+    }
 
     /// Compatibility accessor: returns `selectedID` when the interface maintains
     /// a `Select` state (Playback), or `hoveredID` on Workbench interfaces.
@@ -263,7 +301,8 @@ final class CardHighlightModel: ObservableObject {
 
     /// From a card's hover callback.
     func noteHover(_ isHovered: Bool, id: String, showsHand: Bool = true) {
-        guard isWindowFocused || !isHovered else {
+        let windowFocused = isHostingWindowFocused
+        guard windowFocused || !isHovered else {
             return
         }
         if isHovered {
@@ -275,12 +314,12 @@ final class CardHighlightModel: ObservableObject {
                 hoveredActionButtonCardID = nil
             }
         }
-        let followsPointer = isWindowFocused
+        let followsPointer = windowFocused
             && !isFrozen
             && !isScrolling
             && !isSuppressedByKeyboard
             && !AppCursorVisibility.isCursorHidden
-        if isWindowFocused, !isFrozen, !isSuppressedByKeyboard {
+        if windowFocused, !isFrozen, !isSuppressedByKeyboard {
             AppPointerShape.noteCardHover(
                 isHovered,
                 id: id,
@@ -288,7 +327,7 @@ final class CardHighlightModel: ObservableObject {
                 followsPointer: followsPointer
             )
         }
-        guard isWindowFocused, !isFrozen, !isScrolling, !isSuppressedByKeyboard else {
+        guard windowFocused, !isFrozen, !isScrolling, !isSuppressedByKeyboard else {
             return
         }
         syncHoveredID()
@@ -297,12 +336,16 @@ final class CardHighlightModel: ObservableObject {
     /// From a card's internal action button (`...`) hover callback. Keeps the
     /// card hovered while switching the pointer from `Grab` to `Arrow`.
     func noteActionButtonHover(_ isHovered: Bool, id: String) {
+        let windowFocused = isHostingWindowFocused
+        guard windowFocused || !isHovered else {
+            return
+        }
         if isHovered {
             hoveredActionButtonCardID = id
         } else if hoveredActionButtonCardID == id {
             hoveredActionButtonCardID = nil
         }
-        guard rawHoveredID == id, !isFrozen, !isSuppressedByKeyboard else {
+        guard rawHoveredID == id, windowFocused, !isFrozen, !isSuppressedByKeyboard else {
             return
         }
         let followsPointer = !isScrolling && !AppCursorVisibility.isCursorHidden
@@ -343,8 +386,7 @@ final class CardHighlightModel: ObservableObject {
     }
 
     func notePointerMoved() {
-        isWindowFocused = true
-        guard !isFrozen else {
+        guard isHostingWindowFocused, !isFrozen else {
             return
         }
         if isScrolling {
@@ -444,6 +486,26 @@ extension View {
     }
 }
 
+private final class CardHighlightWindowProbeView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+}
+
+private struct CardHighlightWindowProbe: NSViewRepresentable {
+    let model: CardHighlightModel
+
+    func makeNSView(context: Context) -> CardHighlightWindowProbeView {
+        let view = CardHighlightWindowProbeView()
+        model.hostView = view
+        return view
+    }
+
+    func updateNSView(_ nsView: CardHighlightWindowProbeView, context: Context) {
+        model.hostView = nsView
+    }
+}
+
 private struct CardHighlightFreezeModifier: ViewModifier {
     let model: CardHighlightModel
     @Environment(\.interfaceLayers) private var interfaceLayers
@@ -451,6 +513,7 @@ private struct CardHighlightFreezeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .background(CardHighlightWindowProbe(model: model))
             .onAppear {
                 model.registry = interfaceLayers
                 model.layer = layerContext.layer

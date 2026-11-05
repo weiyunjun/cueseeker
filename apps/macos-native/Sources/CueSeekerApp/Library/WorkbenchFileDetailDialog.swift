@@ -732,6 +732,7 @@ struct FileDetailPairedSwitcherMenuPopover: View {
                                     }
                             }
                         )
+                        .background(MenuHighlightWindowProbe(highlight: highlight))
                     }
                 }
             }

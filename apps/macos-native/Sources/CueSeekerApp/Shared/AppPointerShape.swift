@@ -118,6 +118,13 @@ enum AppPointerShape {
         return candidate === window
     }
 
+    static var isManagedWindowFocused: Bool {
+        guard let window else {
+            return true
+        }
+        return NSApp.isActive && window.isKeyWindow
+    }
+
     /// The cursor a surface registers over its whole visible area, from
     /// `resetCursorRects`. AppKit applies a cursor rect synchronously in the
     /// same pass that would otherwise fall back to the arrow, so the rect is
@@ -254,6 +261,9 @@ enum AppPointerShape {
     }
 
     static func resetForTesting() {
+        window = nil
+        isMenuOpen = { false }
+        pointerLocationOutside = nil
         model.clearHandCards()
         _ = model.reset()
     }

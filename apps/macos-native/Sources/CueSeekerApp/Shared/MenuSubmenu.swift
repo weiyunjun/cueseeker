@@ -50,6 +50,11 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         if let highlight {
             parentHighlight = highlight
         }
+        if isHovered,
+           let effectiveHighlight = highlight ?? parentHighlight,
+           !effectiveHighlight.isHostingWindowFocused {
+            return
+        }
         let item = HoveredItem(
             position: position,
             trigger: trigger,

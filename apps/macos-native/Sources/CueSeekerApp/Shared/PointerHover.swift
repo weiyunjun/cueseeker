@@ -34,12 +34,11 @@ final class PointerHoverScrollState: ObservableObject {
                 queue: .main
             ) { [weak self] notification in
                 MainActor.assumeIsolated {
+                    let window = notification.object as? NSWindow
                     self?.cancelScrollDebounceForWindowResign()
-                    CardHighlightModel.broadcastWindowDidResignFocus()
-                    MenuHighlightModel.broadcastWindowDidResignFocus()
-                    PointerHoverSession.syncWindowFocusChanged(
-                        in: notification.object as? NSWindow
-                    )
+                    CardHighlightModel.broadcastWindowDidResignFocus(in: window)
+                    MenuHighlightModel.broadcastWindowDidResignFocus(in: window)
+                    PointerHoverSession.syncWindowFocusChanged(in: window)
                 }
             }
             focusObserverTokens.append(token)
@@ -54,9 +53,9 @@ final class PointerHoverScrollState: ObservableObject {
                 queue: .main
             ) { notification in
                 MainActor.assumeIsolated {
-                    CardHighlightModel.broadcastWindowDidBecomeKey()
-                    MenuHighlightModel.broadcastWindowDidBecomeKey()
                     let window = notification.object as? NSWindow
+                    CardHighlightModel.broadcastWindowDidBecomeKey(in: window)
+                    MenuHighlightModel.broadcastWindowDidBecomeKey(in: window)
                     PointerHoverSession.syncWindowFocusChanged(in: window)
                     if let keyWindow = window ?? NSApp?.keyWindow,
                        AppPointerShape.manages(keyWindow) {

@@ -1193,6 +1193,7 @@ struct SettingsSubtitleFontMenu: View {
         .subtitleTableTextSelectionNonInteractiveRegion(
             cornerRadius: cornerRadius
         )
+        .background(MenuHighlightWindowProbe(highlight: highlight))
         .onAppear {
             bindScrollController()
             revealHighlightedPosition()

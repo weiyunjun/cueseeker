@@ -60,17 +60,37 @@ final class MenuHighlightModel: ObservableObject {
         }
     }
 
-    static func broadcastWindowDidResignFocus() {
+    static func broadcastWindowDidResignFocus(in window: NSWindow? = nil) {
         instances.removeAll { $0.value == nil }
         for box in instances {
-            box.value?.noteWindowDidResignFocus()
+            guard let model = box.value else {
+                continue
+            }
+            if let window,
+               let hostWindow = model.hostView?.window,
+               hostWindow !== window {
+                continue
+            }
+            model.noteWindowDidResignFocus()
         }
     }
 
-    static func broadcastWindowDidBecomeKey() {
+    static func broadcastWindowDidBecomeKey(in window: NSWindow? = nil) {
         instances.removeAll { $0.value == nil }
         for box in instances {
-            box.value?.noteWindowDidBecomeKey()
+            guard let model = box.value else {
+                continue
+            }
+            if let window {
+                if let hostWindow = model.hostView?.window,
+                   hostWindow !== window {
+                    continue
+                }
+            } else if let hostWindow = model.hostView?.window,
+                      !hostWindow.isKeyWindow {
+                continue
+            }
+            model.noteWindowDidBecomeKey()
         }
     }
 
@@ -111,6 +131,7 @@ final class MenuHighlightModel: ObservableObject {
     /// the newly highlighted item into view.
     @Published private(set) var keyboardMoveCount = 0
 
+    weak var hostView: NSView?
     private(set) var selectablePositions: [Int] = []
     private(set) var allPositions: [Int] = []
     private(set) var isOpen = false
@@ -119,6 +140,13 @@ final class MenuHighlightModel: ObservableObject {
     private(set) var isWindowFocused = true
     private(set) var pinnedPosition: Int?
     private var rawHoveredPosition: Int?
+
+    var isHostingWindowFocused: Bool {
+        if let window = hostView?.window {
+            return NSApp.isActive && window.isKeyWindow
+        }
+        return isWindowFocused
+    }
 
     init() {
         Self.instances.removeAll { $0.value == nil }
@@ -354,7 +382,8 @@ final class MenuHighlightModel: ObservableObject {
     }
 
     func noteHover(_ isHovered: Bool, at position: Int) {
-        guard isWindowFocused || !isHovered else {
+        let windowFocused = isHostingWindowFocused
+        guard windowFocused || !isHovered else {
             return
         }
         if isHovered {
@@ -362,7 +391,7 @@ final class MenuHighlightModel: ObservableObject {
         } else if rawHoveredPosition == position {
             rawHoveredPosition = nil
         }
-        guard isWindowFocused, !isScrolling, !isSuppressedByKeyboard else {
+        guard windowFocused, !isScrolling, !isSuppressedByKeyboard else {
             return
         }
         syncHoveredPosition()
@@ -390,7 +419,9 @@ final class MenuHighlightModel: ObservableObject {
     }
 
     func notePointerMoved() {
-        isWindowFocused = true
+        guard isHostingWindowFocused else {
+            return
+        }
         if isScrolling {
             isScrolling = false
         }
@@ -449,5 +480,25 @@ final class MenuHighlightModel: ObservableObject {
         if highlightedPosition != next {
             highlightedPosition = next
         }
+    }
+}
+
+final class MenuHighlightWindowProbeView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+}
+
+struct MenuHighlightWindowProbe: NSViewRepresentable {
+    let highlight: MenuHighlightModel
+
+    func makeNSView(context: Context) -> MenuHighlightWindowProbeView {
+        let view = MenuHighlightWindowProbeView()
+        highlight.hostView = view
+        return view
+    }
+
+    func updateNSView(_ nsView: MenuHighlightWindowProbeView, context: Context) {
+        highlight.hostView = nsView
     }
 }
