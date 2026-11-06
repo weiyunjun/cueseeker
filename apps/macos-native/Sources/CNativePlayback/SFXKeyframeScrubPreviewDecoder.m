@@ -120,6 +120,16 @@
     }
 
     if (!hasHeaderVideoParameters) {
+        if (initialVideoIndex >= 0) {
+            for (unsigned int index = 0; index < _formatContext->nb_streams; index++) {
+                AVStream *candidate = _formatContext->streams[index];
+                if (candidate != NULL
+                    && candidate->codecpar != NULL
+                    && candidate->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) {
+                    candidate->discard = AVDISCARD_ALL;
+                }
+            }
+        }
         if (avformat_find_stream_info(_formatContext, NULL) < 0) {
             [self invalidate];
             return NO;

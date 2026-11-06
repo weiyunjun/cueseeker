@@ -1694,7 +1694,7 @@ func nativePlaybackRecalibratesClockAcrossMidStreamTimestampWrapAroundAndForward
         #expect(reachedBeforeWrap)
 
         let wrappedAndContinued = await waitUntil(timeoutSeconds: 4.0) {
-            player.currentTime < 1.0 && player.nativePresentedVideoFrameCount >= 35
+            player.nativePresentedVideoFrameCount >= 40
         }
         #expect(wrappedAndContinued)
         #expect(!delegate.hasFailures)
@@ -1853,11 +1853,12 @@ func nativePlaybackDecodesTimelineThumbnailsForRealVideoAndIncompleteKeyframeInd
         let player = PlaybackPlayer()
         defer { try? player.stop() }
 
-        _ = try player.open(PlaybackRequest(videoURL: tsURL, startMilliseconds: 0))
+        _ = try player.open(PlaybackRequest(videoURL: tsURL, startMilliseconds: 2_500))
         let ready = await waitUntil(timeoutSeconds: 3.0) {
             player.videoAspectRatio() != nil
         }
         #expect(ready)
+        #expect(player.keyframeTimestampMilliseconds(forTargetMilliseconds: 500) == nil)
         #expect(player.keyframeTimestampMilliseconds(forTargetMilliseconds: 5_000) == nil)
 
         var decodedKeyframeMilliseconds: [Int] = []

@@ -833,13 +833,14 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     }
     [_packetQueueCondition unlock];
 
+    [self populateKeyframeStreamTimestamps];
+
     CFTimeInterval s6Start = CACurrentMediaTime();
     if (_seekSeconds > 0.001) {
         if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, _seekSeconds, _timelineOriginSeconds, error)) {
             return NO;
         }
     }
-    [self populateKeyframeStreamTimestamps];
 
     avcodec_flush_buffers(_videoCodecContext);
     if (_audioCodecContext != NULL) {
@@ -872,6 +873,11 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     if (_formatContext == NULL
         || _videoStreamIndex < 0
         || _videoStreamIndex >= (int)_formatContext->nb_streams) {
+        return;
+    }
+
+    if (_formatContext->iformat != NULL
+        && (_formatContext->iformat->flags & AVFMT_TS_DISCONT) != 0) {
         return;
     }
 
@@ -914,8 +920,26 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         ? ((double)timestamps[count - 1] * timeBaseSeconds - _timelineOriginSeconds)
         : 0.0;
     double indexedSpanSeconds = lastKeyframeSeconds - fmax(0.0, firstKeyframeSeconds);
+    double maxGapSeconds = fmax(0.0, firstKeyframeSeconds);
+    if (count >= 2 && isfinite(timeBaseSeconds) && timeBaseSeconds > 0) {
+        for (NSUInteger index = 1; index < count; index++) {
+            double gapSeconds = (double)(timestamps[index] - timestamps[index - 1]) * timeBaseSeconds;
+            if (gapSeconds > maxGapSeconds) {
+                maxGapSeconds = gapSeconds;
+            }
+        }
+    }
+    if (isfinite(_duration) && _duration > lastKeyframeSeconds) {
+        double tailGapSeconds = _duration - lastKeyframeSeconds;
+        if (tailGapSeconds > maxGapSeconds) {
+            maxGapSeconds = tailGapSeconds;
+        }
+    }
+    BOOL hasExcessiveGap = (isfinite(_duration) && _duration > 30.0)
+        && maxGapSeconds > fmax(30.0, _duration * 0.25);
     BOOL hasUsableKeyframeIndex = count >= 2
-        && (_duration <= 4.0 || indexedSpanSeconds >= _duration * 0.5);
+        && (_duration <= 4.0 || indexedSpanSeconds >= _duration * 0.5)
+        && !hasExcessiveGap;
     if (!hasUsableKeyframeIndex) {
         free(timestamps);
         return;
