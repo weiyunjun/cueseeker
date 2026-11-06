@@ -214,9 +214,10 @@ public final class LibraryDatabase: @unchecked Sendable {
         guard try statement.step() else {
             return nil
         }
-        let tracks = statement.nullableStringColumn(0)
+        let tracks = (statement.nullableStringColumn(0)
             .flatMap { try? JSONDecoder().decode([VideoAudioTrack].self, from: Data($0.utf8)) }
-            ?? []
+            ?? [])
+            .filter(\.isValidPlaybackTrack)
         return VideoAudioTracks(tracks: tracks, defaultIndex: statement.intColumn(1))
     }
 

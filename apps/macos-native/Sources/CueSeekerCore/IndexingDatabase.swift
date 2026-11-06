@@ -377,18 +377,34 @@ public final class IndexingDatabase: @unchecked Sendable {
         let prefixes = Self.folderPathPrefixes(for: folder)
         let statement = try database.prepare(
             """
-            SELECT path
+            SELECT path, duration_retry_pending, duration, audio_tracks
             FROM video_files
             WHERE library_id = ?
-              AND (duration_retry_pending = 1 OR audio_tracks IS NULL)
             ORDER BY path ASC;
             """
         )
         try statement.bind(libraryID, at: 1)
         var paths = Set<String>()
+        let decoder = JSONDecoder()
         while try statement.step() {
             let path = statement.stringColumn(0)
-            if prefixes.contains(where: { path.hasPrefix($0) }) {
+            guard prefixes.contains(where: { path.hasPrefix($0) }) else {
+                continue;
+            }
+            let retryPending = statement.intColumn(1) != 0
+            let duration = statement.nullableDoubleColumn(2)
+            let audioTracksJSON = statement.nullableStringColumn(3)
+            var needsProbe = retryPending
+                || duration == nil
+                || (duration ?? 0) <= 0
+                || audioTracksJSON == nil
+            if !needsProbe,
+               let audioTracksJSON,
+               let decoded = try? decoder.decode([VideoAudioTrack].self, from: Data(audioTracksJSON.utf8)),
+               decoded.contains(where: { !$0.isValidPlaybackTrack }) {
+                needsProbe = true
+            }
+            if needsProbe {
                 paths.insert(path)
             }
         }

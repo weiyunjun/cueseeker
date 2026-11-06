@@ -417,25 +417,14 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     NSString *formatName = [NSString stringWithUTF8String:formatContext->iformat->name];
     BOOL hasHeaderVideoParameters = NO;
     BOOL swapsVideoDimensions = NO;
-    BOOL hasFallbackSwapsCandidate = NO;
-    for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
-        AVStream *stream = formatContext->streams[index];
-        if (stream != NULL
-            && stream->codecpar != NULL
-            && stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO
-            && stream->codecpar->codec_id != AV_CODEC_ID_NONE) {
-            BOOL streamSwaps = SFXVideoOrientationSwapsDimensions(
+    int primaryVideoIndex = SFXSelectPrimaryVideoStreamIndex(formatContext);
+    if (primaryVideoIndex >= 0 && primaryVideoIndex < (int)formatContext->nb_streams) {
+        AVStream *stream = formatContext->streams[primaryVideoIndex];
+        if (stream != NULL && stream->codecpar != NULL) {
+            swapsVideoDimensions = SFXVideoOrientationSwapsDimensions(
                 SFXResolveVideoOrientation(stream, NULL)
             );
-            if (stream->codecpar->width > 0 && stream->codecpar->height > 0) {
-                hasHeaderVideoParameters = YES;
-                swapsVideoDimensions = streamSwaps;
-                break;
-            }
-            if (!hasFallbackSwapsCandidate) {
-                swapsVideoDimensions = streamSwaps;
-                hasFallbackSwapsCandidate = YES;
-            }
+            hasHeaderVideoParameters = stream->codecpar->width > 0 && stream->codecpar->height > 0;
         }
     }
 
@@ -485,22 +474,13 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
         return nil;
     }
 
-    double durationSeconds = 0.0;
-    if (formatContext->duration != AV_NOPTS_VALUE && formatContext->duration > 0) {
-        durationSeconds = (double)formatContext->duration / AV_TIME_BASE;
-    } else {
-        for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
-            AVStream *stream = formatContext->streams[index];
-            if (stream == NULL || stream->duration == AV_NOPTS_VALUE || stream->duration <= 0) {
-                continue;
-            }
-
-            double streamDuration = stream->duration * av_q2d(stream->time_base);
-            if (isfinite(streamDuration) && streamDuration > durationSeconds) {
-                durationSeconds = streamDuration;
-            }
-        }
-    }
+    int videoStreamIndex = SFXSelectPrimaryVideoStreamIndex(formatContext);
+    double timelineOriginSeconds = SFXMediaTimelineOriginSeconds(formatContext);
+    double durationSeconds = SFXResolveMediaDurationSeconds(
+        formatContext,
+        videoStreamIndex,
+        timelineOriginSeconds
+    );
 
     NSNumber *durationNumber = nil;
     if (isfinite(durationSeconds) && durationSeconds > 0) {
@@ -513,7 +493,6 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     NSString *videoCodec = nil;
     NSNumber *videoBitDepth = nil;
     NSString *videoPixelFormat = nil;
-    int videoStreamIndex = av_find_best_stream(formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
     if (videoStreamIndex >= 0 && videoStreamIndex < (int)formatContext->nb_streams) {
         AVStream *videoStream = formatContext->streams[videoStreamIndex];
         AVCodecParameters *codecParameters = videoStream != NULL ? videoStream->codecpar : NULL;
@@ -567,7 +546,7 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     NSMutableArray<SFXMediaAudioTrack *> *audioTracks = [NSMutableArray array];
     for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
         AVStream *stream = formatContext->streams[index];
-        if (stream == NULL || stream->codecpar == NULL || stream->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) {
+        if (!SFXIsAudioStreamValid(stream)) {
             continue;
         }
 
@@ -655,7 +634,7 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
         goto cleanup;
     }
 
-    int videoStreamIndex = av_find_best_stream(formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
+    int videoStreamIndex = SFXSelectPrimaryVideoStreamIndex(formatContext);
     if (videoStreamIndex < 0 || videoStreamIndex >= (int)formatContext->nb_streams) {
         failureError = SFXMediaMetadataError(214, @"No video stream found for cover sampling.");
         goto cleanup;

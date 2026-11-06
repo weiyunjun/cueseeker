@@ -110,7 +110,14 @@ enum AVPixelFormat SFXChooseHardwareFormat(
 );
 double SFXStreamStartSeconds(AVStream *stream);
 BOOL SFXStreamParticipatesInMediaTimeline(AVStream *stream);
+int SFXSelectPrimaryVideoStreamIndex(AVFormatContext * _Nullable formatContext);
+BOOL SFXIsAudioStreamValid(const AVStream * _Nullable stream);
 double SFXMediaTimelineOriginSeconds(AVFormatContext * _Nullable formatContext);
+double SFXResolveMediaDurationSeconds(
+    AVFormatContext * _Nullable formatContext,
+    int primaryVideoStreamIndex,
+    double timelineOriginSeconds
+);
 double SFXFramePlaybackSeconds(const AVFrame *frame, AVStream *stream, double timelineOriginSeconds);
 double SFXPacketPlaybackSeconds(const AVPacket *packet, AVStream *stream, double timelineOriginSeconds);
 int64_t SFXSeekTimestamp(double seconds, AVStream *stream, double timelineOriginSeconds);

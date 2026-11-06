@@ -52,6 +52,7 @@ private func performFolderIndex(
     }
     var failures: [IndexingAuxiliaryFailure] = []
     var refreshedAuxiliaryData = false
+    var metadataUpdatedVideoPaths = Set<String>()
 
     onProgress(.readingVideoInfo, 0, result.pendingVideoMetadataPaths.count)
     if !Task.isCancelled, !result.pendingVideoMetadataPaths.isEmpty {
@@ -65,6 +66,7 @@ private func performFolderIndex(
                 ) { read, total in
                     onProgress(.readingVideoInfo, read, total)
                 }
+            metadataUpdatedVideoPaths = Set(metadataResult.updatedVideoPaths)
             refreshedAuxiliaryData =
                 !metadataResult.updatedVideoPaths.isEmpty
             if let firstFailure = metadataResult.failures.first {
@@ -111,7 +113,7 @@ private func performFolderIndex(
                 )
             ).indexCovers(
                 under: folder,
-                affectedVideoPaths: Set(result.affectedVideoPaths),
+                affectedVideoPaths: Set(result.affectedVideoPaths).union(metadataUpdatedVideoPaths),
                 affectedFolderPaths: Set(
                     result.affectedFolderPaths
                 ),

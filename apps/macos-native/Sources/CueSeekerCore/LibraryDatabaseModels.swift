@@ -58,6 +58,20 @@ public struct VideoAudioTrack: Codable, Equatable, Sendable {
         self.sampleRate = sampleRate
         self.bitDepth = bitDepth
     }
+
+    public var isValidPlaybackTrack: Bool {
+        if let channels, channels <= 0 {
+            return false
+        }
+        if let sampleRate, sampleRate <= 0 {
+            return false
+        }
+        let hasNonEmptyCodec = codec?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        if hasNonEmptyCodec && channels == nil && sampleRate == nil {
+            return false
+        }
+        return true
+    }
 }
 
 /// A video's recorded audio tracks and its default audio track.

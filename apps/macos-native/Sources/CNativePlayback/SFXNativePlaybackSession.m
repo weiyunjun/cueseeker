@@ -731,43 +731,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         return NO;
     }
 
-    if (_formatContext->duration != AV_NOPTS_VALUE) {
-        double resolvedDuration = (double)_formatContext->duration / AV_TIME_BASE;
-        @synchronized (self) {
-            _duration = resolvedDuration;
-        }
-    }
-    _timelineOriginSeconds = SFXMediaTimelineOriginSeconds(_formatContext);
-
-    // Audio tracks are counted among the audio streams alone, in file order,
-    // the way Index lists them. A track the file does not have falls back to
-    // the first.
-    int firstAudioStreamIndex = -1;
-    NSInteger audioTrackCount = 0;
-    NSInteger resolvedAudioTrackIndex = -1;
-    for (unsigned int index = 0; index < _formatContext->nb_streams; index++) {
-        AVStream *stream = _formatContext->streams[index];
-        if (_videoStreamIndex < 0 && stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-            _videoStreamIndex = (int)index;
-        } else if (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
-            if (firstAudioStreamIndex < 0) {
-                firstAudioStreamIndex = (int)index;
-            }
-            if (audioTrackCount == _requestedAudioTrackIndex) {
-                _audioStreamIndex = (int)index;
-                resolvedAudioTrackIndex = audioTrackCount;
-            }
-            audioTrackCount += 1;
-        }
-    }
-    if (_audioStreamIndex < 0 && firstAudioStreamIndex >= 0) {
-        _audioStreamIndex = firstAudioStreamIndex;
-        resolvedAudioTrackIndex = 0;
-    }
-    @synchronized (self) {
-        _audioTrackIndex = resolvedAudioTrackIndex;
-    }
-
+    _videoStreamIndex = SFXSelectPrimaryVideoStreamIndex(_formatContext);
     if (_videoStreamIndex < 0) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(12, @"No video stream found.");
@@ -775,13 +739,64 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         return NO;
     }
 
+    _timelineOriginSeconds = SFXMediaTimelineOriginSeconds(_formatContext);
+    double resolvedDuration = SFXResolveMediaDurationSeconds(
+        _formatContext,
+        _videoStreamIndex,
+        _timelineOriginSeconds
+    );
+    if (isfinite(resolvedDuration) && resolvedDuration > 0) {
+        @synchronized (self) {
+            _duration = resolvedDuration;
+        }
+    }
+
+    // Valid audio tracks are counted among streams with non-zero channels and
+    // sample rate, in file order, matching Index metadata. If the requested or
+    // initial audio track fails to initialize, fall back through remaining
+    // valid tracks in order, or degrade to video-only playback if none can open.
+    NSMutableArray<NSNumber *> *validAudioStreamIndices = [NSMutableArray array];
+    for (unsigned int index = 0; index < _formatContext->nb_streams; index++) {
+        AVStream *stream = _formatContext->streams[index];
+        if (SFXIsAudioStreamValid(stream)) {
+            [validAudioStreamIndices addObject:@((int)index)];
+        }
+    }
+
     CFTimeInterval s5Start = CACurrentMediaTime();
     if (![self prepareVideoWithError:error]) {
         return NO;
     }
 
-    if (_audioStreamIndex >= 0 && ![self prepareAudioWithError:error]) {
-        return NO;
+    _audioStreamIndex = -1;
+    NSInteger resolvedAudioTrackIndex = -1;
+    if (validAudioStreamIndices.count > 0) {
+        NSInteger preferredTrackIndex =
+            (_requestedAudioTrackIndex >= 0 && _requestedAudioTrackIndex < (NSInteger)validAudioStreamIndices.count)
+            ? _requestedAudioTrackIndex
+            : 0;
+        NSMutableArray<NSNumber *> *trialTrackIndices = [NSMutableArray arrayWithCapacity:validAudioStreamIndices.count];
+        [trialTrackIndices addObject:@(preferredTrackIndex)];
+        for (NSInteger candidateIndex = 0; candidateIndex < (NSInteger)validAudioStreamIndices.count; candidateIndex++) {
+            if (candidateIndex != preferredTrackIndex) {
+                [trialTrackIndices addObject:@(candidateIndex)];
+            }
+        }
+
+        for (NSNumber *candidateNumber in trialTrackIndices) {
+            NSInteger candidateTrackIndex = candidateNumber.integerValue;
+            _audioStreamIndex = validAudioStreamIndices[(NSUInteger)candidateTrackIndex].intValue;
+            NSError *audioError = nil;
+            if ([self prepareAudioWithError:&audioError]) {
+                resolvedAudioTrackIndex = candidateTrackIndex;
+                break;
+            }
+            [self resetAudioDecoderAndOutputState];
+            _audioStreamIndex = -1;
+        }
+    }
+    @synchronized (self) {
+        _audioTrackIndex = resolvedAudioTrackIndex;
     }
     _perfInitCodecAudioMs = (CACurrentMediaTime() - s5Start) * 1000.0;
     _audioPrimed = _audioCodecContext == NULL;
@@ -1176,6 +1191,21 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     }
     SFXHardwarePixelFormat = AV_PIX_FMT_NONE;
     return YES;
+}
+
+- (void)resetAudioDecoderAndOutputState {
+    if (_audioDecodeQueue != NULL) {
+        dispatch_sync(_audioDecodeQueue, ^{
+            [self teardownAudioOutput];
+        });
+    }
+    swr_free(&_resampler);
+    av_channel_layout_uninit(&_outputLayout);
+    av_frame_free(&_convertedAudioFrame);
+    av_frame_free(&_audioFrame);
+    avcodec_free_context(&_audioCodecContext);
+    _audioOutputChannels = 0;
+    _audioOutputSampleRate = 0;
 }
 
 - (BOOL)prepareAudioWithError:(NSError **)error {

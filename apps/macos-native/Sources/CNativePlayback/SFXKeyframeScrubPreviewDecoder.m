@@ -102,8 +102,9 @@
     }
 
     BOOL hasHeaderVideoParameters = NO;
-    for (unsigned int index = 0; index < _formatContext->nb_streams; index++) {
-        AVStream *stream = _formatContext->streams[index];
+    int initialVideoIndex = SFXSelectPrimaryVideoStreamIndex(_formatContext);
+    if (initialVideoIndex >= 0 && initialVideoIndex < (int)_formatContext->nb_streams) {
+        AVStream *stream = _formatContext->streams[initialVideoIndex];
         if (stream != NULL
             && stream->codecpar != NULL
             && stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO
@@ -111,7 +112,6 @@
             && stream->codecpar->width > 0
             && stream->codecpar->height > 0) {
             hasHeaderVideoParameters = YES;
-            break;
         }
     }
 
@@ -122,7 +122,7 @@
         }
     }
 
-    _videoStreamIndex = av_find_best_stream(_formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
+    _videoStreamIndex = SFXSelectPrimaryVideoStreamIndex(_formatContext);
     if (_videoStreamIndex < 0 || _videoStreamIndex >= (int)_formatContext->nb_streams) {
         [self invalidate];
         return NO;
@@ -134,7 +134,7 @@
             [self invalidate];
             return NO;
         }
-        _videoStreamIndex = av_find_best_stream(_formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
+        _videoStreamIndex = SFXSelectPrimaryVideoStreamIndex(_formatContext);
         if (_videoStreamIndex < 0 || _videoStreamIndex >= (int)_formatContext->nb_streams) {
             [self invalidate];
             return NO;

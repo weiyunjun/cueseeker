@@ -382,6 +382,31 @@ struct FileDetailDialogTests {
                 fallbackExtension: "rmvb"
             ) == "rmvb"
         )
+        #expect(MediaDetailFormatter.codecText("h263") == "H.263")
+        #expect(MediaDetailFormatter.codecText("h263p") == "H.263")
+        #expect(MediaDetailFormatter.codecText("h263i") == "H.263")
+        #expect(MediaDetailFormatter.codecText("flv1") == "Sorenson Spark (FLV1)")
+        #expect(MediaDetailFormatter.audioCodecText("cook") == "RealAudio Cook")
+        #expect(MediaDetailFormatter.audioCodecText("speex") == "Speex")
+
+        let ghostZeroTrack = VideoAudioTrack(
+            language: "jpn",
+            title: nil,
+            codec: "mp3",
+            channels: 0,
+            sampleRate: 0,
+            bitDepth: nil
+        )
+        #expect(!ghostZeroTrack.isValidPlaybackTrack)
+        let ghostUnprobedTrack = VideoAudioTrack(
+            language: "jpn",
+            title: nil,
+            codec: "mp3",
+            channels: nil,
+            sampleRate: nil,
+            bitDepth: nil
+        )
+        #expect(!ghostUnprobedTrack.isValidPlaybackTrack)
 
         // Empty audio tracks produce no displayable properties (so Audio #1 card is omitted)
         let emptyTrack = VideoAudioTrack(

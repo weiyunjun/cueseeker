@@ -453,6 +453,9 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
     @synchronized (self) {
         _session = session;
+        if (session.audioTrackIndex >= 0) {
+            _audioTrackIndex = session.audioTrackIndex;
+        }
         _nativeSessionOpenCount += 1;
     }
     [session configurePerfOpenStart:openStart stopPrevMs:s2StopPrevMs];

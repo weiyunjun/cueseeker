@@ -141,6 +141,93 @@ func containerProbingDetectsRealContainerAndDistinguishesWebMFromMatroska() thro
     }
 }
 
+@Test
+func primaryVideoStreamSelectionAndTailDurationProbingExcludeLeadingCoverAndRecoverMissingHeaderDuration() throws {
+    let candidatePaths = [
+        "/opt/homebrew/bin/ffmpeg",
+        "/usr/local/bin/ffmpeg",
+        "/usr/bin/ffmpeg"
+    ]
+    guard let ffmpegPath = candidatePaths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+        return
+    }
+    let ffmpegURL = URL(fileURLWithPath: ffmpegPath)
+    let tempDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerStreamAndDuration-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: tempDir)
+    }
+
+    // 1. Create an MKV where stream 0 is a 64x96 static MJPEG cover and stream 1 is a 320x180 H.264 main video.
+    let leadingCoverMKV = tempDir.appendingPathComponent("leading_cover.mkv")
+    let coverProcess = Process()
+    coverProcess.executableURL = ffmpegURL
+    coverProcess.arguments = [
+        "-y",
+        "-f", "lavfi", "-i", "color=c=red:s=64x96:d=0.04",
+        "-f", "lavfi", "-i", "testsrc=s=320x180:r=25:d=2.0",
+        "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:d=2.0",
+        "-map", "0:v:0", "-map", "1:v:0", "-map", "2:a:0",
+        "-c:v:0", "mjpeg", "-pix_fmt:v:0", "yuvj420p", "-disposition:v:0", "0",
+        "-c:v:1", "libx264", "-pix_fmt:v:1", "yuv420p", "-disposition:v:1", "default",
+        "-c:a:0", "aac",
+        leadingCoverMKV.path
+    ]
+    coverProcess.standardOutput = FileHandle.nullDevice
+    coverProcess.standardError = FileHandle.nullDevice
+    try coverProcess.run()
+    coverProcess.waitUntilExit()
+    #expect(coverProcess.terminationStatus == 0)
+
+    let coverMetadata = try SFXMediaMetadataInspector.metadata(
+        atMediaPath: leadingCoverMKV.path,
+        httpHeaders: nil
+    )
+    #expect(coverMetadata.videoCodec == "h264")
+    #expect(coverMetadata.videoWidth?.intValue == 320)
+    #expect(coverMetadata.videoHeight?.intValue == 180)
+    #expect(coverMetadata.audioTracks.count == 1)
+
+    // 2. Create a streamed MKV via stdout pipe so the Matroska header has no duration (0 / N/A).
+    let pipedMKV = tempDir.appendingPathComponent("piped_no_header_duration.mkv")
+    FileManager.default.createFile(atPath: pipedMKV.path, contents: nil)
+    let outHandle = try FileHandle(forWritingTo: pipedMKV)
+    let pipeProcess = Process()
+    pipeProcess.executableURL = ffmpegURL
+    pipeProcess.arguments = [
+        "-y",
+        "-f", "lavfi", "-i", "testsrc=s=320x180:r=25:d=3.0",
+        "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:d=3.0",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", "25",
+        "-c:a", "aac",
+        "-f", "matroska",
+        "pipe:1"
+    ]
+    pipeProcess.standardOutput = outHandle
+    pipeProcess.standardError = FileHandle.nullDevice
+    try pipeProcess.run()
+    pipeProcess.waitUntilExit()
+    try outHandle.close()
+    #expect(pipeProcess.terminationStatus == 0)
+
+    let pipedMetadata = try SFXMediaMetadataInspector.metadata(
+        atMediaPath: pipedMKV.path,
+        httpHeaders: nil
+    )
+    let probedDuration = pipedMetadata.durationSeconds?.doubleValue ?? 0
+    #expect(probedDuration >= 2.8 && probedDuration <= 3.3)
+
+    let sampledCovers = try SFXMediaMetadataInspector.sampleCoverFrames(
+        atMediaPath: pipedMKV.path,
+        httpHeaders: nil,
+        timestampsMilliseconds: [500, 1500, 2500],
+        scoringWidth: 160,
+        scoringHeight: 90
+    )
+    #expect(sampledCovers.count == 3)
+}
+
 private final class VideoMetadataPersistenceStub:
     PlaybackVideoMetadataPersistence,
     @unchecked Sendable

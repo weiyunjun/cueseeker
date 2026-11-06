@@ -194,9 +194,10 @@ extension LibraryDatabase {
         let videoBitDepth = statement.nullableIntColumn(8)
         let videoPixelFormat = statement.nullableStringColumn(9)
         let containerFormat = statement.nullableStringColumn(10)
-        let tracks = statement.nullableStringColumn(11)
+        let tracks = (statement.nullableStringColumn(11)
             .flatMap { try? JSONDecoder().decode([VideoAudioTrack].self, from: Data($0.utf8)) }
-            ?? []
+            ?? [])
+            .filter(\.isValidPlaybackTrack)
         let modifiedAtSec = statement.nullableDoubleColumn(12)
         let dbModifiedDate = modifiedAtSec.map { Date(timeIntervalSince1970: $0) }
 
@@ -446,7 +447,9 @@ public enum MediaDetailFormatter {
         (["wmv3", "wmv2", "wmv1"], "WMV"),
         (["vc1"], "VC-1"),
         (["theora"], "Theora"),
-        (["rv40", "rv30"], "RealVideo")
+        (["rv40", "rv30"], "RealVideo"),
+        (["h263", "h263p", "h263i", "h.263"], "H.263"),
+        (["flv1"], "Sorenson Spark (FLV1)")
     ]
 
     private static let audioCodecMappings: [(tokens: [String], displayName: String)] = [
@@ -463,7 +466,9 @@ public enum MediaDetailFormatter {
         (["mlp"], "MLP"),
         (["dts", "dca"], "DTS"),
         (["wmav1", "wmav2", "wmapro", "wmalossless"], "WMA"),
-        (["amr_nb", "amr_wb"], "AMR")
+        (["amr_nb", "amr_wb"], "AMR"),
+        (["cook"], "RealAudio Cook"),
+        (["speex"], "Speex")
     ]
 
     private static let fileFormatDisplayNames: [String: String] = [

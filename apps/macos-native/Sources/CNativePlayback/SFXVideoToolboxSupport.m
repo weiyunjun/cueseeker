@@ -537,6 +537,114 @@ enum AVPixelFormat SFXChooseHardwareFormat(
     return pixelFormats[0];
 }
 
+static BOOL SFXIsAttachedCoverOrStillVideoStream(const AVStream *stream) {
+    if (stream == NULL || stream->codecpar == NULL) {
+        return YES;
+    }
+    const int coverDispositions = AV_DISPOSITION_ATTACHED_PIC
+        | AV_DISPOSITION_STILL_IMAGE
+        | AV_DISPOSITION_TIMED_THUMBNAILS;
+    return (stream->disposition & coverDispositions) != 0;
+}
+
+static BOOL SFXIsStillImageVideoCodec(enum AVCodecID codecID) {
+    switch (codecID) {
+    case AV_CODEC_ID_MJPEG:
+    case AV_CODEC_ID_MJPEGB:
+    case AV_CODEC_ID_LJPEG:
+    case AV_CODEC_ID_JPEGLS:
+    case AV_CODEC_ID_PNG:
+    case AV_CODEC_ID_BMP:
+    case AV_CODEC_ID_WEBP:
+    case AV_CODEC_ID_TIFF:
+    case AV_CODEC_ID_GIF:
+        return YES;
+    default:
+        return NO;
+    }
+}
+
+int SFXSelectPrimaryVideoStreamIndex(AVFormatContext *formatContext) {
+    if (formatContext == NULL || formatContext->nb_streams == 0) {
+        return -1;
+    }
+
+    int firstMotionDefaultIndex = -1;
+    int firstMotionIndex = -1;
+    int firstNonAttachedDefaultIndex = -1;
+    int firstNonAttachedIndex = -1;
+    int firstAnyVideoIndex = -1;
+
+    for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
+        AVStream *stream = formatContext->streams[index];
+        if (stream == NULL
+            || stream->codecpar == NULL
+            || stream->codecpar->codec_type != AVMEDIA_TYPE_VIDEO
+            || stream->codecpar->codec_id == AV_CODEC_ID_NONE) {
+            continue;
+        }
+        if (firstAnyVideoIndex < 0) {
+            firstAnyVideoIndex = (int)index;
+        }
+        if (SFXIsAttachedCoverOrStillVideoStream(stream)) {
+            continue;
+        }
+        BOOL isDefault = (stream->disposition & AV_DISPOSITION_DEFAULT) != 0;
+        if (firstNonAttachedIndex < 0) {
+            firstNonAttachedIndex = (int)index;
+        }
+        if (isDefault && firstNonAttachedDefaultIndex < 0) {
+            firstNonAttachedDefaultIndex = (int)index;
+        }
+        if (!SFXIsStillImageVideoCodec(stream->codecpar->codec_id)) {
+            if (firstMotionIndex < 0) {
+                firstMotionIndex = (int)index;
+            }
+            if (isDefault && firstMotionDefaultIndex < 0) {
+                firstMotionDefaultIndex = (int)index;
+            }
+        }
+    }
+
+    int bestIndex = av_find_best_stream(formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
+    if (bestIndex >= 0 && bestIndex < (int)formatContext->nb_streams) {
+        AVStream *bestStream = formatContext->streams[bestIndex];
+        if (bestStream != NULL
+            && bestStream->codecpar != NULL
+            && bestStream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO
+            && !SFXIsAttachedCoverOrStillVideoStream(bestStream)
+            && (firstMotionIndex < 0 || !SFXIsStillImageVideoCodec(bestStream->codecpar->codec_id))) {
+            return bestIndex;
+        }
+    }
+
+    if (firstMotionDefaultIndex >= 0) {
+        return firstMotionDefaultIndex;
+    }
+    if (firstMotionIndex >= 0) {
+        return firstMotionIndex;
+    }
+    if (firstNonAttachedDefaultIndex >= 0) {
+        return firstNonAttachedDefaultIndex;
+    }
+    if (firstNonAttachedIndex >= 0) {
+        return firstNonAttachedIndex;
+    }
+    return firstAnyVideoIndex;
+}
+
+BOOL SFXIsAudioStreamValid(const AVStream *stream) {
+    if (stream == NULL
+        || stream->codecpar == NULL
+        || stream->codecpar->codec_type != AVMEDIA_TYPE_AUDIO
+        || stream->codecpar->codec_id == AV_CODEC_ID_NONE) {
+        return NO;
+    }
+    int channels = stream->codecpar->ch_layout.nb_channels;
+    int sampleRate = stream->codecpar->sample_rate;
+    return channels > 0 && sampleRate > 0;
+}
+
 double SFXStreamStartSeconds(AVStream *stream) {
     if (stream->start_time == AV_NOPTS_VALUE) {
         return 0;
@@ -545,10 +653,17 @@ double SFXStreamStartSeconds(AVStream *stream) {
 }
 
 BOOL SFXStreamParticipatesInMediaTimeline(AVStream *stream) {
+    if (stream == NULL || stream->codecpar == NULL) {
+        return NO;
+    }
     enum AVMediaType mediaType = stream->codecpar->codec_type;
-    return mediaType == AVMEDIA_TYPE_VIDEO
-        || mediaType == AVMEDIA_TYPE_AUDIO
-        || mediaType == AVMEDIA_TYPE_SUBTITLE;
+    if (mediaType == AVMEDIA_TYPE_VIDEO) {
+        return !SFXIsAttachedCoverOrStillVideoStream(stream);
+    }
+    if (mediaType == AVMEDIA_TYPE_AUDIO) {
+        return SFXIsAudioStreamValid(stream);
+    }
+    return mediaType == AVMEDIA_TYPE_SUBTITLE;
 }
 
 double SFXMediaTimelineOriginSeconds(AVFormatContext *formatContext) {
@@ -572,6 +687,150 @@ double SFXMediaTimelineOriginSeconds(AVFormatContext *formatContext) {
     }
 
     return originSeconds < DBL_MAX ? originSeconds : 0;
+}
+
+static double SFXProbeTailPacketDurationSeconds(
+    AVFormatContext *formatContext,
+    int primaryVideoStreamIndex,
+    double timelineOriginSeconds
+) {
+    if (formatContext == NULL
+        || formatContext->pb == NULL
+        || (formatContext->pb->seekable & AVIO_SEEKABLE_NORMAL) == 0) {
+        return 0.0;
+    }
+
+    int64_t initialBytePosition = avio_tell(formatContext->pb);
+    double originSeconds = isfinite(timelineOriginSeconds) ? timelineOriginSeconds : 0.0;
+    const double probeHorizonSeconds = fmax(0.0, originSeconds) + 86400.0;
+
+    int seekResult = -1;
+    if (primaryVideoStreamIndex >= 0 && primaryVideoStreamIndex < (int)formatContext->nb_streams) {
+        AVStream *videoStream = formatContext->streams[primaryVideoStreamIndex];
+        if (videoStream != NULL && videoStream->time_base.num > 0 && videoStream->time_base.den > 0) {
+            int64_t targetStreamTs = (int64_t)llround(probeHorizonSeconds / av_q2d(videoStream->time_base));
+            seekResult = av_seek_frame(formatContext, primaryVideoStreamIndex, targetStreamTs, AVSEEK_FLAG_BACKWARD);
+        }
+    }
+    if (seekResult < 0) {
+        int64_t targetGlobalTs = (int64_t)llround(probeHorizonSeconds * AV_TIME_BASE);
+        seekResult = av_seek_frame(formatContext, -1, targetGlobalTs, AVSEEK_FLAG_BACKWARD);
+    }
+    if (seekResult < 0) {
+        int64_t fileSize = avio_size(formatContext->pb);
+        if (fileSize > 0) {
+            int64_t tailByteOffset = MAX((int64_t)0, fileSize - (int64_t)(1024 * 1024));
+            seekResult = av_seek_frame(formatContext, -1, tailByteOffset, AVSEEK_FLAG_BYTE);
+        }
+    }
+
+    double maxPacketEndSeconds = -1.0;
+    if (seekResult >= 0) {
+        AVPacket *packet = av_packet_alloc();
+        if (packet != NULL) {
+            int packetsRead = 0;
+            while (packetsRead < 4096 && av_read_frame(formatContext, packet) >= 0) {
+                packetsRead += 1;
+                if (packet->stream_index >= 0 && packet->stream_index < (int)formatContext->nb_streams) {
+                    AVStream *stream = formatContext->streams[packet->stream_index];
+                    if (stream != NULL
+                        && stream->codecpar != NULL
+                        && stream->time_base.num > 0
+                        && stream->time_base.den > 0
+                        && ((stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO
+                             && !SFXIsAttachedCoverOrStillVideoStream(stream))
+                            || (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO
+                                && SFXIsAudioStreamValid(stream)))) {
+                        int64_t rawTimestamp = packet->pts != AV_NOPTS_VALUE ? packet->pts : packet->dts;
+                        if (rawTimestamp != AV_NOPTS_VALUE) {
+                            double packetEndSeconds = (double)rawTimestamp * av_q2d(stream->time_base);
+                            if (packet->duration > 0) {
+                                packetEndSeconds += (double)packet->duration * av_q2d(stream->time_base);
+                            }
+                            if (isfinite(packetEndSeconds) && packetEndSeconds > maxPacketEndSeconds) {
+                                maxPacketEndSeconds = packetEndSeconds;
+                            }
+                        }
+                    }
+                }
+                av_packet_unref(packet);
+            }
+            av_packet_free(&packet);
+        }
+    }
+
+    int restoreResult = -1;
+    if (primaryVideoStreamIndex >= 0 && primaryVideoStreamIndex < (int)formatContext->nb_streams) {
+        AVStream *videoStream = formatContext->streams[primaryVideoStreamIndex];
+        if (videoStream != NULL) {
+            int64_t startTs = videoStream->start_time != AV_NOPTS_VALUE ? videoStream->start_time : 0;
+            restoreResult = av_seek_frame(formatContext, primaryVideoStreamIndex, startTs, AVSEEK_FLAG_BACKWARD);
+        }
+    }
+    if (restoreResult < 0) {
+        int64_t startGlobalTs = formatContext->start_time != AV_NOPTS_VALUE ? formatContext->start_time : 0;
+        restoreResult = av_seek_frame(formatContext, -1, startGlobalTs, AVSEEK_FLAG_BACKWARD);
+    }
+    if (restoreResult < 0 && initialBytePosition >= 0) {
+        avio_seek(formatContext->pb, initialBytePosition, SEEK_SET);
+        avformat_flush(formatContext);
+    }
+
+    double probedDuration = maxPacketEndSeconds - originSeconds;
+    if (isfinite(probedDuration) && probedDuration > 0.0) {
+        if (formatContext->duration == AV_NOPTS_VALUE || formatContext->duration <= 0) {
+            formatContext->duration = (int64_t)llround(probedDuration * AV_TIME_BASE);
+        }
+        return probedDuration;
+    }
+    return 0.0;
+}
+
+double SFXResolveMediaDurationSeconds(
+    AVFormatContext *formatContext,
+    int primaryVideoStreamIndex,
+    double timelineOriginSeconds
+) {
+    if (formatContext == NULL) {
+        return 0.0;
+    }
+
+    if (formatContext->duration != AV_NOPTS_VALUE && formatContext->duration > 0) {
+        double containerDuration = (double)formatContext->duration / AV_TIME_BASE;
+        if (isfinite(containerDuration) && containerDuration > 0.0) {
+            return containerDuration;
+        }
+    }
+
+    double maxStreamDuration = 0.0;
+    for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
+        AVStream *stream = formatContext->streams[index];
+        if (stream == NULL
+            || stream->codecpar == NULL
+            || stream->duration == AV_NOPTS_VALUE
+            || stream->duration <= 0
+            || stream->time_base.num <= 0
+            || stream->time_base.den <= 0) {
+            continue;
+        }
+        if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO
+            && SFXIsAttachedCoverOrStillVideoStream(stream)) {
+            continue;
+        }
+        double streamDuration = (double)stream->duration * av_q2d(stream->time_base);
+        if (isfinite(streamDuration) && streamDuration > maxStreamDuration) {
+            maxStreamDuration = streamDuration;
+        }
+    }
+    if (maxStreamDuration > 0.0) {
+        return maxStreamDuration;
+    }
+
+    return SFXProbeTailPacketDurationSeconds(
+        formatContext,
+        primaryVideoStreamIndex,
+        timelineOriginSeconds
+    );
 }
 
 double SFXFramePlaybackSeconds(const AVFrame *frame, AVStream *stream, double timelineOriginSeconds) {
