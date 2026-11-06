@@ -68,6 +68,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     _lastRebufferDurationMilliseconds = -1;
     _audioFirstScheduledMediaSeconds = -1;
     _pendingCoalescedAudioStartMediaSeconds = -1;
+    _lastPacedVideoMediaSeconds = -1;
     _playbackGeneration = 1;
     _audioOutputDrained = YES;
     _packetQueueCondition = [[NSCondition alloc] init];
@@ -833,14 +834,25 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     [_packetQueueCondition unlock];
 
     CFTimeInterval s6Start = CACurrentMediaTime();
-    if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, _seekSeconds, _timelineOriginSeconds, error)) {
-        return NO;
+    if (_seekSeconds > 0.001) {
+        if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, _seekSeconds, _timelineOriginSeconds, error)) {
+            return NO;
+        }
     }
     [self populateKeyframeStreamTimestamps];
 
     avcodec_flush_buffers(_videoCodecContext);
     if (_audioCodecContext != NULL) {
         avcodec_flush_buffers(_audioCodecContext);
+    }
+    [_packetQueueCondition lock];
+    _seenVideoKeyframePacketSinceFlush = NO;
+    _skippedNonKeyframePacketsSinceFlush = 0;
+    _firstVideoFrameDecodedForSeek = (_videoCodecContext == NULL);
+    _firstAudioFrameDecodedForSeek = (_audioCodecContext == NULL);
+    [_packetQueueCondition unlock];
+    @synchronized (self) {
+        _lastPacedVideoMediaSeconds = -1;
     }
     _perfInitialSeekMs = (CACurrentMediaTime() - s6Start) * 1000.0;
 
@@ -894,7 +906,17 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         count += 1;
     }
 
-    if (count == 0) {
+    double timeBaseSeconds = av_q2d(streamTimeBase);
+    double firstKeyframeSeconds = (count > 0 && isfinite(timeBaseSeconds) && timeBaseSeconds > 0)
+        ? ((double)timestamps[0] * timeBaseSeconds - _timelineOriginSeconds)
+        : 0.0;
+    double lastKeyframeSeconds = (count > 0 && isfinite(timeBaseSeconds) && timeBaseSeconds > 0)
+        ? ((double)timestamps[count - 1] * timeBaseSeconds - _timelineOriginSeconds)
+        : 0.0;
+    double indexedSpanSeconds = lastKeyframeSeconds - fmax(0.0, firstKeyframeSeconds);
+    BOOL hasUsableKeyframeIndex = count >= 2
+        && (_duration <= 4.0 || indexedSpanSeconds >= _duration * 0.5);
+    if (!hasUsableKeyframeIndex) {
         free(timestamps);
         return;
     }
@@ -1245,6 +1267,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         return NO;
     }
 
+    SFXEnsureValidChannelLayout(&_audioCodecContext->ch_layout, parameters->ch_layout.nb_channels);
     int inputChannels = _audioCodecContext->ch_layout.nb_channels;
     _audioOutputChannels = SFXOutputChannelCount(inputChannels);
     _audioOutputSampleRate = _audioCodecContext->sample_rate > 0 ? _audioCodecContext->sample_rate : 48000;
@@ -1795,27 +1818,28 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     }
     if (tail != NULL
         && isfinite(head->mediaSeconds) && head->mediaSeconds >= 0
-        && isfinite(tail->mediaSeconds) && tail->mediaSeconds >= head->mediaSeconds) {
+        && isfinite(tail->mediaSeconds) && tail->mediaSeconds >= head->mediaSeconds
+        && (tail->mediaSeconds - head->mediaSeconds) <= 10.0) {
         return tail->mediaSeconds - head->mediaSeconds;
     }
 
-    double earliestSeconds = DBL_MAX;
-    double latestSeconds = -DBL_MAX;
-    BOOL hasTimestamp = NO;
+    double accumulatedSeconds = 0.0;
+    double previousSeconds = -1.0;
 
     for (SFXQueuedPacket *node = head; node != NULL; node = node->next) {
         if (!isfinite(node->mediaSeconds) || node->mediaSeconds < 0) {
             continue;
         }
-        earliestSeconds = fmin(earliestSeconds, node->mediaSeconds);
-        latestSeconds = fmax(latestSeconds, node->mediaSeconds);
-        hasTimestamp = YES;
+        if (previousSeconds >= 0) {
+            double delta = node->mediaSeconds - previousSeconds;
+            if (delta > 0.0 && delta <= 2.0) {
+                accumulatedSeconds += delta;
+            }
+        }
+        previousSeconds = node->mediaSeconds;
     }
 
-    if (!hasTimestamp) {
-        return 0;
-    }
-    return fmax(0, latestSeconds - earliestSeconds);
+    return accumulatedSeconds;
 }
 
 - (double)packetQueueBufferedSecondsLocked {
@@ -1914,6 +1938,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         && !_audioResetInProgress
         && !_audioInputEnded
         && !_readAheadSuspended
+        && (_firstVideoFrameDecodedForSeek || _videoCodecContext == NULL)
         && !atomic_load(&_segmentAudioBoundaryReached)
         && !atomic_load(&_cancelled)
         && !atomic_load(&_segmentEnding)
@@ -1943,6 +1968,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
             && !_audioResetInProgress
             && !_audioInputEnded
             && !_readAheadSuspended
+            && (_firstVideoFrameDecodedForSeek || _videoCodecContext == NULL)
             && !atomic_load(&_segmentAudioBoundaryReached)
             && (_audioPacketQueueHead != NULL || _packetQueueEOF)
             && [self queuedAudioWallSecondsLocked] < SFXAudioQueueHighWaterWallSeconds
@@ -2387,6 +2413,10 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     _queuedAudioMediaSeconds = 0;
     _outstandingAudioBufferCount = 0;
     _pendingAudioCompletionRecordCount = 0;
+    _seenVideoKeyframePacketSinceFlush = NO;
+    _skippedNonKeyframePacketsSinceFlush = 0;
+    _firstVideoFrameDecodedForSeek = (_videoCodecContext == NULL);
+    _firstAudioFrameDecodedForSeek = (_audioCodecContext == NULL);
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
     [self signalPacingCondition];
@@ -2442,6 +2472,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         _audioPlayerStarted = NO;
         _audioStartRequested = NO;
         _videoClockInitialized = NO;
+        _lastPacedVideoMediaSeconds = -1;
         _isRebuffering = NO;
         _isPausedInsideLoop = NO;
         _rebufferStartedHostSeconds = 0;

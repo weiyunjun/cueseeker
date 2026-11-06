@@ -671,8 +671,18 @@ double SFXMediaTimelineOriginSeconds(AVFormatContext *formatContext) {
         return 0;
     }
 
+    BOOL allowsNonZeroPositiveOrigin = formatContext->iformat != NULL
+        && (formatContext->iformat->flags & AVFMT_TS_DISCONT) != 0;
+
     if (formatContext->start_time != AV_NOPTS_VALUE) {
-        return (double)formatContext->start_time / AV_TIME_BASE;
+        double formatOriginSeconds = (double)formatContext->start_time / AV_TIME_BASE;
+        if (!isfinite(formatOriginSeconds)) {
+            return 0;
+        }
+        if (formatOriginSeconds < 0.0 || allowsNonZeroPositiveOrigin) {
+            return formatOriginSeconds;
+        }
+        return 0;
     }
 
     double originSeconds = DBL_MAX;
@@ -686,7 +696,12 @@ double SFXMediaTimelineOriginSeconds(AVFormatContext *formatContext) {
         originSeconds = fmin(originSeconds, SFXStreamStartSeconds(stream));
     }
 
-    return originSeconds < DBL_MAX ? originSeconds : 0;
+    if (originSeconds < DBL_MAX && isfinite(originSeconds)) {
+        if (originSeconds < 0.0 || allowsNonZeroPositiveOrigin) {
+            return originSeconds;
+        }
+    }
+    return 0;
 }
 
 static double SFXProbeTailPacketDurationSeconds(
@@ -976,6 +991,22 @@ int SFXOutputChannelCount(int inputChannels) {
         return 0;
     }
     return inputChannels > 2 ? 2 : inputChannels;
+}
+
+void SFXEnsureValidChannelLayout(AVChannelLayout *layout, int fallbackChannels) {
+    if (layout == NULL) {
+        return;
+    }
+    int channels = layout->nb_channels > 0 ? layout->nb_channels : fallbackChannels;
+    if (channels <= 0) {
+        return;
+    }
+    if (layout->nb_channels <= 0
+        || layout->order == AV_CHANNEL_ORDER_UNSPEC
+        || !av_channel_layout_check(layout)) {
+        av_channel_layout_uninit(layout);
+        av_channel_layout_default(layout, channels);
+    }
 }
 
 AVRational SFXVideoSampleAspectRatio(

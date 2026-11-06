@@ -75,8 +75,12 @@
 
     _codecContext->thread_count = 2;
     _codecContext->thread_type = FF_THREAD_SLICE;
-    _codecContext->skip_frame = AVDISCARD_NONKEY;
-    _codecContext->skip_loop_filter = AVDISCARD_ALL;
+    BOOL isRealVideo = parameters->codec_id == AV_CODEC_ID_RV10
+        || parameters->codec_id == AV_CODEC_ID_RV20
+        || parameters->codec_id == AV_CODEC_ID_RV30
+        || parameters->codec_id == AV_CODEC_ID_RV40;
+    _codecContext->skip_frame = isRealVideo ? AVDISCARD_BIDIR : AVDISCARD_NONKEY;
+    _codecContext->skip_loop_filter = isRealVideo ? AVDISCARD_DEFAULT : AVDISCARD_ALL;
     _codecContext->flags2 |= AV_CODEC_FLAG2_FAST;
 
     if (avcodec_open2(_codecContext, decoder, NULL) < 0) {
@@ -315,15 +319,32 @@
     }
     avcodec_flush_buffers(_codecContext);
 
+    BOOL isRealVideo = _codecContext->codec_id == AV_CODEC_ID_RV10
+        || _codecContext->codec_id == AV_CODEC_ID_RV20
+        || _codecContext->codec_id == AV_CODEC_ID_RV30
+        || _codecContext->codec_id == AV_CODEC_ID_RV40;
     BOOL decodedFrame = NO;
+    BOOL seenKeyframePacket = NO;
+    int skippedNonKeyframePackets = 0;
     int packetsSent = 0;
-    while (!decodedFrame && packetsSent < 16 && av_read_frame(_formatContext, _packet) >= 0) {
+    int maxPacketsToSend = isRealVideo ? 32 : 16;
+    while (!decodedFrame && packetsSent < maxPacketsToSend && av_read_frame(_formatContext, _packet) >= 0) {
         if (_packet->stream_index != _videoStreamIndex) {
             av_packet_unref(_packet);
             continue;
         }
 
         BOOL isKeyframePacket = (_packet->flags & AV_PKT_FLAG_KEY) != 0;
+        if (!seenKeyframePacket) {
+            if (isKeyframePacket || skippedNonKeyframePackets >= 180) {
+                seenKeyframePacket = YES;
+            } else {
+                skippedNonKeyframePackets += 1;
+                av_packet_unref(_packet);
+                continue;
+            }
+        }
+
         int sendResult = avcodec_send_packet(_codecContext, _packet);
         av_packet_unref(_packet);
         if (sendResult < 0) {
@@ -339,7 +360,7 @@
             av_frame_unref(_frame);
         }
 
-        if (!decodedFrame && isKeyframePacket) {
+        if (!decodedFrame && isKeyframePacket && !isRealVideo) {
             avcodec_send_packet(_codecContext, NULL);
             while (avcodec_receive_frame(_codecContext, _frame) >= 0) {
                 if ([self hasValidDimensionsAndFormatForFrame:_frame]) {

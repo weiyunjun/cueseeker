@@ -1514,4 +1514,401 @@ private func dominantColorAt(image: CGImage, x: Int, y: Int) -> QuadrantColor {
     return .other
 }
 
+@Test
+@MainActor
+func nativePlaybackAlignsClockWhenFirstVideoKeyframeStartsAfterAudioAndWhenMediaStartsLate() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping initial clock alignment test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    // Case 1: Audio starts at 0.0s while first video keyframe is at ~1.2s
+    let lateKeyframeURL = directory.appendingPathComponent("audio-before-first-video-keyframe.mkv")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=2.5:size=160x90:rate=24",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=3.7",
+            "-filter_complex", "[0:v]setpts=PTS+1.2/TB[v]",
+            "-map", "[v]", "-map", "1:a",
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "12", "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-y", lateKeyframeURL.path
+        ]
+    )
+
+    do {
+        let player = SFXNativePlaybackPlayer()
+        let delegate = NativePlaybackCompletionDelegate()
+        player.delegate = delegate
+        defer { player.stop() }
+
+        try player.openPath(lateKeyframeURL.path, startMilliseconds: 0)
+        try player.setPaused(false)
+
+        let alignedAndAdvanced = await waitUntil(timeoutSeconds: 3.5) {
+            player.nativePresentedVideoFrameCount >= 8
+                && player.nativeAudioPlayedBackBufferCount > 0
+                && player.nativeLastScheduledAudioStartMilliseconds >= 1_000
+        }
+        #expect(alignedAndAdvanced)
+        #expect(player.nativeLastScheduledAudioStartMilliseconds >= 1_000)
+        #expect(!delegate.hasFailures)
+    }
+
+    // Case 2: 0-based Matroska container where both video and audio start at 10.0s (duration ~13.0s)
+    let delayedPositiveContentURL = directory.appendingPathComponent("positive-content-at-10s.mkv")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=3.0:size=160x90:rate=24",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=3.0",
+            "-filter_complex", "[0:v]setpts=PTS+10/TB[v];[1:a]asetpts=PTS+10/TB[a]",
+            "-map", "[v]", "-map", "[a]",
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "12", "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-y", delayedPositiveContentURL.path
+        ]
+    )
+
+    do {
+        let player = SFXNativePlaybackPlayer()
+        let delegate = NativePlaybackCompletionDelegate()
+        player.delegate = delegate
+        defer { player.stop() }
+
+        try player.openPath(delayedPositiveContentURL.path, startMilliseconds: 0)
+        try player.setPaused(false)
+
+        let startedAt10s = await waitUntil(timeoutSeconds: 3.5) {
+            player.nativePresentedVideoFrameCount >= 5
+                && player.currentTime >= 10.0
+                && player.nativeAudioPlayedBackBufferCount > 0
+        }
+        #expect(startedAt10s)
+        #expect(abs(player.duration - 13.0) < 0.6)
+
+        // Seeking into the 0..10s lead-in gap immediately advances to ~10.0s
+        try player.seek(toMilliseconds: 4_000, pauseAfterFirstFrame: false)
+        let soughtIntoGap = await waitUntil(timeoutSeconds: 3.5) {
+            player.currentTime >= 10.0 && player.nativePresentedVideoFrameCount >= 8
+        }
+        #expect(soughtIntoGap)
+
+        // Seeking into the final 10..13s tail decodes and plays normally without hanging
+        try player.seek(toMilliseconds: 11_500, pauseAfterFirstFrame: false)
+        let soughtTail = await waitUntil(timeoutSeconds: 3.5) {
+            player.currentTime >= 11.4 && player.nativeLastSubmittedVideoFrameMilliseconds >= 11_300
+        }
+        #expect(soughtTail)
+        #expect(!delegate.hasFailures)
+    }
+}
+
+@Test
+@MainActor
+func nativePlaybackRecalibratesClockAcrossMidStreamTimestampWrapAroundAndForwardJump() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping mid-stream timestamp discontinuity test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let partAURL = directory.appendingPathComponent("part-a.ts")
+    let partBWrapURL = directory.appendingPathComponent("part-b-wrap.ts")
+    let partBJumpURL = directory.appendingPathComponent("part-b-jump600.ts")
+
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=2.0:size=160x90:rate=24",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=2.0",
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "12", "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-output_ts_offset", "0",
+            "-f", "mpegts", "-y", partAURL.path
+        ]
+    )
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=2.0:size=160x90:rate=24",
+            "-f", "lavfi", "-i", "sine=frequency=660:duration=2.0",
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "12", "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-output_ts_offset", "0",
+            "-f", "mpegts", "-y", partBWrapURL.path
+        ]
+    )
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=2.0:size=160x90:rate=24",
+            "-f", "lavfi", "-i", "sine=frequency=880:duration=2.0",
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "12", "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-output_ts_offset", "600",
+            "-f", "mpegts", "-y", partBJumpURL.path
+        ]
+    )
+
+    let partAData = try Data(contentsOf: partAURL)
+    let partBWrapData = try Data(contentsOf: partBWrapURL)
+    let partBJumpData = try Data(contentsOf: partBJumpURL)
+
+    // Case 1: Timestamp wrap-around (2.0s -> 0.0s) after opening/seeking at 0.8s
+    let wrapURL = directory.appendingPathComponent("wrap-around.ts")
+    var wrapData = Data()
+    wrapData.append(partAData)
+    wrapData.append(partBWrapData)
+    try wrapData.write(to: wrapURL)
+
+    do {
+        let player = SFXNativePlaybackPlayer()
+        let delegate = NativePlaybackCompletionDelegate()
+        player.delegate = delegate
+        defer { player.stop() }
+
+        try player.openPath(wrapURL.path, startMilliseconds: 800)
+        try player.setPaused(false)
+
+        let reachedBeforeWrap = await waitUntil(timeoutSeconds: 3.0) {
+            player.currentTime >= 1.3 && player.nativePresentedVideoFrameCount >= 5
+        }
+        #expect(reachedBeforeWrap)
+
+        let wrappedAndContinued = await waitUntil(timeoutSeconds: 4.0) {
+            player.currentTime < 1.0 && player.nativePresentedVideoFrameCount >= 35
+        }
+        #expect(wrappedAndContinued)
+        #expect(!delegate.hasFailures)
+    }
+
+    // Case 2: +600s forward timestamp jump (2.0s -> 600.0s)
+    let jumpURL = directory.appendingPathComponent("forward-jump-600s.ts")
+    var jumpData = Data()
+    jumpData.append(partAData)
+    jumpData.append(partBJumpData)
+    try jumpData.write(to: jumpURL)
+
+    do {
+        let player = SFXNativePlaybackPlayer()
+        let delegate = NativePlaybackCompletionDelegate()
+        player.delegate = delegate
+        defer { player.stop() }
+
+        try player.openPath(jumpURL.path, startMilliseconds: 0)
+        try player.setPaused(false)
+
+        let jumpedAndContinued = await waitUntil(timeoutSeconds: 4.5) {
+            player.currentTime >= 598.0 && player.nativePresentedVideoFrameCount >= 50
+        }
+        #expect(jumpedAndContinued)
+        #expect(!delegate.hasFailures)
+    }
+}
+
+@Test
+@MainActor
+func nativePlaybackRetainsHardwareDecodeAcrossOpenAndSeekOnMPEGTSWithLeadingNonKeyframes() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping MPEG-TS hardware decode retention test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let m2tsURL = directory.appendingPathComponent("bluray-offset.m2ts")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=6.0:size=320x180:rate=24",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=6.0",
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "24", "-bf", "2", "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-output_ts_offset", "4200",
+            "-f", "mpegts", "-y", m2tsURL.path
+        ]
+    )
+
+    let player = SFXNativePlaybackPlayer()
+    player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 2)! // Auto
+    defer { player.stop() }
+
+    try player.openPath(m2tsURL.path, startMilliseconds: 0)
+    try player.setPaused(false)
+
+    let openedInHardware = await waitUntil(timeoutSeconds: 3.0) {
+        player.nativePresentedVideoFrameCount > 0 && player.usingHardwareDecode
+    }
+    #expect(openedInHardware)
+    #expect(player.usingHardwareDecode)
+
+    for seekTargetMs in [1_500, 3_500] {
+        let framesBeforeSeek = player.nativePresentedVideoFrameCount
+        try player.seek(toMilliseconds: seekTargetMs, pauseAfterFirstFrame: false)
+        let presentedAfterSeek = await waitUntil(timeoutSeconds: 3.0) {
+            player.nativePresentedVideoFrameCount > framesBeforeSeek
+        }
+        #expect(presentedAfterSeek)
+        #expect(player.usingHardwareDecode)
+    }
+}
+
+@Test
+@MainActor
+func nativePlaybackResamplesAndPlaysPCM24AudioWithUnspecifiedChannelLayout() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping pcm_s24le playback test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let pcm24URL = directory.appendingPathComponent("pcm24-unspec-layout.mkv")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=2.5:size=160x90:rate=24",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=2.5",
+            "-filter_complex", "[1:a]pan=2c|c0=c0|c1=c0[a]",
+            "-map", "0:v", "-map", "[a]",
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "12", "-pix_fmt", "yuv420p",
+            "-c:a", "pcm_s24le",
+            "-y", pcm24URL.path
+        ]
+    )
+
+    let player = SFXNativePlaybackPlayer()
+    let delegate = NativePlaybackCompletionDelegate()
+    player.delegate = delegate
+    defer { player.stop() }
+
+    try player.openPath(pcm24URL.path, startMilliseconds: 0)
+    try player.setPaused(false)
+
+    let audioScheduledAndPlayed = await waitUntil(timeoutSeconds: 3.5) {
+        player.nativePresentedVideoFrameCount > 0
+            && player.nativeAudioPlayedBackBufferCount > 0
+            && player.nativeLastScheduledAudioEndMilliseconds > 0
+    }
+    #expect(audioScheduledAndPlayed)
+    #expect(!delegate.hasFailures)
+}
+
+@Test
+@MainActor
+func nativePlaybackDecodesTimelineThumbnailsForRealVideoAndIncompleteKeyframeIndexMPEGTS() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping MPEG-TS & RealVideo scrub thumbnail test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    // 1. MPEG-TS with incomplete header keyframe index table
+    let tsURL = directory.appendingPathComponent("unindexed-scrub.ts")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=8.0:size=160x90:rate=24",
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "12", "-pix_fmt", "yuv420p",
+            "-output_ts_offset", "100",
+            "-f", "mpegts", "-y", tsURL.path
+        ]
+    )
+
+    do {
+        let player = PlaybackPlayer()
+        defer { try? player.stop() }
+
+        _ = try player.open(PlaybackRequest(videoURL: tsURL, startMilliseconds: 0))
+        let ready = await waitUntil(timeoutSeconds: 3.0) {
+            player.videoAspectRatio() != nil
+        }
+        #expect(ready)
+        #expect(player.keyframeTimestampMilliseconds(forTargetMilliseconds: 5_000) == nil)
+
+        var decodedKeyframeMilliseconds: [Int] = []
+        for targetMs in [500, 3_500, 6_500] {
+            var thumb: CGImage?
+            var keyframeMs = -1
+            player.requestTimelineThumbnail(atMilliseconds: targetMs, targetPixelWidth: 160) { image, kfMs, _ in
+                thumb = image
+                keyframeMs = kfMs
+            }
+            let gotThumb = await waitUntil(timeoutSeconds: 3.0) { thumb != nil }
+            #expect(gotThumb)
+            decodedKeyframeMilliseconds.append(keyframeMs)
+        }
+        #expect(Set(decodedKeyframeMilliseconds).count >= 2)
+    }
+
+    // 2. RealVideo (.rm) multi-packet keyframe stream
+    let rmURL = directory.appendingPathComponent("realvideo-scrub.rm")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=4.0:size=160x120:rate=15",
+            "-c:v", "rv20", "-b:v", "400k", "-g", "15", "-pix_fmt", "yuv420p",
+            "-y", rmURL.path
+        ]
+    )
+
+    do {
+        let player = PlaybackPlayer()
+        defer { try? player.stop() }
+
+        _ = try player.open(PlaybackRequest(videoURL: rmURL, startMilliseconds: 0))
+        let ready = await waitUntil(timeoutSeconds: 3.0) {
+            player.videoAspectRatio() != nil
+        }
+        #expect(ready)
+
+        for targetMs in [500, 2_500] {
+            var thumb: CGImage?
+            player.requestTimelineThumbnail(atMilliseconds: targetMs, targetPixelWidth: 160) { image, _, _ in
+                thumb = image
+            }
+            let gotThumb = await waitUntil(timeoutSeconds: 3.0) { thumb != nil }
+            #expect(gotThumb)
+            #expect(thumb?.width == 160)
+            #expect(thumb?.height == 120)
+        }
+    }
+}
+
+
 

@@ -71,9 +71,14 @@
 	        }
 	    }
     [_packetQueueCondition lock];
+    BOOL neededAudioDrainUnblock = !_firstVideoFrameDecodedForSeek;
+    _firstVideoFrameDecodedForSeek = YES;
     atomic_store(&_decodeLoopFinished, true);
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
+    if (neededAudioDrainUnblock && !cancelled && !finishingForAutomaticRecycle) {
+        [self requestAudioDrain];
+    }
     [self signalPacingCondition];
 }
 
@@ -495,6 +500,16 @@
 }
 
 - (void)handleVideoPacket:(AVPacket *)packet {
+    BOOL isKeyframePacket = (packet->flags & AV_PKT_FLAG_KEY) != 0;
+    if (!_seenVideoKeyframePacketSinceFlush) {
+        if (isKeyframePacket || _skippedNonKeyframePacketsSinceFlush >= 180) {
+            _seenVideoKeyframePacketSinceFlush = YES;
+        } else {
+            _skippedNonKeyframePacketsSinceFlush += 1;
+            return;
+        }
+    }
+
     if (!_perfFirstVideoDecodedRecorded) {
         if (_perfFirstVideoPacketHostSeconds <= 0) {
             _perfFirstVideoPacketHostSeconds = CACurrentMediaTime();
@@ -506,8 +521,10 @@
     if (result < 0
         && result != AVERROR(EAGAIN)
         && result != AVERROR_EOF
+        && isKeyframePacket
         && self.usingHardwareDecode
-        && !_perfFirstVideoDecodedRecorded) {
+        && !_perfFirstVideoDecodedRecorded
+        && _presentedVideoFrameCount == 0) {
         NSString *sendError = SFXFFmpegErrorString(result);
         NSError *softwareError = nil;
         [self resetVideoDecoderState];
@@ -539,7 +556,8 @@
             av_frame_unref(_videoFrame);
             break;
         }
-        if (SFXFrameBeforeSeekTarget(_videoFrame, videoStream, _seekSeconds, _timelineOriginSeconds)) {
+        if (!_firstVideoFrameDecodedForSeek
+            && SFXFrameBeforeSeekTarget(_videoFrame, videoStream, _seekSeconds, _timelineOriginSeconds)) {
             if (!_perfFirstVideoDecodedRecorded) {
                 _perfSkippedVideoFramesForFirstFrame += 1;
             }
@@ -552,6 +570,20 @@
         }
 
         double mediaSeconds = SFXFramePlaybackSeconds(_videoFrame, videoStream, _timelineOriginSeconds);
+        if (!_firstVideoFrameDecodedForSeek) {
+            @synchronized (self) {
+                if (isfinite(mediaSeconds)
+                    && mediaSeconds > _seekSeconds + 0.25
+                    && (![self hasActiveSegmentEnd] || mediaSeconds < _segmentEndSeconds)) {
+                    _seekSeconds = mediaSeconds;
+                }
+            }
+            [_packetQueueCondition lock];
+            _firstVideoFrameDecodedForSeek = YES;
+            [_packetQueueCondition broadcast];
+            [_packetQueueCondition unlock];
+            [self requestAudioDrain];
+        }
         if ([self mediaSecondsReachedSegmentEnd:mediaSeconds]) {
             if ([self resolveAutoPauseAuthorizationIfNeeded]) {
                 [self resumeFromRebufferIfNeededAtHostSeconds:CACurrentMediaTime()];
@@ -682,10 +714,13 @@
 
     AVStream *audioStream = _formatContext->streams[_audioStreamIndex];
     while ((result = avcodec_receive_frame(_audioCodecContext, _audioFrame)) >= 0) {
-        if (SFXFrameBeforeSeekTarget(_audioFrame, audioStream, _seekSeconds, _timelineOriginSeconds)) {
+        if (!_firstAudioFrameDecodedForSeek
+            && SFXFrameBeforeSeekTarget(_audioFrame, audioStream, _seekSeconds, _timelineOriginSeconds)) {
             av_frame_unref(_audioFrame);
             continue;
         }
+        _firstAudioFrameDecodedForSeek = YES;
+        SFXEnsureValidChannelLayout(&_audioFrame->ch_layout, _audioCodecContext->ch_layout.nb_channels);
 
 	        double mediaSeconds = SFXFramePlaybackSeconds(_audioFrame, audioStream, _timelineOriginSeconds);
 	        const AVFrame *outputFrame = [self outputAudioFrameForFrame:_audioFrame];
@@ -803,7 +838,7 @@
         }
 
         double now = CACurrentMediaTime();
-        if (targetHostSeconds > now + 0.001) {
+        if (targetHostSeconds > now + 0.001 && targetHostSeconds <= now + 5.0) {
             uint64_t hostTime = [AVAudioTime hostTimeForSeconds:targetHostSeconds];
             AVAudioTime *startTime = [[AVAudioTime alloc] initWithHostTime:hostTime];
             [_audioPlayer playAtTime:startTime];
@@ -839,6 +874,7 @@
     if (isFirstFrameForPresentation && !audioAlreadyPrimed && !atomic_load(&_paused)) {
         @synchronized (self) {
             _perfAudioPrimeWaitMs = 0.0;
+            _lastPacedVideoMediaSeconds = mediaSeconds;
             _lastVideoOutputHostSeconds = CACurrentMediaTime();
         }
         return YES;
@@ -854,6 +890,7 @@
 
     double targetHostSeconds = 0;
     BOOL initializedPlaybackClock = NO;
+    BOOL recalibratedClockForDiscontinuity = NO;
     @synchronized (self) {
         double rate = fmax((double)atomic_load(&_playbackRate), 0.001);
         if (!_videoClockInitialized) {
@@ -868,12 +905,29 @@
                 _audioStartHostSeconds = now;
             }
             initializedPlaybackClock = YES;
+        } else if (_lastPacedVideoMediaSeconds >= 0) {
+            double mediaDelta = mediaSeconds - _lastPacedVideoMediaSeconds;
+            if (mediaDelta < -1.0 || mediaDelta > 10.0) {
+                _videoFirstMediaSeconds = mediaSeconds;
+                _videoStartHostSeconds = now;
+                if (_audioClockInitialized) {
+                    _audioFirstMediaSeconds = mediaSeconds;
+                    _audioStartHostSeconds = now;
+                }
+                _currentTime = mediaSeconds;
+                recalibratedClockForDiscontinuity = YES;
+            }
         }
+        _lastPacedVideoMediaSeconds = mediaSeconds;
         if (_audioClockInitialized) {
             targetHostSeconds = _audioStartHostSeconds + ((mediaSeconds - _audioFirstMediaSeconds) / rate);
         } else {
             targetHostSeconds = _videoStartHostSeconds + ((mediaSeconds - _videoFirstMediaSeconds) / rate);
         }
+    }
+
+    if (recalibratedClockForDiscontinuity) {
+        [self notifyTimeIfNeeded:YES];
     }
 
     if (initializedPlaybackClock
@@ -1184,7 +1238,9 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     AVChannelLayout inputLayout = {0};
     BOOL ownsInputLayout = NO;
     const AVChannelLayout *inputLayoutRef = &frame->ch_layout;
-    if (frame->ch_layout.nb_channels <= 0) {
+    if (frame->ch_layout.nb_channels <= 0
+        || frame->ch_layout.order == AV_CHANNEL_ORDER_UNSPEC
+        || !av_channel_layout_check(&frame->ch_layout)) {
         av_channel_layout_default(&inputLayout, inputChannels);
         inputLayoutRef = &inputLayout;
         ownsInputLayout = YES;

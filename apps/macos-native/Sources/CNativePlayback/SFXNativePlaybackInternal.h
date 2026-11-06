@@ -141,6 +141,7 @@ CMSampleBufferRef _Nullable SFXSampleBufferForPixelBuffer(
     CMTime presentationTime
 );
 int SFXOutputChannelCount(int inputChannels);
+void SFXEnsureValidChannelLayout(AVChannelLayout * _Nullable layout, int fallbackChannels);
 AVRational SFXVideoSampleAspectRatio(
     AVFormatContext * _Nullable formatContext,
     AVStream * _Nullable videoStream,
@@ -326,6 +327,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     double _queuedAudioMediaSeconds;
     double _videoFirstMediaSeconds;
     double _videoStartHostSeconds;
+    double _lastPacedVideoMediaSeconds;
     double _lastDelegateUpdateHostSeconds;
     double _lastVideoOutputHostSeconds;
     double _rebufferStartedHostSeconds;
@@ -372,6 +374,10 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     BOOL _audioInputEnded;
     BOOL _audioOutputDrained;
     BOOL _videoClockInitialized;
+    BOOL _seenVideoKeyframePacketSinceFlush;
+    NSUInteger _skippedNonKeyframePacketsSinceFlush;
+    BOOL _firstVideoFrameDecodedForSeek;
+    BOOL _firstAudioFrameDecodedForSeek;
     BOOL _isRebuffering;
     BOOL _isPausedInsideLoop;
 	    BOOL _seekRequestPending;
