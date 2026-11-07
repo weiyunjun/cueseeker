@@ -328,19 +328,21 @@
   - Shadow：`--shadow-popover`
 - Icon
   - Presence：Optional
-  - Color：`--color-text-primary`
+  - Color：`--color-text-secondary`
   - 与 Message 第一行垂直居中
 - Message
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-toast`
   - Line Height：`--line-height-toast`
   - Font Weight：`--font-weight-toast`
-  - Color：`--color-text-primary`
+  - Color：`--color-text-secondary`
   - 超出可用宽度换行，各行左对齐，不进入 Icon 所占宽度
 
 ##### Motion
 
 - Duration：`--duration-toast-motion`
+- Content Duration：`--duration-toast-content`
+- Height Duration：`--duration-toast-height`
 - Distance：`--distance-toast-motion`
 - Easing：`--easing-toast-motion`
 
@@ -358,7 +360,7 @@
 - Width：`--width-toast`
 - Icon Size：`--size-toast-icon`
 - Padding Inline：`--padding-control-x`
-- Padding Block：`--spacing-2`
+- Padding Block：`--spacing-4`
 - Icon to Message Gap：`--spacing-2`
 
 ##### States

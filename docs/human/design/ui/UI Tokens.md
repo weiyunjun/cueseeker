@@ -237,7 +237,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--line-height-playback-feedback`: `26px`
 - `--font-size-toast`: `14px`
 - `--line-height-toast`: `20px`
-- `--font-weight-toast`: `400`
+- `--font-weight-toast`: `500`
 - `--font-size-subtitle-focus-cue`: `24px`
 - `--line-height-subtitle-focus-cue`: `32px`
 - `--font-weight-subtitle-focus-cue`: `600`
@@ -573,10 +573,12 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 ### Toast Motion
 
-- `--duration-toast-motion`: `0.36s`
-- `--distance-toast-motion`: `18px`
-- `--offset-toast-stack`: `9px`
-- `--scale-step-toast-stack`: `0.05`
+- `--duration-toast-motion`: `0.50s`
+- `--duration-toast-content`: `0.25s`
+- `--duration-toast-height`: `0.15s`
+- `--distance-toast-motion`: `150%`
+- `--offset-toast-stack`: `12px`
+- `--scale-step-toast-stack`: `0.10`
 - `--easing-toast-motion`: `cubic-bezier(0.22, 1, 0.36, 1)`
 
 ### Dialog Motion
