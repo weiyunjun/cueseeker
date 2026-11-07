@@ -327,8 +327,8 @@ enum WorkbenchRedesignColors {
         static let toastBg = bgPopover
         // --color-toast-border: same as --color-border-control (Light #E5E7EB, Dark #4A4A52)
         static let toastBorder = borderControl
-        // --color-text-primary (Light #1F1F1F, Dark #E4E4E4)
-        static let toastText = textPrimary
+        // --color-text-secondary (Light #494949, Dark #B9B9B9)
+        static let toastText = textSecondary
 
         // Tooltip
         // --color-tooltip-bg: Light rgba(31, 31, 31, 0.90), Dark rgba(45, 45, 50, 0.92)

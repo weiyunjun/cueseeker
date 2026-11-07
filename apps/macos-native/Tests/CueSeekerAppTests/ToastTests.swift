@@ -206,17 +206,62 @@ func playbackToastRequestsMatchTheUsageRegistry() {
 
 @MainActor
 @Test
-func toastIconsUseTextPrimaryAcrossAllScenarios() {
-    #expect(ToastView.iconColor(for: TableToastRequest.copyCueText) == WorkbenchRedesignColors.textPrimary)
-    #expect(ToastView.iconColor(for: TableToastRequest.copyDeepLink) == WorkbenchRedesignColors.textPrimary)
-    #expect(ToastView.iconColor(for: TableToastRequest.copyCueGroupText) == WorkbenchRedesignColors.textPrimary)
-    #expect(ToastView.iconColor(for: TableToastRequest.copyTimeRange) == WorkbenchRedesignColors.textPrimary)
-    #expect(ToastView.iconColor(for: TableToastRequest.copyDeepLinks) == WorkbenchRedesignColors.textPrimary)
-    #expect(ToastView.iconColor(for: TableToastRequest.copyTable) == WorkbenchRedesignColors.textPrimary)
-    #expect(ToastView.iconColor(for: TableToastRequest.cueNotInLibrary) == WorkbenchRedesignColors.textPrimary)
-    #expect(ToastView.iconColor(for: PlaybackToastRequest.cueTextCopied) == WorkbenchRedesignColors.textPrimary)
-    #expect(ToastView.iconColor(for: PlaybackToastRequest.noSubtitle) == WorkbenchRedesignColors.textPrimary)
-    #expect(ToastView.iconColor(for: ExcerptToastRequest.destinationAlreadyContainsCue(listName: "test2")) == WorkbenchRedesignColors.textPrimary)
-    #expect(ToastView.iconColor(for: ExcerptToastRequest.moveFailed) == WorkbenchRedesignColors.textPrimary)
-    #expect(ToastView.iconColor(for: ExcerptToastRequest.saveSucceeded(listName: "Study")) == WorkbenchRedesignColors.textPrimary)
+func toastIconsAndTextUseTextSecondaryAcrossAllScenarios() {
+    #expect(WorkbenchRedesignColors.toastText == WorkbenchRedesignColors.textSecondary)
+    #expect(WorkbenchRedesignColors.NS.toastText == WorkbenchRedesignColors.NS.textSecondary)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyCueText) == WorkbenchRedesignColors.textSecondary)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyDeepLink) == WorkbenchRedesignColors.textSecondary)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyCueGroupText) == WorkbenchRedesignColors.textSecondary)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyTimeRange) == WorkbenchRedesignColors.textSecondary)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyDeepLinks) == WorkbenchRedesignColors.textSecondary)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyTable) == WorkbenchRedesignColors.textSecondary)
+    #expect(ToastView.iconColor(for: TableToastRequest.cueNotInLibrary) == WorkbenchRedesignColors.textSecondary)
+    #expect(ToastView.iconColor(for: PlaybackToastRequest.cueTextCopied) == WorkbenchRedesignColors.textSecondary)
+    #expect(ToastView.iconColor(for: PlaybackToastRequest.noSubtitle) == WorkbenchRedesignColors.textSecondary)
+    #expect(ToastView.iconColor(for: ExcerptToastRequest.destinationAlreadyContainsCue(listName: "test2")) == WorkbenchRedesignColors.textSecondary)
+    #expect(ToastView.iconColor(for: ExcerptToastRequest.moveFailed) == WorkbenchRedesignColors.textSecondary)
+    #expect(ToastView.iconColor(for: ExcerptToastRequest.saveSucceeded(listName: "Study")) == WorkbenchRedesignColors.textSecondary)
+}
+
+@MainActor
+@Test
+func toastMetricsAndStackLifecycleMatchShadcnAlignedSpec() {
+    #expect(WorkbenchControlMetrics.redesignFontWeightToast == .medium)
+    #expect(WorkbenchControlMetrics.redesignNSFontWeightToast == .medium)
+    #expect(WorkbenchControlMetrics.redesignToastStackOffset == 12)
+    #expect(WorkbenchControlMetrics.redesignToastStackScaleStep == 0.10)
+    #expect(WorkbenchControlMetrics.redesignToastMotionDistanceRatio == 1.5)
+    #expect(WorkbenchControlMetrics.redesignToastMotionDuration == 0.50)
+    #expect(WorkbenchControlMetrics.redesignToastContentMotionDuration == 0.25)
+    #expect(WorkbenchControlMetrics.redesignToastHeightMotionDuration == 0.15)
+
+    #expect(ToastView.estimatedHeight(for: TableToastRequest.copyCueText) == 52)
+    #expect(
+        ToastView.estimatedHeight(
+            for: ExcerptToastRequest.destinationAlreadyContainsCue(listName: "test2")
+        ) == 72
+    )
+
+    let center = ToastCenter()
+    let start = Date()
+    for index in 1...4 {
+        center.show(
+            ToastRequest(scenarioID: "scenario.\(index)", message: "Toast \(index)"),
+            now: start
+        )
+    }
+
+    #expect(center.visibleItems.map(\.request.message) == ["Toast 2", "Toast 3", "Toast 4"])
+    #expect(center.visibleItems.map(\.stackIndex) == [2, 1, 0])
+    #expect(center.renderedItems.count == 4)
+    #expect(center.renderedItems.first?.request.message == "Toast 1")
+    #expect(center.renderedItems.first?.isLimited == true)
+    #expect(center.renderedItems.first?.stackIndex == 3)
+
+    center.removeExpired(at: start.addingTimeInterval(2.0))
+    #expect(center.visibleItems.isEmpty)
+    #expect(center.renderedItems.filter(\.isEnding).count == 3)
+
+    center.dismissAll()
+    #expect(center.renderedItems.isEmpty)
 }

@@ -258,9 +258,15 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeToast: CGFloat = 14
     /// --line-height-toast: 20px
     static let redesignLineHeightToast: CGFloat = 20
+    /// --font-weight-toast: 500
+    static let redesignFontWeightToast: Font.Weight = .medium
+    static let redesignNSFontWeightToast: NSFont.Weight = .medium
     /// Extra vertical room added to 14pt medium text to reach the 20px line box.
     static let redesignToastLeading: CGFloat = {
-        let font = NSFont.systemFont(ofSize: redesignFontSizeToast, weight: .medium)
+        let font = NSFont.systemFont(
+            ofSize: redesignFontSizeToast,
+            weight: redesignNSFontWeightToast
+        )
         return max(0, redesignLineHeightToast - (font.ascender - font.descender + font.leading))
     }()
     /// --size-toast-icon: 16px, one of the sizes the Icon Registry documents.
@@ -270,14 +276,18 @@ enum WorkbenchControlMetrics {
     static let redesignToastMaxWidth: CGFloat = redesignToastWidth
     /// --radius-toast: 10px
     static let redesignToastRadius: CGFloat = 10
-    /// --offset-toast-stack: 9px
-    static let redesignToastStackOffset: CGFloat = 9
-    /// --scale-toast-stack-step: 0.05
-    static let redesignToastStackScaleStep: CGFloat = 0.05
-    /// --distance-toast-motion: 18px
-    static let redesignToastMotionDistance: CGFloat = 18
-    /// --duration-toast-motion: 0.36s
-    static let redesignToastMotionDuration: Double = 0.36
+    /// --offset-toast-stack: 12px
+    static let redesignToastStackOffset: CGFloat = 12
+    /// --scale-step-toast-stack: 0.10
+    static let redesignToastStackScaleStep: CGFloat = 0.10
+    /// --distance-toast-motion: 150%
+    static let redesignToastMotionDistanceRatio: CGFloat = 1.5
+    /// --duration-toast-motion: 0.50s
+    static let redesignToastMotionDuration: Double = 0.50
+    /// --duration-toast-content: 0.25s
+    static let redesignToastContentMotionDuration: Double = 0.25
+    /// --duration-toast-height: 0.15s
+    static let redesignToastHeightMotionDuration: Double = 0.15
     /// --width-tooltip-max: 280px
     static let redesignTooltipMaxWidth: CGFloat = 280
     /// --delay-tooltip-hover: 1s
