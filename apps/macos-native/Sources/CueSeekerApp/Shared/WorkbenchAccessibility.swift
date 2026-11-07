@@ -70,6 +70,10 @@ enum SettingsTextInputKind: Equatable, Hashable {
 }
 
 enum SettingsAccessibilityTarget: Equatable, Hashable {
+    // Topbar (L-02.1)
+    case topbarBackButton
+    case topbarForwardButton
+
     // Sidebar (L-02.2)
     case sidebarCategory(SettingsCategory)
 
@@ -444,11 +448,31 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     @Published private(set) var focusedDialogTarget: WorkbenchDialogAccessibilityTarget?
 
     // Settings Window (Step 3: L-02 Settings)
-    @Published var selectedSettingsCategory: SettingsCategory = .general
+    private var isMutatingSettingsCategoryFromHistoryNavigation = false
+    @Published var selectedSettingsCategory: SettingsCategory = .general {
+        didSet {
+            guard !isMutatingSettingsCategoryFromHistoryNavigation,
+                  selectedSettingsCategory != oldValue
+            else {
+                return
+            }
+            recordSettingsCategoryInHistory(selectedSettingsCategory)
+        }
+    }
+    @Published private(set) var settingsCategoryHistory: [SettingsCategory] = [.general]
+    @Published private(set) var settingsCategoryHistoryIndex: Int = 0
     @Published private(set) var focusedSettingsTarget: SettingsAccessibilityTarget?
     @Published private(set) var focusedSettingsDialogTarget: WorkbenchDialogAccessibilityTarget?
     @Published var activeSubtitleColorPopover: SettingsSubtitleCategory.ColorFieldID?
     @Published var isShortcutRecording: Bool = false
+
+    var canGoBackInSettings: Bool {
+        settingsCategoryHistoryIndex > 0
+    }
+
+    var canGoForwardInSettings: Bool {
+        settingsCategoryHistoryIndex + 1 < settingsCategoryHistory.count
+    }
 
     // Playback Surfaces (Step 4: L-07 Player Stage, L-08 Playback Overlay, L-09 Command Panel)
     var activePlaybackSurface: PlaybackAccessibilitySurface? {
@@ -628,6 +652,61 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         if focusedSettingsDialogTarget != target {
             focusedSettingsDialogTarget = target
         }
+    }
+
+    private func recordSettingsCategoryInHistory(_ category: SettingsCategory) {
+        if settingsCategoryHistoryIndex + 1 < settingsCategoryHistory.count {
+            settingsCategoryHistory.removeSubrange((settingsCategoryHistoryIndex + 1)...)
+        }
+        if settingsCategoryHistory.last != category {
+            settingsCategoryHistory.append(category)
+        }
+        settingsCategoryHistoryIndex = max(0, settingsCategoryHistory.count - 1)
+    }
+
+    private func performSettingsCategorySwitchCleanup() {
+        TooltipCenter.shared.dismissFromUserInteraction()
+        activeSubtitleColorPopover = nil
+        unfocusAllSettingsTextInputs()
+    }
+
+    @discardableResult
+    func navigateSettingsCategory(to category: SettingsCategory) -> Bool {
+        TooltipCenter.shared.dismissFromUserInteraction()
+        guard selectedSettingsCategory != category else {
+            return false
+        }
+        performSettingsCategorySwitchCleanup()
+        selectedSettingsCategory = category
+        return true
+    }
+
+    @discardableResult
+    func goBackInSettings() -> Bool {
+        TooltipCenter.shared.dismissFromUserInteraction()
+        guard canGoBackInSettings else {
+            return false
+        }
+        performSettingsCategorySwitchCleanup()
+        isMutatingSettingsCategoryFromHistoryNavigation = true
+        defer { isMutatingSettingsCategoryFromHistoryNavigation = false }
+        settingsCategoryHistoryIndex -= 1
+        selectedSettingsCategory = settingsCategoryHistory[settingsCategoryHistoryIndex]
+        return true
+    }
+
+    @discardableResult
+    func goForwardInSettings() -> Bool {
+        TooltipCenter.shared.dismissFromUserInteraction()
+        guard canGoForwardInSettings else {
+            return false
+        }
+        performSettingsCategorySwitchCleanup()
+        isMutatingSettingsCategoryFromHistoryNavigation = true
+        defer { isMutatingSettingsCategoryFromHistoryNavigation = false }
+        settingsCategoryHistoryIndex += 1
+        selectedSettingsCategory = settingsCategoryHistory[settingsCategoryHistoryIndex]
+        return true
     }
 
     @discardableResult

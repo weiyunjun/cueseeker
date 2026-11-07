@@ -41,6 +41,8 @@ struct WorkbenchAccessibilityStep3Tests {
 
         app.workbenchAccessibility.selectedSettingsCategory = .general
         let expectedGeneralTargets: [SettingsAccessibilityTarget] = [
+            .topbarBackButton,
+            .topbarForwardButton,
             .sidebarCategory(.general),
             .sidebarCategory(.play),
             .sidebarCategory(.shortcuts),
@@ -57,7 +59,11 @@ struct WorkbenchAccessibilityStep3Tests {
         ]
         #expect(app.currentSettingsAccessibilityTargets() == expectedGeneralTargets)
 
-        // First Tab focuses 1st item (.sidebarCategory(.general)), which is already selected.
+        // First Tab focuses 1st item (.topbarBackButton), which is disabled initially; Tab twice more reaches .sidebarCategory(.general).
+        #expect(app.handleSettingsKeyDown(makeKeyEvent(keyCode: MenuGate.tabKeyCode)))
+        #expect(app.workbenchAccessibility.focusedSettingsTarget == .topbarBackButton)
+        #expect(app.handleSettingsKeyDown(makeKeyEvent(keyCode: MenuGate.tabKeyCode)))
+        #expect(app.workbenchAccessibility.focusedSettingsTarget == .topbarForwardButton)
         #expect(app.handleSettingsKeyDown(makeKeyEvent(keyCode: MenuGate.tabKeyCode)))
         #expect(app.workbenchAccessibility.focusedSettingsTarget == .sidebarCategory(.general))
 
@@ -74,6 +80,8 @@ struct WorkbenchAccessibilityStep3Tests {
         #expect(app.workbenchAccessibility.focusedSettingsTarget == .sidebarCategory(.play))
 
         let expectedPlayTargets: [SettingsAccessibilityTarget] = [
+            .topbarBackButton,
+            .topbarForwardButton,
             .sidebarCategory(.general),
             .sidebarCategory(.play),
             .sidebarCategory(.shortcuts),
@@ -106,8 +114,12 @@ struct WorkbenchAccessibilityStep3Tests {
         defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
 
         app.workbenchAccessibility.selectedSettingsCategory = .shortcuts
-        // When all shortcuts are at default, only the 6 sidebar categories are in the focus cycle.
-        #expect(app.currentSettingsAccessibilityTargets() == SettingsCategory.allCases.map { .sidebarCategory($0) })
+        let topbarAndSidebarTargets: [SettingsAccessibilityTarget] = [
+            .topbarBackButton,
+            .topbarForwardButton,
+        ] + SettingsCategory.allCases.map { .sidebarCategory($0) }
+        // When all shortcuts are at default, only the topbar buttons and 6 sidebar categories are in the focus cycle.
+        #expect(app.currentSettingsAccessibilityTargets() == topbarAndSidebarTargets)
 
         // Customize one shortcut (.openCommandPanel, default K=40) to A=0 so its Restore Default button appears.
         app.settings.playbackShortcuts.set(
@@ -116,7 +128,7 @@ struct WorkbenchAccessibilityStep3Tests {
         )
         #expect(!app.settings.playbackShortcuts.keymap.isDefault(.openCommandPanel))
         let expectedShortcutTargets: [SettingsAccessibilityTarget] =
-            SettingsCategory.allCases.map { .sidebarCategory($0) }
+            topbarAndSidebarTargets
             + [.shortcutRestoreDefault(.openCommandPanel)]
         #expect(app.currentSettingsAccessibilityTargets() == expectedShortcutTargets)
 
@@ -225,7 +237,10 @@ struct WorkbenchAccessibilityStep3Tests {
         // Main window focus is preserved independently while interacting with Settings.
         app.workbenchAccessibility.setFocus(.topbarSettingsButton)
         app.workbenchAccessibility.selectedSettingsCategory = .maintenance
-        #expect(app.currentSettingsAccessibilityTargets() == SettingsCategory.allCases.map { .sidebarCategory($0) } + [
+        #expect(app.currentSettingsAccessibilityTargets() == [
+            .topbarBackButton,
+            .topbarForwardButton,
+        ] + SettingsCategory.allCases.map { .sidebarCategory($0) } + [
             .maintenanceRefresh,
             .maintenanceCompactDatabase,
         ])
@@ -282,5 +297,68 @@ struct WorkbenchAccessibilityStep3Tests {
         #expect(app.handleSettingsKeyDown(makeKeyEvent(keyCode: 53)))
         #expect(app.settings.confirmation.session == nil)
         #expect(app.workbenchAccessibility.focusedTarget == .topbarSettingsButton)
+    }
+
+    @Test
+    func settingsTopbarBackForwardHistoryNavigationAndFocusRetention() {
+        let (app, suiteName, userDefaults) = makeTestCoordinator()
+        defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+
+        #expect(app.workbenchAccessibility.selectedSettingsCategory == .general)
+        #expect(app.workbenchAccessibility.settingsCategoryHistory == [.general])
+        #expect(app.workbenchAccessibility.settingsCategoryHistoryIndex == 0)
+        #expect(!app.workbenchAccessibility.canGoBackInSettings)
+        #expect(!app.workbenchAccessibility.canGoForwardInSettings)
+        #expect(!app.isSettingsAccessibilityTargetEnabled(.topbarBackButton))
+        #expect(!app.isSettingsAccessibilityTargetEnabled(.topbarForwardButton))
+
+        // Navigate General -> Play -> Subtitle.
+        #expect(app.workbenchAccessibility.navigateSettingsCategory(to: .play))
+        #expect(app.workbenchAccessibility.navigateSettingsCategory(to: .subtitle))
+        #expect(app.workbenchAccessibility.selectedSettingsCategory == .subtitle)
+        #expect(app.workbenchAccessibility.settingsCategoryHistory == [.general, .play, .subtitle])
+        #expect(app.workbenchAccessibility.settingsCategoryHistoryIndex == 2)
+        #expect(app.workbenchAccessibility.canGoBackInSettings)
+        #expect(!app.workbenchAccessibility.canGoForwardInSettings)
+
+        // Focus .topbarBackButton and activate twice via Space (49):
+        // 1st activation moves to .play; 2nd moves to .general and disables .topbarBackButton
+        // while keeping the accessibility focus ring on .topbarBackButton.
+        app.workbenchAccessibility.setSettingsFocus(.topbarBackButton)
+        #expect(app.handleSettingsKeyDown(makeKeyEvent(keyCode: 49)))
+        #expect(app.workbenchAccessibility.selectedSettingsCategory == .play)
+        #expect(app.workbenchAccessibility.settingsCategoryHistoryIndex == 1)
+        #expect(app.workbenchAccessibility.canGoBackInSettings)
+        #expect(app.workbenchAccessibility.canGoForwardInSettings)
+        #expect(app.workbenchAccessibility.focusedSettingsTarget == .topbarBackButton)
+
+        #expect(app.handleSettingsKeyDown(makeKeyEvent(keyCode: 49)))
+        #expect(app.workbenchAccessibility.selectedSettingsCategory == .general)
+        #expect(app.workbenchAccessibility.settingsCategoryHistoryIndex == 0)
+        #expect(!app.workbenchAccessibility.canGoBackInSettings)
+        #expect(app.workbenchAccessibility.canGoForwardInSettings)
+        #expect(!app.isSettingsAccessibilityTargetEnabled(.topbarBackButton))
+        #expect(app.workbenchAccessibility.focusedSettingsTarget == .topbarBackButton)
+
+        // Focus .topbarForwardButton and activate -> moves forward to .play.
+        #expect(app.handleSettingsKeyDown(makeKeyEvent(keyCode: MenuGate.tabKeyCode)))
+        #expect(app.workbenchAccessibility.focusedSettingsTarget == .topbarForwardButton)
+        #expect(app.handleSettingsControllerInput(.button(.south, isRepeat: false)))
+        #expect(app.workbenchAccessibility.selectedSettingsCategory == .play)
+        #expect(app.workbenchAccessibility.settingsCategoryHistoryIndex == 1)
+        #expect(app.workbenchAccessibility.canGoForwardInSettings)
+
+        // Navigating to a new category (.developer) truncates forward history (.subtitle).
+        #expect(app.workbenchAccessibility.navigateSettingsCategory(to: .developer))
+        #expect(app.workbenchAccessibility.selectedSettingsCategory == .developer)
+        #expect(app.workbenchAccessibility.settingsCategoryHistory == [.general, .play, .developer])
+        #expect(app.workbenchAccessibility.settingsCategoryHistoryIndex == 2)
+        #expect(app.workbenchAccessibility.canGoBackInSettings)
+        #expect(!app.workbenchAccessibility.canGoForwardInSettings)
+
+        // Selecting the already-selected category is a no-op and does not append a duplicate entry.
+        #expect(!app.workbenchAccessibility.navigateSettingsCategory(to: .developer))
+        #expect(app.workbenchAccessibility.settingsCategoryHistory == [.general, .play, .developer])
+        #expect(app.workbenchAccessibility.settingsCategoryHistoryIndex == 2)
     }
 }

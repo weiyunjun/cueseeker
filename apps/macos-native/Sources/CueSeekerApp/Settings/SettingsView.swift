@@ -78,12 +78,16 @@ struct SettingsView: View {
                     .fill(WorkbenchRedesignColors.borderDivider)
                     .frame(width: WorkbenchControlMetrics.hairlineWidth)
 
-                SettingsPage(title: selectedCategory.title) {
-                    selectedContent
+                VStack(spacing: 0) {
+                    settingsTopbar
+
+                    SettingsPage {
+                        selectedContent
+                    }
+                    // Each category opens scrolled to its top.
+                    .id(selectedCategory)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                // Each category opens scrolled to its top.
-                .id(selectedCategory)
-                .padding(.top, WorkbenchControlMetrics.redesignSettingsTitlebarHeight)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
@@ -112,8 +116,111 @@ struct SettingsView: View {
         .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
     }
 
+    private var settingsTopbar: some View {
+        TitlebarBackgroundView(backgroundColor: WorkbenchRedesignColors.NS.bgSurface)
+            .overlay(alignment: .leading) {
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                        backButton
+                        forwardButton
+                    }
+
+                    Text(selectedCategory.title)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
+                            weight: .semibold
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .workbenchTruncatedTextTooltip(
+                            scenarioID: "truncated.settings.topbar.title",
+                            surface: .settings,
+                            text: selectedCategory.title,
+                            font: .system(
+                                size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
+                                weight: .semibold
+                            )
+                        )
+                        .allowsHitTesting(false)
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, WorkbenchControlMetrics.redesignSpacing6)
+                .padding(
+                    .trailing,
+                    WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding
+                )
+            }
+            .frame(height: WorkbenchControlMetrics.redesignSettingsTitlebarHeight)
+    }
+
+    private var backButton: some View {
+        WorkbenchIconButton(
+            icon: .caretLeft,
+            isFocused: workbenchAccessibility.isSettingsFocused(.topbarBackButton),
+            iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
+            boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
+            action: {
+                let startedAt = DebugInteractionLatencyProbe.now()
+                let previousCategory = workbenchAccessibility.selectedSettingsCategory
+                if workbenchAccessibility.goBackInSettings() {
+                    DebugInteractionLatencyProbe.completeImmediateNavigation(
+                        domain: "settings",
+                        from: "settings_\(previousCategory.rawValue)",
+                        to: "settings_\(workbenchAccessibility.selectedSettingsCategory.rawValue)",
+                        trigger: "settings_topbar_back",
+                        startedAt: startedAt
+                    )
+                }
+            }
+        )
+        .disabled(!workbenchAccessibility.canGoBackInSettings)
+        .workbenchTooltip(
+            scenarioID: "topbar.navigation.back",
+            surface: .settings,
+            label: workbenchAccessibility.canGoBackInSettings
+                ? L("topbar.back")
+                : L("tooltip.topbar.back.disabled")
+        )
+        .accessibilityLabel(L("topbar.back"))
+        .accessibilityIdentifier("settings-topbar-back")
+    }
+
+    private var forwardButton: some View {
+        WorkbenchIconButton(
+            icon: .caretRight,
+            isFocused: workbenchAccessibility.isSettingsFocused(.topbarForwardButton),
+            iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
+            boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
+            action: {
+                let startedAt = DebugInteractionLatencyProbe.now()
+                let previousCategory = workbenchAccessibility.selectedSettingsCategory
+                if workbenchAccessibility.goForwardInSettings() {
+                    DebugInteractionLatencyProbe.completeImmediateNavigation(
+                        domain: "settings",
+                        from: "settings_\(previousCategory.rawValue)",
+                        to: "settings_\(workbenchAccessibility.selectedSettingsCategory.rawValue)",
+                        trigger: "settings_topbar_forward",
+                        startedAt: startedAt
+                    )
+                }
+            }
+        )
+        .disabled(!workbenchAccessibility.canGoForwardInSettings)
+        .workbenchTooltip(
+            scenarioID: "topbar.navigation.forward",
+            surface: .settings,
+            label: workbenchAccessibility.canGoForwardInSettings
+                ? L("topbar.forward")
+                : L("tooltip.topbar.forward.disabled")
+        )
+        .accessibilityLabel(L("topbar.forward"))
+        .accessibilityIdentifier("settings-topbar-forward")
+    }
+
     private var categoryList: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(SettingsCategory.allCases) { category in
                 let isSelected = selectedCategory == category
                 let isAccessibilityFocused = workbenchAccessibility.isSettingsFocused(.sidebarCategory(category))
@@ -121,11 +228,7 @@ struct SettingsView: View {
                 Button {
                     let startedAt = DebugInteractionLatencyProbe.now()
                     let previousCategory = workbenchAccessibility.selectedSettingsCategory
-                    TooltipCenter.shared.dismissFromUserInteraction()
-                    workbenchAccessibility.selectedSettingsCategory = category
-                    workbenchAccessibility.activeSubtitleColorPopover = nil
-                    workbenchAccessibility.unfocusAllSettingsTextInputs()
-                    if previousCategory != category {
+                    if workbenchAccessibility.navigateSettingsCategory(to: category) {
                         DebugInteractionLatencyProbe.completeImmediateNavigation(
                             domain: "settings",
                             from: "settings_\(previousCategory.rawValue)",
@@ -197,6 +300,10 @@ struct SettingsView: View {
         .padding(.horizontal, WorkbenchControlMetrics.redesignAppSidebarHorizontalPadding)
         .padding(.bottom, WorkbenchControlMetrics.redesignAppSidebarVerticalPadding)
         .background(WorkbenchRedesignColors.appSidebarBg)
+        .overlay(alignment: .top) {
+            TitlebarBackgroundView(backgroundColor: NSColor.clear)
+                .frame(height: WorkbenchControlMetrics.redesignSettingsTitlebarHeight)
+        }
     }
 
     /// The groups on the selected category's page. General and Play gather

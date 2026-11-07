@@ -13,14 +13,8 @@ struct SettingsDeveloperCategory: View {
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
-                SettingsGroup(
-                    title: L("settings.category.developer"),
-                    description: L("settings.developer.description")
-                ) {
-                    SettingsRow(
-                        L("settings.developer.fts_diagnostics"),
-                        note: L("settings.developer.fts_diagnostics_note")
-                    ) {
+                SettingsGroup(title: L("settings.category.developer")) {
+                    SettingsRow(L("settings.developer.fts_diagnostics")) {
                         Toggle("", isOn: $settingsStore.searchFTSVocabularyDiagnosticsEnabled)
                             .labelsHidden()
                             .toggleStyle(.switch)

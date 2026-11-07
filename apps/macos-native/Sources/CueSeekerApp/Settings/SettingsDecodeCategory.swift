@@ -9,14 +9,8 @@ struct SettingsDecodeCategory: View {
 
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
-            SettingsGroup(
-                title: L("settings.category.decode"),
-                description: L("settings.decode.description")
-            ) {
-                SettingsRow(
-                    L("settings.decode.decoder"),
-                    note: L("settings.decode.note")
-                ) {
+            SettingsGroup(title: L("settings.category.decode")) {
+                SettingsRow(L("settings.decode.decoder")) {
                     WorkbenchSegmentedControl(
                         options: PlaybackDecodeMode.allCases,
                         selection: $settingsStore.playbackDecodeMode,

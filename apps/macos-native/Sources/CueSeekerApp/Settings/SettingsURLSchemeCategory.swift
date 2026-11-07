@@ -8,14 +8,8 @@ struct SettingsURLSchemeCategory: View {
 
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
-            SettingsGroup(
-                title: "Deep Link",
-                description: L("settings.deep_link.description")
-            ) {
-                SettingsRow(
-                    L("settings.deep_link.play_first"),
-                    note: L("settings.deep_link.play_first_note")
-                ) {
+            SettingsGroup(title: "Deep Link") {
+                SettingsRow(L("settings.deep_link.play_first")) {
                     Toggle(
                         L("settings.deep_link.play_first"),
                         isOn: $settingsStore.urlSchemePlayFirstSearchResultEnabled

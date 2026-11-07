@@ -2029,9 +2029,13 @@ extension AppCoordinator {
     // MARK: - Settings Window Accessibility (Step 3)
 
     func currentSettingsAccessibilityTargets() -> [SettingsAccessibilityTarget] {
-        var targets: [SettingsAccessibilityTarget] = SettingsCategory.allCases.map {
+        var targets: [SettingsAccessibilityTarget] = [
+            .topbarBackButton,
+            .topbarForwardButton,
+        ]
+        targets.append(contentsOf: SettingsCategory.allCases.map {
             .sidebarCategory($0)
-        }
+        })
 
         switch workbenchAccessibility.selectedSettingsCategory {
         case .general:
@@ -2121,6 +2125,10 @@ extension AppCoordinator {
 
     func isSettingsAccessibilityTargetEnabled(_ target: SettingsAccessibilityTarget) -> Bool {
         switch target {
+        case .topbarBackButton:
+            return workbenchAccessibility.canGoBackInSettings
+        case .topbarForwardButton:
+            return workbenchAccessibility.canGoForwardInSettings
         case .playAutoSwitch:
             return settings.autoPauseAfterCueFinishesEnabled
         case .shortcutRestoreDefault(let action):
@@ -2207,14 +2215,14 @@ extension AppCoordinator {
         }
 
         switch target {
+        case .topbarBackButton:
+            return workbenchAccessibility.goBackInSettings()
+
+        case .topbarForwardButton:
+            return workbenchAccessibility.goForwardInSettings()
+
         case .sidebarCategory(let category):
-            guard workbenchAccessibility.selectedSettingsCategory != category else {
-                return true
-            }
-            TooltipCenter.shared.dismissFromUserInteraction()
-            workbenchAccessibility.selectedSettingsCategory = category
-            workbenchAccessibility.activeSubtitleColorPopover = nil
-            workbenchAccessibility.unfocusAllSettingsTextInputs()
+            _ = workbenchAccessibility.navigateSettingsCategory(to: category)
             return true
 
         case .appearanceMode(let mode):

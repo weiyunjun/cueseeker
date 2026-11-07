@@ -786,7 +786,7 @@ private struct AppSidebar: View {
             details: "selection=\(routeState.panelMode.rawValue)"
         )
 
-        return VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+        return VStack(alignment: .leading, spacing: 0) {
             AppSidebarNavigationItem(
                 mode: .search,
                 isSelected: routeState.panelMode == .search,

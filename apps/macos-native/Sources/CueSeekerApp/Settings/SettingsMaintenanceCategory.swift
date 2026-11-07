@@ -10,10 +10,7 @@ struct SettingsMaintenanceCategory: View {
     @EnvironmentObject private var indexing: IndexingStore
 
     var body: some View {
-        SettingsGroup(
-            title: L("settings.category.maintenance"),
-            description: L("settings.maintenance.description")
-        ) {
+        SettingsGroup(title: L("settings.category.maintenance")) {
             if let stats = indexing.databaseStorageStats {
                 storageRow(L("settings.maintenance.database_size"), bytes: stats.databaseFileBytes)
                 SettingsRowDivider()

@@ -8,14 +8,8 @@ struct SettingsAppearanceCategory: View {
 
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
-            SettingsGroup(
-                title: L("settings.category.appearance"),
-                description: L("settings.appearance.description")
-            ) {
-                SettingsRow(
-                    L("settings.appearance.mode"),
-                    note: L("settings.appearance.note")
-                ) {
+            SettingsGroup(title: L("settings.category.appearance")) {
+                SettingsRow(L("settings.appearance.mode")) {
                     WorkbenchSegmentedControl(
                         options: AppAppearanceMode.allCases,
                         selection: $settingsStore.appAppearanceMode,

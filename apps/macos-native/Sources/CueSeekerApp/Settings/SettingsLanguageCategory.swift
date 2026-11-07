@@ -27,10 +27,7 @@ struct SettingsLanguageCategory: View {
     }
 
     var body: some View {
-        SettingsGroup(
-            title: L("settings.category.language"),
-            description: L("settings.language.description")
-        ) {
+        SettingsGroup(title: L("settings.category.language")) {
             SettingsRow(L("settings.language.field")) {
                 WorkbenchAccessibilityReader { accessibility in
                     SettingsSubtitleFontTrigger(

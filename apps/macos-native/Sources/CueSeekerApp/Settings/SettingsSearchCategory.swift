@@ -9,10 +9,7 @@ struct SettingsSearchCategory: View {
 
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
-            SettingsGroup(
-                title: L("settings.category.search"),
-                description: L("settings.search.description")
-            ) {
+            SettingsGroup(title: L("settings.category.search")) {
                 SettingsRow(L("settings.search.show_cue_group")) {
                     Toggle(L("settings.search.show_cue_group"), isOn: Binding(
                         get: { cueGroupPresentation.isEnabled },
@@ -30,10 +27,7 @@ struct SettingsSearchCategory: View {
 
                 SettingsRowDivider()
 
-                SettingsRow(
-                    L("settings.search.prefill"),
-                    note: L("settings.search.prefill_note")
-                ) {
+                SettingsRow(L("settings.search.prefill")) {
                     Toggle(
                         L("settings.search.prefill"),
                         isOn: $settingsStore.prefillCommandPanelWithFocusedCue

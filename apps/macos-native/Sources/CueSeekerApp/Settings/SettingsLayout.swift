@@ -4,33 +4,23 @@ import SwiftUI
 /// `docs/human/requirements/20260914-UI-Settings Categories Merge And Grouped
 /// Card Layout.md`.
 
-/// One category's page: its title, then its groups, scrolling when they run
-/// past the window. The trailing Scrollbar channel is always kept, so the cards
-/// do not move when the Scrollbar comes and goes.
+/// One category's page: its groups, scrolling when they run past the window.
+/// The trailing Scrollbar channel is always kept, so the cards do not move when
+/// the Scrollbar comes and goes.
 struct SettingsPage<Content: View>: View {
-    private let title: String
     private let content: Content
 
-    init(title: String, @ViewBuilder content: () -> Content) {
-        self.title = title
+    init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
 
     var body: some View {
         GeometryReader { proxy in
             WorkbenchScrollView {
-                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                    Text(title)
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizePageTitle,
-                            weight: WorkbenchControlMetrics.redesignFontWeightPageTitle
-                        ))
-                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-
-                    VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
-                        content
-                    }
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
+                    content
                 }
+                .padding(.top, WorkbenchControlMetrics.redesignSpacing1)
                 .padding(.leading, WorkbenchControlMetrics.redesignSpacing6)
                 .padding(
                     .trailing,
@@ -50,41 +40,28 @@ struct SettingsPage<Content: View>: View {
     }
 }
 
-/// A group on a page: its title and optional description, then its rows on
-/// one card as wide as the page.
+/// A group on a page: its title, then its rows on one card as wide as the page.
 struct SettingsGroup<Content: View>: View {
     private let title: String
-    private let description: String?
     private let content: Content
 
     init(
         title: String,
-        description: String? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
-        self.description = description
         self.content = content()
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                Text(title)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .semibold
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-
-                if let description {
-                    Text(description)
-                        .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+            Text(title)
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .semibold
+                ))
+                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
 
             VStack(spacing: 0) {
                 content
@@ -140,14 +117,13 @@ struct SettingsRow<Leading: View, Trailing: View>: View {
 }
 
 extension SettingsRow where Leading == SettingsRowLabel {
-    /// The usual row: a name with an optional note below it.
+    /// The usual row: a name leading and a control trailing.
     init(
         _ title: String,
-        note: String? = nil,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.init(
-            leading: { SettingsRowLabel(title: title, note: note) },
+            leading: { SettingsRowLabel(title: title) },
             trailing: trailing
         )
     }
@@ -155,22 +131,12 @@ extension SettingsRow where Leading == SettingsRowLabel {
 
 struct SettingsRowLabel: View {
     let title: String
-    let note: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-            Text(title)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let note {
-                Text(note)
-                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+        Text(title)
+            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
+            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
