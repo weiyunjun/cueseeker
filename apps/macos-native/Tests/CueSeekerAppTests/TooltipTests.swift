@@ -478,6 +478,25 @@ struct TooltipTests {
         #expect(TooltipCenter.defaultHoverDelay == WorkbenchControlMetrics.redesignTooltipHoverDelay)
         #expect(TooltipCenter.defaultSkipWindowDelay == WorkbenchControlMetrics.redesignTooltipSkipWindowDelay)
         #expect(WorkbenchControlMetrics.redesignTooltipSkipWindowDelay == 0.3)
+
+        // Player Chrome tooltips preserve isPlayerChrome == true through TooltipCenter.
+        let playerChromeTarget = UUID()
+        center.hoverBegan(
+            targetID: playerChromeTarget,
+            surface: .main,
+            scenarioID: "player.bottom.screenshot",
+            anchorRect: CGRect(x: 320, y: 540, width: 28, height: 28),
+            content: .standard(
+                label: "Copy Current Screenshot",
+                shortcut: .action(.copyScreenshot),
+                wrapsText: false
+            ),
+            isPlayerChrome: true
+        )
+        center.revealPendingNowForTesting()
+        #expect(center.activeItem?.targetID == playerChromeTarget)
+        #expect(center.activeItem?.isPlayerChrome == true)
+        center.dismiss()
     }
 
     @MainActor

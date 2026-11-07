@@ -107,6 +107,7 @@ struct TooltipActiveItem: Equatable {
     let scenarioID: String
     var anchorRect: CGRect
     var content: TooltipContent
+    var isPlayerChrome: Bool = false
 }
 
 enum TooltipGeometry {
@@ -168,6 +169,7 @@ final class TooltipCenter: ObservableObject {
         var anchorRect: CGRect
         var content: TooltipContent
         var hoverDelay: TimeInterval
+        var isPlayerChrome: Bool = false
     }
 
     @Published private(set) var activeItem: TooltipActiveItem?
@@ -206,7 +208,8 @@ final class TooltipCenter: ObservableObject {
         scenarioID: String,
         anchorRect: CGRect,
         content: TooltipContent,
-        hoverDelay: TimeInterval = TooltipCenter.defaultHoverDelay
+        hoverDelay: TimeInterval = TooltipCenter.defaultHoverDelay,
+        isPlayerChrome: Bool = false
     ) {
         guard !content.isEmpty, anchorRect.width > 0, anchorRect.height > 0 else {
             hoverEnded(targetID: targetID)
@@ -220,7 +223,8 @@ final class TooltipCenter: ObservableObject {
                 scenarioID: scenarioID,
                 anchorRect: anchorRect,
                 content: content,
-                hoverDelay: hoverDelay
+                hoverDelay: hoverDelay,
+                isPlayerChrome: isPlayerChrome
             )
             return
         }
@@ -237,7 +241,8 @@ final class TooltipCenter: ObservableObject {
             scenarioID: scenarioID,
             anchorRect: anchorRect,
             content: content,
-            hoverDelay: hoverDelay
+            hoverDelay: hoverDelay,
+            isPlayerChrome: isPlayerChrome
         )
         hoveredTarget = target
 
@@ -257,7 +262,8 @@ final class TooltipCenter: ObservableObject {
                 surface: target.surface,
                 scenarioID: target.scenarioID,
                 anchorRect: target.anchorRect,
-                content: target.content
+                content: target.content,
+                isPlayerChrome: target.isPlayerChrome
             )
         } else {
             if activeItem != nil {
@@ -281,7 +287,8 @@ final class TooltipCenter: ObservableObject {
             scenarioID: current.scenarioID,
             anchorRect: anchorRect,
             content: content,
-            hoverDelay: current.hoverDelay
+            hoverDelay: current.hoverDelay,
+            isPlayerChrome: current.isPlayerChrome
         )
     }
 
@@ -291,7 +298,8 @@ final class TooltipCenter: ObservableObject {
         scenarioID: String,
         anchorRect: CGRect,
         content: TooltipContent,
-        hoverDelay: TimeInterval = TooltipCenter.defaultHoverDelay
+        hoverDelay: TimeInterval = TooltipCenter.defaultHoverDelay,
+        isPlayerChrome: Bool = false
     ) {
         guard hoveredTarget?.targetID == targetID else {
             return
@@ -307,7 +315,8 @@ final class TooltipCenter: ObservableObject {
             scenarioID: scenarioID,
             anchorRect: anchorRect,
             content: content,
-            hoverDelay: hoverDelay
+            hoverDelay: hoverDelay,
+            isPlayerChrome: isPlayerChrome
         )
 
         if activeItem?.targetID == targetID {
@@ -316,7 +325,8 @@ final class TooltipCenter: ObservableObject {
                 surface: surface,
                 scenarioID: scenarioID,
                 anchorRect: anchorRect,
-                content: content
+                content: content,
+                isPlayerChrome: isPlayerChrome
             )
         }
     }
@@ -378,7 +388,8 @@ final class TooltipCenter: ObservableObject {
             surface: target.surface,
             scenarioID: target.scenarioID,
             anchorRect: target.anchorRect,
-            content: target.content
+            content: target.content,
+            isPlayerChrome: target.isPlayerChrome
         )
     }
 
@@ -404,7 +415,8 @@ final class TooltipCenter: ObservableObject {
                 surface: current.surface,
                 scenarioID: current.scenarioID,
                 anchorRect: current.anchorRect,
-                content: current.content
+                content: current.content,
+                isPlayerChrome: current.isPlayerChrome
             )
         }
     }
@@ -530,13 +542,15 @@ private struct TooltipActiveBubbleView: View {
             TooltipStandardBubbleView(
                 label: label,
                 keycaps: shortcut.resolvedKeycaps(keymap: keymap),
-                wrapsText: wrapsText
+                wrapsText: wrapsText,
+                isPlayerChrome: item.isPlayerChrome
             )
         case .cueState(let state):
             TooltipStandardBubbleView(
                 label: state.tooltipMessage ?? "",
                 keycaps: [],
-                wrapsText: false
+                wrapsText: false,
+                isPlayerChrome: item.isPlayerChrome
             )
         }
     }
@@ -585,15 +599,19 @@ struct TooltipStandardBubbleView: View {
     let label: String
     let keycaps: [PlaybackCueFooterKeycap]
     let wrapsText: Bool
+    let isPlayerChrome: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     init(
         label: String,
         keycaps: [PlaybackCueFooterKeycap] = [],
-        wrapsText: Bool
+        wrapsText: Bool,
+        isPlayerChrome: Bool = false
     ) {
         self.label = label
         self.keycaps = keycaps
         self.wrapsText = wrapsText
+        self.isPlayerChrome = isPlayerChrome
     }
 
     var body: some View {
@@ -626,13 +644,11 @@ struct TooltipStandardBubbleView: View {
                             ForEach(keycaps.indices, id: \.self) { index in
                                 PlaybackCueFooterKeycapView(
                                     keycap: keycaps[index],
-                                    background: .clear,
-                                    borderColor: WorkbenchRedesignColors.tooltipText,
-                                    borderWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                                    background: WorkbenchRedesignColors.popoverSurfaceKeycapBg
                                 )
                             }
                         }
-                        .foregroundStyle(WorkbenchRedesignColors.tooltipText)
+                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
                         .fixedSize(horizontal: true, vertical: false)
                     }
                 }
@@ -645,6 +661,7 @@ struct TooltipStandardBubbleView: View {
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
             )
         )
+        .environment(\.colorScheme, isPlayerChrome ? .dark : colorScheme)
     }
 }
 
@@ -695,7 +712,8 @@ private struct TooltipModifier: ViewModifier {
                 scenarioID: scenarioID,
                 isActive: effectiveIsActive,
                 content: content,
-                hoverDelay: hoverDelay
+                hoverDelay: hoverDelay,
+                isPlayerChrome: layerContext.layer == .playbackPage
             )
         )
     }
@@ -708,6 +726,7 @@ private struct TooltipTrackingRepresentable: NSViewRepresentable {
     let isActive: Bool
     let content: TooltipContent
     let hoverDelay: TimeInterval
+    let isPlayerChrome: Bool
 
     func makeNSView(context: Context) -> TooltipTrackingNSView {
         let view = TooltipTrackingNSView()
@@ -717,7 +736,8 @@ private struct TooltipTrackingRepresentable: NSViewRepresentable {
             scenarioID: scenarioID,
             isActive: isActive,
             content: content,
-            hoverDelay: hoverDelay
+            hoverDelay: hoverDelay,
+            isPlayerChrome: isPlayerChrome
         )
         return view
     }
@@ -729,7 +749,8 @@ private struct TooltipTrackingRepresentable: NSViewRepresentable {
             scenarioID: scenarioID,
             isActive: isActive,
             content: content,
-            hoverDelay: hoverDelay
+            hoverDelay: hoverDelay,
+            isPlayerChrome: isPlayerChrome
         )
     }
 
@@ -748,6 +769,7 @@ final class TooltipTrackingNSView: NSView {
     private var isActive = false
     private var content: TooltipContent = .standard(label: "", shortcut: .none, wrapsText: false)
     private var hoverDelay: TimeInterval = TooltipCenter.defaultHoverDelay
+    private var isPlayerChrome = false
     private var trackingAreaRef: NSTrackingArea?
     private var isPointerInside = false
 
@@ -761,7 +783,8 @@ final class TooltipTrackingNSView: NSView {
         scenarioID: String,
         isActive: Bool,
         content: TooltipContent,
-        hoverDelay: TimeInterval
+        hoverDelay: TimeInterval,
+        isPlayerChrome: Bool = false
     ) {
         self.targetID = targetID
         self.surface = surface
@@ -769,6 +792,7 @@ final class TooltipTrackingNSView: NSView {
         self.isActive = isActive
         self.content = content
         self.hoverDelay = hoverDelay
+        self.isPlayerChrome = isPlayerChrome
 
         guard isActive, window != nil else {
             if isPointerInside {
@@ -785,7 +809,8 @@ final class TooltipTrackingNSView: NSView {
                 scenarioID: scenarioID,
                 anchorRect: anchorRect,
                 content: content,
-                hoverDelay: hoverDelay
+                hoverDelay: hoverDelay,
+                isPlayerChrome: isPlayerChrome
             )
         }
     }
@@ -828,7 +853,8 @@ final class TooltipTrackingNSView: NSView {
             scenarioID: scenarioID,
             anchorRect: anchorRect,
             content: content,
-            hoverDelay: hoverDelay
+            hoverDelay: hoverDelay,
+            isPlayerChrome: isPlayerChrome
         )
     }
 
