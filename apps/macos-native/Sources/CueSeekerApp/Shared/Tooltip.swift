@@ -12,17 +12,57 @@ enum TooltipShortcut: Equatable, Sendable {
     case fixed(String)
     case action(PlaybackShortcutAction)
 
+    private static let modifierCharacters: Set<Character> = ["⌃", "⌥", "⇧", "⌘"]
+
     @MainActor
-    func resolvedText(keymap: PlaybackShortcutKeymap) -> String? {
+    func resolvedKeycaps(keymap: PlaybackShortcutKeymap) -> [PlaybackCueFooterKeycap] {
         switch self {
         case .none:
-            return nil
+            return []
         case .fixed(let text):
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
+            return Self.parseFixedKeycaps(text)
         case .action(let action):
-            return keymap.effectiveKey(for: action)?.tooltipDisplayText
+            return keymap.effectiveKey(for: action)?.keycaps ?? []
         }
+    }
+
+    @MainActor
+    func resolvedText(keymap: PlaybackShortcutKeymap) -> String? {
+        let caps = resolvedKeycaps(keymap: keymap)
+        guard !caps.isEmpty else {
+            return nil
+        }
+        let text = caps.map { cap -> String in
+            switch cap {
+            case .text(let value):
+                return value
+            case .icon(.arrowElbowDownLeft):
+                return "↩"
+            case .icon:
+                return ""
+            }
+        }.joined()
+        return text.isEmpty ? nil : text
+    }
+
+    private static func parseFixedKeycaps(_ raw: String) -> [PlaybackCueFooterKeycap] {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return []
+        }
+        var caps: [PlaybackCueFooterKeycap] = []
+        var remainder = Substring(trimmed)
+        while let first = remainder.first, modifierCharacters.contains(first) {
+            caps.append(.text(String(first)))
+            remainder = remainder.dropFirst()
+        }
+        let mainKey = String(remainder).trimmingCharacters(in: .whitespacesAndNewlines)
+        if mainKey == "↩" {
+            caps.append(.returnKey)
+        } else if !mainKey.isEmpty {
+            caps.append(.text(mainKey))
+        }
+        return caps
     }
 }
 
@@ -72,8 +112,13 @@ struct TooltipActiveItem: Equatable {
 enum TooltipGeometry {
     static let gap: CGFloat = WorkbenchControlMetrics.redesignSpacing2
     static let windowSafeMargin: CGFloat = WorkbenchControlMetrics.redesignSpacing2
-    static let truncatedTextMaxWidth: CGFloat = WorkbenchControlMetrics.redesignTooltipMaxWidth
+    static let maxWidth: CGFloat = WorkbenchControlMetrics.redesignTooltipMaxWidth
+    static let truncatedTextMaxWidth: CGFloat = max(
+        0,
+        maxWidth - WorkbenchControlMetrics.redesignControlPaddingX * 2
+    )
     static let inlineShortcutSpacing: CGFloat = WorkbenchControlMetrics.redesignSpacing2
+    static let keycapSpacing: CGFloat = WorkbenchControlMetrics.redesignSpacing1
 
     static func frame(
         anchor: CGRect,
@@ -484,36 +529,87 @@ private struct TooltipActiveBubbleView: View {
         case .standard(let label, let shortcut, let wrapsText):
             TooltipStandardBubbleView(
                 label: label,
-                shortcutText: shortcut.resolvedText(keymap: keymap),
+                keycaps: shortcut.resolvedKeycaps(keymap: keymap),
                 wrapsText: wrapsText
             )
         case .cueState(let state):
             TooltipStandardBubbleView(
                 label: state.tooltipMessage ?? "",
-                shortcutText: nil,
+                keycaps: [],
                 wrapsText: false
             )
         }
     }
 }
 
+private struct TooltipWrappingTextLayout: Layout {
+    let maxWidth: CGFloat
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        guard let subview = subviews.first else {
+            return .zero
+        }
+        let naturalSize = subview.sizeThatFits(.unspecified)
+        let allowedWidth = min(maxWidth, proposal.width ?? maxWidth)
+        guard naturalSize.width > allowedWidth, allowedWidth > 0 else {
+            return naturalSize
+        }
+        let wrappedSize = subview.sizeThatFits(
+            ProposedViewSize(width: allowedWidth, height: nil)
+        )
+        return CGSize(width: allowedWidth, height: wrappedSize.height)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        guard let subview = subviews.first else {
+            return
+        }
+        subview.place(
+            at: bounds.origin,
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: bounds.width, height: bounds.height)
+        )
+    }
+}
+
 struct TooltipStandardBubbleView: View {
     let label: String
-    let shortcutText: String?
+    let keycaps: [PlaybackCueFooterKeycap]
     let wrapsText: Bool
+
+    init(
+        label: String,
+        keycaps: [PlaybackCueFooterKeycap] = [],
+        wrapsText: Bool
+    ) {
+        self.label = label
+        self.keycaps = keycaps
+        self.wrapsText = wrapsText
+    }
 
     var body: some View {
         Group {
             if wrapsText {
-                Text(label)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeControl,
-                        weight: WorkbenchControlMetrics.redesignFontWeightControl
-                    ))
-                    .foregroundStyle(PlaybackTheme.textPrimary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: TooltipGeometry.truncatedTextMaxWidth, alignment: .leading)
+                TooltipWrappingTextLayout(maxWidth: TooltipGeometry.truncatedTextMaxWidth) {
+                    Text(label)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeControl,
+                            weight: WorkbenchControlMetrics.redesignFontWeightControl
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.tooltipText)
+                        .multilineTextAlignment(.leading)
+                }
+                .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+                .padding(.vertical, WorkbenchControlMetrics.redesignTooltipVerticalPadding)
             } else {
                 HStack(spacing: TooltipGeometry.inlineShortcutSpacing) {
                     Text(label)
@@ -521,25 +617,29 @@ struct TooltipStandardBubbleView: View {
                             size: WorkbenchControlMetrics.redesignFontSizeControl,
                             weight: WorkbenchControlMetrics.redesignFontWeightControl
                         ))
-                        .foregroundStyle(PlaybackTheme.textPrimary)
+                        .foregroundStyle(WorkbenchRedesignColors.tooltipText)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
 
-                    if let shortcutText, !shortcutText.isEmpty {
-                        Text(shortcutText)
-                            .font(.system(
-                                size: WorkbenchControlMetrics.redesignFontSizeControl,
-                                weight: WorkbenchControlMetrics.redesignFontWeightControl
-                            ))
-                            .foregroundStyle(PlaybackTheme.textSecondary)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
+                    if !keycaps.isEmpty {
+                        HStack(spacing: TooltipGeometry.keycapSpacing) {
+                            ForEach(keycaps.indices, id: \.self) { index in
+                                PlaybackCueFooterKeycapView(
+                                    keycap: keycaps[index],
+                                    background: .clear,
+                                    borderColor: WorkbenchRedesignColors.tooltipText,
+                                    borderWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                                )
+                            }
+                        }
+                        .foregroundStyle(WorkbenchRedesignColors.tooltipText)
+                        .fixedSize(horizontal: true, vertical: false)
                     }
                 }
+                .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+                .frame(height: WorkbenchControlMetrics.redesignHeight)
             }
         }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
-        .padding(.vertical, WorkbenchControlMetrics.redesignTooltipVerticalPadding)
         .background(
             TooltipSurfaceBackground(
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
@@ -556,11 +656,6 @@ struct TooltipSurfaceBackground: View {
 
         shape
             .fill(WorkbenchRedesignColors.tooltipBg)
-            .background(
-                shape
-                    .fill(.ultraThinMaterial)
-                    .environment(\.colorScheme, .dark)
-            )
             .shadowToken(
                 WorkbenchRedesignColors.shadowPopover,
                 cornerRadius: cornerRadius

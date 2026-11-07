@@ -331,20 +331,12 @@ enum WorkbenchRedesignColors {
         static let toastText = textSecondary
 
         // Tooltip
-        // --color-tooltip-bg: Light rgba(31, 31, 31, 0.90), Dark rgba(45, 45, 50, 0.92)
-        static let tooltipBg = NSColor.dynamic(
-            lightHex: "#1F1F1F",
-            lightAlpha: 0.90,
-            darkHex: "#2D2D32",
-            darkAlpha: 0.92
-        )
-        // --color-tooltip-border: rgba(255, 255, 255, 0.15)
-        static let tooltipBorder = NSColor.dynamic(
-            lightHex: "#FFFFFF",
-            lightAlpha: 0.15,
-            darkHex: "#FFFFFF",
-            darkAlpha: 0.15
-        )
+        // --color-bg-popover (Light #FFFFFF, Dark #36363B)
+        static let tooltipBg = bgPopover
+        // --color-border-control (Light #E5E7EB, Dark #4A4A52)
+        static let tooltipBorder = borderControl
+        // --color-text-secondary (Light #494949, Dark #B9B9B9)
+        static let tooltipText = textSecondary
     }
 
     // SwiftUI Wrapper Tokens
@@ -520,6 +512,7 @@ enum WorkbenchRedesignColors {
     // Tooltip
     static let tooltipBg = Color(nsColor: NS.tooltipBg)
     static let tooltipBorder = Color(nsColor: NS.tooltipBorder)
+    static let tooltipText = Color(nsColor: NS.tooltipText)
 
     // Shadow Dialog
     // --shadow-dialog: 0 18px 40px, one layer in both themes; only its

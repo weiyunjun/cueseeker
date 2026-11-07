@@ -64,6 +64,9 @@ struct TooltipTests {
             TooltipShortcut.action(.playPause).resolvedText(keymap: keymap) == "Space"
         )
         #expect(
+            TooltipShortcut.action(.playPause).resolvedKeycaps(keymap: keymap) == [.text("Space")]
+        )
+        #expect(
             TooltipShortcut.action(.previous).resolvedText(keymap: keymap) == "A"
         )
         #expect(
@@ -90,6 +93,15 @@ struct TooltipTests {
         #expect(
             TooltipShortcut.action(.openPlaybackOverlay).resolvedText(keymap: keymap) == "↩"
         )
+        #expect(
+            TooltipShortcut.action(.openPlaybackOverlay).resolvedKeycaps(keymap: keymap) == [.returnKey]
+        )
+        #expect(
+            TooltipShortcut.fixed("⌘,").resolvedKeycaps(keymap: keymap) == [.text("⌘"), .text(",")]
+        )
+        #expect(
+            TooltipShortcut.fixed("Esc").resolvedKeycaps(keymap: keymap) == [.text("Esc")]
+        )
 
         // Modified key (Shift + V -> ⇧V)
         keymap.set(
@@ -98,6 +110,9 @@ struct TooltipTests {
         )
         #expect(
             TooltipShortcut.action(.toggleSubtitles).resolvedText(keymap: keymap) == "⇧V"
+        )
+        #expect(
+            TooltipShortcut.action(.toggleSubtitles).resolvedKeycaps(keymap: keymap) == [.text("⇧"), .text("V")]
         )
 
         // Multi-modifier + Space (⌃⌥⇧⌘Space)
@@ -109,14 +124,26 @@ struct TooltipTests {
             shift: true
         )
         #expect(multiSpace.tooltipDisplayText == "⌃⌥⇧⌘Space")
+        #expect(
+            multiSpace.keycaps == [
+                .text("⌃"),
+                .text("⌥"),
+                .text("⇧"),
+                .text("⌘"),
+                .text("Space"),
+            ]
+        )
 
-        // Cleared key -> omitted (nil)
+        // Cleared key -> omitted (nil / empty)
         keymap.set(nil, for: .repeatCue)
         #expect(
             TooltipShortcut.action(.repeatCue).resolvedText(keymap: keymap) == nil
         )
+        #expect(
+            TooltipShortcut.action(.repeatCue).resolvedKeycaps(keymap: keymap).isEmpty
+        )
 
-        // Conflicting key -> omitted (nil) for both conflicting actions
+        // Conflicting key -> omitted (nil / empty) for both conflicting actions
         keymap.set(
             PlaybackShortcutKey(keyCode: UInt16(kVK_Space)),
             for: .copyScreenshot
@@ -125,7 +152,13 @@ struct TooltipTests {
             TooltipShortcut.action(.playPause).resolvedText(keymap: keymap) == nil
         )
         #expect(
+            TooltipShortcut.action(.playPause).resolvedKeycaps(keymap: keymap).isEmpty
+        )
+        #expect(
             TooltipShortcut.action(.copyScreenshot).resolvedText(keymap: keymap) == nil
+        )
+        #expect(
+            TooltipShortcut.action(.copyScreenshot).resolvedKeycaps(keymap: keymap).isEmpty
         )
     }
 
@@ -384,14 +417,64 @@ struct TooltipTests {
         let singleLineBubble = NSHostingView(
             rootView: TooltipStandardBubbleView(
                 label: "Tasks",
-                shortcutText: nil,
+                keycaps: [],
                 wrapsText: false
             )
         )
         singleLineBubble.layoutSubtreeIfNeeded()
         #expect(abs(singleLineBubble.fittingSize.height - WorkbenchControlMetrics.redesignHeight) < 0.5)
+
+        let shortcutBubble = NSHostingView(
+            rootView: TooltipStandardBubbleView(
+                label: "Settings",
+                keycaps: [.text("⌘"), .text(",")],
+                wrapsText: false
+            )
+        )
+        shortcutBubble.layoutSubtreeIfNeeded()
+        #expect(abs(shortcutBubble.fittingSize.height - WorkbenchControlMetrics.redesignHeight) < 0.5)
+
+        // Short truncated-text tooltip (wrapsText: true) must shrink-wrap to its single-line
+        // width rather than expanding to the 280px maximum width.
+        let shortNonWrappedBubble = NSHostingView(
+            rootView: TooltipStandardBubbleView(
+                label: "Recent",
+                keycaps: [],
+                wrapsText: false
+            )
+        )
+        shortNonWrappedBubble.layoutSubtreeIfNeeded()
+        let shortWrappedBubble = NSHostingView(
+            rootView: TooltipStandardBubbleView(
+                label: "Recent",
+                keycaps: [],
+                wrapsText: true
+            )
+        )
+        shortWrappedBubble.layoutSubtreeIfNeeded()
+        #expect(abs(shortWrappedBubble.fittingSize.width - shortNonWrappedBubble.fittingSize.width) < 1.0)
+        #expect(shortWrappedBubble.fittingSize.width < 120)
+        #expect(abs(shortWrappedBubble.fittingSize.height - WorkbenchControlMetrics.redesignHeight) < 0.5)
+
+        // Long truncated-text tooltip must cap container width at 280px and wrap across multiple lines.
+        let longWrappedBubble = NSHostingView(
+            rootView: TooltipStandardBubbleView(
+                label: String(repeating: "VeryLongVideoDisplayTitleSegment ", count: 8),
+                keycaps: [],
+                wrapsText: true
+            )
+        )
+        longWrappedBubble.layoutSubtreeIfNeeded()
+        #expect(abs(longWrappedBubble.fittingSize.width - WorkbenchControlMetrics.redesignTooltipMaxWidth) < 1.0)
+        #expect(longWrappedBubble.fittingSize.height > WorkbenchControlMetrics.redesignHeight)
+
         #expect(TooltipGeometry.inlineShortcutSpacing == WorkbenchControlMetrics.redesignSpacing2)
-        #expect(TooltipGeometry.truncatedTextMaxWidth == WorkbenchControlMetrics.redesignTooltipMaxWidth)
+        #expect(TooltipGeometry.keycapSpacing == WorkbenchControlMetrics.redesignSpacing1)
+        #expect(TooltipGeometry.maxWidth == WorkbenchControlMetrics.redesignTooltipMaxWidth)
+        #expect(
+            TooltipGeometry.truncatedTextMaxWidth
+                == WorkbenchControlMetrics.redesignTooltipMaxWidth - WorkbenchControlMetrics.redesignControlPaddingX * 2
+        )
         #expect(TooltipCenter.defaultHoverDelay == WorkbenchControlMetrics.redesignTooltipHoverDelay)
         #expect(TooltipCenter.defaultSkipWindowDelay == WorkbenchControlMetrics.redesignTooltipSkipWindowDelay)
         #expect(WorkbenchControlMetrics.redesignTooltipSkipWindowDelay == 0.3)

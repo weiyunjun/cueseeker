@@ -676,8 +676,15 @@ private struct PlaybackCueFooterActionButton: View {
 struct PlaybackCueFooterKeycapView: View {
     let keycap: PlaybackCueFooterKeycap
     let background: Color
+    var borderColor: Color? = nil
+    var borderWidth: CGFloat = WorkbenchControlMetrics.redesignControlBorderWidth
 
     var body: some View {
+        let shape = RoundedRectangle(
+            cornerRadius: WorkbenchControlMetrics.redesignKeycapRadius,
+            style: .continuous
+        )
+
         label
             .font(.system(
                 size: WorkbenchControlMetrics.redesignFontSizeCaption,
@@ -690,11 +697,12 @@ struct PlaybackCueFooterKeycapView: View {
             .frame(minWidth: WorkbenchControlMetrics.redesignKeycapHeight)
             .frame(height: WorkbenchControlMetrics.redesignKeycapHeight)
             .background {
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignKeycapRadius,
-                    style: .continuous
-                )
-                .fill(background)
+                shape.fill(background)
+            }
+            .overlay {
+                if let borderColor {
+                    shape.strokeBorder(borderColor, lineWidth: borderWidth)
+                }
             }
     }
 
