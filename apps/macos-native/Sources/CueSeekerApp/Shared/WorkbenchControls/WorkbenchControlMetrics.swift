@@ -338,9 +338,9 @@ enum WorkbenchControlMetrics {
     static let redesignSettingsWindowHeight: CGFloat = 640
     /// --min-height-settings-window: 420px
     static let redesignSettingsWindowMinimumHeight: CGFloat = 420
-    /// --height-settings-titlebar: 36px, the band the window controls sit in
-    /// above the Settings sidebar and page
-    static let redesignSettingsTitlebarHeight: CGFloat = 36
+    /// --height-settings-titlebar: 48px, the band the window controls and
+    /// Settings right topbar sit in above the Settings sidebar and page
+    static let redesignSettingsTitlebarHeight: CGFloat = 48
     /// --width-settings-number-field: 114px
     static let redesignSettingsNumberFieldWidth: CGFloat = 114
     /// --width-settings-popup: 180px
