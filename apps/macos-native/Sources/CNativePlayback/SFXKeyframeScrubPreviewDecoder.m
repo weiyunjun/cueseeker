@@ -241,6 +241,16 @@
     if (_scaler == NULL) {
         return NULL;
     }
+    SFXConfigureSwsContextColorSpace(
+        _scaler,
+        videoStream,
+        _codecContext,
+        _frame,
+        srcWidth,
+        srcHeight,
+        inputFormat,
+        AV_PIX_FMT_RGB24
+    );
 
     int dstStride = dstWidth * 3;
     NSMutableData *rgbData = [NSMutableData dataWithLength:(NSUInteger)(dstStride * dstHeight)];

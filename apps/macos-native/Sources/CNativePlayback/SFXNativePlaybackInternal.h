@@ -165,6 +165,47 @@ void SFXApplyVideoOrientationAttachment(
     CVPixelBufferRef _Nullable pixelBuffer,
     SFXVideoOrientation orientation
 );
+enum AVColorSpace SFXResolveVideoColorSpace(
+    const AVStream * _Nullable videoStream,
+    const AVCodecContext * _Nullable codecContext,
+    const AVFrame * _Nullable frame,
+    int width,
+    int height
+);
+enum AVColorPrimaries SFXResolveVideoColorPrimaries(
+    const AVStream * _Nullable videoStream,
+    const AVCodecContext * _Nullable codecContext,
+    const AVFrame * _Nullable frame,
+    int width,
+    int height
+);
+enum AVColorTransferCharacteristic SFXResolveVideoColorTransfer(
+    const AVStream * _Nullable videoStream,
+    const AVCodecContext * _Nullable codecContext,
+    const AVFrame * _Nullable frame
+);
+BOOL SFXResolveVideoIsFullRange(
+    const AVStream * _Nullable videoStream,
+    const AVCodecContext * _Nullable codecContext,
+    const AVFrame * _Nullable frame,
+    enum AVPixelFormat pixelFormat
+);
+void SFXApplyColorSpaceAttachments(
+    CVPixelBufferRef _Nullable pixelBuffer,
+    const AVStream * _Nullable videoStream,
+    const AVCodecContext * _Nullable codecContext,
+    const AVFrame * _Nullable frame
+);
+void SFXConfigureSwsContextColorSpace(
+    struct SwsContext * _Nullable scaler,
+    const AVStream * _Nullable videoStream,
+    const AVCodecContext * _Nullable codecContext,
+    const AVFrame * _Nullable frame,
+    int width,
+    int height,
+    enum AVPixelFormat inputFormat,
+    enum AVPixelFormat outputFormat
+);
 NSData * _Nullable SFXTransformRGB24DataForVideoOrientation(
     NSData * _Nullable rgb24Data,
     int width,

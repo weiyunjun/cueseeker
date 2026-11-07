@@ -135,7 +135,7 @@ enum AnkiPackageExporter {
         var mediaMap: [String: String] = [:]
         var mediaIndex = 0
         var audioTrackIndexes: [String: Int] = [:]
-        var videoSwapsDimensions: [String: Bool] = [:]
+        var videoScaleFilters: [String: String] = [:]
 
         for (index, item) in items.enumerated() {
             try Task.checkCancellation()
@@ -174,13 +174,13 @@ enum AnkiPackageExporter {
                 let resolvedInput = WebDAVClient.shared.resolvePlayableInput(
                     for: URL.fromMediaPath(item.videoPath)
                 )
-                let swapsDimensions = videoSwapsDimensions[item.videoPath]
-                    ?? swapsVideoDimensions(for: resolvedInput)
-                videoSwapsDimensions[item.videoPath] = swapsDimensions
+                let scaleFilter = videoScaleFilters[item.videoPath]
+                    ?? videoScaleFilter(for: resolvedInput)
+                videoScaleFilters[item.videoPath] = scaleFilter
                 try await exportImage(
                     item: item,
                     resolvedInput: resolvedInput,
-                    swapsVideoDimensions: swapsDimensions,
+                    scaleFilter: scaleFilter,
                     ffmpegURL: ffmpegURL,
                     outputURL: imageExportURL
                 )
@@ -291,25 +291,26 @@ enum AnkiPackageExporter {
         )
     }
 
-    private static func swapsVideoDimensions(for resolvedInput: WebDAVPlayableInput) -> Bool {
-        (
-            try? SFXMediaMetadataInspector.containerProbe(
-                atMediaPath: resolvedInput.inputPath,
-                httpHeaders: resolvedInput.httpHeaders
-            )
-        )?.swapsVideoDimensions ?? false
+    private static func videoScaleFilter(for resolvedInput: WebDAVPlayableInput) -> String {
+        let probe = try? SFXMediaMetadataInspector.containerProbe(
+            atMediaPath: resolvedInput.inputPath,
+            httpHeaders: resolvedInput.httpHeaders
+        )
+        return SFXFFmpegPixelAspectRatioScaleFilterWithColorMatrix(
+            probe?.swapsVideoDimensions ?? false,
+            probe?.inferredColorMatrix
+        )
     }
 
     private static func exportImage(
         item: AnkiExportItem,
         resolvedInput: WebDAVPlayableInput,
-        swapsVideoDimensions: Bool,
+        scaleFilter: String,
         ffmpegURL: URL,
         outputURL: URL
     ) async throws {
         let midpointMilliseconds = max(0, (item.startMilliseconds + item.endMilliseconds) / 2)
         let midpointSeconds = Double(midpointMilliseconds) / 1_000
-        let scaleFilter = SFXFFmpegPixelAspectRatioScaleFilter(swapsVideoDimensions)
         var arguments = [
             "-nostdin",
             "-y",

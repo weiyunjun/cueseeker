@@ -428,7 +428,10 @@
     enum AVPixelFormat targetFFmpegFormat = canUseP010
         ? AV_PIX_FMT_P010LE
         : (canUseNV12 ? AV_PIX_FMT_NV12 : AV_PIX_FMT_BGRA);
-    BOOL isFullRange = inputFormat == AV_PIX_FMT_YUVJ420P || frame->color_range == AVCOL_RANGE_JPEG;
+    AVStream *videoStream = (_formatContext != NULL && _videoStreamIndex >= 0 && _videoStreamIndex < (int)_formatContext->nb_streams)
+        ? _formatContext->streams[_videoStreamIndex]
+        : NULL;
+    BOOL isFullRange = SFXResolveVideoIsFullRange(videoStream, _videoCodecContext, frame, inputFormat);
     OSType targetCVPixelFormat = canUseP010
         ? (isFullRange ? kCVPixelFormatType_420YpCbCr10BiPlanarFullRange : kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange)
         : (canUseNV12
@@ -439,6 +442,16 @@
         || ![self ensureSoftwarePixelBufferPoolWithWidth:width height:height pixelFormat:targetCVPixelFormat]) {
         return NULL;
     }
+    SFXConfigureSwsContextColorSpace(
+        _videoScaler,
+        videoStream,
+        _videoCodecContext,
+        frame,
+        width,
+        height,
+        inputFormat,
+        targetFFmpegFormat
+    );
 
     CVPixelBufferRef pixelBuffer = NULL;
     CVReturn createResult = CVPixelBufferPoolCreatePixelBuffer(
@@ -479,23 +492,12 @@
     );
     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
 
-    if ((canUseNV12 || canUseP010) && convertedHeight > 0) {
-        CFStringRef matrix = kCVImageBufferYCbCrMatrix_ITU_R_709_2;
-        if (frame->colorspace == AVCOL_SPC_BT2020_NCL || frame->colorspace == AVCOL_SPC_BT2020_CL) {
-            matrix = kCVImageBufferYCbCrMatrix_ITU_R_2020;
-        } else if (frame->colorspace == AVCOL_SPC_BT470BG || frame->colorspace == AVCOL_SPC_SMPTE170M || (frame->colorspace == AVCOL_SPC_UNSPECIFIED && height < 720)) {
-            matrix = kCVImageBufferYCbCrMatrix_ITU_R_601_4;
-        }
-        CVBufferSetAttachment(pixelBuffer, kCVImageBufferYCbCrMatrixKey, matrix, kCVAttachmentMode_ShouldPropagate);
-        CVBufferSetAttachment(pixelBuffer, kCVImageBufferColorPrimariesKey, kCVImageBufferColorPrimaries_ITU_R_709_2, kCVAttachmentMode_ShouldPropagate);
-        CVBufferSetAttachment(pixelBuffer, kCVImageBufferTransferFunctionKey, kCVImageBufferTransferFunction_ITU_R_709_2, kCVAttachmentMode_ShouldPropagate);
-    }
-
     if (convertedHeight <= 0) {
         CVPixelBufferRelease(pixelBuffer);
         return NULL;
     }
 
+    SFXApplyColorSpaceAttachments(pixelBuffer, videoStream, _videoCodecContext, frame);
     return pixelBuffer;
 }
 
@@ -618,6 +620,7 @@
                 break;
             }
             CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)_videoFrame->data[3];
+            SFXApplyColorSpaceAttachments(pixelBuffer, videoStream, _videoCodecContext, _videoFrame);
             SFXApplyPixelAspectRatioAttachment(pixelBuffer, frameSAR);
             SFXApplyVideoOrientationAttachment(pixelBuffer, frameOrientation);
             submittedVideoFrame = [self enqueuePixelBuffer:pixelBuffer

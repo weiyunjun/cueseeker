@@ -158,7 +158,8 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
 
 - (instancetype)initWithFormatName:(NSString *)formatName
           hasHeaderVideoParameters:(BOOL)hasHeaderVideoParameters
-              swapsVideoDimensions:(BOOL)swapsVideoDimensions NS_DESIGNATED_INITIALIZER;
+              swapsVideoDimensions:(BOOL)swapsVideoDimensions
+               inferredColorMatrix:(nullable NSString *)inferredColorMatrix NS_DESIGNATED_INITIALIZER;
 
 @end
 
@@ -166,12 +167,14 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
 
 - (instancetype)initWithFormatName:(NSString *)formatName
           hasHeaderVideoParameters:(BOOL)hasHeaderVideoParameters
-              swapsVideoDimensions:(BOOL)swapsVideoDimensions {
+              swapsVideoDimensions:(BOOL)swapsVideoDimensions
+               inferredColorMatrix:(nullable NSString *)inferredColorMatrix {
     self = [super init];
     if (self != nil) {
         _formatName = [formatName copy];
         _hasHeaderVideoParameters = hasHeaderVideoParameters;
         _swapsVideoDimensions = swapsVideoDimensions;
+        _inferredColorMatrix = [inferredColorMatrix copy];
     }
     return self;
 }
@@ -224,6 +227,8 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
 @end
 
 static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
+    const AVStream *videoStream,
+    const AVCodecContext *codecContext,
     const AVFrame *frame,
     int srcWidth,
     int srcHeight,
@@ -258,6 +263,16 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     if (fullScaler == NULL) {
         return nil;
     }
+    SFXConfigureSwsContextColorSpace(
+        fullScaler,
+        videoStream,
+        codecContext,
+        frame,
+        srcWidth,
+        srcHeight,
+        inputFormat,
+        AV_PIX_FMT_RGB24
+    );
 
     uint8_t *fullDstSlice[4] = { (uint8_t *)fullRGBData.mutableBytes, NULL, NULL, NULL };
     int fullDstStride[4] = { fullStride, 0, 0, 0 };
@@ -417,6 +432,7 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     NSString *formatName = [NSString stringWithUTF8String:formatContext->iformat->name];
     BOOL hasHeaderVideoParameters = NO;
     BOOL swapsVideoDimensions = NO;
+    NSString *inferredColorMatrix = nil;
     int primaryVideoIndex = SFXSelectPrimaryVideoStreamIndex(formatContext);
     if (primaryVideoIndex >= 0 && primaryVideoIndex < (int)formatContext->nb_streams) {
         AVStream *stream = formatContext->streams[primaryVideoIndex];
@@ -425,6 +441,11 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                 SFXResolveVideoOrientation(stream, NULL)
             );
             hasHeaderVideoParameters = stream->codecpar->width > 0 && stream->codecpar->height > 0;
+            if ((stream->codecpar->color_space == AVCOL_SPC_UNSPECIFIED
+                 || stream->codecpar->color_space == AVCOL_SPC_RESERVED)
+                && (stream->codecpar->width > 1280 || stream->codecpar->height > 576)) {
+                inferredColorMatrix = @"bt709";
+            }
         }
     }
 
@@ -432,7 +453,8 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
 
     return [[SFXMediaContainerProbe alloc] initWithFormatName:formatName
                                      hasHeaderVideoParameters:hasHeaderVideoParameters
-                                         swapsVideoDimensions:swapsVideoDimensions];
+                                         swapsVideoDimensions:swapsVideoDimensions
+                                          inferredColorMatrix:inferredColorMatrix];
 }
 
 + (nullable SFXMediaMetadata *)metadataAtMediaPath:(NSString *)mediaPath
@@ -745,6 +767,8 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                     SFXVideoOrientation orientation = SFXResolveVideoOrientation(videoStream, frame);
                     int displayWidth = (int)SFXDisplayVideoWidthForDimensionsAndSAR(width, height, sar);
                     decodedCandidate = SFXCreateCoverCandidateFrame(
+                        videoStream,
+                        codecContext,
                         frame,
                         width,
                         height,
@@ -775,6 +799,8 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                     SFXVideoOrientation orientation = SFXResolveVideoOrientation(videoStream, frame);
                     int displayWidth = (int)SFXDisplayVideoWidthForDimensionsAndSAR(width, height, sar);
                     decodedCandidate = SFXCreateCoverCandidateFrame(
+                        videoStream,
+                        codecContext,
                         frame,
                         width,
                         height,

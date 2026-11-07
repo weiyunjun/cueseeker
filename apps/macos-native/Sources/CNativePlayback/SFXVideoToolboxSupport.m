@@ -1148,9 +1148,20 @@ BOOL SFXVideoOrientationSwapsDimensions(SFXVideoOrientation orientation) {
 }
 
 NSString *SFXFFmpegPixelAspectRatioScaleFilter(BOOL swapsVideoDimensions) {
-    return swapsVideoDimensions
+    return SFXFFmpegPixelAspectRatioScaleFilterWithColorMatrix(swapsVideoDimensions, nil);
+}
+
+NSString *SFXFFmpegPixelAspectRatioScaleFilterWithColorMatrix(
+    BOOL swapsVideoDimensions,
+    NSString * _Nullable inferredColorMatrix
+) {
+    NSString *baseFilter = swapsVideoDimensions
         ? @"scale=iw:'max(1,round(ih/sar))':reset_sar=1"
         : @"scale='max(1,round(iw*sar))':ih:reset_sar=1";
+    if (inferredColorMatrix.length > 0) {
+        return [NSString stringWithFormat:@"%@:in_color_matrix=%@", baseFilter, inferredColorMatrix];
+    }
+    return baseFilter;
 }
 
 CGAffineTransform SFXLayerAffineTransformForVideoOrientation(SFXVideoOrientation orientation) {
@@ -1278,6 +1289,268 @@ void SFXApplyVideoOrientationAttachment(
     } else {
         CVBufferRemoveAttachment(pixelBuffer, kCGImagePropertyOrientation);
     }
+}
+
+static void SFXResolveVideoDimensions(
+    const AVStream *videoStream,
+    const AVCodecContext *codecContext,
+    const AVFrame *frame,
+    int fallbackWidth,
+    int fallbackHeight,
+    int *widthOut,
+    int *heightOut
+) {
+    int width = fallbackWidth;
+    int height = fallbackHeight;
+    if ((width <= 0 || height <= 0) && frame != NULL && frame->width > 0 && frame->height > 0) {
+        width = frame->width;
+        height = frame->height;
+    }
+    if ((width <= 0 || height <= 0) && codecContext != NULL && codecContext->width > 0 && codecContext->height > 0) {
+        width = codecContext->width;
+        height = codecContext->height;
+    }
+    if ((width <= 0 || height <= 0) && videoStream != NULL && videoStream->codecpar != NULL
+        && videoStream->codecpar->width > 0 && videoStream->codecpar->height > 0) {
+        width = videoStream->codecpar->width;
+        height = videoStream->codecpar->height;
+    }
+    if (widthOut != NULL) {
+        *widthOut = width;
+    }
+    if (heightOut != NULL) {
+        *heightOut = height;
+    }
+}
+
+static BOOL SFXIsSpecifiedColorSpace(enum AVColorSpace colorSpace) {
+    return colorSpace != AVCOL_SPC_UNSPECIFIED && colorSpace != AVCOL_SPC_RESERVED;
+}
+
+static BOOL SFXIsSpecifiedColorPrimaries(enum AVColorPrimaries primaries) {
+    return primaries != AVCOL_PRI_UNSPECIFIED
+        && primaries != AVCOL_PRI_RESERVED
+        && primaries != AVCOL_PRI_RESERVED0;
+}
+
+static BOOL SFXIsSpecifiedColorTransfer(enum AVColorTransferCharacteristic transfer) {
+    return transfer != AVCOL_TRC_UNSPECIFIED
+        && transfer != AVCOL_TRC_RESERVED
+        && transfer != AVCOL_TRC_RESERVED0;
+}
+
+enum AVColorSpace SFXResolveVideoColorSpace(
+    const AVStream *videoStream,
+    const AVCodecContext *codecContext,
+    const AVFrame *frame,
+    int width,
+    int height
+) {
+    if (frame != NULL && SFXIsSpecifiedColorSpace(frame->colorspace)) {
+        return frame->colorspace;
+    }
+    if (codecContext != NULL && SFXIsSpecifiedColorSpace(codecContext->colorspace)) {
+        return codecContext->colorspace;
+    }
+    if (videoStream != NULL && videoStream->codecpar != NULL
+        && SFXIsSpecifiedColorSpace(videoStream->codecpar->color_space)) {
+        return videoStream->codecpar->color_space;
+    }
+    int resolvedWidth = 0;
+    int resolvedHeight = 0;
+    SFXResolveVideoDimensions(videoStream, codecContext, frame, width, height, &resolvedWidth, &resolvedHeight);
+    if (resolvedWidth > 1280 || resolvedHeight > 576) {
+        return AVCOL_SPC_BT709;
+    }
+    return AVCOL_SPC_SMPTE170M;
+}
+
+enum AVColorPrimaries SFXResolveVideoColorPrimaries(
+    const AVStream *videoStream,
+    const AVCodecContext *codecContext,
+    const AVFrame *frame,
+    int width,
+    int height
+) {
+    if (frame != NULL && SFXIsSpecifiedColorPrimaries(frame->color_primaries)) {
+        return frame->color_primaries;
+    }
+    if (codecContext != NULL && SFXIsSpecifiedColorPrimaries(codecContext->color_primaries)) {
+        return codecContext->color_primaries;
+    }
+    if (videoStream != NULL && videoStream->codecpar != NULL
+        && SFXIsSpecifiedColorPrimaries(videoStream->codecpar->color_primaries)) {
+        return videoStream->codecpar->color_primaries;
+    }
+    enum AVColorSpace colorSpace = SFXResolveVideoColorSpace(videoStream, codecContext, frame, width, height);
+    if (colorSpace == AVCOL_SPC_BT2020_NCL || colorSpace == AVCOL_SPC_BT2020_CL) {
+        return AVCOL_PRI_BT2020;
+    }
+    if (colorSpace == AVCOL_SPC_SMPTE240M) {
+        return AVCOL_PRI_SMPTE240M;
+    }
+    int resolvedWidth = 0;
+    int resolvedHeight = 0;
+    SFXResolveVideoDimensions(videoStream, codecContext, frame, width, height, &resolvedWidth, &resolvedHeight);
+    if (colorSpace == AVCOL_SPC_BT709 || resolvedWidth > 1280 || resolvedHeight > 576) {
+        return AVCOL_PRI_BT709;
+    }
+    if (videoStream != NULL) {
+        AVRational rate = videoStream->avg_frame_rate.num > 0 && videoStream->avg_frame_rate.den > 0
+            ? videoStream->avg_frame_rate
+            : videoStream->r_frame_rate;
+        if (rate.num > 0 && rate.den > 0) {
+            double fps = av_q2d(rate);
+            if (fabs(fps - 25.0) < 0.05 || fabs(fps - 50.0) < 0.05) {
+                return AVCOL_PRI_BT470BG;
+            }
+        }
+    }
+    return AVCOL_PRI_SMPTE170M;
+}
+
+enum AVColorTransferCharacteristic SFXResolveVideoColorTransfer(
+    const AVStream *videoStream,
+    const AVCodecContext *codecContext,
+    const AVFrame *frame
+) {
+    if (frame != NULL && SFXIsSpecifiedColorTransfer(frame->color_trc)) {
+        return frame->color_trc;
+    }
+    if (codecContext != NULL && SFXIsSpecifiedColorTransfer(codecContext->color_trc)) {
+        return codecContext->color_trc;
+    }
+    if (videoStream != NULL && videoStream->codecpar != NULL
+        && SFXIsSpecifiedColorTransfer(videoStream->codecpar->color_trc)) {
+        return videoStream->codecpar->color_trc;
+    }
+    return AVCOL_TRC_UNSPECIFIED;
+}
+
+BOOL SFXResolveVideoIsFullRange(
+    const AVStream *videoStream,
+    const AVCodecContext *codecContext,
+    const AVFrame *frame,
+    enum AVPixelFormat pixelFormat
+) {
+    if (pixelFormat == AV_PIX_FMT_YUVJ420P
+        || pixelFormat == AV_PIX_FMT_YUVJ422P
+        || pixelFormat == AV_PIX_FMT_YUVJ444P
+        || pixelFormat == AV_PIX_FMT_YUVJ440P
+        || pixelFormat == AV_PIX_FMT_YUVJ411P) {
+        return YES;
+    }
+    if (frame != NULL && frame->color_range != AVCOL_RANGE_UNSPECIFIED) {
+        return frame->color_range == AVCOL_RANGE_JPEG;
+    }
+    if (codecContext != NULL && codecContext->color_range != AVCOL_RANGE_UNSPECIFIED) {
+        return codecContext->color_range == AVCOL_RANGE_JPEG;
+    }
+    if (videoStream != NULL && videoStream->codecpar != NULL
+        && videoStream->codecpar->color_range != AVCOL_RANGE_UNSPECIFIED) {
+        return videoStream->codecpar->color_range == AVCOL_RANGE_JPEG;
+    }
+    return NO;
+}
+
+void SFXApplyColorSpaceAttachments(
+    CVPixelBufferRef pixelBuffer,
+    const AVStream *videoStream,
+    const AVCodecContext *codecContext,
+    const AVFrame *frame
+) {
+    if (pixelBuffer == NULL) {
+        return;
+    }
+    int width = (int)CVPixelBufferGetWidth(pixelBuffer);
+    int height = (int)CVPixelBufferGetHeight(pixelBuffer);
+    enum AVColorSpace colorSpace = SFXResolveVideoColorSpace(videoStream, codecContext, frame, width, height);
+    enum AVColorPrimaries primaries = SFXResolveVideoColorPrimaries(videoStream, codecContext, frame, width, height);
+    enum AVColorTransferCharacteristic transfer = SFXResolveVideoColorTransfer(videoStream, codecContext, frame);
+
+    CFStringRef matrix = kCVImageBufferYCbCrMatrix_ITU_R_709_2;
+    if (colorSpace == AVCOL_SPC_BT2020_NCL || colorSpace == AVCOL_SPC_BT2020_CL) {
+        matrix = kCVImageBufferYCbCrMatrix_ITU_R_2020;
+    } else if (colorSpace == AVCOL_SPC_SMPTE240M) {
+        matrix = kCVImageBufferYCbCrMatrix_SMPTE_240M_1995;
+    } else if (colorSpace == AVCOL_SPC_BT470BG || colorSpace == AVCOL_SPC_SMPTE170M) {
+        matrix = kCVImageBufferYCbCrMatrix_ITU_R_601_4;
+    }
+
+    CFStringRef primariesKey = kCVImageBufferColorPrimaries_ITU_R_709_2;
+    if (primaries == AVCOL_PRI_BT2020) {
+        primariesKey = kCVImageBufferColorPrimaries_ITU_R_2020;
+    } else if (primaries == AVCOL_PRI_SMPTE431) {
+        primariesKey = kCVImageBufferColorPrimaries_DCI_P3;
+    } else if (primaries == AVCOL_PRI_SMPTE432) {
+        primariesKey = kCVImageBufferColorPrimaries_P3_D65;
+    } else if (primaries == AVCOL_PRI_BT470BG) {
+        primariesKey = kCVImageBufferColorPrimaries_EBU_3213;
+    } else if (primaries == AVCOL_PRI_SMPTE170M || primaries == AVCOL_PRI_SMPTE240M) {
+        primariesKey = kCVImageBufferColorPrimaries_SMPTE_C;
+    }
+
+    CFStringRef transferKey = kCVImageBufferTransferFunction_sRGB;
+    if (transfer == AVCOL_TRC_SMPTE2084) {
+        transferKey = kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ;
+    } else if (transfer == AVCOL_TRC_ARIB_STD_B67) {
+        transferKey = kCVImageBufferTransferFunction_ITU_R_2100_HLG;
+    } else if (transfer == AVCOL_TRC_LINEAR) {
+        transferKey = kCVImageBufferTransferFunction_Linear;
+    }
+
+    CVBufferSetAttachment(pixelBuffer, kCVImageBufferYCbCrMatrixKey, matrix, kCVAttachmentMode_ShouldPropagate);
+    CVBufferSetAttachment(pixelBuffer, kCVImageBufferColorPrimariesKey, primariesKey, kCVAttachmentMode_ShouldPropagate);
+    CVBufferSetAttachment(pixelBuffer, kCVImageBufferTransferFunctionKey, transferKey, kCVAttachmentMode_ShouldPropagate);
+    CVBufferRemoveAttachment(pixelBuffer, kCVImageBufferGammaLevelKey);
+}
+
+void SFXConfigureSwsContextColorSpace(
+    struct SwsContext *scaler,
+    const AVStream *videoStream,
+    const AVCodecContext *codecContext,
+    const AVFrame *frame,
+    int width,
+    int height,
+    enum AVPixelFormat inputFormat,
+    enum AVPixelFormat outputFormat
+) {
+    if (scaler == NULL) {
+        return;
+    }
+    enum AVColorSpace colorSpace = SFXResolveVideoColorSpace(videoStream, codecContext, frame, width, height);
+    int swsCS = SWS_CS_ITU709;
+    if (colorSpace == AVCOL_SPC_BT2020_NCL || colorSpace == AVCOL_SPC_BT2020_CL) {
+        swsCS = SWS_CS_BT2020;
+    } else if (colorSpace == AVCOL_SPC_SMPTE240M) {
+        swsCS = SWS_CS_SMPTE240M;
+    } else if (colorSpace == AVCOL_SPC_BT470BG) {
+        swsCS = SWS_CS_ITU624;
+    } else if (colorSpace == AVCOL_SPC_SMPTE170M) {
+        swsCS = SWS_CS_SMPTE170M;
+    } else if (colorSpace == AVCOL_SPC_FCC) {
+        swsCS = SWS_CS_FCC;
+    }
+
+    BOOL srcFullRange = SFXResolveVideoIsFullRange(videoStream, codecContext, frame, inputFormat);
+    BOOL dstFullRange = srcFullRange;
+    const AVPixFmtDescriptor *dstDesc = av_pix_fmt_desc_get(outputFormat);
+    if (dstDesc != NULL && (dstDesc->flags & AV_PIX_FMT_FLAG_RGB) != 0) {
+        dstFullRange = YES;
+    }
+
+    const int *invTable = sws_getCoefficients(swsCS);
+    const int *table = sws_getCoefficients(swsCS);
+    sws_setColorspaceDetails(
+        scaler,
+        invTable,
+        srcFullRange ? 1 : 0,
+        table,
+        dstFullRange ? 1 : 0,
+        0,
+        1 << 16,
+        1 << 16
+    );
 }
 
 NSData *SFXTransformRGB24DataForVideoOrientation(

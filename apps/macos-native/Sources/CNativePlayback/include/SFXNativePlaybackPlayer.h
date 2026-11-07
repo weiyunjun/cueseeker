@@ -34,6 +34,10 @@ typedef NS_ENUM(uint32_t, SFXVideoOrientation) {
 FOUNDATION_EXPORT SFXVideoOrientation SFXResolveVideoOrientationFromDisplayMatrix(const int32_t * _Nullable displayMatrix);
 FOUNDATION_EXPORT BOOL SFXVideoOrientationSwapsDimensions(SFXVideoOrientation orientation);
 FOUNDATION_EXPORT NSString *SFXFFmpegPixelAspectRatioScaleFilter(BOOL swapsVideoDimensions);
+FOUNDATION_EXPORT NSString *SFXFFmpegPixelAspectRatioScaleFilterWithColorMatrix(
+    BOOL swapsVideoDimensions,
+    NSString * _Nullable inferredColorMatrix
+);
 FOUNDATION_EXPORT CGAffineTransform SFXLayerAffineTransformForVideoOrientation(SFXVideoOrientation orientation);
 FOUNDATION_EXPORT NSInteger SFXUnrotatedDisplayVideoWidthForPixelBuffer(CVPixelBufferRef _Nullable pixelBuffer);
 FOUNDATION_EXPORT NSInteger SFXDisplayVideoWidthForPixelBuffer(CVPixelBufferRef _Nullable pixelBuffer);
@@ -200,6 +204,7 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
 @property (nonatomic, copy, readonly) NSString *formatName;
 @property (nonatomic, readonly) BOOL hasHeaderVideoParameters;
 @property (nonatomic, readonly) BOOL swapsVideoDimensions;
+@property (nonatomic, copy, readonly, nullable) NSString *inferredColorMatrix;
 
 - (instancetype)init NS_UNAVAILABLE;
 

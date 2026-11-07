@@ -347,13 +347,15 @@ public struct LibraryCoverIndexer: Sendable {
         }
 
         let resolvedInput = WebDAVClient.shared.resolvePlayableInput(for: URL.fromMediaPath(videoPath))
-        let swapsVideoDimensions = (
-            try? SFXMediaMetadataInspector.containerProbe(
-                atMediaPath: resolvedInput.inputPath,
-                httpHeaders: resolvedInput.httpHeaders
-            )
-        )?.swapsVideoDimensions ?? false
-        let scaleFilter = SFXFFmpegPixelAspectRatioScaleFilter(swapsVideoDimensions)
+        let probe = try? SFXMediaMetadataInspector.containerProbe(
+            atMediaPath: resolvedInput.inputPath,
+            httpHeaders: resolvedInput.httpHeaders
+        )
+        let swapsVideoDimensions = probe?.swapsVideoDimensions ?? false
+        let scaleFilter = SFXFFmpegPixelAspectRatioScaleFilterWithColorMatrix(
+            swapsVideoDimensions,
+            probe?.inferredColorMatrix
+        )
         var arguments = [
             "-nostdin",
             "-hide_banner",

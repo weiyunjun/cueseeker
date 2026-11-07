@@ -209,6 +209,19 @@ func subtitleScreenshotVideoFrameArgumentsSkipInternalSubtitlesOnlyForSupportedM
         )
     )
     #expect(rotatedArgs.contains("scale=iw:'max(1,round(ih/sar))':reset_sar=1"))
+
+    let untaggedHDArgs = SubtitleScreenshotExporter._videoFrameArgumentsForTesting(
+        videoPath: "/tmp/untagged_hd.mkv",
+        timestampMilliseconds: 1_500,
+        supportsSkipInternalSubtitles: true,
+        containerProbe: SubtitleScreenshotExporter.VideoContainerProbeResult(
+            isMatroska: true,
+            canSkipFindStreamInfo: true,
+            swapsVideoDimensions: false,
+            inferredColorMatrix: "bt709"
+        )
+    )
+    #expect(untaggedHDArgs.contains("scale='max(1,round(iw*sar))':ih:reset_sar=1:in_color_matrix=bt709"))
 }
 
 @Test

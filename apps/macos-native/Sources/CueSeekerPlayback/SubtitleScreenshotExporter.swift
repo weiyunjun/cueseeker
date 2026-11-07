@@ -287,21 +287,25 @@ public enum SubtitleScreenshotExporter {
         let isMatroska: Bool
         let canSkipFindStreamInfo: Bool
         let swapsVideoDimensions: Bool
+        let inferredColorMatrix: String?
 
         init(
             isMatroska: Bool,
             canSkipFindStreamInfo: Bool,
-            swapsVideoDimensions: Bool = false
+            swapsVideoDimensions: Bool = false,
+            inferredColorMatrix: String? = nil
         ) {
             self.isMatroska = isMatroska
             self.canSkipFindStreamInfo = canSkipFindStreamInfo
             self.swapsVideoDimensions = swapsVideoDimensions
+            self.inferredColorMatrix = inferredColorMatrix
         }
 
         static func evaluate(
             formatName: String,
             hasHeaderVideoParameters: Bool,
-            swapsVideoDimensions: Bool = false
+            swapsVideoDimensions: Bool = false,
+            inferredColorMatrix: String? = nil
         ) -> VideoContainerProbeResult {
             let formatTokens = Set(
                 formatName
@@ -318,7 +322,8 @@ public enum SubtitleScreenshotExporter {
             return VideoContainerProbeResult(
                 isMatroska: isMatroska,
                 canSkipFindStreamInfo: canSkipFindStreamInfo,
-                swapsVideoDimensions: swapsVideoDimensions
+                swapsVideoDimensions: swapsVideoDimensions,
+                inferredColorMatrix: inferredColorMatrix
             )
         }
     }
@@ -689,7 +694,8 @@ public enum SubtitleScreenshotExporter {
                 containerProbe: VideoContainerProbeResult(
                     isMatroska: false,
                     canSkipFindStreamInfo: false,
-                    swapsVideoDimensions: resolvedProbe.swapsVideoDimensions
+                    swapsVideoDimensions: resolvedProbe.swapsVideoDimensions,
+                    inferredColorMatrix: resolvedProbe.inferredColorMatrix
                 )
             )
             let fallbackFrameData = try await runProcessCapturingStandardOutput(
@@ -744,7 +750,10 @@ public enum SubtitleScreenshotExporter {
         if supportsSkipInternalSubtitles, containerProbe.isMatroska {
             arguments += ["-cueseeker_skip_internal_subtitles", "1"]
         }
-        let scaleFilter = SFXFFmpegPixelAspectRatioScaleFilter(containerProbe.swapsVideoDimensions)
+        let scaleFilter = SFXFFmpegPixelAspectRatioScaleFilterWithColorMatrix(
+            containerProbe.swapsVideoDimensions,
+            containerProbe.inferredColorMatrix
+        )
         arguments += [
             "-ss", String(format: "%.3f", Double(max(0, timestampMilliseconds)) / 1_000),
             "-i", playableInput.inputPath,
@@ -772,7 +781,8 @@ public enum SubtitleScreenshotExporter {
             return VideoContainerProbeResult.evaluate(
                 formatName: probe.formatName,
                 hasHeaderVideoParameters: probe.hasHeaderVideoParameters,
-                swapsVideoDimensions: probe.swapsVideoDimensions
+                swapsVideoDimensions: probe.swapsVideoDimensions,
+                inferredColorMatrix: probe.inferredColorMatrix
             )
         }
         return VideoContainerProbeResult(
@@ -1202,19 +1212,21 @@ public enum SubtitleScreenshotExporter {
         context.draw(image, in: rect)
     }
 
+    private static let outputColorSpace = CGColorSpace(name: CGColorSpace.sRGB)
+        ?? CGColorSpaceCreateDeviceRGB()
+
     private static func rgbaImage(data: Data, width: Int, height: Int, stride: Int) -> CGImage? {
         guard let provider = CGDataProvider(data: data as CFData) else {
             return nil
         }
 
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
         return CGImage(
             width: width,
             height: height,
             bitsPerComponent: 8,
             bitsPerPixel: 32,
             bytesPerRow: stride,
-            space: colorSpace,
+            space: outputColorSpace,
             bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue),
             provider: provider,
             decode: nil,
@@ -1224,14 +1236,13 @@ public enum SubtitleScreenshotExporter {
     }
 
     private static func makeBitmapContext(width: Int, height: Int) -> CGContext? {
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
         return CGContext(
             data: nil,
             width: width,
             height: height,
             bitsPerComponent: 8,
             bytesPerRow: 0,
-            space: colorSpace,
+            space: outputColorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
         )
     }
@@ -1246,7 +1257,7 @@ public enum SubtitleScreenshotExporter {
             throw SubtitleScreenshotExportError.imageDecodeFailed(sourceDescription)
         }
 
-        return image
+        return image.copy(colorSpace: outputColorSpace) ?? image
     }
 
     private static func writePNG(_ image: CGImage, to url: URL) throws {
