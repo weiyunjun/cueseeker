@@ -66,7 +66,7 @@
 
 ## 3.3 固定深色表面（Mode-Invariant Dark Surfaces）
 - 以下表面在 Light Mode 与 Dark Mode 下使用同一套深色视觉规则，不随系统明暗模式反色：
-  1. **播放页舞台与播控组件（Player Chrome）**：视频背景、顶底栏渐变、底栏播控控件、进度条、台词队列控制栏、播放菜单、Playback Feedback 与 Player Error Banner。  - **Dialog 对话框内**：需要校验的输入框下方（间距 `--spacing-1: 4px`）恒定预留 `1` 行红字高度（左边缘与所属输入框左边缘对齐），确保报错出现或消失时对话框高度不发生跳动（`WebDav Folder` 对话框仅在最下方 `Password` 输入框下预留 1 行）。
+  1. **播放页舞台与播控组件（Player Chrome）**：视频背景、顶底栏渐变、底栏播控控件、进度条、台词队列控制栏、播放菜单、Playback Feedback、Player Error Banner 及其触发的 Tooltip。（注：`Playback Overlay` 与 `Command Panel` 及其内部触发的组件与 Tooltip 则分别适配 Light Mode 与 Dark Mode。）
   2. **Cover Summary 的 Backdrop Form**：背景大图铺满叠加从左向右衰减的黑色 Scrim（`--color-cover-summary-scrim`）与白色文字（`--color-cover-summary-text`）。（注：`Cover Summary` 的 `Split Form` 则分别适配 Light Mode 与 Dark Mode。）
 
 ---

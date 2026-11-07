@@ -174,8 +174,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-command-panel-scrim`: Light `rgba(0,0,0,0.32)`; Dark `rgba(0,0,0,0.32)`
 - `--color-dialog-outline`: Light `rgba(0,0,0,0.19)`; Dark `rgba(0,0,0,0.94)`
 - `--color-dialog-edge-highlight`: Light `transparent`; Dark `rgba(255,255,255,0.20)`
-- `--color-toast-bg`: Light `rgba(31,31,31,0.90)`; Dark `rgba(45,45,50,0.92)`
-- `--color-toast-border`: Light `rgba(255,255,255,0.15)`; Dark `rgba(255,255,255,0.15)`
 
 ### Player Chrome
 

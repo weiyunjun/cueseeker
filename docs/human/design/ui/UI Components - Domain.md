@@ -186,29 +186,29 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-toast-bg`
-  - Border Color：`--color-toast-border`
+  - Background：`--color-bg-popover`
+  - Border Color：`--color-border-control`
   - Border Width：`--border-width-control`
   - Radius：`--radius-control`
   - Shadow：`--shadow-popover`
+  - Polarity：在 Player Chrome 上固定使用 Dark Mode；其余界面（含 Playback Overlay 与 Command Panel）跟随当前 Light / Dark Mode
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-control`
   - Font Weight：`--font-weight-control`
-  - Color：`--color-player-text-primary`
+  - Color：`--color-text-secondary`
 - Shortcut
   - Presence：Optional
-  - Font Family：`--font-family-base`
-  - Font Size：`--font-size-control`
-  - Font Weight：`--font-weight-control`
-  - Color：`--color-player-text-secondary`
+  - Component：Keycap / Popover Surface
+  - Gap：`--spacing-1`
+  - 修饰键（⌃、⌥、⇧、⌘）与主键各占一个 Keycap
 - Content Gap：`--spacing-2`
 
 ##### Sizes
 
 - Single-line Height：`--height-control`（多行折行时上下边距与单行一致）
 - Padding Inline：`--padding-control-x`
-- Maximum Width：`--width-tooltip-max`（仅截断补全文本，超出换行）
+- Maximum Width：`--width-tooltip-max`（仅截断补全文本；单行未超出时按内容宽度自适应包裹，超出时换行）
 
 ##### Placement
 
