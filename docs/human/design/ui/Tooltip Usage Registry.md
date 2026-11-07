@@ -47,7 +47,7 @@
 - 快捷键：无
 - 触发延迟：1秒
 - Scenario ID：topbar.navigation.back
-- 所在位置：App Topbar
+- 所在位置：App Topbar / Settings Topbar
 
 ### 3. 顶栏前进（Forward Action）
 - 英文（可用）：Forward
@@ -59,7 +59,7 @@
 - 快捷键：无
 - 触发延迟：1秒
 - Scenario ID：topbar.navigation.forward
-- 所在位置：App Topbar
+- 所在位置：App Topbar / Settings Topbar
 
 ### 3.1 命令面板入口（Command Panel Entry）
 - 英文：Open Command Panel

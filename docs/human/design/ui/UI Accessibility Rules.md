@@ -251,7 +251,7 @@
 
 ## 3.2 设置窗口布局（`L-02 Settings`）
 
-1. **全局顺序**：**左侧分类导航栏（`L-02.2 Settings Sidebar`）**（从上到下依次遍历全部 6 个分类项：`General` → `Play` → `Shortcuts` → `Subtitle` → `Maintenance` → `Developer`，含当前 `Selected` 项） → **右侧分类内容区（`L-02.3 Category Content`）**（按各分组卡片从上到下、每行控件从左到右依次遍历）。
+1. **全局顺序**：**右侧顶栏（`L-02.1 Settings Topbar`）**（`Back` → `Forward`，含 `Disabled` 态） → **左侧分类导航栏（`L-02.2 Settings Sidebar`）**（从上到下依次遍历全部 6 个分类项：`General` → `Play` → `Shortcuts` → `Subtitle` → `Maintenance` → `Developer`，含当前 `Selected` 项） → **右侧分类内容区（`L-02.3 Category Content`）**（按各分组卡片从上到下、每行控件从左到右依次遍历）。
 2. **各分类页右侧内容区遍历顺序**：
    - **`General` 页**：`Appearance` 分段控制器的 3 个选项（从左到右，含当前已选项） → `Show Cue Group` 开关 → `Prefill Command Panel with Focused Cue` 开关 → `Language` 语言下拉按钮 → `Play First Search Result`（Deep Link）开关；
    - **`Play` 页**：`Auto Pause` 开关 → `Auto Switch` 开关 → `Auto Switch Gap` 数字框 → `Decoder` 分段控制器的 3 个选项（从左到右，含当前已选项）；

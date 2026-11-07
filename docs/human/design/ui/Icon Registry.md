@@ -37,8 +37,8 @@
 
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
-| `caret-left` | Regular | 后退、返回、快退 | App Topbar / Back；Player Topbar、Playback Topbar / Return Action；Playback Feedback（快退） |
-| `caret-right` | Regular | 前进、展开、快进 | App Topbar / Forward；Submenu Trigger / Submenu Indicator；Library File Tree 折叠态；Playback Feedback（快进）；File Page / Breadcrumb 分隔符，12px；File Page / Folder Card 右侧指示箭头，16px |
+| `caret-left` | Regular | 后退、返回、快退 | App Topbar / Back；Settings Topbar / Back，16px；Player Topbar、Playback Topbar / Return Action；Playback Feedback（快退） |
+| `caret-right` | Regular | 前进、展开、快进 | App Topbar / Forward；Settings Topbar / Forward，16px；Submenu Trigger / Submenu Indicator；Library File Tree 折叠态；Playback Feedback（快进）；File Page / Breadcrumb 分隔符，12px；File Page / Folder Card 右侧指示箭头，16px |
 | `caret-down` | Regular | 已展开、下拉 | Library File Tree 展开态；File Info / 文件切换触发器，16px |
 | `sidebar-simple` | Regular | 折叠、展开 Sidebar | Sidebar Toggle |
 | `arrow-left` | Regular | 返回上一级 | Command Panel Secondary / Back Action |

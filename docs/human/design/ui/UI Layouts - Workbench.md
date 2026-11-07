@@ -29,7 +29,7 @@
 - Width：`--width-app-sidebar`
 - Padding Inline：`--padding-app-sidebar-x`
 - Padding Block：`--padding-app-sidebar-y`
-- Navigation Item Gap：`--spacing-1`
+- Navigation Item Gap：`0px`
 
 #### States
 
@@ -167,10 +167,17 @@
    1. Platform Native Window Controls
    2. Settings Sidebar Layout
 2. Category Content Region
+   1. Settings Topbar
+      1. Back Action
+      2. Forward Action
+      3. Category Title
+   2. Settings Category Layout
 
 #### Components
 
 - Platform Native Window Controls
+- Icon Button / Dialog Close：Back、Forward
+- Section Title：Category Title
 - Settings Sidebar Layout
 - Settings Category Layout
 
@@ -178,6 +185,7 @@
 
 - Sidebar Extends To Window Top
 - Category List 与 Category Content 都从 Titlebar Region 下方开始
+- Settings Topbar 固定于右侧顶部（背景 `--color-bg-surface`），内部垂直居中，空白区支持拖动窗口与双击缩放；分类切换历史在 App 运行期间保留
 - Visible Window Title：None
 
 #### Sizes
@@ -187,17 +195,22 @@
 - Minimum Height：`--min-height-settings-window`
 - Titlebar Region Height：`--height-settings-titlebar`
 - Sidebar Width：`--width-settings-sidebar`
+- Topbar Padding Inline：Leading `--spacing-6`；Trailing `--padding-app-topbar-trailing`
+- Back to Forward Gap：`--spacing-1`
+- Forward to Category Title Gap：`--spacing-2`
 
 #### States
 
 - Open
 - Closed
+- History Start：Back Disabled
+- History End：Forward Disabled
 
 ### L-02.2 Settings Sidebar Layout
 
 #### Structure
 
-1. Category List：General、Play、Shortcuts、Subtitle、Maintenance、Developer；打开时选中 General
+1. Category List：General、Play、Shortcuts、Subtitle、Maintenance、Developer；首次打开时选中 General
 
 #### Components
 
@@ -208,7 +221,7 @@
 
 - Padding Inline：`--padding-app-sidebar-x`
 - Padding Bottom：`--padding-app-sidebar-y`
-- Item Gap：`--spacing-1`
+- Item Gap：`0px`
 
 #### States
 
@@ -219,11 +232,9 @@
 
 #### Structure
 
-1. Page Title：`--font-size-page-title`，`--font-weight-page-title`，`--color-text-primary`
-2. Group Stack
+1. Group Stack
    1. Group Title：`--font-size-body`，Semibold，`--color-text-primary`
-   2. Group Description：可选；`--font-size-caption`，`--color-text-muted`
-   3. Card：背景 `--color-table-bg`；边框 `--color-border-control`，宽度 `--border-width-control`；圆角 `--radius-settings-group`；宽度跟随窗口，不设上限
+   2. Card：背景 `--color-table-bg`；边框 `--color-border-control`，宽度 `--border-width-control`；圆角 `--radius-settings-group`；宽度跟随窗口，不设上限
 
 #### Groups
 
@@ -231,11 +242,11 @@
 - Play：Play、Decode
 - Maintenance：Maintenance
 - Developer：Developer、FTS Vocabulary Data
-- 没有原标题的 Group 使用原分类名；原分类的说明作为 Group Description
+- 没有原标题的 Group 使用原分类名
 
 #### Row
 
-1. 名称：`--font-size-body`，`--color-text-primary`；说明可选，位于名称下方，`--font-size-caption`，`--color-text-muted`
+1. 名称：`--font-size-body`，`--color-text-primary`
 2. 控件：靠右
 - 行与行之间：分隔线 `--color-border-divider`，宽度 `--border-width-control`，左右各内缩 `--spacing-4`
 - Min Height：`--min-height-settings-row`
@@ -255,14 +266,11 @@
 
 #### Spacing
 
-- Page Padding：Leading `--spacing-6`；Trailing `--spacing-6` 加 `--width-page-scrollbar-channel`；Bottom `--spacing-6`
-- Page Title 与第一个 Group：`--spacing-4`
+- Page Padding：Leading `--spacing-6`；Trailing `--spacing-6` 加 `--width-page-scrollbar-channel`；Top `--spacing-1`；Bottom `--spacing-6`
 - Group 之间：`--spacing-6`
-- Group Title 与 Group Description：`--spacing-1`
 - Group Title 水平缩进：`--spacing-4`
-- Group Title 区与 Card：`--spacing-2`
+- Group Title 与 Card：`--spacing-2`
 - Row Padding：水平 `--spacing-4`；垂直 `--padding-settings-row-y`
-- 名称与说明：`--spacing-1`
 - 名称与控件：至少 `--spacing-4`
 
 #### Layout
@@ -277,10 +285,9 @@
 
 #### Structure
 
-1. Page Title
-2. Group `Shortcuts`：Open Command Panel
-3. Group `Playback` 及其功能
-4. Group `Playback Overlay & Command Panel` 及其功能
+1. Group `Shortcuts`：Open Command Panel
+2. Group `Playback` 及其功能
+3. Group `Playback Overlay & Command Panel` 及其功能
 
 #### Components
 
@@ -306,12 +313,11 @@
 
 #### Structure
 
-1. Page Title
-2. Group `Text`：Font、Size、Style、Color、Letter Spacing、Line Spacing
-3. Group `Position`：Horizontal、Margin X、Vertical、Margin Y
-4. Group `Border`：Type（Outline / Background Box）、Outline Color、Outline Width、Background Color、Background Opacity、Blur
-5. Group `Shadow`：Shadow Color、Shadow Opacity、Shadow Offset
-6. Restore Defaults
+1. Group `Text`：Font、Size、Style、Color、Letter Spacing、Line Spacing
+2. Group `Position`：Horizontal、Margin X、Vertical、Margin Y
+3. Group `Border`：Type（Outline / Background Box）、Outline Color、Outline Width、Background Color、Background Opacity、Blur
+4. Group `Shadow`：Shadow Color、Shadow Opacity、Shadow Offset
+5. Restore Defaults
 
 #### Components
 

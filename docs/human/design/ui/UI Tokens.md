@@ -305,7 +305,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--min-height-playback-footer`: `48px`
 - `--height-settings-window`: `640px`
 - `--min-height-settings-window`: `420px`
-- `--height-settings-titlebar`: `36px`
+- `--height-settings-titlebar`: `48px`
 - `--min-height-settings-row`: `52px`
 - `--height-anki-export-card-box`: `288px`
 
