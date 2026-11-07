@@ -25,6 +25,7 @@ enum CueSeekerPointerEventRouter {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
     private var settingsWindow: NSWindow?
+    private weak var pendingForegroundWindow: NSWindow?
     private let appState = AppCoordinator()
     private var keyDownMonitor: Any?
     private var leftMouseDownMonitor: Any?
@@ -80,13 +81,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if !launchesFromPendingURLSchemeCommand {
             presentMainWindow()
         }
-        DispatchQueue.main.async { [appState] in
+        DispatchQueue.main.async { [weak self, appState] in
             appState.ensurePlayerInitialized()
             _ = appState.player?.renderView
+            guard let self,
+                  let targetWindow = self.pendingForegroundWindow,
+                  targetWindow.isVisible,
+                  !targetWindow.isMiniaturized
+            else {
+                return
+            }
+            if !NSApp.isActive || !targetWindow.isKeyWindow {
+                NSRunningApplication.current.activate(
+                    options: [.activateAllWindows, .activateIgnoringOtherApps]
+                )
+                NSApp.activate(ignoringOtherApps: true)
+                targetWindow.makeKeyAndOrderFront(nil)
+            }
         }
 #if DEBUG
         configureDebugE2EIfRequested()
 #endif
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        guard let targetWindow = pendingForegroundWindow,
+              targetWindow.isVisible,
+              !targetWindow.isMiniaturized
+        else {
+            pendingForegroundWindow = nil
+            return
+        }
+        targetWindow.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { [weak self, weak targetWindow] in
+            guard let self,
+                  let targetWindow,
+                  self.pendingForegroundWindow === targetWindow,
+                  targetWindow.isVisible,
+                  !targetWindow.isMiniaturized
+            else {
+                return
+            }
+            if NSApp.isActive, !targetWindow.isKeyWindow {
+                targetWindow.makeKeyAndOrderFront(nil)
+            }
+            self.pendingForegroundWindow = nil
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -183,8 +223,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func presentMainWindow() {
-        window?.makeKeyAndOrderFront(nil)
+        activateWindowForForeground(window)
+    }
+
+    private func activateWindowForForeground(_ targetWindow: NSWindow?, sender: Any? = nil) {
+        guard let targetWindow else {
+            return
+        }
+        pendingForegroundWindow = targetWindow
+        if targetWindow.isMiniaturized {
+            targetWindow.deminiaturize(sender)
+        }
+        NSRunningApplication.current.activate(
+            options: [.activateAllWindows, .activateIgnoringOtherApps]
+        )
         NSApp.activate(ignoringOtherApps: true)
+        targetWindow.makeKeyAndOrderFront(sender)
+
+        DispatchQueue.main.async { [weak self, weak targetWindow] in
+            guard let self,
+                  let targetWindow,
+                  self.pendingForegroundWindow === targetWindow,
+                  targetWindow.isVisible,
+                  !targetWindow.isMiniaturized
+            else {
+                return
+            }
+            if !NSApp.isActive || !targetWindow.isKeyWindow {
+                NSRunningApplication.current.activate(
+                    options: [.activateAllWindows, .activateIgnoringOtherApps]
+                )
+                NSApp.activate(ignoringOtherApps: true)
+                targetWindow.makeKeyAndOrderFront(nil)
+            }
+            if NSApp.isActive && targetWindow.isKeyWindow {
+                self.pendingForegroundWindow = nil
+            }
+        }
     }
 
     private func createMainWindow(showImmediately: Bool) {
@@ -388,11 +463,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             // Ordering a window that sits in the Dock to the front draws it at
             // its own place for a frame before the system notices it is still
             // minimised, so the restore has to be asked for on its own.
-            if settingsWindow.isMiniaturized {
-                settingsWindow.deminiaturize(sender)
-            }
-            settingsWindow.makeKeyAndOrderFront(sender)
-            NSApp.activate(ignoringOtherApps: true)
+            activateWindowForForeground(settingsWindow, sender: sender)
             DebugInteractionLatencyProbe.completeImmediateNavigation(
                 domain: "settings",
                 from: "closed_cached",
@@ -466,8 +537,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             name: NSWindow.willCloseNotification,
             object: settingsWindow
         )
-        settingsWindow.makeKeyAndOrderFront(sender)
-        NSApp.activate(ignoringOtherApps: true)
+        activateWindowForForeground(settingsWindow, sender: sender)
         _ = wasCreated
         DebugInteractionLatencyProbe.completeImmediateNavigation(
             domain: "settings",
@@ -479,12 +549,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func settingsWindowWillClose(_ notification: Notification) {
+        if pendingForegroundWindow === settingsWindow {
+            pendingForegroundWindow = nil
+        }
         appState.workbenchLayout.isSettingsWindowOpen = false
         _ = appState.workbenchAccessibility.clearSettings(
             keepTextInputFocus: false,
             keepColorPopoverOpen: false
         )
         _ = appState.workbenchAccessibility.clearSettingsDialog()
+        if NSApp.isActive,
+           let window,
+           window.isVisible,
+           !window.isMiniaturized {
+            window.makeKeyAndOrderFront(nil)
+        }
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {
