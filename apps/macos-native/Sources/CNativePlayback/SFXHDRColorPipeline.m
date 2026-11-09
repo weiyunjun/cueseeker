@@ -124,7 +124,6 @@ static inline uint16_t SFXClampChromaticity50000(float v) {
 static void SFXApplyCoreVideoHDRDictionaryAttachments(
     CVPixelBufferRef pixelBuffer,
     const struct pl_color_space *csp,
-    float fallbackMaxNits,
     const AVFrame * _Nullable frame,
     const AVStream * _Nullable stream
 ) {
@@ -132,61 +131,71 @@ static void SFXApplyCoreVideoHDRDictionaryAttachments(
         return;
     }
 
-    struct pl_raw_primaries prim = csp->hdr.prim;
-    if (prim.red.x <= 0.0f || prim.green.y <= 0.0f) {
-        const struct pl_raw_primaries *bt2020 = pl_raw_primaries_get(PL_COLOR_PRIM_BT_2020);
-        if (bt2020 != NULL) {
-            prim = *bt2020;
+    if (csp->hdr.max_luma > 5.0f) {
+        struct pl_raw_primaries prim = csp->hdr.prim;
+        if (prim.red.x <= 0.0f || prim.green.y <= 0.0f) {
+            const struct pl_raw_primaries *bt2020 = pl_raw_primaries_get(PL_COLOR_PRIM_BT_2020);
+            if (bt2020 != NULL) {
+                prim = *bt2020;
+            }
         }
-    }
-    float maxLuma = csp->hdr.max_luma > 5.0f ? csp->hdr.max_luma : (fallbackMaxNits > 5.0f ? fallbackMaxNits : 1000.0f);
-    float minLuma = (csp->hdr.min_luma > 0.0f && csp->hdr.min_luma < maxLuma) ? csp->hdr.min_luma : 0.005f;
+        float maxLuma = csp->hdr.max_luma;
+        float minLuma = (csp->hdr.min_luma > 0.0f && csp->hdr.min_luma < maxLuma) ? csp->hdr.min_luma : 0.005f;
 
-    uint8_t mdcv[24];
-    // SMPTE ST 2086 order: G, B, R, WhitePoint (x, y in 0.00002 increments), MaxLuminance, MinLuminance (in 0.0001 cd/m2)
-    SFXWriteBE16(mdcv + 0, SFXClampChromaticity50000(prim.green.x));
-    SFXWriteBE16(mdcv + 2, SFXClampChromaticity50000(prim.green.y));
-    SFXWriteBE16(mdcv + 4, SFXClampChromaticity50000(prim.blue.x));
-    SFXWriteBE16(mdcv + 6, SFXClampChromaticity50000(prim.blue.y));
-    SFXWriteBE16(mdcv + 8, SFXClampChromaticity50000(prim.red.x));
-    SFXWriteBE16(mdcv + 10, SFXClampChromaticity50000(prim.red.y));
-    SFXWriteBE16(mdcv + 12, SFXClampChromaticity50000(prim.white.x));
-    SFXWriteBE16(mdcv + 14, SFXClampChromaticity50000(prim.white.y));
-    uint32_t maxLumFixed = (uint32_t)llround(fmax(50000.0, fmin(100000000.0, (double)maxLuma * 10000.0)));
-    uint32_t minLumFixed = (uint32_t)llround(fmax(1.0, fmin(50000.0, (double)minLuma * 10000.0)));
-    SFXWriteBE32(mdcv + 16, maxLumFixed);
-    SFXWriteBE32(mdcv + 20, minLumFixed);
+        uint8_t mdcv[24];
+        // SMPTE ST 2086 order: G, B, R, WhitePoint (x, y in 0.00002 increments), MaxLuminance, MinLuminance (in 0.0001 cd/m2)
+        SFXWriteBE16(mdcv + 0, SFXClampChromaticity50000(prim.green.x));
+        SFXWriteBE16(mdcv + 2, SFXClampChromaticity50000(prim.green.y));
+        SFXWriteBE16(mdcv + 4, SFXClampChromaticity50000(prim.blue.x));
+        SFXWriteBE16(mdcv + 6, SFXClampChromaticity50000(prim.blue.y));
+        SFXWriteBE16(mdcv + 8, SFXClampChromaticity50000(prim.red.x));
+        SFXWriteBE16(mdcv + 10, SFXClampChromaticity50000(prim.red.y));
+        SFXWriteBE16(mdcv + 12, SFXClampChromaticity50000(prim.white.x));
+        SFXWriteBE16(mdcv + 14, SFXClampChromaticity50000(prim.white.y));
+        uint32_t maxLumFixed = (uint32_t)llround(fmax(50000.0, fmin(100000000.0, (double)maxLuma * 10000.0)));
+        uint32_t minLumFixed = (uint32_t)llround(fmax(1.0, fmin(50000.0, (double)minLuma * 10000.0)));
+        SFXWriteBE32(mdcv + 16, maxLumFixed);
+        SFXWriteBE32(mdcv + 20, minLumFixed);
 
-    CFDataRef mdcvData = CFDataCreate(kCFAllocatorDefault, mdcv, sizeof(mdcv));
-    if (mdcvData != NULL) {
-        CVBufferSetAttachment(
-            pixelBuffer,
-            kCVImageBufferMasteringDisplayColorVolumeKey,
-            mdcvData,
-            kCVAttachmentMode_ShouldPropagate
-        );
-        CFRelease(mdcvData);
-    }
-
-    float maxCLLFloat = csp->hdr.max_cll > 0.0f ? csp->hdr.max_cll : maxLuma;
-    float maxFALLFloat = csp->hdr.max_fall > 0.0f ? csp->hdr.max_fall : fminf(400.0f, maxCLLFloat * 0.4f);
-    uint16_t maxCLL = (uint16_t)fmaxf(1.0f, fminf(10000.0f, roundf(maxCLLFloat)));
-    uint16_t maxFALL = (uint16_t)fmaxf(1.0f, fminf((float)maxCLL, roundf(maxFALLFloat)));
-    uint8_t clli[4];
-    SFXWriteBE16(clli + 0, maxCLL);
-    SFXWriteBE16(clli + 2, maxFALL);
-    CFDataRef clliData = CFDataCreate(kCFAllocatorDefault, clli, sizeof(clli));
-    if (clliData != NULL) {
-        CVBufferSetAttachment(
-            pixelBuffer,
-            kCVImageBufferContentLightLevelInfoKey,
-            clliData,
-            kCVAttachmentMode_ShouldPropagate
-        );
-        CFRelease(clliData);
+        CFDataRef mdcvData = CFDataCreate(kCFAllocatorDefault, mdcv, sizeof(mdcv));
+        if (mdcvData != NULL) {
+            CVBufferSetAttachment(
+                pixelBuffer,
+                kCVImageBufferMasteringDisplayColorVolumeKey,
+                mdcvData,
+                kCVAttachmentMode_ShouldPropagate
+            );
+            CFRelease(mdcvData);
+        }
+    } else {
+        CVBufferRemoveAttachment(pixelBuffer, kCVImageBufferMasteringDisplayColorVolumeKey);
     }
 
-    {
+    if (csp->hdr.max_cll > 0.0f || csp->hdr.max_fall > 0.0f) {
+        uint16_t maxCLL = csp->hdr.max_cll > 0.0f
+            ? (uint16_t)fmaxf(1.0f, fminf(10000.0f, roundf(csp->hdr.max_cll)))
+            : 0;
+        uint16_t maxFALL = csp->hdr.max_fall > 0.0f
+            ? (uint16_t)fmaxf(1.0f, fminf(10000.0f, roundf(csp->hdr.max_fall)))
+            : 0;
+        uint8_t clli[4];
+        SFXWriteBE16(clli + 0, maxCLL);
+        SFXWriteBE16(clli + 2, maxFALL);
+        CFDataRef clliData = CFDataCreate(kCFAllocatorDefault, clli, sizeof(clli));
+        if (clliData != NULL) {
+            CVBufferSetAttachment(
+                pixelBuffer,
+                kCVImageBufferContentLightLevelInfoKey,
+                clliData,
+                kCVAttachmentMode_ShouldPropagate
+            );
+            CFRelease(clliData);
+        }
+    } else {
+        CVBufferRemoveAttachment(pixelBuffer, kCVImageBufferContentLightLevelInfoKey);
+    }
+
+    if (frame != NULL || stream != NULL) {
         const AVAmbientViewingEnvironment *ave = NULL;
         if (frame != NULL) {
             const AVFrameSideData *sd = av_frame_get_side_data(frame, AV_FRAME_DATA_AMBIENT_VIEWING_ENVIRONMENT);
@@ -204,6 +213,7 @@ static void SFXApplyCoreVideoHDRDictionaryAttachments(
                 ave = (const AVAmbientViewingEnvironment *)psd->data;
             }
         }
+        BOOL attachedAVE = NO;
         if (ave != NULL) {
             double ambIllum = av_q2d(ave->ambient_illuminance);
             double ambX = av_q2d(ave->ambient_light_x);
@@ -223,8 +233,12 @@ static void SFXApplyCoreVideoHDRDictionaryAttachments(
                         kCVAttachmentMode_ShouldPropagate
                     );
                     CFRelease(aveData);
+                    attachedAVE = YES;
                 }
             }
+        }
+        if (!attachedAVE) {
+            CVBufferRemoveAttachment(pixelBuffer, kCVImageBufferAmbientViewingEnvironmentKey);
         }
     }
 }
@@ -354,21 +368,9 @@ void SFXAttachHDRMetadataToPixelBuffer(
             : PL_COLOR_TRC_PQ;
     }
 
-    float fallbackMaxNits = 1000.0f;
-    if (payload.colorSpace.transfer == PL_COLOR_TRC_PQ) {
-        if (payload.colorSpace.hdr.max_pq_y > 0.0f) {
-            fallbackMaxNits = pl_hdr_rescale(PL_HDR_PQ, PL_HDR_NITS, payload.colorSpace.hdr.max_pq_y);
-        } else if (payload.colorSpace.hdr.max_cll > 0.0f) {
-            fallbackMaxNits = payload.colorSpace.hdr.max_cll;
-        } else if (payload.colorSpace.hdr.max_luma > 0.0f) {
-            fallbackMaxNits = payload.colorSpace.hdr.max_luma;
-        }
-    }
-
     SFXApplyCoreVideoHDRDictionaryAttachments(
         pixelBuffer,
         &payload.colorSpace,
-        fallbackMaxNits,
         frame,
         stream
     );
@@ -682,8 +684,7 @@ typedef struct {
     float outputMaxNits;
     float hlgPeakNits;
     float hlgSystemGamma;
-    float hdrContrastGain;
-    float saturationGain;
+    float pad1[2];
     float yuvMatrix[3][4];    // row.xyz = matrix row, row.w = offset
     float doviLinear[3][4];   // row.xyz = LMS->BT2020 * dovi.linear
     float gamutMatrix[3][4];  // row.xyz = srcPrim->dstPrim matrix
@@ -720,8 +721,7 @@ static NSString * const kSFXHDRMetalShaderSource = @""
 "    float outputMaxNits;\n"
 "    float hlgPeakNits;\n"
 "    float hlgSystemGamma;\n"
-"    float hdrContrastGain;\n"
-"    float saturationGain;\n"
+"    float pad1[2];\n"
 "    float yuvMatrix[3][4];\n"
 "    float doviLinear[3][4];\n"
 "    float gamutMatrix[3][4];\n"
@@ -782,22 +782,6 @@ static NSString * const kSFXHDRMetalShaderSource = @""
 "    } else {\n"
 "        return (exp((e - c) / a) + b) / 12.0f;\n"
 "    }\n"
-"}\n"
-"\n"
-"inline float sfx_hlg_oetf_scalar(float l) {\n"
-"    l = clamp(l, 0.0f, 1.0f);\n"
-"    const float a = 0.17883277f;\n"
-"    const float b = 0.28466892f;\n"
-"    const float c = 0.55991073f;\n"
-"    if (l <= (1.0f / 12.0f)) {\n"
-"        return sqrt(3.0f * l);\n"
-"    } else {\n"
-"        return a * log(12.0f * l - b) + c;\n"
-"    }\n"
-"}\n"
-"\n"
-"inline float3 sfx_hlg_oetf(float3 l) {\n"
-"    return float3(sfx_hlg_oetf_scalar(l.x), sfx_hlg_oetf_scalar(l.y), sfx_hlg_oetf_scalar(l.z));\n"
 "}\n"
 "\n"
 "inline float sfx_srgb_oetf_scalar(float l) {\n"
@@ -915,47 +899,29 @@ static NSString * const kSFXHDRMetalShaderSource = @""
 "                sfx_hlg_inv_oetf_scalar(rgbNonLin.g),\n"
 "                sfx_hlg_inv_oetf_scalar(rgbNonLin.b)\n"
 "            );\n"
-"            if (u.outputTransfer == 2u) {\n"
-"                rgbLin = sceneRGB;\n"
-"            } else {\n"
-"                float ys = max(1e-6f, dot(sceneRGB, float3(0.2627f, 0.6780f, 0.0593f)));\n"
-"                float ootfGain = pow(ys, max(u.hlgSystemGamma - 1.0f, 0.0f)) * (u.hlgPeakNits / 203.0f);\n"
-"                rgbLin = sceneRGB * ootfGain;\n"
-"            }\n"
+"            float ys = max(1e-6f, dot(sceneRGB, float3(0.2627f, 0.6780f, 0.0593f)));\n"
+"            float ootfGain = pow(ys, max(u.hlgSystemGamma - 1.0f, 0.0f)) * (u.hlgPeakNits / 203.0f);\n"
+"            rgbLin = sceneRGB * ootfGain;\n"
 "        } else {\n"
 "            rgbLin = pow(rgbNonLin, 2.2f);\n"
 "        }\n"
 "    }\n"
 "\n"
+"    rgbLin = max(sfx_mul3x3(u.gamutMatrix, rgbLin), 0.0f);\n"
+"\n"
 "    if (u.applyToneMapLUT != 0u) {\n"
-"        float luma = max(0.0f, dot(rgbLin, float3(0.2627f, 0.6780f, 0.0593f)));\n"
-"        float peak = max(rgbLin.r, max(rgbLin.g, rgbLin.b));\n"
-"        float sig = max(1e-6f, mix(peak, luma, 0.28f));\n"
+"        float sig = max(1e-6f, max(rgbLin.r, max(rgbLin.g, rgbLin.b)));\n"
 "        float sigPQ = sfx_pq_oetf_scalar(sig * (203.0f / 10000.0f));\n"
 "        float lutCoord = clamp((sigPQ - u.inputMinPQ) / max(1e-4f, u.inputMaxPQ - u.inputMinPQ), 0.0f, 1.0f);\n"
 "        float mappedPQ = toneMapLUT.sample(linearSampler, lutCoord).r;\n"
 "        float mappedLin = sfx_pq_eotf_scalar(mappedPQ) * (10000.0f / max(u.outputMaxNits, 1.0f));\n"
-"        float scale = mappedLin / sig;\n"
-"        float3 scaledRGB = rgbLin * scale;\n"
-"        float mappedLuma = dot(scaledRGB, float3(0.2627f, 0.6780f, 0.0593f));\n"
-"        float highlightDesat = smoothstep(0.65f, 1.35f, mappedLin);\n"
-"        float satFactor = clamp(u.saturationGain * (1.0f - 0.18f * highlightDesat), 0.0f, 1.5f);\n"
-"        rgbLin = max(mix(float3(mappedLuma), scaledRGB, satFactor) * u.hdrContrastGain, 0.0f);\n"
+"        rgbLin *= (mappedLin / sig);\n"
 "    }\n"
-"\n"
-"    rgbLin = max(sfx_mul3x3(u.gamutMatrix, rgbLin), 0.0f);\n"
 "\n"
 "    float3 outRGB;\n"
 "    if (u.outputTransfer == 1u) {\n"
 "        outRGB = sfx_pq_oetf(clamp(rgbLin * (203.0f / 10000.0f), 0.0f, 1.0f));\n"
-"    } else if (u.outputTransfer == 2u) {\n"
-"        outRGB = sfx_hlg_oetf(clamp(rgbLin, 0.0f, 1.0f));\n"
 "    } else {\n"
-"        float maxComp = max(rgbLin.r, max(rgbLin.g, rgbLin.b));\n"
-"        if (maxComp > 0.85f) {\n"
-"            float compressed = 0.85f + 0.15f * tanh((maxComp - 0.85f) / 0.15f);\n"
-"            rgbLin *= (compressed / maxComp);\n"
-"        }\n"
 "        outRGB = sfx_srgb_oetf(clamp(rgbLin, 0.0f, 1.0f));\n"
 "    }\n"
 "\n"
@@ -1150,11 +1116,7 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
     pl_color_space_infer(&srcCsp);
 
     u->sourceTransfer = (srcCsp.transfer == PL_COLOR_TRC_HLG) ? 2u : 1u;
-    if (targetMode == SFXHDRRenderTargetModeLiveHDRDisplay) {
-        u->outputTransfer = (!payload->hasActiveDoviReshape && srcCsp.transfer == PL_COLOR_TRC_HLG) ? 2u : 1u;
-    } else {
-        u->outputTransfer = 0u;
-    }
+    u->outputTransfer = (targetMode == SFXHDRRenderTargetModeLiveHDRDisplay) ? 1u : 0u;
     u->hlgPeakNits = PL_COLOR_HLG_PEAK;
     u->hlgSystemGamma = 1.2f;
 
@@ -1249,35 +1211,19 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
 
     float inMinPQ = 0.0f;
     float inMaxPQ = 0.0f;
-    float inAvgPQ = 0.0f;
     pl_color_space_nominal_luma_ex(pl_nominal_luma_params(
         .color = &srcCsp,
-        .metadata = PL_HDR_METADATA_ANY,
+        .metadata = PL_HDR_METADATA_HDR10,
         .scaling = PL_HDR_PQ,
         .out_min = &inMinPQ,
-        .out_max = &inMaxPQ,
-        .out_avg = &inAvgPQ
+        .out_max = &inMaxPQ
     ));
     inMinPQ = fmaxf(0.005f, fminf(0.10f, inMinPQ));
     inMaxPQ = fmaxf(0.55f, fminf(1.0f, inMaxPQ));
-
-    struct pl_tone_map_params toneParams = {
-        .function = &pl_tone_map_spline,
-        .constants = { PL_TONE_MAP_CONSTANTS },
-        .input_scaling = PL_HDR_PQ,
-        .output_scaling = PL_HDR_PQ,
-        .lut_size = lutSamples,
-        .input_min = inMinPQ,
-        .input_max = inMaxPQ,
-        .input_avg = inAvgPQ,
-        .hdr = srcCsp.hdr,
-    };
+    u->outputMaxNits = PL_COLOR_SDR_WHITE;
 
     if (targetMode == SFXHDRRenderTargetModeLiveHDRDisplay) {
         (void)displayEDRHeadroom;
-        u->outputMaxNits = 203.0f;
-        u->hdrContrastGain = 1.0f;
-        u->saturationGain = 1.0f;
         u->inputMinPQ = inMinPQ;
         u->inputMaxPQ = inMaxPQ;
         u->applyToneMapLUT = 0u;
@@ -1285,26 +1231,25 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
             lutOut[i] = (lutSamples > 1) ? ((float)i / (float)(lutSamples - 1)) : 0.0f;
         }
         return;
-    } else if (targetMode == SFXHDRRenderTargetModeStaticHDRScreenshot) {
-        // HDR Screenshot ON: 100-nit reference white anchor with extended HDR highlight retention
-        toneParams.output_min = pl_hdr_rescale(PL_HDR_NITS, PL_HDR_PQ, 0.05f);
-        toneParams.output_max = pl_hdr_rescale(PL_HDR_NITS, PL_HDR_PQ, 135.0f);
-        toneParams.constants.knee_adaptation = 0.40f;
-        toneParams.constants.knee_minimum = 0.20f;
-        toneParams.constants.spline_contrast = 0.55f;
-        u->outputMaxNits = 100.0f;
-        u->hdrContrastGain = 1.04f;
-        u->saturationGain = 1.02f;
+    }
+
+    struct pl_tone_map_params toneParams = {
+        .constants = { PL_TONE_MAP_CONSTANTS },
+        .input_scaling = PL_HDR_PQ,
+        .output_scaling = PL_HDR_PQ,
+        .lut_size = lutSamples,
+        .input_min = inMinPQ,
+        .input_max = inMaxPQ,
+        .output_min = inMinPQ,
+        .output_max = pl_hdr_rescale(PL_HDR_NITS, PL_HDR_PQ, PL_COLOR_SDR_WHITE),
+        .hdr = srcCsp.hdr,
+    };
+
+    if (targetMode == SFXHDRRenderTargetModeStaticHDRScreenshot) {
+        toneParams.function = &pl_tone_map_bt2390;
+        toneParams.constants.knee_offset = 0.5f;
     } else {
-        // Live SDR Display & Static HDR Screenshot OFF: 100-nit SMPTE SDR reference white
-        toneParams.output_min = pl_hdr_rescale(PL_HDR_NITS, PL_HDR_PQ, 0.10f);
-        toneParams.output_max = pl_hdr_rescale(PL_HDR_NITS, PL_HDR_PQ, 100.0f);
-        toneParams.constants.knee_adaptation = 0.50f;
-        toneParams.constants.knee_minimum = 0.15f;
-        toneParams.constants.spline_contrast = 0.45f;
-        u->outputMaxNits = 128.0f;
-        u->hdrContrastGain = 1.0f;
-        u->saturationGain = 0.98f;
+        toneParams.function = &pl_tone_map_spline;
     }
 
     pl_tone_map_params_infer(&toneParams);
@@ -1499,6 +1444,8 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
     if (par != NULL) {
         CVBufferSetAttachment(dstBuffer, kCVImageBufferPixelAspectRatioKey, par, kCVAttachmentMode_ShouldPropagate);
         CFRelease(par);
+    } else {
+        CVBufferRemoveAttachment(dstBuffer, kCVImageBufferPixelAspectRatioKey);
     }
     SFXVideoOrientation orientation = SFXVideoOrientationForPixelBuffer(sourceBuffer);
     SFXApplyVideoOrientationAttachment(dstBuffer, orientation);
@@ -1516,19 +1463,13 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
             kCVImageBufferColorPrimaries_ITU_R_2020,
             kCVAttachmentMode_ShouldPropagate
         );
-        CFStringRef transferKey = (uniforms.outputTransfer == 2u)
-            ? kCVImageBufferTransferFunction_ITU_R_2100_HLG
-            : kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ;
         CVBufferSetAttachment(
             dstBuffer,
             kCVImageBufferTransferFunctionKey,
-            transferKey,
+            kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ,
             kCVAttachmentMode_ShouldPropagate
         );
-        CFStringRef colorSpaceName = (uniforms.outputTransfer == 2u)
-            ? kCGColorSpaceITUR_2100_HLG
-            : kCGColorSpaceITUR_2100_PQ;
-        CGColorSpaceRef hdrColorSpace = CGColorSpaceCreateWithName(colorSpaceName);
+        CGColorSpaceRef hdrColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_2100_PQ);
         if (hdrColorSpace != NULL) {
             CVBufferSetAttachment(
                 dstBuffer,
@@ -1541,7 +1482,6 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
         SFXApplyCoreVideoHDRDictionaryAttachments(
             dstBuffer,
             &payload.colorSpace,
-            1000.0f,
             NULL,
             NULL
         );
@@ -1554,6 +1494,8 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
                 kCVAttachmentMode_ShouldPropagate
             );
             CFRelease(ave);
+        } else {
+            CVBufferRemoveAttachment(dstBuffer, kCVImageBufferAmbientViewingEnvironmentKey);
         }
     } else {
         CVBufferSetAttachment(
