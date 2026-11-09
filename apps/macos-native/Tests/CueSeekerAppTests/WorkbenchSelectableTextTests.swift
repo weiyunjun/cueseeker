@@ -426,4 +426,85 @@ struct WorkbenchSelectableTextTests {
         #expect(textView.selectedText == "Episode_01_Final.mkv")
         #expect(tapCount == 0)
     }
+
+    @Test
+    func multilineSelectableTextWithCustomLineHeightSizesOverlayBoundsToFullLineHeightWithoutClippingSelectionRects() {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        defer { WorkbenchStaticTextSelectionCoordinator.shared.clearSelection() }
+
+        let cjkText = String(repeating: "这是一个列表你知道吗", count: 10)
+        let font = NSFont.systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeBody,
+            weight: .regular
+        )
+        let lineHeight = WorkbenchControlMetrics.redesignLineHeightCoverSummaryDescription
+        let textWidth: CGFloat = 392
+        let expectedHeight = WorkbenchSelectableTextNSView.measuredMultilineHeight(
+            for: cjkText,
+            font: font,
+            lineHeight: lineHeight,
+            width: textWidth
+        )
+        #expect(expectedHeight == lineHeight * 4)
+        #expect(WorkbenchSelectableTextNSView.resolvedBaselineOffset(for: font, lineHeight: lineHeight) > 0)
+
+        let (window, rootView) = makeTestWindow(size: CGSize(width: 440, height: 140))
+        let hostingView = NSHostingView(
+            rootView: WorkbenchSelectableText(
+                cjkText,
+                fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                weight: .regular,
+                lineLimit: nil,
+                lineHeight: lineHeight,
+                alignment: .leading,
+                isSelectable: true
+            )
+            .frame(width: textWidth, height: expectedHeight, alignment: .topLeading)
+        )
+        hostingView.frame = CGRect(x: 12, y: 8, width: textWidth, height: expectedHeight)
+        rootView.addSubview(hostingView)
+        rootView.layoutSubtreeIfNeeded()
+
+        func findSelectableTextNSView(in view: NSView) -> WorkbenchSelectableTextNSView? {
+            if let match = view as? WorkbenchSelectableTextNSView {
+                return match
+            }
+            for subview in view.subviews {
+                if let found = findSelectableTextNSView(in: subview) {
+                    return found
+                }
+            }
+            return nil
+        }
+
+        let selectableView = findSelectableTextNSView(in: hostingView)
+        #expect(selectableView != nil)
+        if let selectableView {
+            _ = window
+            #expect(selectableView.bounds.width == textWidth)
+            #expect(selectableView.bounds.height == expectedHeight)
+
+            selectableView.selectAllText()
+            let lineRects = selectableView.lineUsedRects()
+            #expect(lineRects.count == 4)
+            for (index, lineRect) in lineRects.enumerated() {
+                #expect(abs(lineRect.minY - CGFloat(index) * lineHeight) < 0.5)
+                #expect(abs(lineRect.height - lineHeight) < 0.5)
+                let clipped = lineRect.intersection(selectableView.bounds)
+                #expect(abs(clipped.height - lineRect.height) < 0.1)
+            }
+
+            let selectionRects = selectableView.selectionRects(
+                forUTF16Range: NSRange(location: 0, length: (cjkText as NSString).length)
+            )
+            #expect(!selectionRects.isEmpty)
+            for rect in selectionRects {
+                let clipped = rect.intersection(selectableView.bounds)
+                #expect(abs(clipped.height - rect.height) < 0.1)
+            }
+            if let lastRect = selectionRects.last {
+                #expect(abs(lastRect.maxY - expectedHeight) < 0.5)
+            }
+        }
+    }
 }

@@ -459,40 +459,40 @@ struct WorkbenchSelectableText: View {
 
     var body: some View {
         let resolvedLineHeight: CGFloat? = (lineHeight ?? 0) > 0 ? lineHeight : nil
-        Text(text)
-            .font(swiftUIFont)
-            .foregroundStyle(color)
-            .lineLimit(lineLimit)
-            .truncationMode(truncationMode)
-            .multilineTextAlignment(alignment)
-            .frame(
-                height: (lineLimit == 1 && resolvedLineHeight != nil) ? resolvedLineHeight : nil,
-                alignment: .leading
-            )
-            .frame(
-                minHeight: (lineLimit != 1 && resolvedLineHeight != nil) ? resolvedLineHeight : nil,
-                alignment: .topLeading
-            )
-            .opacity(isEffectivelySelectable ? 0 : 1)
-            .overlay {
-                if isEffectivelySelectable {
-                    WorkbenchSelectableTextRepresentable(
-                        text: text,
-                        font: nsFont,
-                        textColor: NSColor(color),
-                        alignment: nsAlignment,
-                        lineLimit: lineLimit,
-                        lineHeight: resolvedLineHeight,
-                        truncatesTail: truncationMode == .tail,
-                        isSelectable: isEffectivelySelectable,
-                        preferredPointerShape: preferredPointerShape,
-                        showsUnderline: showsUnderline,
-                        allowsMenuModalInteraction: allowsMenuModalInteraction,
-                        onTap: onTap,
-                        interfaceLayerContext: interfaceLayerContext
-                    )
-                }
+        WorkbenchSelectableTextSizingLayout(
+            text: text,
+            font: nsFont,
+            lineLimit: lineLimit,
+            lineHeight: resolvedLineHeight,
+            truncatesTail: truncationMode == .tail
+        ) {
+            Text(text)
+                .font(swiftUIFont)
+                .foregroundStyle(color)
+                .lineLimit(lineLimit)
+                .truncationMode(truncationMode)
+                .multilineTextAlignment(alignment)
+                .opacity(isEffectivelySelectable ? 0 : 1)
+        }
+        .overlay {
+            if isEffectivelySelectable {
+                WorkbenchSelectableTextRepresentable(
+                    text: text,
+                    font: nsFont,
+                    textColor: NSColor(color),
+                    alignment: nsAlignment,
+                    lineLimit: lineLimit,
+                    lineHeight: resolvedLineHeight,
+                    truncatesTail: truncationMode == .tail,
+                    isSelectable: isEffectivelySelectable,
+                    preferredPointerShape: preferredPointerShape,
+                    showsUnderline: showsUnderline,
+                    allowsMenuModalInteraction: allowsMenuModalInteraction,
+                    onTap: onTap,
+                    interfaceLayerContext: interfaceLayerContext
+                )
             }
+        }
     }
 
     private static func nsFontWeight(for weight: Font.Weight) -> NSFont.Weight {
@@ -517,6 +517,61 @@ struct WorkbenchSelectableText: View {
             return .black
         default:
             return .regular
+        }
+    }
+}
+
+private struct WorkbenchSelectableTextSizingLayout: Layout {
+    let text: String
+    let font: NSFont
+    let lineLimit: Int?
+    let lineHeight: CGFloat?
+    let truncatesTail: Bool
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        guard let subview = subviews.first else { return .zero }
+        let baseSize = subview.sizeThatFits(proposal)
+        guard let lineHeight, lineHeight > 0 else {
+            return baseSize
+        }
+        if lineLimit == 1 {
+            return CGSize(width: baseSize.width, height: lineHeight)
+        }
+        let targetWidth: CGFloat
+        if let proposedWidth = proposal.width, proposedWidth.isFinite, proposedWidth > 0 {
+            targetWidth = proposedWidth
+        } else {
+            targetWidth = baseSize.width
+        }
+        let measuredHeight = WorkbenchSelectableTextNSView.measuredMultilineHeight(
+            for: text,
+            font: font,
+            lineHeight: lineHeight,
+            lineLimit: lineLimit,
+            truncatesTail: truncatesTail,
+            width: targetWidth
+        )
+        return CGSize(
+            width: targetWidth,
+            height: max(baseSize.height, measuredHeight)
+        )
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        for subview in subviews {
+            subview.place(
+                at: bounds.origin,
+                proposal: ProposedViewSize(bounds.size)
+            )
         }
     }
 }
@@ -1109,16 +1164,30 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
             )
         }
 
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: textColor,
+            .paragraphStyle: paragraphStyle,
+        ]
+        let baselineOffset = Self.resolvedBaselineOffset(for: font, lineHeight: lineHeight)
+        if baselineOffset > 0 {
+            attributes[.baselineOffset] = baselineOffset
+        }
         let attributed = NSAttributedString(
             string: text,
-            attributes: [
-                .font: font,
-                .foregroundColor: textColor,
-                .paragraphStyle: paragraphStyle,
-            ]
+            attributes: attributes
         )
         textStorage.setAttributedString(attributed)
         layoutManager.ensureLayout(for: textContainer)
+    }
+
+    nonisolated static func resolvedBaselineOffset(
+        for font: NSFont,
+        lineHeight: CGFloat?
+    ) -> CGFloat {
+        guard let lineHeight, lineHeight > 0 else { return 0 }
+        let naturalLineHeight = ceil(font.ascender - font.descender + font.leading)
+        return max(0, (lineHeight - naturalLineHeight) / 2)
     }
 
     nonisolated static func measuredSingleLineWidth(for text: String, font: NSFont) -> CGFloat {
@@ -1130,6 +1199,8 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         for text: String,
         font: NSFont,
         lineHeight: CGFloat? = nil,
+        lineLimit: Int? = nil,
+        truncatesTail: Bool = true,
         width: CGFloat
     ) -> CGFloat {
         let resolvedLineHeight = (lineHeight ?? 0) > 0 ? lineHeight : nil
@@ -1142,9 +1213,10 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         let textContainer = NSTextContainer(
             size: CGSize(width: max(0, width + 1.5), height: .greatestFiniteMagnitude)
         )
+        let maxLines = max(0, lineLimit ?? 0)
         textContainer.lineFragmentPadding = 0
-        textContainer.maximumNumberOfLines = 0
-        textContainer.lineBreakMode = .byWordWrapping
+        textContainer.maximumNumberOfLines = maxLines
+        textContainer.lineBreakMode = (maxLines > 0 && truncatesTail) ? .byTruncatingTail : .byWordWrapping
         layoutManager.usesFontLeading = true
         layoutManager.addTextContainer(textContainer)
         textStorage.addLayoutManager(layoutManager)
@@ -1157,13 +1229,18 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
             paragraphStyle.minimumLineHeight = resolvedLineHeight
             paragraphStyle.maximumLineHeight = resolvedLineHeight
         }
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .paragraphStyle: paragraphStyle,
+        ]
+        let baselineOffset = resolvedBaselineOffset(for: font, lineHeight: resolvedLineHeight)
+        if baselineOffset > 0 {
+            attributes[.baselineOffset] = baselineOffset
+        }
         textStorage.setAttributedString(
             NSAttributedString(
                 string: text,
-                attributes: [
-                    .font: font,
-                    .paragraphStyle: paragraphStyle,
-                ]
+                attributes: attributes
             )
         )
         layoutManager.ensureLayout(for: textContainer)
@@ -1290,7 +1367,8 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         }
     }
 
-    private func selectionRects(forUTF16Range range: NSRange, at origin: CGPoint) -> [CGRect] {
+    func selectionRects(forUTF16Range range: NSRange, at origin: CGPoint? = nil) -> [CGRect] {
+        let resolvedOrigin = origin ?? textOrigin()
         let safeRange = NSIntersectionRange(
             range,
             NSRange(location: 0, length: textStorage.length)
@@ -1306,12 +1384,13 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
             withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
             in: textContainer
         ) { rect, _ in
-            rects.append(rect.offsetBy(dx: origin.x, dy: origin.y))
+            rects.append(rect.offsetBy(dx: resolvedOrigin.x, dy: resolvedOrigin.y))
         }
         return rects
     }
 
-    private func lineUsedRects(at origin: CGPoint) -> [CGRect] {
+    func lineUsedRects(at origin: CGPoint? = nil) -> [CGRect] {
+        let resolvedOrigin = origin ?? textOrigin()
         let validGlyphRange = layoutManager.glyphRange(for: textContainer)
         guard validGlyphRange.length > 0 else { return [] }
         var rects: [CGRect] = []
@@ -1323,7 +1402,7 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
                 effectiveRange: &lineRange
             )
             if usedRect.width > 0, usedRect.height > 0 {
-                rects.append(usedRect.offsetBy(dx: origin.x, dy: origin.y))
+                rects.append(usedRect.offsetBy(dx: resolvedOrigin.x, dy: resolvedOrigin.y))
             }
             guard lineRange.length > 0 else { break }
             glyphIndex = NSMaxRange(lineRange)
@@ -1340,6 +1419,7 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         let resolvedOrigin = origin ?? textOrigin()
         let scale = max(1, backingScaleFactor)
         let lineThickness = max(1 / scale, thickness)
+        let baselineOffset = Self.resolvedBaselineOffset(for: font, lineHeight: lineHeight)
         let validGlyphRange = layoutManager.glyphRange(for: textContainer)
         guard validGlyphRange.length > 0 else { return [] }
 
@@ -1355,6 +1435,7 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
                 let baseline = resolvedOrigin.y
                     + usedRect.minY
                     + layoutManager.location(forGlyphAt: glyphIndex).y
+                    - baselineOffset
                 let y = ((baseline + offset) * scale).rounded() / scale
                 let minX = floor((resolvedOrigin.x + usedRect.minX) * scale) / scale
                 let maxX = ceil((resolvedOrigin.x + usedRect.maxX) * scale) / scale

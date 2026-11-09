@@ -311,6 +311,31 @@ func coverSummaryDescriptionPopoverExpandsOutwardWithZeroFirstLineShiftAndCapsAt
         #expect(abs(backdropBg.blueComponent - 0x54 / 255.0) < 0.005)
         #expect(backdropBg.alphaComponent == 1.0)
     }
+
+    // Short single-line description that fits within availableWidth is not expandable;
+    // multi-line description or overflowing single-line description is expandable.
+    #expect(
+        !CoverSummaryDescriptionPopoverLayout.isDescriptionExpandable(
+            singleLineText: "Short description",
+            fullText: "Short description",
+            availableWidth: 400
+        )
+    )
+    #expect(
+        CoverSummaryDescriptionPopoverLayout.isDescriptionExpandable(
+            singleLineText: "First line Second line",
+            fullText: "First line\nSecond line",
+            availableWidth: 400
+        )
+    )
+    let overflowingSingleLine = String(repeating: "这是一个列表你知道吗", count: 8)
+    #expect(
+        CoverSummaryDescriptionPopoverLayout.isDescriptionExpandable(
+            singleLineText: overflowingSingleLine,
+            fullText: overflowingSingleLine,
+            availableWidth: 300
+        )
+    )
 }
 
 @Test

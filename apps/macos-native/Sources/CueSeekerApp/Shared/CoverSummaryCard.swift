@@ -202,6 +202,28 @@ struct CoverSummaryDescriptionPopoverLayout: Equatable {
             needsScroll: needsScroll
         )
     }
+
+    static func isDescriptionExpandable(
+        singleLineText: String,
+        fullText: String,
+        availableWidth: CGFloat,
+        font: NSFont = .systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeBody,
+            weight: .regular
+        )
+    ) -> Bool {
+        let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        if trimmed.rangeOfCharacter(from: .newlines) != nil {
+            return true
+        }
+        guard availableWidth > 0 else { return false }
+        let naturalWidth = WorkbenchSelectableTextNSView.measuredSingleLineWidth(
+            for: singleLineText,
+            font: font
+        )
+        return availableWidth < naturalWidth - 1.5
+    }
 }
 
 private let coverSummaryContentColumnCoordinateSpace = "CoverSummaryCard.contentColumn"
@@ -284,7 +306,10 @@ struct CoverSummaryCard<Cover: View>: View {
                     )
                     .allowsHitTesting(false)
 
-                    contentColumn(form: layout.form)
+                    contentColumn(
+                        form: layout.form,
+                        contentWidth: layout.contentFrame.width
+                    )
                         .coordinateSpace(name: coverSummaryContentColumnCoordinateSpace)
                         .frame(
                             width: layout.contentFrame.width,
@@ -406,7 +431,7 @@ struct CoverSummaryCard<Cover: View>: View {
         )
     }
 
-    private func contentColumn(form: CoverSummaryCardForm) -> some View {
+    private func contentColumn(form: CoverSummaryCardForm, contentWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(
                 alignment: .leading,
@@ -421,7 +446,10 @@ struct CoverSummaryCard<Cover: View>: View {
                     truncationMode: .tail
                 )
 
-                supportingContentView(color: supportingColor(for: form))
+                supportingContentView(
+                    color: supportingColor(for: form),
+                    contentWidth: contentWidth
+                )
             }
 
             // Both forms give the column the same height, so the action row
@@ -639,7 +667,7 @@ struct CoverSummaryCard<Cover: View>: View {
     }
 
     @ViewBuilder
-    private func supportingContentView(color: Color) -> some View {
+    private func supportingContentView(color: Color, contentWidth: CGFloat) -> some View {
         switch supportingContent {
         case .description(let description):
             supportingText(description, color: color, lineLimit: 2)
@@ -652,7 +680,8 @@ struct CoverSummaryCard<Cover: View>: View {
                 secondarySupportingText(
                     secondary,
                     color: color,
-                    interaction: secondaryInteraction
+                    interaction: secondaryInteraction,
+                    contentWidth: contentWidth
                 )
             }
         }
@@ -662,7 +691,8 @@ struct CoverSummaryCard<Cover: View>: View {
     private func secondarySupportingText(
         _ text: String,
         color: Color,
-        interaction: CoverSummarySecondaryMetadataInteraction
+        interaction: CoverSummarySecondaryMetadataInteraction,
+        contentWidth: CGFloat
     ) -> some View {
         switch interaction {
         case .none:
@@ -689,40 +719,61 @@ struct CoverSummaryCard<Cover: View>: View {
                 isSecondaryMetadataHovered = false
             }
 
-        case .expandableDescription:
-            WorkbenchSelectableText(
-                text,
-                fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
-                weight: .regular,
-                color: color,
-                lineLimit: 1,
-                lineHeight: WorkbenchControlMetrics.redesignLineHeightCoverSummaryDescription,
-                truncationMode: .tail,
-                preferredPointerShape: .grab,
-                showsUnderline: false,
-                onTap: {
-                    isDescriptionPopoverOpen = true
-                }
+        case .expandableDescription(let fullText):
+            let canExpand = CoverSummaryDescriptionPopoverLayout.isDescriptionExpandable(
+                singleLineText: text,
+                fullText: fullText,
+                availableWidth: contentWidth
             )
-            .opacity(isDescriptionPopoverOpen ? 0 : 1)
-            .contentShape(Rectangle())
-            .onPointerHover(showsHand: true) { _ in }
-            .background {
-                GeometryReader { textGeo in
-                    Color.clear
-                        .onAppear {
-                            secondaryLineOffsetY = textGeo.frame(
-                                in: .named(coverSummaryContentColumnCoordinateSpace)
-                            ).minY
-                        }
-                        .onChange(
-                            of: textGeo.frame(
-                                in: .named(coverSummaryContentColumnCoordinateSpace)
-                            ).minY
-                        ) { newMinY in
-                            secondaryLineOffsetY = newMinY
-                        }
+            if canExpand {
+                WorkbenchSelectableText(
+                    text,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .regular,
+                    color: color,
+                    lineLimit: 1,
+                    lineHeight: WorkbenchControlMetrics.redesignLineHeightCoverSummaryDescription,
+                    truncationMode: .tail,
+                    preferredPointerShape: .grab,
+                    showsUnderline: isSecondaryMetadataHovered && !isDescriptionPopoverOpen,
+                    onTap: {
+                        isSecondaryMetadataHovered = false
+                        isDescriptionPopoverOpen = true
+                    }
+                )
+                .opacity(isDescriptionPopoverOpen ? 0 : 1)
+                .contentShape(Rectangle())
+                .onPointerHover(showsHand: true) { isHovered in
+                    isSecondaryMetadataHovered = isHovered
                 }
+                .onDisappear {
+                    isSecondaryMetadataHovered = false
+                }
+                .background {
+                    GeometryReader { textGeo in
+                        Color.clear
+                            .onAppear {
+                                secondaryLineOffsetY = textGeo.frame(
+                                    in: .named(coverSummaryContentColumnCoordinateSpace)
+                                ).minY
+                            }
+                            .onChange(
+                                of: textGeo.frame(
+                                    in: .named(coverSummaryContentColumnCoordinateSpace)
+                                ).minY
+                            ) { newMinY in
+                                secondaryLineOffsetY = newMinY
+                            }
+                    }
+                }
+            } else {
+                supportingText(text, color: color, lineLimit: 1)
+                    .onAppear {
+                        isSecondaryMetadataHovered = false
+                        if isDescriptionPopoverOpen {
+                            isDescriptionPopoverOpen = false
+                        }
+                    }
             }
         }
     }
