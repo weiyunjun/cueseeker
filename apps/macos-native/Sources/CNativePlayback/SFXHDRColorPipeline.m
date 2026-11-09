@@ -100,115 +100,7 @@ typedef struct {
     struct pl_color_space colorSpace;
     struct pl_color_repr colorRepr;
     struct pl_dovi_metadata doviMetadata;
-    float measuredMaxPQ;
-    float measuredAvgPQ;
 } SFXHDRFramePayload;
-
-static inline float SFXPQFromLinearNormalized(float linearNorm) {
-    float y = fmaxf(0.0f, fminf(1.0f, linearNorm * (203.0f / 10000.0f)));
-    const float m1 = 2610.0f / 16384.0f;
-    const float m2 = (2523.0f / 4096.0f) * 128.0f;
-    const float c1 = 3424.0f / 4096.0f;
-    const float c2 = (2413.0f / 4096.0f) * 32.0f;
-    const float c3 = (2392.0f / 4096.0f) * 32.0f;
-    float ym1 = powf(y, m1);
-    return powf((c1 + c2 * ym1) / (1.0f + c3 * ym1), m2);
-}
-
-static void SFXMeasurePixelBufferLumaStats(
-    CVPixelBufferRef pixelBuffer,
-    BOOL isFullRange,
-    float *outMaxPQ,
-    float *outAvgPQ
-) {
-    if (outMaxPQ != NULL) {
-        *outMaxPQ = 0.0f;
-    }
-    if (outAvgPQ != NULL) {
-        *outAvgPQ = 0.0f;
-    }
-    if (pixelBuffer == NULL || !CVPixelBufferIsPlanar(pixelBuffer)) {
-        return;
-    }
-    OSType fmt = CVPixelBufferGetPixelFormatType(pixelBuffer);
-    BOOL is10Bit = (fmt == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange ||
-                    fmt == kCVPixelFormatType_420YpCbCr10BiPlanarFullRange);
-    BOOL is8Bit = (fmt == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange ||
-                   fmt == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange);
-    if (!is10Bit && !is8Bit) {
-        return;
-    }
-    if (CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly) != kCVReturnSuccess) {
-        return;
-    }
-    const uint8_t *base = (const uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0);
-    size_t stride = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0);
-    size_t width = CVPixelBufferGetWidthOfPlane(pixelBuffer, 0);
-    size_t height = CVPixelBufferGetHeightOfPlane(pixelBuffer, 0);
-    if (base == NULL || width == 0 || height == 0) {
-        CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-        return;
-    }
-
-    const size_t gridX = 48;
-    const size_t gridY = 27;
-    float samples[48 * 27];
-    size_t count = 0;
-    double sumPQ = 0.0;
-
-    for (size_t gy = 0; gy < gridY; gy++) {
-        size_t y = ((gy * 2 + 1) * height) / (gridY * 2);
-        const uint8_t *row = base + y * stride;
-        for (size_t gx = 0; gx < gridX; gx++) {
-            size_t x = ((gx * 2 + 1) * width) / (gridX * 2);
-            float normY = 0.0f;
-            if (is10Bit) {
-                uint16_t raw = ((const uint16_t *)row)[x] >> 6;
-                if (isFullRange) {
-                    normY = (float)raw / 1023.0f;
-                } else {
-                    normY = ((float)raw - 64.0f) / (940.0f - 64.0f);
-                }
-            } else {
-                uint8_t raw = row[x];
-                if (isFullRange) {
-                    normY = (float)raw / 255.0f;
-                } else {
-                    normY = ((float)raw - 16.0f) / (235.0f - 16.0f);
-                }
-            }
-            normY = fmaxf(0.0f, fminf(1.0f, normY));
-            if (normY > 0.01f) {
-                samples[count++] = normY;
-                sumPQ += (double)normY;
-            }
-        }
-    }
-    CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-
-    if (count == 0) {
-        return;
-    }
-    float maxVal = 0.0f;
-    float secondMax = 0.0f;
-    for (size_t i = 0; i < count; i++) {
-        float v = samples[i];
-        if (v >= maxVal) {
-            secondMax = maxVal;
-            maxVal = v;
-        } else if (v > secondMax) {
-            secondMax = v;
-        }
-    }
-    float robustPeak = (count > 8) ? (0.7f * maxVal + 0.3f * secondMax) : maxVal;
-    float avgVal = (float)(sumPQ / (double)count);
-    if (outMaxPQ != NULL) {
-        *outMaxPQ = fmaxf(0.508f, fminf(1.0f, robustPeak));
-    }
-    if (outAvgPQ != NULL) {
-        *outAvgPQ = fmaxf(0.10f, fminf(0.85f, avgVal));
-    }
-}
 
 static inline void SFXWriteBE16(uint8_t *dst, uint16_t val) {
     dst[0] = (uint8_t)((val >> 8) & 0xFF);
@@ -401,6 +293,10 @@ void SFXAttachHDRMetadataToPixelBuffer(
             }
         }
     }
+    const AVFrameSideData *doviRpuSideData = av_frame_get_side_data(frame, AV_FRAME_DATA_DOVI_RPU_BUFFER);
+    if (doviRpuSideData != NULL && doviRpuSideData->data != NULL && doviRpuSideData->size > 0) {
+        pl_hdr_metadata_from_dovi_rpu(&plFrame.color.hdr, doviRpuSideData->data, doviRpuSideData->size);
+    }
 
     if (!payload.hasDolbyVision && stream != NULL && stream->codecpar != NULL) {
         const AVPacketSideData *doviConfSD = av_packet_side_data_get(
@@ -458,25 +354,9 @@ void SFXAttachHDRMetadataToPixelBuffer(
             : PL_COLOR_TRC_PQ;
     }
 
-    BOOL isFullRange = (payload.colorRepr.levels == PL_COLOR_LEVELS_FULL ||
-                        payload.avRange == AVCOL_RANGE_JPEG);
-    SFXMeasurePixelBufferLumaStats(
-        pixelBuffer,
-        isFullRange,
-        &payload.measuredMaxPQ,
-        &payload.measuredAvgPQ
-    );
-
     float fallbackMaxNits = 1000.0f;
     if (payload.colorSpace.transfer == PL_COLOR_TRC_PQ) {
-        if (payload.colorSpace.hdr.max_pq_y <= 0.0f &&
-            payload.colorSpace.hdr.max_cll <= 0.0f &&
-            payload.colorSpace.hdr.scene_max[0] <= 0.0f &&
-            payload.measuredMaxPQ > 0.508f) {
-            payload.colorSpace.hdr.max_pq_y = payload.measuredMaxPQ;
-            payload.colorSpace.hdr.avg_pq_y = payload.measuredAvgPQ;
-            fallbackMaxNits = pl_hdr_rescale(PL_HDR_PQ, PL_HDR_NITS, payload.measuredMaxPQ);
-        } else if (payload.colorSpace.hdr.max_pq_y > 0.0f) {
+        if (payload.colorSpace.hdr.max_pq_y > 0.0f) {
             fallbackMaxNits = pl_hdr_rescale(PL_HDR_PQ, PL_HDR_NITS, payload.colorSpace.hdr.max_pq_y);
         } else if (payload.colorSpace.hdr.max_cll > 0.0f) {
             fallbackMaxNits = payload.colorSpace.hdr.max_cll;
@@ -584,12 +464,11 @@ NSString *SFXDescribePixelBufferColorSummary(CVPixelBufferRef _Nullable pixelBuf
                        p->colorSpace.hdr.max_luma,
                        p->colorSpace.hdr.max_cll];
         } else {
-            summary = [NSString stringWithFormat:@"hdr(%@/%@,max_luma=%.0f,max_cll=%.0f,meas_pq=%.3f)",
+            summary = [NSString stringWithFormat:@"hdr(%@/%@,max_luma=%.0f,max_cll=%.0f)",
                        prim,
                        trc,
                        p->colorSpace.hdr.max_luma,
-                       p->colorSpace.hdr.max_cll,
-                       p->measuredMaxPQ];
+                       p->colorSpace.hdr.max_cll];
         }
         CFRelease(attachment);
         return summary;
@@ -1353,14 +1232,6 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
         .out_max = &inMaxPQ,
         .out_avg = &inAvgPQ
     ));
-    if (payload->measuredMaxPQ > 0.508f) {
-        if (inMaxPQ <= 0.0f || inMaxPQ > 0.85f) {
-            inMaxPQ = fmaxf(payload->measuredMaxPQ, 0.65f);
-        }
-        if (inAvgPQ <= 0.0f) {
-            inAvgPQ = payload->measuredAvgPQ;
-        }
-    }
     inMinPQ = fmaxf(0.005f, fminf(0.10f, inMinPQ));
     inMaxPQ = fmaxf(0.55f, fminf(1.0f, inMaxPQ));
 
