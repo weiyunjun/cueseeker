@@ -1506,6 +1506,12 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
     if (targetMode == SFXHDRRenderTargetModeLiveHDRDisplay) {
         CVBufferSetAttachment(
             dstBuffer,
+            kCVImageBufferYCbCrMatrixKey,
+            kCVImageBufferYCbCrMatrix_ITU_R_2020,
+            kCVAttachmentMode_ShouldPropagate
+        );
+        CVBufferSetAttachment(
+            dstBuffer,
             kCVImageBufferColorPrimariesKey,
             kCVImageBufferColorPrimaries_ITU_R_2020,
             kCVAttachmentMode_ShouldPropagate
@@ -1519,6 +1525,19 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
             transferKey,
             kCVAttachmentMode_ShouldPropagate
         );
+        CFStringRef colorSpaceName = (uniforms.outputTransfer == 2u)
+            ? kCGColorSpaceITUR_2100_HLG
+            : kCGColorSpaceITUR_2100_PQ;
+        CGColorSpaceRef hdrColorSpace = CGColorSpaceCreateWithName(colorSpaceName);
+        if (hdrColorSpace != NULL) {
+            CVBufferSetAttachment(
+                dstBuffer,
+                kCVImageBufferCGColorSpaceKey,
+                hdrColorSpace,
+                kCVAttachmentMode_ShouldPropagate
+            );
+            CFRelease(hdrColorSpace);
+        }
         SFXApplyCoreVideoHDRDictionaryAttachments(
             dstBuffer,
             &payload.colorSpace,
@@ -1539,6 +1558,12 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
     } else {
         CVBufferSetAttachment(
             dstBuffer,
+            kCVImageBufferYCbCrMatrixKey,
+            kCVImageBufferYCbCrMatrix_ITU_R_709_2,
+            kCVAttachmentMode_ShouldPropagate
+        );
+        CVBufferSetAttachment(
+            dstBuffer,
             kCVImageBufferColorPrimariesKey,
             kCVImageBufferColorPrimaries_ITU_R_709_2,
             kCVAttachmentMode_ShouldPropagate
@@ -1549,6 +1574,16 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
             kCVImageBufferTransferFunction_sRGB,
             kCVAttachmentMode_ShouldPropagate
         );
+        CGColorSpaceRef sdrColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+        if (sdrColorSpace != NULL) {
+            CVBufferSetAttachment(
+                dstBuffer,
+                kCVImageBufferCGColorSpaceKey,
+                sdrColorSpace,
+                kCVAttachmentMode_ShouldPropagate
+            );
+            CFRelease(sdrColorSpace);
+        }
     }
 
     return dstBuffer;

@@ -35,6 +35,10 @@
                                              object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(handleScreenOrWindowDidChange:)
+                                               name:NSScreenColorSpaceDidChangeNotification
+                                             object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(handleScreenOrWindowDidChange:)
                                                name:NSWindowDidChangeScreenNotification
                                              object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self
@@ -65,11 +69,17 @@
 }
 
 - (void)refreshDisplayEDRStateNotifyingChange:(BOOL)notifyChange {
-    NSScreen *screen = self.window.screen ?: NSScreen.mainScreen ?: NSScreen.screens.firstObject;
-    CGFloat maxEDR = (screen != nil) ? screen.maximumExtendedDynamicRangeColorComponentValue : 1.0;
-    if (!isfinite(maxEDR) || maxEDR < 1.0) {
-        maxEDR = 1.0;
+    NSScreen *windowScreen = NSThread.isMainThread ? self.window.screen : nil;
+    NSScreen *screen = windowScreen ?: NSScreen.mainScreen ?: NSScreen.screens.firstObject;
+    CGFloat currentEDR = (screen != nil) ? screen.maximumExtendedDynamicRangeColorComponentValue : 1.0;
+    CGFloat potentialEDR = (screen != nil) ? screen.maximumPotentialExtendedDynamicRangeColorComponentValue : 1.0;
+    if (!isfinite(currentEDR) || currentEDR < 1.0) {
+        currentEDR = 1.0;
     }
+    if (!isfinite(potentialEDR) || potentialEDR < 1.0) {
+        potentialEDR = 1.0;
+    }
+    CGFloat maxEDR = fmax(currentEDR, potentialEDR);
     BOOL displaySupportsHDR = (maxEDR > 1.01);
     BOOL stateChanged = NO;
     BOOL wantsEDR = NO;
@@ -134,11 +144,10 @@
     @synchronized (self) {
         _isStreamHDR = isHDRStream;
     }
-    if (NSThread.isMainThread) {
-        [self refreshDisplayEDRStateNotifyingChange:NO];
-    } else {
+    [self refreshDisplayEDRStateNotifyingChange:NO];
+    if (!NSThread.isMainThread) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self refreshDisplayEDRStateNotifyingChange:NO];
+            [self refreshDisplayEDRStateNotifyingChange:YES];
         });
     }
 }
