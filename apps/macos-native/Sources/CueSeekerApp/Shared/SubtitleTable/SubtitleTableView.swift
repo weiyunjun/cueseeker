@@ -664,6 +664,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.documentView = documentView
             self.pageChromeViewport = pageChromeViewport
             self.outlineOverlayView = outlineOverlay
+            pageChromeViewport?.coordinator = self
             outlineOverlay?.coordinator = self
             headerView.coordinator = self
             headerView.isHidden = !showsHeader
@@ -851,6 +852,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 )
                 host.coordinator = self
                 host.scrollView = scrollView
+                host.wantsLayer = true
+                host.layer?.masksToBounds = false
                 pageChromeViewport.addSubview(host)
                 scrollablePageChromeHost = host
             }

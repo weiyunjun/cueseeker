@@ -169,8 +169,11 @@ func excerptDetailPageScrollKeepsRowsBelowPinnedChrome() {
 
 @Test
 func coverSummarySpacingAndProgressTokensMatchSpecification() {
-    #expect(WorkbenchControlMetrics.redesignCoverSummaryTitleMetaGap == 8)
-    #expect(WorkbenchControlMetrics.redesignCoverSummaryMetaLinesGap == 6)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryTitleMetaGap == 12)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryMetaLinesGap == 10)
+    #expect(WorkbenchControlMetrics.redesignLineHeightCoverSummaryDescription == 20)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryDescriptionPopoverPaddingX == 12)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryDescriptionPopoverPaddingY == 8)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryProgressLabelGap == 6)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryProgressWidth == 290)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryProgressTrackHeight == 5)
@@ -181,6 +184,133 @@ func coverSummarySpacingAndProgressTokensMatchSpecification() {
     let clampedHigh = CoverSummaryProgress(labelText: "EP01  24:00 / 24:00", fraction: 1.5)
     #expect(clampedLow.fraction == 0)
     #expect(clampedHigh.fraction == 1)
+}
+
+@Test
+func libraryFolderCoverSummarySupportingContentMakesOnlyLocalPathsClickable() {
+    var didOpenLocal = false
+    let localContent = libraryFolderCoverSummarySupportingContent(
+        itemCount: 13,
+        folderPath: "/Volumes/Seagate/Ave Mujica",
+        onOpenPath: { didOpenLocal = true }
+    )
+    if case .metadata(let primary, let secondary, let interaction) = localContent {
+        #expect(primary == "13 videos  13 subtitles")
+        #expect(secondary == "/Volumes/Seagate/Ave Mujica")
+        if case .clickablePath(let id, let action) = interaction {
+            #expect(id == "/Volumes/Seagate/Ave Mujica")
+            action()
+            #expect(didOpenLocal)
+        } else {
+            Issue.record("Expected local folder path to be clickable")
+        }
+    } else {
+        Issue.record("Expected metadata supporting content")
+    }
+
+    let remoteContent = libraryFolderCoverSummarySupportingContent(
+        itemCount: 5,
+        folderPath: "https://webdav.example.com/Anime/MyGO"
+    )
+    #expect(
+        remoteContent
+            == .metadata(
+                primary: "5 videos  5 subtitles",
+                secondary: "https://webdav.example.com/Anime/MyGO",
+                secondaryInteraction: .none
+            )
+    )
+}
+
+@Test
+func excerptCoverSummaryPlacesCountAndCreatedDateFirstAndDescriptionSecond() {
+    let populated = excerptCoverSummarySupportingContent(
+        description: "First line\nSecond line",
+        cueCount: 18,
+        createdAt: "2026-10-12T08:30:00Z"
+    )
+    #expect(
+        populated
+            == .metadata(
+                primary: "18 excerpts  Created 2026-10-12",
+                secondary: "First line Second line",
+                secondaryInteraction: .expandableDescription(
+                    fullText: "First line\nSecond line"
+                )
+            )
+    )
+
+    let empty = excerptCoverSummarySupportingContent(
+        description: "   \n  ",
+        cueCount: 1,
+        createdAt: "2026-10-12T08:30:00Z"
+    )
+    #expect(
+        empty
+            == .metadata(
+                primary: "1 excerpt  Created 2026-10-12",
+                secondary: "No description",
+                secondaryInteraction: .none
+            )
+    )
+}
+
+@Test
+func coverSummaryDescriptionPopoverExpandsOutwardWithZeroFirstLineShiftAndCapsAtActionRowBottom() {
+    let split = CoverSummaryCardLayout.resolve(containerWidth: 800)
+    let paddingX = WorkbenchControlMetrics.redesignCoverSummaryDescriptionPopoverPaddingX
+    let paddingY = WorkbenchControlMetrics.redesignCoverSummaryDescriptionPopoverPaddingY
+    let lineHeight = WorkbenchControlMetrics.redesignLineHeightCoverSummaryDescription
+    let descriptionTopOffset: CGFloat = 68
+
+    let shortPopover = CoverSummaryDescriptionPopoverLayout.resolve(
+        contentFrame: split.contentFrame,
+        descriptionTopOffset: descriptionTopOffset,
+        descriptionText: "Short description"
+    )
+
+    // Outward expansion: container shifts left by 12px and up by 8px so the
+    // first line of text inside the popover sits at the exact same (x, y) and
+    // width as the unexpanded single-line description.
+    #expect(shortPopover.frame.minX == split.contentFrame.minX - paddingX)
+    #expect(shortPopover.frame.minY == split.contentFrame.minY + descriptionTopOffset - paddingY)
+    #expect(shortPopover.frame.minX + paddingX == split.contentFrame.minX)
+    #expect(shortPopover.frame.minY + paddingY == split.contentFrame.minY + descriptionTopOffset)
+    #expect(shortPopover.textWidth == split.contentFrame.width)
+    #expect(shortPopover.frame.width == split.contentFrame.width + paddingX * 2)
+    #expect(!shortPopover.needsScroll)
+    #expect(shortPopover.textHeight == lineHeight)
+    #expect(shortPopover.frame.height == lineHeight + paddingY * 2)
+    #expect(shortPopover.frame.maxY < split.contentFrame.maxY)
+
+    let longText = Array(
+        repeating: "Long excerpt list description line that wraps across multiple lines inside the popover container.",
+        count: 10
+    ).joined(separator: "\n")
+    let tallPopover = CoverSummaryDescriptionPopoverLayout.resolve(
+        contentFrame: split.contentFrame,
+        descriptionTopOffset: descriptionTopOffset,
+        descriptionText: longText
+    )
+
+    // Overlay scrollbar (C-07.1, Reserved Gutter: None) preserves full textWidth
+    // even when scrolling is required, and bottom outer edge aligns flush with
+    // contentFrame.maxY (Action Row bottom outer edge).
+    #expect(tallPopover.needsScroll)
+    #expect(tallPopover.textWidth == split.contentFrame.width)
+    #expect(tallPopover.frame.width == split.contentFrame.width + paddingX * 2)
+    #expect(tallPopover.frame.height == tallPopover.maxHeight)
+    #expect(tallPopover.frame.maxY == split.contentFrame.maxY)
+
+    let backdropBg = WorkbenchRedesignColors.NS.coverSummaryDescriptionPopoverBackdropBg
+        .usingColorSpace(.sRGB)
+    #expect(backdropBg != nil)
+    if let backdropBg {
+        #expect(abs(backdropBg.redComponent - 0x4C / 255.0) < 0.005)
+        #expect(abs(backdropBg.greenComponent - 0x4C / 255.0) < 0.005)
+        #expect(abs(backdropBg.blueComponent - 0x54 / 255.0) < 0.005)
+        #expect(backdropBg.alphaComponent == 1.0)
+    }
 }
 
 @Test

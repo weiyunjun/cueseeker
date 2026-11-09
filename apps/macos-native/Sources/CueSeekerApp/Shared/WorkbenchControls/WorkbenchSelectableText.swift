@@ -120,7 +120,10 @@ final class WorkbenchStaticTextSelectionCoordinator {
         guard let contentView = window.contentView else {
             return
         }
-        if let mainWindow = window as? CueSeekerMainWindow, mainWindow.isFocusLocked() {
+        if let mainWindow = window as? CueSeekerMainWindow,
+           mainWindow.isFocusLocked(),
+           !Self.hasInteractiveMenuModalSelectableTextView(in: contentView)
+        {
             return
         }
         let hitView = contentView.superview?.hitTest(windowPoint)
@@ -225,6 +228,21 @@ final class WorkbenchStaticTextSelectionCoordinator {
                 return true
             }
             current = view.superview
+        }
+        return false
+    }
+
+    private static func hasInteractiveMenuModalSelectableTextView(in rootView: NSView) -> Bool {
+        guard rootView.window != nil, !rootView.isHidden, rootView.alphaValue > 0 else {
+            return false
+        }
+        if let selectable = rootView as? WorkbenchSelectableTextNSView {
+            return selectable.allowsMenuModalInteraction && selectable.canInteract
+        }
+        for subview in rootView.subviews.reversed() {
+            if hasInteractiveMenuModalSelectableTextView(in: subview) {
+                return true
+            }
         }
         return false
     }
@@ -368,11 +386,13 @@ struct WorkbenchSelectableText: View {
     var monospacedDigits: Bool = false
     var color: Color = WorkbenchRedesignColors.textPrimary
     var lineLimit: Int? = nil
+    var lineHeight: CGFloat? = nil
     var truncationMode: Text.TruncationMode = .tail
     var alignment: TextAlignment = .leading
     var isSelectable: Bool = true
     var preferredPointerShape: PointerShape = .iBeam
     var showsUnderline: Bool = false
+    var allowsMenuModalInteraction: Bool = false
     var onTap: (() -> Void)? = nil
 
     @Environment(\.interfaceLayerContext) private var interfaceLayerContext
@@ -384,11 +404,13 @@ struct WorkbenchSelectableText: View {
         monospacedDigits: Bool = false,
         color: Color = WorkbenchRedesignColors.textPrimary,
         lineLimit: Int? = nil,
+        lineHeight: CGFloat? = nil,
         truncationMode: Text.TruncationMode = .tail,
         alignment: TextAlignment = .leading,
         isSelectable: Bool = true,
         preferredPointerShape: PointerShape = .iBeam,
         showsUnderline: Bool = false,
+        allowsMenuModalInteraction: Bool = false,
         onTap: (() -> Void)? = nil
     ) {
         self.text = text
@@ -397,11 +419,13 @@ struct WorkbenchSelectableText: View {
         self.monospacedDigits = monospacedDigits
         self.color = color
         self.lineLimit = lineLimit
+        self.lineHeight = lineHeight
         self.truncationMode = truncationMode
         self.alignment = alignment
         self.isSelectable = isSelectable
         self.preferredPointerShape = preferredPointerShape
         self.showsUnderline = showsUnderline
+        self.allowsMenuModalInteraction = allowsMenuModalInteraction
         self.onTap = onTap
     }
 
@@ -434,12 +458,21 @@ struct WorkbenchSelectableText: View {
     }
 
     var body: some View {
+        let resolvedLineHeight: CGFloat? = (lineHeight ?? 0) > 0 ? lineHeight : nil
         Text(text)
             .font(swiftUIFont)
             .foregroundStyle(color)
             .lineLimit(lineLimit)
             .truncationMode(truncationMode)
             .multilineTextAlignment(alignment)
+            .frame(
+                height: (lineLimit == 1 && resolvedLineHeight != nil) ? resolvedLineHeight : nil,
+                alignment: .leading
+            )
+            .frame(
+                minHeight: (lineLimit != 1 && resolvedLineHeight != nil) ? resolvedLineHeight : nil,
+                alignment: .topLeading
+            )
             .opacity(isEffectivelySelectable ? 0 : 1)
             .overlay {
                 if isEffectivelySelectable {
@@ -449,10 +482,12 @@ struct WorkbenchSelectableText: View {
                         textColor: NSColor(color),
                         alignment: nsAlignment,
                         lineLimit: lineLimit,
+                        lineHeight: resolvedLineHeight,
                         truncatesTail: truncationMode == .tail,
                         isSelectable: isEffectivelySelectable,
                         preferredPointerShape: preferredPointerShape,
                         showsUnderline: showsUnderline,
+                        allowsMenuModalInteraction: allowsMenuModalInteraction,
                         onTap: onTap,
                         interfaceLayerContext: interfaceLayerContext
                     )
@@ -492,10 +527,12 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
     let textColor: NSColor
     let alignment: NSTextAlignment
     let lineLimit: Int?
+    let lineHeight: CGFloat?
     let truncatesTail: Bool
     let isSelectable: Bool
     let preferredPointerShape: PointerShape
     let showsUnderline: Bool
+    let allowsMenuModalInteraction: Bool
     let onTap: (() -> Void)?
     let interfaceLayerContext: InterfaceLayerContext
 
@@ -523,10 +560,12 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
             textColor: textColor,
             alignment: alignment,
             lineLimit: lineLimit,
+            lineHeight: lineHeight,
             truncatesTail: truncatesTail,
             isSelectable: isSelectable,
             preferredPointerShape: preferredPointerShape,
             showsUnderline: showsUnderline,
+            allowsMenuModalInteraction: allowsMenuModalInteraction,
             onTap: onTap,
             interfaceLayerContext: interfaceLayerContext
         )
@@ -549,10 +588,12 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
     private(set) var textColor: NSColor = WorkbenchRedesignColors.NS.textPrimary
     private(set) var alignment: NSTextAlignment = .left
     private(set) var lineLimit: Int? = nil
+    private(set) var lineHeight: CGFloat? = nil
     private(set) var truncatesTail: Bool = true
     private(set) var isSelectable: Bool = true
     private(set) var preferredPointerShape: PointerShape = .iBeam
     private(set) var showsUnderline: Bool = false
+    private(set) var allowsMenuModalInteraction: Bool = false
     var onTap: (() -> Void)?
     private(set) var interfaceLayerContext = InterfaceLayerContext()
 
@@ -595,7 +636,10 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
     }
 
     var isFrozenOrCovered: Bool {
-        interfaceLayerContext.isFrozen || interfaceLayerContext.isCovered
+        if allowsMenuModalInteraction {
+            return interfaceLayerContext.isCovered
+        }
+        return interfaceLayerContext.isFrozen || interfaceLayerContext.isCovered
     }
 
     var canInteract: Bool {
@@ -603,7 +647,10 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
             return false
         }
         if let mainWindow = window as? CueSeekerMainWindow {
-            if mainWindow.isFocusLocked() || mainWindow.isBehindDialog(self) {
+            if mainWindow.isBehindDialog(self) {
+                return false
+            }
+            if mainWindow.isFocusLocked(), !allowsMenuModalInteraction {
                 return false
             }
             if mainWindow.isWorkbenchCovered(), interfaceLayerContext.layer == .workbenchPage {
@@ -636,10 +683,12 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         textColor: NSColor,
         alignment: NSTextAlignment,
         lineLimit: Int?,
+        lineHeight: CGFloat? = nil,
         truncatesTail: Bool,
         isSelectable: Bool,
         preferredPointerShape: PointerShape,
         showsUnderline: Bool,
+        allowsMenuModalInteraction: Bool = false,
         onTap: (() -> Void)?,
         interfaceLayerContext: InterfaceLayerContext
     ) {
@@ -648,10 +697,12 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
             || self.textColor != textColor
             || self.alignment != alignment
             || self.lineLimit != lineLimit
+            || self.lineHeight != lineHeight
             || self.truncatesTail != truncatesTail
             || self.isSelectable != isSelectable
             || self.preferredPointerShape != preferredPointerShape
             || self.showsUnderline != showsUnderline
+            || self.allowsMenuModalInteraction != allowsMenuModalInteraction
         let layerChanged = self.interfaceLayerContext.layer != interfaceLayerContext.layer
             || self.interfaceLayerContext.isCovered != interfaceLayerContext.isCovered
             || self.interfaceLayerContext.isFrozen != interfaceLayerContext.isFrozen
@@ -661,10 +712,12 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         self.textColor = textColor
         self.alignment = alignment
         self.lineLimit = lineLimit
+        self.lineHeight = lineHeight
         self.truncatesTail = truncatesTail
         self.isSelectable = isSelectable
         self.preferredPointerShape = preferredPointerShape
         self.showsUnderline = showsUnderline
+        self.allowsMenuModalInteraction = allowsMenuModalInteraction
         self.onTap = onTap
         self.interfaceLayerContext = interfaceLayerContext
 
@@ -697,6 +750,19 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         } else {
             updateTextLayout()
             window?.invalidateCursorRects(for: self)
+            if allowsMenuModalInteraction {
+                Task { @MainActor [weak self] in
+                    guard let self,
+                          self.allowsMenuModalInteraction,
+                          self.canInteract,
+                          let window = self.window,
+                          window.firstResponder == nil || window.firstResponder === window
+                    else {
+                        return
+                    }
+                    _ = window.makeFirstResponder(self)
+                }
+            }
         }
     }
 
@@ -792,6 +858,9 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
             clearSelection(notifyCoordinator: true)
             return
         }
+        if let currentEvent = NSApp.currentEvent {
+            _ = autoscroll(with: currentEvent)
+        }
         let point = convert(currentWindowPoint, from: nil)
         updateSelectionForDrag(at: point)
     }
@@ -871,6 +940,7 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
             }
             didDrag = true
         }
+        _ = autoscroll(with: event)
         updateSelectionForDrag(at: convert(windowPoint, from: nil))
     }
 
@@ -1007,9 +1077,13 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
     private func updateTextLayout() {
         let paragraphStyle = NSMutableParagraphStyle()
         let availableWidth = max(0, bounds.width)
+        if let lineHeight, lineHeight > 0 {
+            paragraphStyle.minimumLineHeight = lineHeight
+            paragraphStyle.maximumLineHeight = lineHeight
+        }
 
         if lineLimit == 1 {
-            let naturalWidth = ceil((text as NSString).size(withAttributes: [.font: font]).width)
+            let naturalWidth = Self.measuredSingleLineWidth(for: text, font: font)
             let isTruncated = truncatesTail && availableWidth > 0 && availableWidth < naturalWidth - 1.5
             paragraphStyle.alignment = isTruncated ? alignment : .left
             paragraphStyle.lineBreakMode = isTruncated ? .byTruncatingTail : .byClipping
@@ -1047,9 +1121,61 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         layoutManager.ensureLayout(for: textContainer)
     }
 
+    nonisolated static func measuredSingleLineWidth(for text: String, font: NSFont) -> CGFloat {
+        guard !text.isEmpty else { return 0 }
+        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
+
+    nonisolated static func measuredMultilineHeight(
+        for text: String,
+        font: NSFont,
+        lineHeight: CGFloat? = nil,
+        width: CGFloat
+    ) -> CGFloat {
+        let resolvedLineHeight = (lineHeight ?? 0) > 0 ? lineHeight : nil
+        let defaultHeight = resolvedLineHeight ?? ceil(NSLayoutManager().defaultLineHeight(for: font))
+        guard !text.isEmpty, width > 0 else {
+            return defaultHeight
+        }
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(
+            size: CGSize(width: max(0, width + 1.5), height: .greatestFiniteMagnitude)
+        )
+        textContainer.lineFragmentPadding = 0
+        textContainer.maximumNumberOfLines = 0
+        textContainer.lineBreakMode = .byWordWrapping
+        layoutManager.usesFontLeading = true
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .left
+        paragraphStyle.lineBreakMode = .byWordWrapping
+        paragraphStyle.tighteningFactorForTruncation = 0
+        if let resolvedLineHeight {
+            paragraphStyle.minimumLineHeight = resolvedLineHeight
+            paragraphStyle.maximumLineHeight = resolvedLineHeight
+        }
+        textStorage.setAttributedString(
+            NSAttributedString(
+                string: text,
+                attributes: [
+                    .font: font,
+                    .paragraphStyle: paragraphStyle,
+                ]
+            )
+        )
+        layoutManager.ensureLayout(for: textContainer)
+        let usedHeight = ceil(layoutManager.usedRect(for: textContainer).height)
+        return max(defaultHeight, usedHeight)
+    }
+
     private func textOrigin() -> CGPoint {
         let usedRect = layoutManager.usedRect(for: textContainer)
-        let originY = max(0, (bounds.height - usedRect.height) / 2)
+        let originY = lineLimit == 1
+            ? max(0, (bounds.height - usedRect.height) / 2)
+            : (lineHeight != nil ? 0 : max(0, (bounds.height - usedRect.height) / 2))
         if lineLimit == 1, textContainer.lineBreakMode == .byClipping {
             switch alignment {
             case .center:

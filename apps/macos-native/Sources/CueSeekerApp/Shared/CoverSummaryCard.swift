@@ -1,8 +1,35 @@
+import AppKit
 import SwiftUI
+
+enum CoverSummarySecondaryMetadataInteraction: Equatable {
+    case none
+    case clickablePath(id: String, action: () -> Void)
+    case expandableDescription(fullText: String)
+
+    static func == (
+        lhs: CoverSummarySecondaryMetadataInteraction,
+        rhs: CoverSummarySecondaryMetadataInteraction
+    ) -> Bool {
+        switch (lhs, rhs) {
+        case (.none, .none):
+            true
+        case (.clickablePath(let lhsID, _), .clickablePath(let rhsID, _)):
+            lhsID == rhsID
+        case (.expandableDescription(let lhsText), .expandableDescription(let rhsText)):
+            lhsText == rhsText
+        default:
+            false
+        }
+    }
+}
 
 enum CoverSummarySupportingContent: Equatable {
     case description(String)
-    case metadata(primary: String, secondary: String)
+    case metadata(
+        primary: String,
+        secondary: String,
+        secondaryInteraction: CoverSummarySecondaryMetadataInteraction = .none
+    )
 }
 
 struct CoverSummaryProgress: Equatable {
@@ -122,6 +149,63 @@ struct CoverSummaryCardLayout: Equatable {
     }
 }
 
+struct CoverSummaryDescriptionPopoverLayout: Equatable {
+    let frame: CGRect
+    let textWidth: CGFloat
+    let textHeight: CGFloat
+    let maxHeight: CGFloat
+    let needsScroll: Bool
+
+    static func resolve(
+        contentFrame: CGRect,
+        descriptionTopOffset: CGFloat,
+        descriptionText: String,
+        font: NSFont = .systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeBody,
+            weight: .regular
+        )
+    ) -> CoverSummaryDescriptionPopoverLayout {
+        let paddingX = WorkbenchControlMetrics.redesignCoverSummaryDescriptionPopoverPaddingX
+        let paddingY = WorkbenchControlMetrics.redesignCoverSummaryDescriptionPopoverPaddingY
+        let lineHeight = WorkbenchControlMetrics.redesignLineHeightCoverSummaryDescription
+        let clampedTop = min(max(0, descriptionTopOffset), contentFrame.height)
+        // C-07.1 Scrollbar is Overlay (Reserved Gutter: None), so the text wrapping
+        // width is always the full contentFrame.width.
+        let textWidth = max(0, contentFrame.width)
+        let popoverWidth = textWidth + paddingX * 2
+        // The container expands outward by paddingY (8px) above the first line of text
+        // and caps its bottom outer edge at contentFrame.maxY (Action Row bottom edge).
+        let maxHeight = max(0, (contentFrame.height - clampedTop) + paddingY)
+        let naturalTextHeight = max(
+            lineHeight,
+            WorkbenchSelectableTextNSView.measuredMultilineHeight(
+                for: descriptionText,
+                font: font,
+                lineHeight: lineHeight,
+                width: textWidth
+            )
+        )
+        let unscrolledTotalHeight = naturalTextHeight + paddingY * 2
+        let needsScroll = unscrolledTotalHeight > maxHeight + 0.5
+        let height = min(maxHeight, unscrolledTotalHeight)
+
+        return CoverSummaryDescriptionPopoverLayout(
+            frame: CGRect(
+                x: contentFrame.minX - paddingX,
+                y: contentFrame.minY + clampedTop - paddingY,
+                width: popoverWidth,
+                height: height
+            ),
+            textWidth: textWidth,
+            textHeight: naturalTextHeight,
+            maxHeight: maxHeight,
+            needsScroll: needsScroll
+        )
+    }
+}
+
+private let coverSummaryContentColumnCoordinateSpace = "CoverSummaryCard.contentColumn"
+
 struct CoverSummaryCard<Cover: View>: View {
     let title: String
     let supportingContent: CoverSummarySupportingContent
@@ -136,6 +220,11 @@ struct CoverSummaryCard<Cover: View>: View {
     let cover: () -> Cover
 
     @Environment(\.workbenchAccessibility) private var workbenchAccessibility
+    @Environment(\.interfaceLayers) private var interfaceLayers
+    @Environment(\.interfaceLayerContext) private var interfaceLayerContext
+    @State private var isDescriptionPopoverOpen = false
+    @State private var isSecondaryMetadataHovered = false
+    @State private var secondaryLineOffsetY: CGFloat = 68
 
     init(
         title: String,
@@ -196,6 +285,7 @@ struct CoverSummaryCard<Cover: View>: View {
                     .allowsHitTesting(false)
 
                     contentColumn(form: layout.form)
+                        .coordinateSpace(name: coverSummaryContentColumnCoordinateSpace)
                         .frame(
                             width: layout.contentFrame.width,
                             height: layout.contentFrame.height,
@@ -205,6 +295,28 @@ struct CoverSummaryCard<Cover: View>: View {
                             x: layout.contentFrame.minX,
                             y: layout.contentFrame.minY
                         )
+
+                    if isDescriptionPopoverOpen,
+                       let fullText = expandableDescriptionFullText
+                    {
+                        let popoverLayout = CoverSummaryDescriptionPopoverLayout.resolve(
+                            contentFrame: layout.contentFrame,
+                            descriptionTopOffset: secondaryLineOffsetY,
+                            descriptionText: fullText
+                        )
+
+                        CoverSummaryDescriptionDetailPopover(
+                            fullText: fullText,
+                            form: layout.form,
+                            textColor: supportingColor(for: layout.form),
+                            layout: popoverLayout,
+                            interfaceLayers: interfaceLayers,
+                            interfaceLayerContext: interfaceLayerContext,
+                            onDismiss: {
+                                isDescriptionPopoverOpen = false
+                            }
+                        )
+                    }
                 }
                 .frame(
                     width: proxy.size.width,
@@ -214,6 +326,26 @@ struct CoverSummaryCard<Cover: View>: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: supportingContent) { _ in
+            isDescriptionPopoverOpen = false
+        }
+        .onChange(of: interfaceLayerContext.isCovered) { isCovered in
+            if isCovered {
+                isDescriptionPopoverOpen = false
+            }
+        }
+        .onDisappear {
+            isDescriptionPopoverOpen = false
+        }
+    }
+
+    private var expandableDescriptionFullText: String? {
+        guard case .metadata(_, _, .expandableDescription(let fullText)) = supportingContent,
+              !fullText.isEmpty
+        else {
+            return nil
+        }
+        return fullText
     }
 
     private func coverRadius(for form: CoverSummaryCardForm) -> CGFloat {
@@ -511,13 +643,86 @@ struct CoverSummaryCard<Cover: View>: View {
         switch supportingContent {
         case .description(let description):
             supportingText(description, color: color, lineLimit: 2)
-        case .metadata(let primary, let secondary):
+        case .metadata(let primary, let secondary, let secondaryInteraction):
             VStack(
                 alignment: .leading,
                 spacing: WorkbenchControlMetrics.redesignCoverSummaryMetaLinesGap
             ) {
                 supportingText(primary, color: color, lineLimit: 1)
-                supportingText(secondary, color: color, lineLimit: 1)
+                secondarySupportingText(
+                    secondary,
+                    color: color,
+                    interaction: secondaryInteraction
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func secondarySupportingText(
+        _ text: String,
+        color: Color,
+        interaction: CoverSummarySecondaryMetadataInteraction
+    ) -> some View {
+        switch interaction {
+        case .none:
+            supportingText(text, color: color, lineLimit: 1)
+
+        case .clickablePath(_, let action):
+            WorkbenchSelectableText(
+                text,
+                fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                weight: .regular,
+                color: color,
+                lineLimit: 1,
+                lineHeight: WorkbenchControlMetrics.redesignLineHeightCoverSummaryDescription,
+                truncationMode: .tail,
+                preferredPointerShape: .grab,
+                showsUnderline: isSecondaryMetadataHovered,
+                onTap: action
+            )
+            .contentShape(Rectangle())
+            .onPointerHover(showsHand: true) { isHovered in
+                isSecondaryMetadataHovered = isHovered
+            }
+            .onDisappear {
+                isSecondaryMetadataHovered = false
+            }
+
+        case .expandableDescription:
+            WorkbenchSelectableText(
+                text,
+                fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                weight: .regular,
+                color: color,
+                lineLimit: 1,
+                lineHeight: WorkbenchControlMetrics.redesignLineHeightCoverSummaryDescription,
+                truncationMode: .tail,
+                preferredPointerShape: .grab,
+                showsUnderline: false,
+                onTap: {
+                    isDescriptionPopoverOpen = true
+                }
+            )
+            .opacity(isDescriptionPopoverOpen ? 0 : 1)
+            .contentShape(Rectangle())
+            .onPointerHover(showsHand: true) { _ in }
+            .background {
+                GeometryReader { textGeo in
+                    Color.clear
+                        .onAppear {
+                            secondaryLineOffsetY = textGeo.frame(
+                                in: .named(coverSummaryContentColumnCoordinateSpace)
+                            ).minY
+                        }
+                        .onChange(
+                            of: textGeo.frame(
+                                in: .named(coverSummaryContentColumnCoordinateSpace)
+                            ).minY
+                        ) { newMinY in
+                            secondaryLineOffsetY = newMinY
+                        }
+                }
             }
         }
     }
@@ -533,8 +738,164 @@ struct CoverSummaryCard<Cover: View>: View {
             weight: .regular,
             color: color,
             lineLimit: lineLimit,
+            lineHeight: WorkbenchControlMetrics.redesignLineHeightCoverSummaryDescription,
             truncationMode: .tail
         )
+    }
+}
+
+private struct CoverSummaryDescriptionDetailPopover: View {
+    private static let escapeKeyCode: UInt16 = 53
+
+    let fullText: String
+    let form: CoverSummaryCardForm
+    let textColor: Color
+    let layout: CoverSummaryDescriptionPopoverLayout
+    let interfaceLayers: InterfaceLayerRegistry?
+    let interfaceLayerContext: InterfaceLayerContext
+    let onDismiss: () -> Void
+
+    private var popoverCornerRadius: CGFloat {
+        WorkbenchControlMetrics.redesignCornerRadius
+    }
+
+    private var popoverShape: RoundedRectangle {
+        RoundedRectangle(
+            cornerRadius: popoverCornerRadius,
+            style: .continuous
+        )
+    }
+
+    private var scrollbarAppearanceMode: TableScrollbarAppearanceMode {
+        switch form {
+        case .split:
+            .inherited
+        case .backdrop:
+            .playerChrome
+        }
+    }
+
+    /// A menu surface belongs to the layer it freezes, so its own scrollbar and
+    /// selectable text are only frozen when a higher layer covers that layer.
+    private var popoverChildLayerContext: InterfaceLayerContext {
+        InterfaceLayerContext(
+            layer: interfaceLayerContext.layer,
+            coveredLayers: interfaceLayerContext.coveredLayers,
+            frozenLayers: interfaceLayerContext.coveredLayers
+        )
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            WorkbenchScrollView(
+                .vertical,
+                scrollbarInset: TableScrollbarPrimitiveMetrics.inset,
+                scrollbarAppearanceMode: scrollbarAppearanceMode
+            ) {
+                WorkbenchSelectableText(
+                    fullText,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .regular,
+                    color: textColor,
+                    lineLimit: nil,
+                    lineHeight: WorkbenchControlMetrics.redesignLineHeightCoverSummaryDescription,
+                    alignment: .leading,
+                    isSelectable: true,
+                    preferredPointerShape: .iBeam,
+                    allowsMenuModalInteraction: true
+                )
+                .frame(
+                    width: layout.textWidth,
+                    height: layout.textHeight,
+                    alignment: .topLeading
+                )
+                .padding(
+                    .horizontal,
+                    WorkbenchControlMetrics.redesignCoverSummaryDescriptionPopoverPaddingX
+                )
+                .padding(
+                    .vertical,
+                    WorkbenchControlMetrics.redesignCoverSummaryDescriptionPopoverPaddingY
+                )
+            }
+            .environment(\.interfaceLayerContext, popoverChildLayerContext)
+            .frame(
+                width: layout.frame.width,
+                height: layout.frame.height,
+                alignment: .topLeading
+            )
+            .clipShape(popoverShape)
+            .background {
+                popoverBackground
+            }
+            .overlay {
+                popoverBorder
+            }
+            .offset(
+                x: layout.frame.minX,
+                y: layout.frame.minY
+            )
+
+            MenuGateClientView(
+                gate: interfaceLayers?.menuGate,
+                owner: interfaceLayerContext.layer,
+                kind: .coverSummaryDescriptionPopover,
+                menuFrame: layout.frame,
+                handleKey: { keyCode, _ in
+                    if keyCode == Self.escapeKeyCode {
+                        onDismiss()
+                        return true
+                    }
+                    return false
+                },
+                dismiss: { _ in
+                    onDismiss()
+                }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var popoverBackground: some View {
+        switch form {
+        case .split:
+            popoverShape
+                .fill(WorkbenchRedesignColors.bgPopover)
+                .shadowToken(
+                    WorkbenchRedesignColors.shadowPopover,
+                    cornerRadius: popoverCornerRadius
+                )
+        case .backdrop:
+            popoverShape
+                .fill(WorkbenchRedesignColors.coverSummaryDescriptionPopoverBackdropBg)
+                .shadow(
+                    color: PlaybackTheme.overlayShadowColor,
+                    radius: PlaybackTheme.overlayShadowRadius,
+                    y: PlaybackTheme.overlayShadowYOffset
+                )
+        }
+    }
+
+    @ViewBuilder
+    private var popoverBorder: some View {
+        switch form {
+        case .split:
+            popoverShape
+                .strokeBorder(
+                    WorkbenchRedesignColors.borderControl,
+                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                )
+        case .backdrop:
+            popoverShape
+                .strokeBorder(
+                    WorkbenchRedesignColors.coverSummaryText.opacity(
+                        WorkbenchControlMetrics.redesignCoverSummaryButtonBorderOpacity
+                    ),
+                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                )
+        }
     }
 }
 

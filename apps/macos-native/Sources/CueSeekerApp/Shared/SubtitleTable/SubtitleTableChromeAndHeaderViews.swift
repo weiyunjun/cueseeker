@@ -46,6 +46,7 @@ final class SubtitleTableContainerView: NSView {
 
 final class SubtitleTablePageChromeViewportView: NSView {
     weak var scrollView: NSScrollView?
+    weak var coordinator: SubtitleTableView.Coordinator?
 
     override var isFlipped: Bool { true }
 
@@ -64,6 +65,9 @@ final class SubtitleTablePageChromeViewportView: NSView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        guard coordinator?.interfaceLayers?.menuGate.bansScrolling != true else {
+            return
+        }
         scrollView?.scrollWheel(with: event)
     }
 }
@@ -1098,7 +1102,42 @@ final class SubtitleTablePageChromeHostingView: CueSeekerHostingView<AnyView> {
     weak var scrollView: NSScrollView?
     weak var coordinator: SubtitleTableView.Coordinator?
 
+    override func layout() {
+        super.layout()
+        layer?.masksToBounds = false
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if let hit = super.hitTest(point) {
+            return hit
+        }
+        guard !isHidden, alphaValue > 0, let window else {
+            return nil
+        }
+        let windowPoint = superview?.convert(point, to: nil) ?? window.mouseLocationOutsideOfEventStream
+        return Self.hitTestExtendedSubviews(in: self, windowPoint: windowPoint)
+    }
+
+    private static func hitTestExtendedSubviews(
+        in view: NSView,
+        windowPoint: NSPoint
+    ) -> NSView? {
+        for subview in view.subviews.reversed() where !subview.isHidden && subview.alphaValue > 0 {
+            if let hit = hitTestExtendedSubviews(in: subview, windowPoint: windowPoint) {
+                return hit
+            }
+            let pointInSuperview = subview.superview?.convert(windowPoint, from: nil) ?? windowPoint
+            if let hit = subview.hitTest(pointInSuperview) {
+                return hit
+            }
+        }
+        return nil
+    }
+
     override func scrollWheel(with event: NSEvent) {
+        guard coordinator?.interfaceLayers?.menuGate.bansScrolling != true else {
+            return
+        }
         scrollView?.scrollWheel(with: event)
     }
 }

@@ -656,10 +656,16 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeCoverSummaryTitle: CGFloat = 22
     /// --font-weight-cover-summary-title: 700
     static let redesignFontWeightCoverSummaryTitle: Font.Weight = .bold
-    /// --gap-cover-summary-title-meta: 8px
-    static let redesignCoverSummaryTitleMetaGap: CGFloat = 8
-    /// --gap-cover-summary-meta-lines: 6px
-    static let redesignCoverSummaryMetaLinesGap: CGFloat = 6
+    /// --line-height-cover-summary-description: 20px
+    static let redesignLineHeightCoverSummaryDescription: CGFloat = 20
+    /// --padding-cover-summary-description-popover-x: 12px
+    static let redesignCoverSummaryDescriptionPopoverPaddingX: CGFloat = 12
+    /// --padding-cover-summary-description-popover-y: 8px
+    static let redesignCoverSummaryDescriptionPopoverPaddingY: CGFloat = 8
+    /// --gap-cover-summary-title-meta: 12px
+    static let redesignCoverSummaryTitleMetaGap: CGFloat = 12
+    /// --gap-cover-summary-meta-lines: 10px
+    static let redesignCoverSummaryMetaLinesGap: CGFloat = 10
     /// --gap-cover-summary-progress-label: 6px
     static let redesignCoverSummaryProgressLabelGap: CGFloat = 6
     /// --gap-cover-summary-progress-actions: 14px

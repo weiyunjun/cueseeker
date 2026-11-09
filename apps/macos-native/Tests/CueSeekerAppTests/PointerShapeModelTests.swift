@@ -32,6 +32,22 @@ func menuResetsToArrowAndMovementUnderItDecidesNothing() {
     #expect(model.reset() == .arrow)
     #expect(model.pointerMoved(over: .grab, isMenuOpen: true) == nil)
     #expect(model.shape == .arrow)
+    #expect(
+        model.pointerMoved(
+            over: .iBeam,
+            isMenuOpen: true,
+            allowsMenuModalIBeam: true
+        ) == .iBeam
+    )
+    #expect(model.shape == .iBeam)
+    #expect(
+        model.pointerMoved(
+            over: .grab,
+            isMenuOpen: true,
+            allowsMenuModalIBeam: true
+        ) == .arrow
+    )
+    #expect(model.shape == .arrow)
     #expect(model.pointerMoved(over: .grab, isMenuOpen: false) == .grab)
 }
 

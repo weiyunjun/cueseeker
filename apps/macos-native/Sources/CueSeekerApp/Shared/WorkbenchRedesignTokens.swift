@@ -274,6 +274,11 @@ enum WorkbenchRedesignColors {
         // Cover Summary
         static let coverSummaryScrim = NSColor.black
         static let coverSummaryText = NSColor.white
+        // --color-cover-summary-description-popover-backdrop-bg: Light #4C4C54, Dark #4C4C54
+        static let coverSummaryDescriptionPopoverBackdropBg = NSColor.dynamic(
+            lightHex: "#4C4C54",
+            darkHex: "#4C4C54"
+        )
 
         // Shadow Color
         // One colour for both themes. On a dark page a shadow this light
@@ -385,6 +390,9 @@ enum WorkbenchRedesignColors {
     // Cover Summary
     static let coverSummaryScrim = Color(nsColor: NS.coverSummaryScrim)
     static let coverSummaryText = Color(nsColor: NS.coverSummaryText)
+    static let coverSummaryDescriptionPopoverBackdropBg = Color(
+        nsColor: NS.coverSummaryDescriptionPopoverBackdropBg
+    )
 
     // Border
     static let borderControl = Color(nsColor: NS.borderControl)

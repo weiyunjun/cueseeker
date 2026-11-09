@@ -65,7 +65,7 @@ class CueSeekerWindow: NSWindow {
                 WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
             }
         }
-        guard !isFocusLocked() else {
+        guard !isFocusLocked() || Self.allowsFirstResponderDuringMenuModality(responder) else {
             return false
         }
         let accepted = super.makeFirstResponder(responder)
@@ -301,6 +301,14 @@ class CueSeekerWindow: NSWindow {
         }
         return false
     }
+    fileprivate static func allowsFirstResponderDuringMenuModality(_ responder: NSResponder?) -> Bool {
+        guard let selectableText = responder as? WorkbenchSelectableTextNSView else {
+            return false
+        }
+        return MainActor.assumeIsolated {
+            selectableText.allowsMenuModalInteraction && selectableText.canInteract
+        }
+    }
 }
 
 /// The main window, which refuses to hand the keyboard to anything while a
@@ -363,7 +371,9 @@ final class CueSeekerMainWindow: CueSeekerWindow {
         guard responder != nil else {
             return super.makeFirstResponder(responder)
         }
-        guard !isFocusLocked(), !isBehindDialog(responder) else {
+        guard (!isFocusLocked() || Self.allowsFirstResponderDuringMenuModality(responder)),
+              !isBehindDialog(responder)
+        else {
             return false
         }
         if isWorkbenchCovered(), let view = focusTargetView(for: responder) {

@@ -243,29 +243,17 @@ private struct WorkbenchExcerptTableContent: View {
 
     private var coverSummary: AnyView? {
         guard let summary = excerptStore.activeListSummary else { return nil }
-        let trimmedDescription = summary.list.description.trimmingCharacters(
-            in: .whitespacesAndNewlines
+        let supportingContent = excerptCoverSummarySupportingContent(
+            description: summary.list.description,
+            cueCount: summary.cueCount,
+            createdAt: summary.list.createdAt
         )
-        let primaryMetadata = trimmedDescription.isEmpty
-            ? L("excerpt.no_description")
-            : SearchInputNormalizer.singleLine(summary.list.description)
-        let countText = summary.cueCount == 1
-            ? L("table.excerpt_count.one")
-            : L("table.excerpt_count.other", summary.cueCount)
-        let createdText = L(
-            "excerpt.created_date",
-            excerptListCreatedDateDisplayText(for: summary.list.createdAt)
-        )
-        let secondaryMetadata = "\(countText)  \(createdText)"
         let progress = coverSummaryProgress(for: summary)
 
         return AnyView(
             CoverSummaryCard(
                 title: summary.list.name,
-                supportingContent: .metadata(
-                    primary: primaryMetadata,
-                    secondary: secondaryMetadata
-                ),
+                supportingContent: supportingContent,
                 progress: progress,
                 actionKind: summary.resumeExcerpt == nil ? .play : .resume,
                 isActionEnabled: excerptStore.activeListHasPlayableContent,
@@ -1155,6 +1143,36 @@ private struct WorkbenchExcerptTableContent: View {
             exitSelectionMode()
         }
     }
+}
+
+func excerptCoverSummarySupportingContent(
+    description: String,
+    cueCount: Int,
+    createdAt: String
+) -> CoverSummarySupportingContent {
+    let trimmedDescription = description.trimmingCharacters(
+        in: .whitespacesAndNewlines
+    )
+    let countText = cueCount == 1
+        ? L("table.excerpt_count.one")
+        : L("table.excerpt_count.other", cueCount)
+    let createdText = L(
+        "excerpt.created_date",
+        excerptListCreatedDateDisplayText(for: createdAt)
+    )
+    let primaryMetadata = "\(countText)  \(createdText)"
+    let secondaryMetadata = trimmedDescription.isEmpty
+        ? L("excerpt.no_description")
+        : SearchInputNormalizer.singleLine(description)
+    let interaction: CoverSummarySecondaryMetadataInteraction = trimmedDescription.isEmpty
+        ? .none
+        : .expandableDescription(fullText: trimmedDescription)
+
+    return .metadata(
+        primary: primaryMetadata,
+        secondary: secondaryMetadata,
+        secondaryInteraction: interaction
+    )
 }
 
 func excerptListCreatedDateDisplayText(

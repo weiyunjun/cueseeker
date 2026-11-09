@@ -42,13 +42,18 @@ struct PointerShapeModel: Equatable {
 
     /// A real pointer movement. `surfaceShape` is what the surface under the
     /// pointer answers; a hand card under the pointer wins over it. While a
-    /// menu owns input, movement decides nothing and the arrow stays.
+    /// menu owns input, movement decides nothing and the arrow stays, except
+    /// when a selectable text popover explicitly permits `.iBeam` over its text.
     mutating func pointerMoved(
         over surfaceShape: PointerShape,
-        isMenuOpen: Bool
+        isMenuOpen: Bool,
+        allowsMenuModalIBeam: Bool = false
     ) -> PointerShape? {
-        guard !isMenuOpen else {
-            return nil
+        if isMenuOpen {
+            guard allowsMenuModalIBeam else {
+                return nil
+            }
+            return apply(surfaceShape == .iBeam ? .iBeam : .arrow)
         }
         return apply(handCardsUnderPointer.isEmpty ? surfaceShape : .grab)
     }
@@ -103,11 +108,17 @@ enum AppPointerShape {
     private(set) static var model = PointerShapeModel()
     private static weak var window: NSWindow?
     private static var isMenuOpen: () -> Bool = { false }
+    private static var allowsMenuModalIBeam: () -> Bool = { false }
     private static var runLoopObserver: CFRunLoopObserver?
 
-    static func attach(to window: NSWindow, isMenuOpen: @escaping @MainActor () -> Bool) {
+    static func attach(
+        to window: NSWindow,
+        isMenuOpen: @escaping @MainActor () -> Bool,
+        allowsMenuModalIBeam: @escaping @MainActor () -> Bool = { false }
+    ) {
         self.window = window
         self.isMenuOpen = isMenuOpen
+        self.allowsMenuModalIBeam = allowsMenuModalIBeam
         installRestore()
     }
 
@@ -263,6 +274,7 @@ enum AppPointerShape {
     static func resetForTesting() {
         window = nil
         isMenuOpen = { false }
+        allowsMenuModalIBeam = { false }
         pointerLocationOutside = nil
         model.clearHandCards()
         _ = model.reset()
@@ -316,7 +328,8 @@ enum AppPointerShape {
         }
         set(model.pointerMoved(
             over: surfaceShape(at: windowPoint),
-            isMenuOpen: isMenuOpen()
+            isMenuOpen: isMenuOpen(),
+            allowsMenuModalIBeam: allowsMenuModalIBeam()
         ))
     }
 

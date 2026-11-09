@@ -295,9 +295,12 @@ struct WorkbenchLibraryView: View {
 
         return CoverSummaryCard(
             title: detail.folderTitle,
-            supportingContent: .metadata(
-                primary: L("library.video_subtitle_count", itemCount, itemCount),
-                secondary: detail.folderPath
+            supportingContent: libraryFolderCoverSummarySupportingContent(
+                itemCount: itemCount,
+                folderPath: detail.folderPath,
+                onOpenPath: {
+                    appState.openFolder(atPath: detail.folderPath)
+                }
             ),
             progress: progress,
             actionKind: recentItem == nil ? .play : .resume,
@@ -433,5 +436,20 @@ enum WorkbenchLibraryMetrics {
     static let titleSize = WorkbenchControlMetrics.redesignFontSizeLibraryTitle
     static let metaSize = WorkbenchControlMetrics.redesignFontSizeLibraryMeta
     static let timeBadgeSize = WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge
+}
+
+func libraryFolderCoverSummarySupportingContent(
+    itemCount: Int,
+    folderPath: String,
+    onOpenPath: @escaping () -> Void = {}
+) -> CoverSummarySupportingContent {
+    let interaction: CoverSummarySecondaryMetadataInteraction = folderPath.isRemoteMediaPath
+        ? .none
+        : .clickablePath(id: folderPath, action: onOpenPath)
+    return .metadata(
+        primary: L("library.video_subtitle_count", itemCount, itemCount),
+        secondary: folderPath,
+        secondaryInteraction: interaction
+    )
 }
 

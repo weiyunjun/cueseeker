@@ -33,13 +33,14 @@ final class MenuGate {
         case playerSubtitleMenu
         case playerMoreMenu
         case excerptDestinationMenu
+        case coverSummaryDescriptionPopover
 
         /// Whether the menu surface spends the wheel itself. When it does not,
         /// the gate spends a wheel over the menu so nothing moves underneath
         /// it.
         var takesWheel: Bool {
             switch self {
-            case .tableRowMenu, .selectedTextMenu, .excerptDestinationMenu, .playerSubtitleMenu, .playerMoreMenu:
+            case .tableRowMenu, .selectedTextMenu, .excerptDestinationMenu, .playerSubtitleMenu, .playerMoreMenu, .coverSummaryDescriptionPopover:
                 true
             case .cardMenu, .playerSpeedMenu:
                 false
@@ -421,6 +422,15 @@ final class MenuGate {
                 isPointerOnMenu: isPointerOnMenu,
                 isTrackingMenuDrag: isTrackingMenuDrag
             )
+            if !isFromAnotherWindow,
+               client.kind == .coverSummaryDescriptionPopover,
+               event.type == .mouseMoved
+                || event.type == .leftMouseDragged
+                || event.type == .rightMouseDragged,
+               !passes
+            {
+                AppPointerShape.reset()
+            }
             return passes ? event : nil
         }
     }

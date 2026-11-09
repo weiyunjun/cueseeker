@@ -343,9 +343,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             hostingView.safeAreaRegions = []
         }
         window.contentView = hostingView
-        AppPointerShape.attach(to: window) { [appState] in
-            appState.interfaceLayers.hasUncoveredOpenMenu
-        }
+        AppPointerShape.attach(
+            to: window,
+            isMenuOpen: { [appState] in
+                appState.interfaceLayers.hasUncoveredOpenMenu
+            },
+            allowsMenuModalIBeam: { [appState] in
+                appState.interfaceLayers.menuGate.isOpen(.coverSummaryDescriptionPopover)
+            }
+        )
 
         if let screen = window.screen ?? NSScreen.main {
             window.setFrame(screen.visibleFrame, display: true)
