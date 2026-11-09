@@ -1198,10 +1198,13 @@ private struct TaskDetailProgressRow: View {
                 WorkbenchProgressBar(fraction: clampedFraction)
                     .frame(width: WorkbenchControlMetrics.redesignTaskDetailProgressBarWidth)
 
-                Text("\(Int((clampedFraction * 100).rounded()))%")
-                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                    .monospacedDigit()
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                WorkbenchSelectableText(
+                    "\(Int((clampedFraction * 100).rounded()))%",
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                    monospacedDigits: true,
+                    color: WorkbenchRedesignColors.textPrimary,
+                    lineLimit: 1
+                )
             }
         }
     }

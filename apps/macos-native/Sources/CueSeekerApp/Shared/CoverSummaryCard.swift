@@ -280,14 +280,14 @@ struct CoverSummaryCard<Cover: View>: View {
                 alignment: .leading,
                 spacing: WorkbenchControlMetrics.redesignCoverSummaryTitleMetaGap
             ) {
-                Text(title)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle,
-                        weight: WorkbenchControlMetrics.redesignFontWeightCoverSummaryTitle
-                    ))
-                    .foregroundStyle(titleColor(for: form))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                WorkbenchSelectableText(
+                    title,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle,
+                    weight: WorkbenchControlMetrics.redesignFontWeightCoverSummaryTitle,
+                    color: titleColor(for: form),
+                    lineLimit: 1,
+                    truncationMode: .tail
+                )
 
                 supportingContentView(color: supportingColor(for: form))
             }
@@ -321,16 +321,16 @@ struct CoverSummaryCard<Cover: View>: View {
             alignment: .leading,
             spacing: WorkbenchControlMetrics.redesignCoverSummaryProgressLabelGap
         ) {
-            Text(progress.labelText)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeCaption,
-                    weight: .medium
-                ))
-                .monospacedDigit()
-                .foregroundStyle(supportingColor(for: form))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: trackWidth, alignment: .leading)
+            WorkbenchSelectableText(
+                progress.labelText,
+                fontSize: WorkbenchControlMetrics.redesignFontSizeCaption,
+                weight: .medium,
+                monospacedDigits: true,
+                color: supportingColor(for: form),
+                lineLimit: 1,
+                truncationMode: .tail
+            )
+            .frame(maxWidth: trackWidth, alignment: .leading)
 
             ZStack(alignment: .leading) {
                 Capsule()
@@ -527,14 +527,14 @@ struct CoverSummaryCard<Cover: View>: View {
         color: Color,
         lineLimit: Int
     ) -> some View {
-        Text(text)
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeBody,
-                weight: .regular
-            ))
-            .foregroundStyle(color)
-            .lineLimit(lineLimit)
-            .truncationMode(.tail)
+        WorkbenchSelectableText(
+            text,
+            fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+            weight: .regular,
+            color: color,
+            lineLimit: lineLimit,
+            truncationMode: .tail
+        )
     }
 }
 

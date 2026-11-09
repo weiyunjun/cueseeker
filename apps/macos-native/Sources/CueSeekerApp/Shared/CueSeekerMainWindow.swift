@@ -60,6 +60,11 @@ class CueSeekerWindow: NSWindow {
             hasUserFocusedTextInput = false
             return super.makeFirstResponder(responder)
         }
+        MainActor.assumeIsolated {
+            if responder !== WorkbenchStaticTextSelectionCoordinator.shared.activeView {
+                WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            }
+        }
         guard !isFocusLocked() else {
             return false
         }
@@ -68,6 +73,37 @@ class CueSeekerWindow: NSWindow {
             refreshFocusedTextInputInsertionPoint()
         }
         return accepted
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.type == .keyDown {
+            let flags = event.modifierFlags
+                .intersection(.deviceIndependentFlagsMask)
+                .subtracting([.numericPad, .function])
+            if flags == .command,
+               event.charactersIgnoringModifiers?.lowercased() == "c" || event.keyCode == 8
+            {
+                let copied = MainActor.assumeIsolated { () -> Bool in
+                    guard let activeView = WorkbenchStaticTextSelectionCoordinator.shared.activeView,
+                          activeView.window === self,
+                          activeView.hasSelection
+                    else {
+                        return false
+                    }
+                    return WorkbenchStaticTextSelectionCoordinator.shared.copyActiveSelection()
+                }
+                if copied {
+                    return true
+                }
+            }
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
+    @IBAction func copy(_ sender: Any?) {
+        _ = MainActor.assumeIsolated {
+            WorkbenchStaticTextSelectionCoordinator.shared.copyActiveSelection()
+        }
     }
 
     override func sendEvent(_ event: NSEvent) {
@@ -83,9 +119,18 @@ class CueSeekerWindow: NSWindow {
         }
         switch event.type {
         case .leftMouseDown:
+            MainActor.assumeIsolated {
+                WorkbenchStaticTextSelectionCoordinator.shared.clearSelectionIfOutside(
+                    window: self,
+                    windowPoint: event.locationInWindow
+                )
+            }
             cancelFocusedTextInputIfOutside(at: event.locationInWindow)
             onMouseDownClearAccessibility?()
         case .rightMouseDown:
+            MainActor.assumeIsolated {
+                WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            }
             onMouseDownClearAccessibility?()
             if isPointInsideFocusedTextInput(at: event.locationInWindow) {
                 hasUserFocusedTextInput = true
@@ -98,6 +143,9 @@ class CueSeekerWindow: NSWindow {
                 return
             }
         case .otherMouseDown:
+            MainActor.assumeIsolated {
+                WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            }
             onMouseDownClearAccessibility?()
         default:
             break
@@ -403,6 +451,12 @@ final class CueSeekerMainWindow: CueSeekerWindow {
         }
         if let field = target as? WorkbenchNativeSingleLineTextField,
            field.interfaceLayer == .dialog,
+           !isBehindDialog(target) {
+            return true
+        }
+        if let selectableText = target as? WorkbenchSelectableTextNSView,
+           selectableText.interfaceLayerContext.layer == .dialog,
+           !selectableText.isFrozenOrCovered,
            !isBehindDialog(target) {
             return true
         }

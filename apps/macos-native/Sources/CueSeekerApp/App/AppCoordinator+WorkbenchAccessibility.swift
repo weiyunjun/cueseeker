@@ -150,7 +150,7 @@ extension AppCoordinator {
     }
 
     private var isFileFolderOperationBlocked: Bool {
-        tasks.hasLibraryTask || indexing.databaseMaintenanceStatus.isCompacting
+        tasks.hasLibraryTask
     }
 
     private var isFileStatusIndicatorClickable: Bool {
@@ -2098,14 +2098,6 @@ extension AppCoordinator {
             targets.append(.numberField(.subtitleShadowOffset))
 
             targets.append(.subtitleRestoreDefaults)
-
-        case .maintenance:
-            targets.append(.maintenanceRefresh)
-            targets.append(.maintenanceCompactDatabase)
-
-        case .developer:
-            targets.append(.developerEnableFTSDiagnostics)
-            targets.append(.developerRefresh)
         }
 
         return targets
@@ -2136,14 +2128,6 @@ extension AppCoordinator {
             return !settings.playbackShortcuts.keymap.isDefault(action)
         case .subtitleRestoreDefaults:
             return settings.srtSubtitleStyle != SRTSubtitleStyle()
-        case .maintenanceRefresh:
-            return !indexing.folderRemovalStatus.isRemoving
-                && !indexing.databaseMaintenanceStatus.isCompacting
-        case .maintenanceCompactDatabase:
-            return canCompactDatabase
-        case .developerRefresh:
-            return settings.searchFTSVocabularyDiagnosticsEnabled
-                && !indexing.searchFTSVocabularyDiagnosticsStatus.isLoading
         default:
             return true
         }
@@ -2320,22 +2304,6 @@ extension AppCoordinator {
             workbenchAccessibility.activeSubtitleColorPopover = nil
             workbenchAccessibility.unfocusAllSettingsTextInputs()
             settings.srtSubtitleStyle = SRTSubtitleStyle()
-            return true
-
-        case .maintenanceRefresh:
-            refreshDatabaseStorageStats()
-            return true
-
-        case .maintenanceCompactDatabase:
-            requestCompactDatabaseConfirmation()
-            return true
-
-        case .developerEnableFTSDiagnostics:
-            settings.searchFTSVocabularyDiagnosticsEnabled.toggle()
-            return true
-
-        case .developerRefresh:
-            refreshSearchFTSVocabularyDiagnostics()
             return true
 
         case .numberField(let id):

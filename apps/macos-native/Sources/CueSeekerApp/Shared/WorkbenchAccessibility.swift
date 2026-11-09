@@ -105,14 +105,6 @@ enum SettingsAccessibilityTarget: Equatable, Hashable {
     case subtitleBorderType(SRTSubtitleStyle.BorderType)
     case subtitleRestoreDefaults
 
-    // Maintenance
-    case maintenanceRefresh
-    case maintenanceCompactDatabase
-
-    // Developer
-    case developerEnableFTSDiagnostics
-    case developerRefresh
-
     var textInputKind: SettingsTextInputKind? {
         switch self {
         case .numberField(let id):
@@ -441,8 +433,11 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     @Published private(set) var focusedTarget: WorkbenchAccessibilityTarget?
     var activeDialogID: WorkbenchDialogAccessibilityID? {
         didSet {
-            if activeDialogID != oldValue, focusedDialogTarget != nil {
-                objectWillChange.send()
+            if activeDialogID != oldValue {
+                WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+                if focusedDialogTarget != nil {
+                    objectWillChange.send()
+                }
             }
         }
     }
@@ -452,6 +447,9 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     private var isMutatingSettingsCategoryFromHistoryNavigation = false
     @Published var selectedSettingsCategory: SettingsCategory = .general {
         didSet {
+            if selectedSettingsCategory != oldValue {
+                WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            }
             guard !isMutatingSettingsCategoryFromHistoryNavigation,
                   selectedSettingsCategory != oldValue
             else {

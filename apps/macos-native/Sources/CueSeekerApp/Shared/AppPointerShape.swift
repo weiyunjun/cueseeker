@@ -288,6 +288,7 @@ enum AppPointerShape {
     /// Clears stale card hover state from an outgoing interface and
     /// re-evaluates the pointer shape once the new interface lays out.
     static func reevaluateAfterInterfaceChange() {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
         model.clearHandCards()
         reevaluate()
         Task { @MainActor in

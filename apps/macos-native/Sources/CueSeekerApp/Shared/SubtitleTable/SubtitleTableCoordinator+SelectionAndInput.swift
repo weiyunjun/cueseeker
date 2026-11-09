@@ -1403,6 +1403,7 @@ extension SubtitleTableView.Coordinator {
         else {
             return
         }
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
         let previousSelection = textSelection
         textSelection.begin(at: anchor)
         interaction.selectionHasBegun = true

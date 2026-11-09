@@ -573,16 +573,23 @@ private struct WorkbenchFormFieldContainer<Content: View>: View {
 struct WorkbenchValidationMessage: View {
     let text: String?
 
+    private var hasText: Bool {
+        guard let text else { return false }
+        return !text.isEmpty
+    }
+
     var body: some View {
-        Text(text ?? "\u{00A0}")
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeCaption,
-                weight: .regular
-            ))
-            .foregroundStyle(WorkbenchRedesignColors.dangerText)
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityHidden(text == nil)
+        WorkbenchSelectableText(
+            text ?? "\u{00A0}",
+            fontSize: WorkbenchControlMetrics.redesignFontSizeCaption,
+            weight: .regular,
+            color: WorkbenchRedesignColors.dangerText,
+            lineLimit: 1,
+            truncationMode: .tail,
+            isSelectable: hasText
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityHidden(!hasText)
     }
 }
 

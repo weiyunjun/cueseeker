@@ -146,16 +146,17 @@ struct LibraryRenameDialog: View {
                         WorkbenchFormLabel(text: L("rename.current_name"))
                             .frame(width: WorkbenchControlMetrics.redesignFormLabelWidth, alignment: .leading)
 
-                        Text(session.currentName)
-                            .font(.system(
-                                size: WorkbenchControlMetrics.redesignFontSizeControl,
-                                weight: .regular
-                            ))
-                            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .accessibilityIdentifier("rename-current-name")
+                        WorkbenchSelectableText(
+                            session.currentName,
+                            fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                            weight: .regular,
+                            color: WorkbenchRedesignColors.textPrimary,
+                            lineLimit: nil,
+                            alignment: .leading
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("rename-current-name")
                     }
 
                     WorkbenchDialogFormTextField(

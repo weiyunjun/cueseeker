@@ -307,10 +307,9 @@ struct WorkbenchFileView: View {
     }
 
     /// Only one library task exists at a time, so every control that would
-    /// start one waits while one does. The developer-only compaction writes
-    /// the same rows without being a task, so they wait for it too.
+    /// start one waits while one does.
     private var isFolderOperationBlocked: Bool {
-        tasks.hasLibraryTask || indexing.databaseMaintenanceStatus.isCompacting
+        tasks.hasLibraryTask
     }
 
     private var addFolderMenuItems: [FileCardMenuItem] {

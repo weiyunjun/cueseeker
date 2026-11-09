@@ -195,12 +195,15 @@ struct WorkbenchDetailValueText: View {
     let valueColor: Color
 
     var body: some View {
-        Text(value)
-            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-            .monospacedDigit()
-            .foregroundStyle(valueColor)
-            .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: false, vertical: true)
+        WorkbenchSelectableText(
+            value,
+            fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+            monospacedDigits: true,
+            color: valueColor,
+            lineLimit: nil,
+            alignment: .leading
+        )
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

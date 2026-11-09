@@ -75,24 +75,20 @@ struct WorkbenchStatusIndicator: View {
             }
 
             if let onTapText {
-                Button(action: onTapText) {
-                    textLabel(showsUnderline: isTextHovered)
-                        .workbenchAccessibilityFocusRing(
-                            isFocused: isTextFocused,
-                            cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(StaticButtonStyle())
-                .focusable(false)
-                .onPointerHover(showsHand: true) { isHovered in
-                    isTextHovered = isHovered
-                }
-                .onDisappear {
-                    isTextHovered = false
-                }
+                textLabel(showsUnderline: isTextHovered, onTap: onTapText)
+                    .workbenchAccessibilityFocusRing(
+                        isFocused: isTextFocused,
+                        cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
+                    )
+                    .contentShape(Rectangle())
+                    .onPointerHover(showsHand: true) { isHovered in
+                        isTextHovered = isHovered
+                    }
+                    .onDisappear {
+                        isTextHovered = false
+                    }
             } else {
-                textLabel(showsUnderline: false)
+                textLabel(showsUnderline: false, onTap: nil)
                     .workbenchAccessibilityFocusRing(
                         isFocused: isTextFocused,
                         cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
@@ -105,24 +101,17 @@ struct WorkbenchStatusIndicator: View {
         .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 
-    private func textLabel(showsUnderline: Bool) -> some View {
-        Text(text)
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeBody,
-                weight: WorkbenchControlMetrics.redesignFontWeightControl
-            ))
-            .foregroundStyle(textColor)
-            .lineLimit(1)
-            .overlay(alignment: Alignment(horizontal: .leading, vertical: .firstTextBaseline)) {
-                if showsUnderline {
-                    Rectangle()
-                        .fill(textColor)
-                        .frame(height: WorkbenchControlMetrics.redesignInteractiveTextUnderlineThickness)
-                        .alignmentGuide(.firstTextBaseline) { _ in
-                            -WorkbenchControlMetrics.redesignInteractiveTextUnderlineOffset
-                        }
-                        .allowsHitTesting(false)
-                }
-            }
+    private func textLabel(showsUnderline: Bool, onTap: (() -> Void)?) -> some View {
+        WorkbenchSelectableText(
+            text,
+            fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+            weight: WorkbenchControlMetrics.redesignFontWeightControl,
+            color: textColor,
+            lineLimit: 1,
+            truncationMode: .tail,
+            preferredPointerShape: onTap != nil ? .grab : .iBeam,
+            showsUnderline: showsUnderline,
+            onTap: onTap
+        )
     }
 }

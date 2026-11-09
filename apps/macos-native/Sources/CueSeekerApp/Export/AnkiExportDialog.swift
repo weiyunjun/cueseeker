@@ -445,12 +445,15 @@ struct AnkiExportDialog: View {
             ZStack {
                 if items.isEmpty {
                     if let error = validationError {
-                        Text(error)
-                            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                            .foregroundStyle(WorkbenchRedesignColors.dangerText)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing2)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        WorkbenchSelectableText(
+                            error,
+                            fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                            color: WorkbenchRedesignColors.dangerText,
+                            lineLimit: nil,
+                            alignment: .center
+                        )
+                        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing2)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 } else {
                     let focusedDialogTarget = accessibility?.activeDialogID == dialogID

@@ -47,8 +47,6 @@ struct WorkbenchAccessibilityStep3Tests {
             .sidebarCategory(.play),
             .sidebarCategory(.shortcuts),
             .sidebarCategory(.subtitle),
-            .sidebarCategory(.maintenance),
-            .sidebarCategory(.developer),
             .appearanceMode(.light),
             .appearanceMode(.dark),
             .appearanceMode(.auto),
@@ -87,8 +85,6 @@ struct WorkbenchAccessibilityStep3Tests {
             .sidebarCategory(.play),
             .sidebarCategory(.shortcuts),
             .sidebarCategory(.subtitle),
-            .sidebarCategory(.maintenance),
-            .sidebarCategory(.developer),
             .playAutoPause,
             .playAutoSwitch,
             .numberField(.autoSwitchGap),
@@ -235,20 +231,14 @@ struct WorkbenchAccessibilityStep3Tests {
         let (app, suiteName, userDefaults) = makeTestCoordinator()
         defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
 
+        #expect(SettingsCategory.allCases == [.general, .play, .shortcuts, .subtitle])
+
         // Main window focus is preserved independently while interacting with Settings.
         app.workbenchAccessibility.setFocus(.topbarSettingsButton)
-        app.workbenchAccessibility.selectedSettingsCategory = .maintenance
-        #expect(app.currentSettingsAccessibilityTargets() == [
-            .topbarBackButton,
-            .topbarForwardButton,
-        ] + SettingsCategory.allCases.map { .sidebarCategory($0) } + [
-            .maintenanceRefresh,
-            .maintenanceCompactDatabase,
-        ])
-
-        app.workbenchAccessibility.setSettingsFocus(.maintenanceRefresh)
+        app.workbenchAccessibility.selectedSettingsCategory = .general
+        app.workbenchAccessibility.setSettingsFocus(.hdrScreenshot)
         #expect(app.workbenchAccessibility.focusedTarget == .topbarSettingsButton)
-        #expect(app.workbenchAccessibility.focusedSettingsTarget == .maintenanceRefresh)
+        #expect(app.workbenchAccessibility.focusedSettingsTarget == .hdrScreenshot)
 
         // Open Settings Confirmation Dialog (Compact Database).
         var didConfirm = false
@@ -349,17 +339,17 @@ struct WorkbenchAccessibilityStep3Tests {
         #expect(app.workbenchAccessibility.settingsCategoryHistoryIndex == 1)
         #expect(app.workbenchAccessibility.canGoForwardInSettings)
 
-        // Navigating to a new category (.developer) truncates forward history (.subtitle).
-        #expect(app.workbenchAccessibility.navigateSettingsCategory(to: .developer))
-        #expect(app.workbenchAccessibility.selectedSettingsCategory == .developer)
-        #expect(app.workbenchAccessibility.settingsCategoryHistory == [.general, .play, .developer])
+        // Navigating to a new category (.shortcuts) truncates forward history (.subtitle).
+        #expect(app.workbenchAccessibility.navigateSettingsCategory(to: .shortcuts))
+        #expect(app.workbenchAccessibility.selectedSettingsCategory == .shortcuts)
+        #expect(app.workbenchAccessibility.settingsCategoryHistory == [.general, .play, .shortcuts])
         #expect(app.workbenchAccessibility.settingsCategoryHistoryIndex == 2)
         #expect(app.workbenchAccessibility.canGoBackInSettings)
         #expect(!app.workbenchAccessibility.canGoForwardInSettings)
 
         // Selecting the already-selected category is a no-op and does not append a duplicate entry.
-        #expect(!app.workbenchAccessibility.navigateSettingsCategory(to: .developer))
-        #expect(app.workbenchAccessibility.settingsCategoryHistory == [.general, .play, .developer])
+        #expect(!app.workbenchAccessibility.navigateSettingsCategory(to: .shortcuts))
+        #expect(app.workbenchAccessibility.settingsCategoryHistory == [.general, .play, .shortcuts])
         #expect(app.workbenchAccessibility.settingsCategoryHistoryIndex == 2)
     }
 }
