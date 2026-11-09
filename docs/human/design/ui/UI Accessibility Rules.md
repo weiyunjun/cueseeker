@@ -251,14 +251,12 @@
 
 ## 3.2 设置窗口布局（`L-02 Settings`）
 
-1. **全局顺序**：**右侧顶栏（`L-02.1 Settings Topbar`）**（`Back` → `Forward`，含 `Disabled` 态） → **左侧分类导航栏（`L-02.2 Settings Sidebar`）**（从上到下依次遍历全部 6 个分类项：`General` → `Play` → `Shortcuts` → `Subtitle` → `Maintenance` → `Developer`，含当前 `Selected` 项） → **右侧分类内容区（`L-02.3 Category Content`）**（按各分组卡片从上到下、每行控件从左到右依次遍历）。
+1. **全局顺序**：**右侧顶栏（`L-02.1 Settings Topbar`）**（`Back` → `Forward`，含 `Disabled` 态） → **左侧分类导航栏（`L-02.2 Settings Sidebar`）**（从上到下依次遍历全部 4 个分类项：`General` → `Play` → `Shortcuts` → `Subtitle`，含当前 `Selected` 项） → **右侧分类内容区（`L-02.3 Category Content`）**（按各分组卡片从上到下、每行控件从左到右依次遍历）。
 2. **各分类页右侧内容区遍历顺序**：
    - **`General` 页**：`Appearance` 分段控制器的 3 个选项（从左到右，含当前已选项） → `Show Cue Group` 开关 → `Prefill Command Panel with Focused Cue` 开关 → `Language` 语言下拉按钮 → `Play First Search Result`（Deep Link）开关；
    - **`Play` 页**：`Auto Pause` 开关 → `Auto Switch` 开关 → `Auto Switch Gap` 数字框 → `Decoder` 分段控制器的 3 个选项（从左到右，含当前已选项）；
    - **`Shortcuts` 页（`L-02.4`）**：仅按从上到下遍历非默认键位行左侧显示的 `Restore Default`（`✕`）图标按钮（触发恢复默认后该 `✕` 按钮消失，按组件消失规则自动退出无障碍状态），所有 `Shortcut Field` 跳过；
-   - **`Subtitle` 页（`L-02.5`）**：按从上到下、从左到右依次遍历当前显示的各分组内控件（字体下拉按钮、数字框、Bold / Italic 复选框、`Color Well`［先十六进制输入框整体、再展开后的 12 个预设色块］、分段控制器的各选项），最后选中右下角的 `Restore Defaults` 按钮；
-   - **`Maintenance` 页**：`Refresh` 按钮 → `Compact Database` 按钮；
-   - **`Developer` 页**：`Enable FTS Vocabulary Diagnostics` 开关 → `FTS Vocabulary Data` 分组的 `Refresh` 按钮。
+   - **`Subtitle` 页（`L-02.5`）**：按从上到下、从左到右依次遍历当前显示的各分组内控件（字体下拉按钮、数字框、Bold / Italic 复选框、`Color Well`［先十六进制输入框整体、再展开后的 12 个预设色块］、分段控制器的各选项），最后选中右下角的 `Restore Defaults` 按钮。
 
 ## 3.3 模态对话框布局（`L-06 Dialogs`）
 

@@ -525,15 +525,7 @@
 - Scenario ID：disabled.settings.subtitle.restore_defaults
 - 所在位置：Settings -> Subtitle 底部 `Restore Defaults` 按钮
 
-### 38. 设置 -> 维护“刷新”与“压缩数据库”按钮禁用（Maintenance Actions Disabled）
-- 英文：Unavailable while folder removal or database compaction is running
-- 简体中文：移除文件夹或压缩数据库期间不可用
-- 繁体中文：移除資料夾或壓縮資料庫期間無法使用
-- 触发延迟：1秒
-- Scenario ID：disabled.settings.maintenance.actions
-- 所在位置：Settings -> Maintenance -> `Refresh` 与 `Compact Database` 按钮
-
-### 39. 编辑封面弹窗“保存”按钮禁用（Edit Cover Save Disabled）
+### 38. 编辑封面弹窗“保存”按钮禁用（Edit Cover Save Disabled）
 - 英文：Choose an image first
 - 简体中文：请先选择一张图片
 - 繁体中文：請先選擇一張圖片
@@ -547,28 +539,28 @@
 
 > **说明**：以下组件仅在文本因宽度限制发生截断省略（`...`）时，悬停 1 秒后展示完整原文本；未发生截断时不触发。
 
-### 40. 工作台顶栏页面标题（Workbench Page Title）
+### 39. 工作台顶栏页面标题（Workbench Page Title）
 - 显示内容：完整的当前页面或层级标题文本
 - 触发条件：单行文本超出顶栏可用宽度发生尾部省略（`...`）时
 - 触发延迟：1秒
 - Scenario ID：truncated.topbar.page_title
 - 所在位置：App Topbar 标题区
 
-### 41. 播放页顶栏视频标题（Player Title）
+### 40. 播放页顶栏视频标题（Player Title）
 - 显示内容：完整的视频显示标题（`Display Title`）
 - 触发条件：标题超出顶栏中心区最大宽度发生单行中间省略（`...`）时
 - 触发延迟：1秒
 - Scenario ID：truncated.player.title
 - 所在位置：Player Topbar 中心标题区
 
-### 42. 筛选对话框筛选项胶囊文本（Filter Chip Label）
+### 41. 筛选对话框筛选项胶囊文本（Filter Chip Label）
 - 显示内容：完整的筛选项名称文本
 - 触发条件：胶囊文本达到 `332px` 最大宽度上限发生单行尾部省略（`...`）时
 - 触发延迟：1秒
 - Scenario ID：truncated.filter.chip_label
 - 所在位置：Filter Dialog 筛选项胶囊按钮
 
-### 43. 批量选择横幅提示文本（Batch Selection Banner Hint）
+### 42. 批量选择横幅提示文本（Batch Selection Banner Hint）
 - 显示内容：完整的批量选择提示文本
 - 触发条件：单行提示文本因工具栏宽度不足发生尾部省略（`...`）时
 - 触发延迟：1秒

@@ -72,7 +72,7 @@
 | `folder-smb` | Regular | SMB 文件夹 | File Page / Add Folder 菜单 / SMB Folder；File Page / SMB 文件夹卡片 |
 | `folder-ftp` | Regular | FTP 文件夹 | File Page / Add Folder 菜单 / FTP Folder；File Page / FTP 文件夹卡片 |
 | `folder-nfs` | Regular | NFS 文件夹 | File Page / Add Folder 菜单 / NFS Folder；File Page / NFS 文件夹卡片 |
-| `arrow-clockwise` | Regular | 重新索引、刷新 | File Page / Index All、Root Folder Card 菜单 / Index This Folder；Settings / Maintenance、Developer 刷新 |
+| `arrow-clockwise` | Regular | 重新索引 | File Page / Index All、Root Folder Card 菜单 / Index This Folder |
 | `minus-circle` | Regular | 移除 | Task Card 菜单 / Remove Task |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |
 | `stack` | Regular | 剧集 | Library File Tree / Display Title |
@@ -83,9 +83,8 @@
 
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
-| `warning` | Regular | 警告、失败 | File Page / Index Status（失败）；Settings / Maintenance（失败）；Player Error Banner（视频加载失败、字幕加载失败、播放器其它错误、播放或打开不在数据库中的项）；Playback Feedback（播放列表无可用项）；Toast（报错、无字幕、不在媒体库中） |
-| `warning-circle` | Regular | 建议压缩数据库 | Settings / Maintenance |
-| `check-circle` | Regular | 成功、已看完 | File Page / Index Status（成功）；Settings / Maintenance（成功）；Library 卡片菜单 / Mark as Finished |
+| `warning` | Regular | 警告、失败 | File Page / Index Status（失败）；Player Error Banner（视频加载失败、字幕加载失败、播放器其它错误、播放或打开不在数据库中的项）；Playback Feedback（播放列表无可用项）；Toast（报错、无字幕、不在媒体库中） |
+| `check-circle` | Regular | 成功、已看完 | File Page / Index Status（成功）；Library 卡片菜单 / Mark as Finished |
 | `check-circle` | Fill | 已选 | Checkbox / Checked |
 | `circle` | Regular | 未看、未选 | Library 卡片菜单 / Mark as Unwatched；Checkbox / Unchecked |
 | `play-circle` | Regular | 在看 | Library 卡片菜单 / Mark as Watching |
@@ -140,8 +139,5 @@
 | `globe` | Regular | 语言 | Filter Menu / Language |
 | `eye` | Regular | 观看状态 | Filter Menu / Watch Status |
 | `gear-fine` | Regular | 通用 | Settings / General |
-| `hard-drives` | Regular | 维护 | Settings / Maintenance |
-| `hammer` | Regular | 开发者 | Settings / Developer |
-| `file-arrow-down` | Regular | 压缩数据库 | Settings / Maintenance / Compact |
 | `keyboard` | Regular | 快捷键 | Settings / Shortcuts |
 | `arrow-counter-clockwise` | Regular | 恢复默认 | Settings / Shortcuts / Restore Default；Settings / Subtitle / Restore Defaults |

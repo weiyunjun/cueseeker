@@ -7,12 +7,11 @@ main
 - `docs/human/design/ui/UI Design Rules.md`
 - `docs/human/design/ui/UI Interaction Rules.md`
 - `docs/human/design/ui/UI Accessibility Rules.md`
-- `docs/human/design/ui/UI Components - Controls.md`
 - `docs/human/design/ui/UI Components - Domain.md`
 - `docs/human/design/ui/UI Layouts - Workbench.md`
 - `docs/human/design/ui/Icon Registry.md`
 - `docs/human/design/ui/Tooltip Usage Registry.md`
-- `docs/human/design/ui/Toast Usage Registry.md`
+- `docs/human/design/workbench/Settings and Localization.md`
 
 # 需求描述
 
@@ -37,23 +36,24 @@ main
 
 2. **文本选区交互、指针样式与生命周期规则**：
    - **鼠标指针样式（`UI Interaction Rules.md` §11.2）**：
-     - 上述纯静态可选文本区域在鼠标移入时显示 `I-beam` 指针（弹出菜单或上层对话框打开导致下层冻结时，下层非 `I-beam` 区域恢复默认箭头，冻结层不响应新选区）。
-     - `File` 界面除 `Last Updated: -` 外的可点击状态文字保持 `Grab` 手型指针与 Hover 下划线：在文字上原地按下并松开左键触发打开对应 `Task Info` 详情弹窗；按下左键并拖动则进入文字划选，松开时不触发打开弹窗。
-   - **全局单一选区与自动清除（`UI Interaction Rules.md` §3.8 / §5.2）**：
-     - 同一时刻全应用仅保留一处活跃文字选区（含表格选区、输入框选区与上述静态文本选区）。
-     - 在当前选区所属文本之外按下鼠标左键或右键、开始新的文字划选、打开任意弹出菜单或模态对话框、切换页面/标签页或关闭所属弹窗时，立即清除已有的静态文本选区。
+      - 上述纯静态可选文本区域在鼠标移入时显示 `I-beam` 指针（弹出菜单或上层对话框打开导致下层冻结时，下层非 `I-beam` 区域恢复默认箭头，冻结层不响应新选区）。
+      - `File` 界面除 `Last Updated: -` 外的可点击状态文字保持 `Grab` 手型指针与 Hover 下划线：在文字上原地按下并松开左键触发打开对应 `Task Info` 详情弹窗；按下左键并拖动则进入文字划选，松开时不触发打开弹窗。
+   - **外部拖入起选与拖出边界跟随（`UI Interaction Rules.md` §5）**：
+      - 支持从非交互区域（如空白区、左侧属性名/标签等）按下鼠标左键并拖入或划过上述可选静态文本时，自动从该段文本边界起选并更新选区；一旦进入选词状态，拖出文本边界后选区与指针样式持续跟随直至松开鼠标。
+   - **全局单一选区与自动清除（`UI Interaction Rules.md` §3.8 / §5）**：
+      - 同一时刻全应用仅保留一处活跃文字选区（含表格选区、播放浮层字幕选区、输入框选区与上述静态文本选区）。
+      - 在当前选区所属文本之外按下鼠标左键或右键、开始新的文字划选、聚焦输入框、打开任意弹出菜单或模态对话框、切换页面/标签页或关闭所属弹窗时，立即清除已有的静态文本选区。
 
 3. **移除 Settings 中的 `Maintenance` 与 `Developer` 分类（`L-02.2` / `L-02.3`）**：
    - 从 `Settings` 窗口左侧导航栏移除 `Maintenance` 与 `Developer` 两个分类入口，仅保留 `General`、`Play`、`Shortcuts`、`Subtitle` 四个分类（无障碍遍历顺序同步更新为 4 个分类项）。
    - 移除 `Maintenance` 页面（数据库存储统计、手动刷新、压缩数据库及二次确认弹窗、数据库路径展示）与 `Developer` 页面（`FTS Vocabulary Diagnostics` 开关及 `FTS Vocabulary Data` 统计卡片），以及相关的禁用态 Tooltip 与本地化文案。
-   - 移除 `File` 界面操作按钮对“数据库压缩进行中”状态的禁用关联。
 
 # 验收标准
 
 1. **指定静态文本可选中与复制**：
-   - 在 `Folder Info`、`File Info`、`Task Info` 各属性行右侧数值/路径/文件名/报错原因、`Rename` 当前名称、Library / Excerpt 二级 `Cover Summary` 的标题/副标题/进度文字、工作台各处统计计数（`xx results`、`xx excerpts`、`xx / yy rows selected` 及批量选择提示语、`xx folders`、`xx lists  yy cues`）、`Confirmation Dialog` 说明正文、以及各处红色校验报错文字上，均可通过鼠标左键拖拽划选、双击选词、三击全选，并按 `Cmd + C` 复制选中内容；左侧属性名、分组标题、卡片列表项、空状态提示与封面说明小字等非目标区域不可选中。
+   - 在 `Folder Info`、`File Info`、`Task Info` 各属性行右侧数值/路径/文件名/报错原因、`Rename` 当前名称、Library / Excerpt 二级 `Cover Summary` 的标题/副标题/进度文字、工作台各处统计计数（`xx results`、`xx excerpts`、`xx / yy rows selected` 及批量选择提示语、`xx folders`、`xx lists  yy cues`）、`Confirmation Dialog` 说明正文、以及各处红色校验报错文字上，均可通过鼠标左键拖拽划选（含从外部非交互区域按下并拖入文字起选、拖出文字边界持续跟随）、双击选词、三击全选，并按 `Cmd + C` 复制选中内容；左侧属性名、分组标题、卡片列表项、空状态提示与封面说明小字等非目标区域不可选中。
 2. **指针样式与点击/拖选分流**：
-   - 鼠标移至上述非 `Grab` 的可选静态文本上时稳定显示 `I-beam` 指针；移至 `File` 可点击状态文字上时显示 `Grab` 手型指针与下划线，单击正常打开对应的 `Task Info` 弹窗，按住左键拖拽则划选状态文字且松手不弹出 `Task Info`。
+   - 鼠标移至上述非 `Grab` 的可选静态文本上时稳定显示 `I-beam` 指针；移至 `File` 可点击状态文字上时显示 `Grab` 手型指针与下划线，单击正常打开对应的 `Task Info` 弹窗，按住左键拖拽（或从外部空白处拖入）则划选状态文字且松手不弹出 `Task Info`。
 3. **选区互斥与自动清除**：
    - 选中上述任一位置的静态文字后，在窗口其他位置按下鼠标、聚焦输入框、划选另一处文本、打开任意菜单或弹窗、或切换页面时，原文字选区高亮立即清除，不会同时残留多处选区。
 4. **Settings `Maintenance` 与 `Developer` 移除**：

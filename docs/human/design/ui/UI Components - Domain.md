@@ -168,6 +168,7 @@
 - Text Color：`--color-text-secondary`
 - Icon Size：`--size-control-icon`
 - Gap：`--spacing-2`
+- Selection：Enabled（Label 文字可选中；File 可点击状态文字 Pointer 为 Grab，其余为 I-beam）
 - Usage：File `Last Updated`、Search `xx results`、Excerpt `xx excerpts`、Select Mode `xx / yy rows selected`、Library `xx folders`、Excerpt `xx lists  yy cues`
 
 ##### Cue State Indicator
@@ -614,7 +615,7 @@
 
 - Container：Dialog
 - Title
-- Message
+- Message（文字可选中，Pointer 为 I-beam）
 - Cancel Action：Button / Neutral
 - Confirm Action
   - Component：Button
@@ -762,12 +763,14 @@
   - Font Weight：`--font-weight-cover-summary-title`
   - Color：Split Form `--color-text-primary`；Backdrop Form `--color-cover-summary-text`
   - Maximum Lines：`1`
+  - Selection：Enabled（Pointer 为 I-beam）
 - Supporting Content
   - Font Size：`--font-size-body`
   - Color：Split Form `--color-text-secondary`；Backdrop Form `--color-cover-summary-text` with `--opacity-cover-summary-description`
   - Text Hierarchy：Secondary
   - Each Item Maximum Lines：`1`
   - Each Item Overflow：Tail Truncation
+  - Selection：Enabled（Pointer 为 I-beam）
 - Progress Label
   - Font Size：`--font-size-caption`
   - Font Weight：`500`
@@ -775,6 +778,7 @@
   - Maximum Width：`--width-cover-summary-progress`
   - Maximum Lines：`1`
   - Overflow：Tail Truncation
+  - Selection：Enabled（Pointer 为 I-beam）
 
 #### States
 
