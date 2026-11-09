@@ -784,6 +784,22 @@ static NSString * const kSFXHDRMetalShaderSource = @""
 "    }\n"
 "}\n"
 "\n"
+"inline float sfx_hlg_oetf_scalar(float l) {\n"
+"    l = clamp(l, 0.0f, 1.0f);\n"
+"    const float a = 0.17883277f;\n"
+"    const float b = 0.28466892f;\n"
+"    const float c = 0.55991073f;\n"
+"    if (l <= (1.0f / 12.0f)) {\n"
+"        return sqrt(3.0f * l);\n"
+"    } else {\n"
+"        return a * log(12.0f * l - b) + c;\n"
+"    }\n"
+"}\n"
+"\n"
+"inline float3 sfx_hlg_oetf(float3 l) {\n"
+"    return float3(sfx_hlg_oetf_scalar(l.x), sfx_hlg_oetf_scalar(l.y), sfx_hlg_oetf_scalar(l.z));\n"
+"}\n"
+"\n"
 "inline float sfx_srgb_oetf_scalar(float l) {\n"
 "    l = clamp(l, 0.0f, 1.0f);\n"
 "    if (l <= 0.0031308f) {\n"
@@ -899,9 +915,13 @@ static NSString * const kSFXHDRMetalShaderSource = @""
 "                sfx_hlg_inv_oetf_scalar(rgbNonLin.g),\n"
 "                sfx_hlg_inv_oetf_scalar(rgbNonLin.b)\n"
 "            );\n"
-"            float ys = max(1e-6f, dot(sceneRGB, float3(0.2627f, 0.6780f, 0.0593f)));\n"
-"            float ootfGain = pow(ys, max(u.hlgSystemGamma - 1.0f, 0.0f)) * (u.hlgPeakNits / 203.0f);\n"
-"            rgbLin = sceneRGB * ootfGain;\n"
+"            if (u.outputTransfer == 2u) {\n"
+"                rgbLin = sceneRGB;\n"
+"            } else {\n"
+"                float ys = max(1e-6f, dot(sceneRGB, float3(0.2627f, 0.6780f, 0.0593f)));\n"
+"                float ootfGain = pow(ys, max(u.hlgSystemGamma - 1.0f, 0.0f)) * (u.hlgPeakNits / 203.0f);\n"
+"                rgbLin = sceneRGB * ootfGain;\n"
+"            }\n"
 "        } else {\n"
 "            rgbLin = pow(rgbNonLin, 2.2f);\n"
 "        }\n"
@@ -928,6 +948,8 @@ static NSString * const kSFXHDRMetalShaderSource = @""
 "    float3 outRGB;\n"
 "    if (u.outputTransfer == 1u) {\n"
 "        outRGB = sfx_pq_oetf(clamp(rgbLin * (203.0f / 10000.0f), 0.0f, 1.0f));\n"
+"    } else if (u.outputTransfer == 2u) {\n"
+"        outRGB = sfx_hlg_oetf(clamp(rgbLin, 0.0f, 1.0f));\n"
 "    } else {\n"
 "        float maxComp = max(rgbLin.r, max(rgbLin.g, rgbLin.b));\n"
 "        if (maxComp > 0.85f) {\n"
@@ -1128,7 +1150,11 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
     pl_color_space_infer(&srcCsp);
 
     u->sourceTransfer = (srcCsp.transfer == PL_COLOR_TRC_HLG) ? 2u : 1u;
-    u->outputTransfer = (targetMode == SFXHDRRenderTargetModeLiveHDRDisplay) ? 1u : 0u;
+    if (targetMode == SFXHDRRenderTargetModeLiveHDRDisplay) {
+        u->outputTransfer = (!payload->hasActiveDoviReshape && srcCsp.transfer == PL_COLOR_TRC_HLG) ? 2u : 1u;
+    } else {
+        u->outputTransfer = 0u;
+    }
     u->hlgPeakNits = PL_COLOR_HLG_PEAK;
     u->hlgSystemGamma = 1.2f;
 
@@ -1248,25 +1274,27 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
     };
 
     if (targetMode == SFXHDRRenderTargetModeLiveHDRDisplay) {
-        float edrFactor = (float)fmax(1.25, fmin(10.0, displayEDRHeadroom));
-        float displayPeakNits = fmaxf(600.0f, fminf(2000.0f, 203.0f * edrFactor));
-        toneParams.output_min = inMinPQ;
-        toneParams.output_max = pl_hdr_rescale(PL_HDR_NITS, PL_HDR_PQ, displayPeakNits);
-        toneParams.constants.knee_adaptation = 0.25f;
-        toneParams.constants.spline_contrast = 0.75f;
+        (void)displayEDRHeadroom;
         u->outputMaxNits = 203.0f;
         u->hdrContrastGain = 1.0f;
         u->saturationGain = 1.0f;
+        u->inputMinPQ = inMinPQ;
+        u->inputMaxPQ = inMaxPQ;
+        u->applyToneMapLUT = 0u;
+        for (size_t i = 0; i < lutSamples; i++) {
+            lutOut[i] = (lutSamples > 1) ? ((float)i / (float)(lutSamples - 1)) : 0.0f;
+        }
+        return;
     } else if (targetMode == SFXHDRRenderTargetModeStaticHDRScreenshot) {
-        // HDR Screenshot ON: ITU-R BT.2408 203-nit HDR reference white with rich highlight retention
+        // HDR Screenshot ON: 100-nit reference white anchor with extended HDR highlight retention
         toneParams.output_min = pl_hdr_rescale(PL_HDR_NITS, PL_HDR_PQ, 0.05f);
-        toneParams.output_max = pl_hdr_rescale(PL_HDR_NITS, PL_HDR_PQ, PL_COLOR_SDR_WHITE);
-        toneParams.constants.knee_adaptation = 0.30f;
-        toneParams.constants.knee_minimum = 0.35f;
-        toneParams.constants.spline_contrast = 0.72f;
-        u->outputMaxNits = PL_COLOR_SDR_WHITE;
-        u->hdrContrastGain = 1.15f;
-        u->saturationGain = 1.06f;
+        toneParams.output_max = pl_hdr_rescale(PL_HDR_NITS, PL_HDR_PQ, 135.0f);
+        toneParams.constants.knee_adaptation = 0.40f;
+        toneParams.constants.knee_minimum = 0.20f;
+        toneParams.constants.spline_contrast = 0.55f;
+        u->outputMaxNits = 100.0f;
+        u->hdrContrastGain = 1.04f;
+        u->saturationGain = 1.02f;
     } else {
         // Live SDR Display & Static HDR Screenshot OFF: 100-nit SMPTE SDR reference white
         toneParams.output_min = pl_hdr_rescale(PL_HDR_NITS, PL_HDR_PQ, 0.10f);
@@ -1482,10 +1510,13 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
             kCVImageBufferColorPrimaries_ITU_R_2020,
             kCVAttachmentMode_ShouldPropagate
         );
+        CFStringRef transferKey = (uniforms.outputTransfer == 2u)
+            ? kCVImageBufferTransferFunction_ITU_R_2100_HLG
+            : kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ;
         CVBufferSetAttachment(
             dstBuffer,
             kCVImageBufferTransferFunctionKey,
-            kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ,
+            transferKey,
             kCVAttachmentMode_ShouldPropagate
         );
         SFXApplyCoreVideoHDRDictionaryAttachments(
@@ -1495,6 +1526,16 @@ typedef NS_ENUM(NSInteger, SFXHDRRenderTargetMode) {
             NULL,
             NULL
         );
+        CFTypeRef ave = CVBufferCopyAttachment(sourceBuffer, kCVImageBufferAmbientViewingEnvironmentKey, NULL);
+        if (ave != NULL) {
+            CVBufferSetAttachment(
+                dstBuffer,
+                kCVImageBufferAmbientViewingEnvironmentKey,
+                ave,
+                kCVAttachmentMode_ShouldPropagate
+            );
+            CFRelease(ave);
+        }
     } else {
         CVBufferSetAttachment(
             dstBuffer,
