@@ -8,7 +8,25 @@ import SwiftUI
 final class WorkbenchStaticTextSelectionCoordinator {
     static let shared = WorkbenchStaticTextSelectionCoordinator()
 
+    private final class WeakWindowRef {
+        weak var window: CueSeekerWindow?
+        init(_ window: CueSeekerWindow) {
+            self.window = window
+        }
+    }
+
+    private enum ExternalDragState {
+        case idle
+        case armed(
+            window: WeakWindowRef,
+            startWindowPoint: CGPoint,
+            lastWindowPoint: CGPoint
+        )
+        case selecting(view: WorkbenchSelectableTextNSView)
+    }
+
     private(set) weak var activeView: WorkbenchSelectableTextNSView?
+    private var externalDragState: ExternalDragState = .idle
 
     var hasSelection: Bool {
         activeView?.hasSelection == true
@@ -16,6 +34,20 @@ final class WorkbenchStaticTextSelectionCoordinator {
 
     var selectedText: String? {
         activeView?.selectedText
+    }
+
+    var isDraggingSelection: Bool {
+        if case .selecting = externalDragState {
+            return true
+        }
+        return activeView?.isTrackingMouse == true
+    }
+
+    var activeDraggingPointerShape: PointerShape? {
+        guard isDraggingSelection, let activeView, activeView.canInteract else {
+            return nil
+        }
+        return activeView.preferredPointerShape
     }
 
     private init() {
@@ -51,6 +83,7 @@ final class WorkbenchStaticTextSelectionCoordinator {
     }
 
     func clearSelection() {
+        externalDragState = .idle
         guard let view = activeView else {
             return
         }
@@ -71,9 +104,223 @@ final class WorkbenchStaticTextSelectionCoordinator {
     }
 
     func unregister(_ view: WorkbenchSelectableTextNSView) {
+        if case .selecting(let draggingView) = externalDragState, draggingView === view {
+            externalDragState = .idle
+        }
         if activeView === view {
             activeView = nil
         }
+    }
+
+    func handleWindowLeftMouseDown(window: CueSeekerWindow, event: NSEvent) {
+        let windowPoint = event.locationInWindow
+        clearSelectionIfOutside(window: window, windowPoint: windowPoint)
+        externalDragState = .idle
+
+        guard let contentView = window.contentView else {
+            return
+        }
+        if let mainWindow = window as? CueSeekerMainWindow, mainWindow.isFocusLocked() {
+            return
+        }
+        let hitView = contentView.superview?.hitTest(windowPoint)
+            ?? contentView.hitTest(contentView.convert(windowPoint, from: nil))
+        if hitView is WorkbenchSelectableTextNSView {
+            return
+        }
+        if Self.isInsideDedicatedTextSelectionSurface(hitView) {
+            return
+        }
+        if SubtitleTableTextSelectionHitTesting.isInteractive(
+            hitView,
+            atWindowPoint: windowPoint,
+            in: contentView
+        ) {
+            return
+        }
+        if AppPointerShape.manages(window), AppPointerShape.model.shape == .grab {
+            return
+        }
+
+        externalDragState = .armed(
+            window: WeakWindowRef(window),
+            startWindowPoint: windowPoint,
+            lastWindowPoint: windowPoint
+        )
+    }
+
+    func handleWindowLeftMouseDragged(window: CueSeekerWindow, event: NSEvent) {
+        let currentWindowPoint = event.locationInWindow
+        switch externalDragState {
+        case .idle:
+            return
+
+        case .armed(let weakWindow, let startWindowPoint, let lastWindowPoint):
+            guard weakWindow.window === window,
+                  let contentView = window.contentView
+            else {
+                externalDragState = .idle
+                return
+            }
+            externalDragState = .armed(
+                window: weakWindow,
+                startWindowPoint: startWindowPoint,
+                lastWindowPoint: currentWindowPoint
+            )
+            guard hypot(
+                currentWindowPoint.x - startWindowPoint.x,
+                currentWindowPoint.y - startWindowPoint.y
+            ) >= WorkbenchSelectableTextNSView.dragThreshold else {
+                return
+            }
+            guard let targetView = Self.findHitSelectableTextView(
+                in: contentView,
+                from: lastWindowPoint,
+                to: currentWindowPoint
+            ) ?? Self.findHitSelectableTextView(
+                in: contentView,
+                from: startWindowPoint,
+                to: currentWindowPoint
+            ) else {
+                return
+            }
+            externalDragState = .selecting(view: targetView)
+            targetView.beginExternalDragSelection(
+                startWindowPoint: startWindowPoint,
+                currentWindowPoint: currentWindowPoint
+            )
+
+        case .selecting(let view):
+            guard view.window === window, view.canInteract else {
+                clearSelection()
+                return
+            }
+            view.updateExternalDragSelection(currentWindowPoint: currentWindowPoint)
+        }
+    }
+
+    func handleWindowLeftMouseUp(window: CueSeekerWindow, event: NSEvent) {
+        switch externalDragState {
+        case .idle:
+            return
+        case .armed:
+            externalDragState = .idle
+        case .selecting(let view):
+            externalDragState = .idle
+            guard view.window === window else {
+                clearSelection()
+                return
+            }
+            view.endExternalDragSelection(currentWindowPoint: event.locationInWindow)
+        }
+    }
+
+    private static func isInsideDedicatedTextSelectionSurface(_ hitView: NSView?) -> Bool {
+        var current = hitView
+        while let view = current {
+            if view is SubtitleVirtualTableDocumentView
+                || view is SubtitleTableHeaderTextOverlayView
+                || view is PlaybackSubtitleFocusReelDocumentView
+            {
+                return true
+            }
+            current = view.superview
+        }
+        return false
+    }
+
+    private static func findHitSelectableTextView(
+        in rootView: NSView,
+        from startPoint: CGPoint,
+        to endPoint: CGPoint
+    ) -> WorkbenchSelectableTextNSView? {
+        var bestMatch: (view: WorkbenchSelectableTextNSView, entryT: CGFloat, distanceSq: CGFloat)?
+
+        func visit(_ view: NSView) {
+            guard view.window != nil,
+                  !view.isHidden,
+                  view.alphaValue > 0
+            else {
+                return
+            }
+            if let selectable = view as? WorkbenchSelectableTextNSView {
+                guard selectable.canInteract,
+                      let hitRect = selectable.windowSelectionHitRect(),
+                      let entryT = segmentRectIntersectionParameter(
+                          from: startPoint,
+                          to: endPoint,
+                          rect: hitRect
+                      )
+                else {
+                    return
+                }
+                let distanceSq = squaredDistance(from: endPoint, to: hitRect)
+                if let currentBest = bestMatch {
+                    if entryT < currentBest.entryT - 0.0001
+                        || (abs(entryT - currentBest.entryT) <= 0.0001 && distanceSq < currentBest.distanceSq)
+                    {
+                        bestMatch = (selectable, entryT, distanceSq)
+                    }
+                } else {
+                    bestMatch = (selectable, entryT, distanceSq)
+                }
+                return
+            }
+            for subview in view.subviews.reversed() {
+                visit(subview)
+            }
+        }
+
+        visit(rootView)
+        return bestMatch?.view
+    }
+
+    static func segmentRectIntersectionParameter(
+        from p0: CGPoint,
+        to p1: CGPoint,
+        rect: CGRect
+    ) -> CGFloat? {
+        guard !rect.isNull, !rect.isEmpty else {
+            return nil
+        }
+        if rect.contains(p0) {
+            return 0
+        }
+        let dx = p1.x - p0.x
+        let dy = p1.y - p0.y
+        var tMin: CGFloat = 0
+        var tMax: CGFloat = 1
+
+        let checks: [(p: CGFloat, q: CGFloat)] = [
+            (-dx, p0.x - rect.minX),
+            (dx, rect.maxX - p0.x),
+            (-dy, p0.y - rect.minY),
+            (dy, rect.maxY - p0.y),
+        ]
+
+        for check in checks {
+            if abs(check.p) < 1e-6 {
+                if check.q < 0 {
+                    return nil
+                }
+            } else {
+                let t = check.q / check.p
+                if check.p < 0 {
+                    if t > tMax { return nil }
+                    if t > tMin { tMin = t }
+                } else {
+                    if t < tMin { return nil }
+                    if t < tMax { tMax = t }
+                }
+            }
+        }
+        return tMin <= tMax ? max(0, tMin) : nil
+    }
+
+    private static func squaredDistance(from point: CGPoint, to rect: CGRect) -> CGFloat {
+        let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
+        let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
+        return dx * dx + dy * dy
     }
 
     @discardableResult
@@ -495,6 +742,74 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         return bounds.contains(point)
     }
 
+    func windowSelectionHitRect() -> CGRect? {
+        guard window != nil,
+              !isHiddenOrHasHiddenAncestor,
+              bounds.width > 0,
+              bounds.height > 0
+        else {
+            return nil
+        }
+        var rect = convert(bounds.insetBy(dx: -4, dy: -2), to: nil).standardized
+        var current = superview
+        while !rect.isNull, !rect.isEmpty, let ancestor = current {
+            guard !ancestor.isHidden, ancestor.alphaValue > 0 else {
+                return nil
+            }
+            if ancestor is NSClipView || ancestor is NSScrollView {
+                let clipRect = ancestor.convert(ancestor.bounds, to: nil).standardized
+                rect = rect.intersection(clipRect)
+            }
+            current = ancestor.superview
+        }
+        return (rect.isNull || rect.isEmpty) ? nil : rect
+    }
+
+    func beginExternalDragSelection(
+        startWindowPoint: CGPoint,
+        currentWindowPoint: CGPoint
+    ) {
+        guard canInteract else { return }
+        WorkbenchStaticTextSelectionCoordinator.shared.beginInteraction(in: self)
+        _ = window?.makeFirstResponder(self)
+
+        updateTextLayout()
+        let startPoint = convert(startWindowPoint, from: nil)
+        let currentPoint = convert(currentWindowPoint, from: nil)
+        let anchorOffset = utf16Offset(at: startPoint)
+
+        self.startWindowPoint = startWindowPoint
+        self.activeClickCount = 1
+        self.anchorRange = NSRange(location: anchorOffset, length: 0)
+        self.didDrag = true
+        self.isTrackingMouse = true
+        updateSelectionForDrag(at: currentPoint)
+        needsDisplay = true
+    }
+
+    func updateExternalDragSelection(currentWindowPoint: CGPoint) {
+        guard isTrackingMouse, canInteract else {
+            clearSelection(notifyCoordinator: true)
+            return
+        }
+        let point = convert(currentWindowPoint, from: nil)
+        updateSelectionForDrag(at: point)
+    }
+
+    func endExternalDragSelection(currentWindowPoint: CGPoint) {
+        guard isTrackingMouse else { return }
+        isTrackingMouse = false
+        guard canInteract else {
+            clearSelection(notifyCoordinator: true)
+            return
+        }
+        let point = convert(currentWindowPoint, from: nil)
+        updateSelectionForDrag(at: point)
+        if !hasSelection {
+            WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        }
+    }
+
     // MARK: - Mouse & Keyboard Handling
 
     override func mouseDown(with event: NSEvent) {
@@ -781,7 +1096,29 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         let validGlyphRange = layoutManager.glyphRange(for: textContainer)
         guard validGlyphRange.length > 0 else { return 0 }
         let origin = textOrigin()
-        let localPoint = CGPoint(x: point.x - origin.x, y: point.y - origin.y)
+        let lines = lineUsedRects(at: origin)
+        guard let firstLine = lines.first, let lastLine = lines.last else {
+            return 0
+        }
+
+        let topSnapThreshold = firstLine.minY - max(12, firstLine.height)
+        let bottomSnapThreshold = lastLine.maxY + max(12, lastLine.height)
+        if point.y < topSnapThreshold {
+            return 0
+        }
+        if point.y > bottomSnapThreshold {
+            return textStorage.length
+        }
+
+        let targetLine = lines.min { lhs, rhs in
+            Self.verticalDistance(from: point.y, to: lhs)
+                < Self.verticalDistance(from: point.y, to: rhs)
+        } ?? firstLine
+
+        let localPoint = CGPoint(
+            x: point.x - origin.x,
+            y: targetLine.midY - origin.y
+        )
         var fraction: CGFloat = 0
         let rawGlyphIndex = layoutManager.glyphIndex(
             for: localPoint,
@@ -800,6 +1137,16 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
             ? NSMaxRange(characterRange)
             : characterRange.location
         return min(max(0, characterIndex), textStorage.length)
+    }
+
+    private static func verticalDistance(from y: CGFloat, to rect: CGRect) -> CGFloat {
+        if y < rect.minY {
+            return rect.minY - y
+        }
+        if y > rect.maxY {
+            return y - rect.maxY
+        }
+        return 0
     }
 
     func wordRange(at utf16Offset: Int) -> NSRange {

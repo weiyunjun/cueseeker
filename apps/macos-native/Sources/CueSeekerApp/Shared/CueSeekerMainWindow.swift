@@ -120,13 +120,27 @@ class CueSeekerWindow: NSWindow {
         switch event.type {
         case .leftMouseDown:
             MainActor.assumeIsolated {
-                WorkbenchStaticTextSelectionCoordinator.shared.clearSelectionIfOutside(
+                WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseDown(
                     window: self,
-                    windowPoint: event.locationInWindow
+                    event: event
                 )
             }
             cancelFocusedTextInputIfOutside(at: event.locationInWindow)
             onMouseDownClearAccessibility?()
+        case .leftMouseDragged:
+            MainActor.assumeIsolated {
+                WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseDragged(
+                    window: self,
+                    event: event
+                )
+            }
+        case .leftMouseUp:
+            MainActor.assumeIsolated {
+                WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseUp(
+                    window: self,
+                    event: event
+                )
+            }
         case .rightMouseDown:
             MainActor.assumeIsolated {
                 WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()

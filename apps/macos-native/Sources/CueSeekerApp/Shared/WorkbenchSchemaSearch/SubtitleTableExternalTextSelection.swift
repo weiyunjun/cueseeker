@@ -71,6 +71,10 @@ final class SubtitleTableExternalTextSelectionSession: ObservableObject {
 
     @discardableResult
     func drag(windowPoint: CGPoint) -> Bool {
+        if WorkbenchStaticTextSelectionCoordinator.shared.isDraggingSelection {
+            reset()
+            return false
+        }
         guard let target else {
             reset()
             return false

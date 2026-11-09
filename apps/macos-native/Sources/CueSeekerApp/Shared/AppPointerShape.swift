@@ -323,6 +323,9 @@ enum AppPointerShape {
     /// What the AppKit view under the pointer answers: a surface that decides
     /// for itself, text that can be selected or typed into, or nothing.
     private static func surfaceShape(at windowPoint: CGPoint) -> PointerShape {
+        if let activeDragShape = WorkbenchStaticTextSelectionCoordinator.shared.activeDraggingPointerShape {
+            return activeDragShape
+        }
         guard let content = window?.contentView else {
             return .arrow
         }

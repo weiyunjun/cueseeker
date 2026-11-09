@@ -269,10 +269,17 @@ struct WorkbenchSelectableTextTests {
         #expect(secondView.hasSelection)
         #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText == "Second Value")
 
-        // Clicking outside in window clears secondView.
+        // 3. Clicking outside in window clears secondView (and sends mouseUp to end external drag session).
         window.sendEvent(
             makeMouseEvent(
                 type: .leftMouseDown,
+                locationInWindow: CGPoint(x: 320, y: 100),
+                windowNumber: window.windowNumber
+            )
+        )
+        window.sendEvent(
+            makeMouseEvent(
+                type: .leftMouseUp,
                 locationInWindow: CGPoint(x: 320, y: 100),
                 windowNumber: window.windowNumber
             )
@@ -309,5 +316,107 @@ struct WorkbenchSelectableTextTests {
         #expect(!firstView.hasSelection)
         let firstPoint = firstView.convert(CGPoint(x: 10, y: 10), to: nil)
         #expect(firstView.pointerShape(atWindowPoint: firstPoint) == .arrow)
+    }
+
+    @Test
+    func draggingFromNonInteractiveAreaIntoAndAcrossSelectableTextProjectsStartAndSelectsCharacters() {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        defer { WorkbenchStaticTextSelectionCoordinator.shared.clearSelection() }
+
+        let (window, rootView) = makeTestWindow()
+        var tapCount = 0
+        let textView = WorkbenchSelectableTextNSView(
+            frame: CGRect(x: 80, y: 40, width: 200, height: 22)
+        )
+        textView.configure(
+            text: "Episode_01_Final.mkv",
+            font: .systemFont(ofSize: 13, weight: .regular),
+            textColor: .labelColor,
+            alignment: .left,
+            lineLimit: 1,
+            truncatesTail: true,
+            isSelectable: true,
+            preferredPointerShape: .iBeam,
+            showsUnderline: false,
+            onTap: {
+                tapCount += 1
+            },
+            interfaceLayerContext: InterfaceLayerContext()
+        )
+        rootView.addSubview(textView)
+        rootView.layoutSubtreeIfNeeded()
+
+        // 1. Press in left blank margin and drag into the middle of the text.
+        let outsideLeft = textView.convert(CGPoint(x: -40, y: 10), to: nil)
+        let midText = textView.convert(CGPoint(x: 50, y: 10), to: nil)
+        let outsideRightWithVerticalDrift = textView.convert(CGPoint(x: 240, y: -4), to: nil)
+
+        window.sendEvent(
+            makeMouseEvent(
+                type: .leftMouseDown,
+                locationInWindow: outsideLeft,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(!textView.hasSelection)
+
+        window.sendEvent(
+            makeMouseEvent(
+                type: .leftMouseDragged,
+                locationInWindow: midText,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(textView.hasSelection)
+        #expect(textView.selectedText?.hasPrefix("Epi") == true)
+        #expect(textView.selectedText != "Episode_01_Final.mkv")
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.activeDraggingPointerShape == .iBeam)
+
+        // Continue dragging past the right edge with slight vertical drift selects the full text.
+        window.sendEvent(
+            makeMouseEvent(
+                type: .leftMouseDragged,
+                locationInWindow: outsideRightWithVerticalDrift,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(textView.selectedText == "Episode_01_Final.mkv")
+
+        window.sendEvent(
+            makeMouseEvent(
+                type: .leftMouseUp,
+                locationInWindow: outsideRightWithVerticalDrift,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(textView.selectedText == "Episode_01_Final.mkv")
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.activeDraggingPointerShape == nil)
+        #expect(tapCount == 0)
+
+        // 2. Fast right-to-left sweep across the entire text from right blank space to left blank space.
+        let outsideRight = textView.convert(CGPoint(x: 240, y: 10), to: nil)
+        window.sendEvent(
+            makeMouseEvent(
+                type: .leftMouseDown,
+                locationInWindow: outsideRight,
+                windowNumber: window.windowNumber
+            )
+        )
+        window.sendEvent(
+            makeMouseEvent(
+                type: .leftMouseDragged,
+                locationInWindow: outsideLeft,
+                windowNumber: window.windowNumber
+            )
+        )
+        window.sendEvent(
+            makeMouseEvent(
+                type: .leftMouseUp,
+                locationInWindow: outsideLeft,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(textView.selectedText == "Episode_01_Final.mkv")
+        #expect(tapCount == 0)
     }
 }
