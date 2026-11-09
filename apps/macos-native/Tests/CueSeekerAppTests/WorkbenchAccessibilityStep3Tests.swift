@@ -52,6 +52,7 @@ struct WorkbenchAccessibilityStep3Tests {
             .appearanceMode(.light),
             .appearanceMode(.dark),
             .appearanceMode(.auto),
+            .hdrScreenshot,
             .searchShowCueGroup,
             .searchPrefillCommandPanel,
             .languageDropdown,

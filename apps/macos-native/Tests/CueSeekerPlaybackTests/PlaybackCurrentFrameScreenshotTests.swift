@@ -278,6 +278,104 @@ func currentFrameScreenshotRendererComposesSharedSRTImage() throws {
     #expect(containsBrightPixel(bottomHalf))
 }
 
+@Test
+func hdrScreenshotSettingControlsHDRPixelBufferRenderingWithoutAffectingSDRFrames() throws {
+    defer {
+        PlaybackPlayer.setHDRScreenshotEnabled(true)
+    }
+
+    let sdrBuffer = try makeBiPlanarScreenshotPixelBuffer(width: 8, height: 6)
+    #expect(!SFXPixelBufferIsHDR(sdrBuffer))
+    PlaybackPlayer.setHDRScreenshotEnabled(true)
+    let sdrWithHDROn = try PlaybackCurrentFrameScreenshotRenderer.render(
+        pixelBuffer: sdrBuffer
+    )
+    PlaybackPlayer.setHDRScreenshotEnabled(false)
+    let sdrWithHDROff = try PlaybackCurrentFrameScreenshotRenderer.render(
+        pixelBuffer: sdrBuffer
+    )
+    let sdrPixelOn = try #require(pixelRGBA(in: sdrWithHDROn, x: 4, y: 3))
+    let sdrPixelOff = try #require(pixelRGBA(in: sdrWithHDROff, x: 4, y: 3))
+    #expect(sdrPixelOn == sdrPixelOff)
+
+    var hdrPixelBufferOpt: CVPixelBuffer?
+    let status = CVPixelBufferCreate(
+        kCFAllocatorDefault,
+        8,
+        6,
+        kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+        [
+            kCVPixelBufferIOSurfacePropertiesKey: [:],
+            kCVPixelBufferMetalCompatibilityKey: true
+        ] as CFDictionary,
+        &hdrPixelBufferOpt
+    )
+    #expect(status == kCVReturnSuccess)
+    let hdrBuffer = try #require(hdrPixelBufferOpt)
+
+    CVPixelBufferLockBaseAddress(hdrBuffer, [])
+    if let yBase = CVPixelBufferGetBaseAddressOfPlane(hdrBuffer, 0) {
+        let yRowBytes = CVPixelBufferGetBytesPerRowOfPlane(hdrBuffer, 0)
+        let yHeight = CVPixelBufferGetHeightOfPlane(hdrBuffer, 0)
+        let yWidth = CVPixelBufferGetWidthOfPlane(hdrBuffer, 0)
+        for y in 0..<yHeight {
+            let row = yBase.advanced(by: y * yRowBytes).assumingMemoryBound(to: UInt16.self)
+            for x in 0..<yWidth {
+                // ~200 nits PQ 10-bit code ~590 shifted into P010 upper 10 bits
+                row[x] = UInt16(590 << 6)
+            }
+        }
+    }
+    if let uvBase = CVPixelBufferGetBaseAddressOfPlane(hdrBuffer, 1) {
+        let uvRowBytes = CVPixelBufferGetBytesPerRowOfPlane(hdrBuffer, 1)
+        let uvHeight = CVPixelBufferGetHeightOfPlane(hdrBuffer, 1)
+        let uvWidth = CVPixelBufferGetWidthOfPlane(hdrBuffer, 1)
+        for y in 0..<uvHeight {
+            let row = uvBase.advanced(by: y * uvRowBytes).assumingMemoryBound(to: UInt16.self)
+            for x in 0..<(uvWidth * 2) {
+                row[x] = UInt16(512 << 6)
+            }
+        }
+    }
+    CVPixelBufferUnlockBaseAddress(hdrBuffer, [])
+
+    CVBufferSetAttachment(
+        hdrBuffer,
+        kCVImageBufferColorPrimariesKey,
+        kCVImageBufferColorPrimaries_ITU_R_2020,
+        .shouldPropagate
+    )
+    CVBufferSetAttachment(
+        hdrBuffer,
+        kCVImageBufferTransferFunctionKey,
+        kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ,
+        .shouldPropagate
+    )
+    CVBufferSetAttachment(
+        hdrBuffer,
+        kCVImageBufferYCbCrMatrixKey,
+        kCVImageBufferYCbCrMatrix_ITU_R_2020,
+        .shouldPropagate
+    )
+
+    #expect(SFXPixelBufferIsHDR(hdrBuffer))
+
+    PlaybackPlayer.setHDRScreenshotEnabled(true)
+    let hdrRenderedOn = try PlaybackCurrentFrameScreenshotRenderer.render(
+        pixelBuffer: hdrBuffer
+    )
+    PlaybackPlayer.setHDRScreenshotEnabled(false)
+    let hdrRenderedOff = try PlaybackCurrentFrameScreenshotRenderer.render(
+        pixelBuffer: hdrBuffer
+    )
+    #expect(hdrRenderedOn.width == 8 && hdrRenderedOn.height == 6)
+    #expect(hdrRenderedOff.width == 8 && hdrRenderedOff.height == 6)
+
+    let hdrPixelOn = try #require(pixelRGBA(in: hdrRenderedOn, x: 4, y: 3))
+    let hdrPixelOff = try #require(pixelRGBA(in: hdrRenderedOff, x: 4, y: 3))
+    #expect(hdrPixelOn.r > hdrPixelOff.r)
+}
+
 private func makeScreenshotPixelBuffer(width: Int, height: Int) throws -> CVPixelBuffer {
     var pixelBuffer: CVPixelBuffer?
     let attributes: [CFString: Any] = [

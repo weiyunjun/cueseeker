@@ -50,7 +50,7 @@ public final class SubtitleCollageRenderSession: @unchecked Sendable {
     private var cachedPreparedASSScript: SubtitleScreenshotExporter.PreparedASSRenderScript?
     private var cachedRequestedFontNames: [String]?
     private var hasPreparedASSScript = false
-    private var cachedVideoFrames: [(timestampMilliseconds: Int, image: CGImage)] = []
+    private var cachedVideoFrames: [(timestampMilliseconds: Int, hdrScreenshotEnabled: Bool, image: CGImage)] = []
     private var cachedPlayableInput: WebDAVPlayableInput?
     private var cachedContainerProbe: SubtitleScreenshotExporter.VideoContainerProbeResult?
 
@@ -160,12 +160,14 @@ public final class SubtitleCollageRenderSession: @unchecked Sendable {
     }
 
     private func cachedVideoFrame(for timestampMilliseconds: Int) -> CGImage? {
+        let hdrEnabled = SFXIsHDRScreenshotEnabled()
         lock.lock()
         defer {
             lock.unlock()
         }
         guard let index = cachedVideoFrames.firstIndex(where: {
             $0.timestampMilliseconds == timestampMilliseconds
+                && $0.hdrScreenshotEnabled == hdrEnabled
         }) else {
             return nil
         }
@@ -178,15 +180,18 @@ public final class SubtitleCollageRenderSession: @unchecked Sendable {
         _ image: CGImage,
         for timestampMilliseconds: Int
     ) {
+        let hdrEnabled = SFXIsHDRScreenshotEnabled()
         lock.lock()
         defer {
             lock.unlock()
         }
         cachedVideoFrames.removeAll {
             $0.timestampMilliseconds == timestampMilliseconds
+                && $0.hdrScreenshotEnabled == hdrEnabled
         }
         cachedVideoFrames.append((
             timestampMilliseconds: timestampMilliseconds,
+            hdrScreenshotEnabled: hdrEnabled,
             image: image
         ))
         if cachedVideoFrames.count > Self.maximumCachedVideoFrames {
@@ -664,6 +669,23 @@ public enum SubtitleScreenshotExporter {
         let resolvedInput = playableInput ?? WebDAVClient.shared.resolvePlayableInput(
             for: URL.fromMediaPath(videoPath)
         )
+        let customFFmpegBin = ProcessInfo.processInfo.environment["CUESEEKER_FFMPEG_BIN"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if customFFmpegBin.isEmpty {
+            let inputPath = resolvedInput.inputPath
+            let httpHeaders = resolvedInput.httpHeaders
+            if let nativeRendered = await Task.detached(priority: .userInitiated, operation: {
+                SFXCopyRenderedVideoFrameImageAtMediaPath(
+                    inputPath,
+                    httpHeaders,
+                    timestampMilliseconds,
+                    "collage_export",
+                    nil
+                )
+            }).value {
+                return nativeRendered
+            }
+        }
         let resolvedProbe = containerProbe ?? probeVideoContainer(
             resolvedInputPath: resolvedInput.inputPath,
             httpHeaders: resolvedInput.httpHeaders

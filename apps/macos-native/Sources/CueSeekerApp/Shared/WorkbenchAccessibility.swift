@@ -79,6 +79,7 @@ enum SettingsAccessibilityTarget: Equatable, Hashable {
 
     // General
     case appearanceMode(AppAppearanceMode)
+    case hdrScreenshot
     case searchShowCueGroup
     case searchPrefillCommandPanel
     case languageDropdown

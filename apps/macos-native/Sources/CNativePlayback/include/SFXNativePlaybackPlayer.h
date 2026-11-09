@@ -44,6 +44,30 @@ FOUNDATION_EXPORT NSInteger SFXDisplayVideoWidthForPixelBuffer(CVPixelBufferRef 
 FOUNDATION_EXPORT NSInteger SFXDisplayVideoHeightForPixelBuffer(CVPixelBufferRef _Nullable pixelBuffer);
 FOUNDATION_EXPORT SFXVideoOrientation SFXVideoOrientationForPixelBuffer(CVPixelBufferRef _Nullable pixelBuffer);
 
+FOUNDATION_EXPORT void SFXSetHDRScreenshotEnabled(BOOL enabled);
+FOUNDATION_EXPORT BOOL SFXIsHDRScreenshotEnabled(void);
+FOUNDATION_EXPORT BOOL SFXPixelBufferIsHDR(CVPixelBufferRef _Nullable pixelBuffer);
+
+typedef void (^SFXDebugTelemetryLogHandler)(NSString *event, NSString * _Nullable details);
+FOUNDATION_EXPORT void SFXSetDebugTelemetryLogHandler(SFXDebugTelemetryLogHandler _Nullable handler);
+FOUNDATION_EXPORT BOOL SFXIsDebugTelemetryEnabled(void);
+FOUNDATION_EXPORT void SFXEmitDebugTelemetryLog(NSString *event, NSString * _Nullable details);
+
+FOUNDATION_EXPORT CGImageRef _Nullable SFXCopyRenderedImageFromPixelBuffer(
+    CVPixelBufferRef pixelBuffer,
+    size_t targetWidth,
+    size_t targetHeight,
+    NSString * _Nullable sceneName
+) CF_RETURNS_RETAINED;
+
+FOUNDATION_EXPORT CGImageRef _Nullable SFXCopyRenderedVideoFrameImageAtMediaPath(
+    NSString *mediaPath,
+    NSString * _Nullable httpHeaders,
+    NSInteger timestampMilliseconds,
+    NSString * _Nullable sceneName,
+    NSError * _Nullable * _Nullable error
+) CF_RETURNS_RETAINED;
+
 typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
     SFXNativePlaybackDecodeModeHardware = 0,
     SFXNativePlaybackDecodeModeSoftware = 1,
@@ -167,6 +191,7 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
                                     completion:(void (^)(CGImageRef _Nullable image, NSInteger keyframeMilliseconds, NSInteger videoWidth, NSInteger videoHeight))completion
     NS_SWIFT_NAME(requestTimelineThumbnail(atMilliseconds:targetPixelWidth:completion:));
 - (void)cancelTimelineThumbnailRequests;
+- (void)invalidateTimelineThumbnailCache;
 - (void)requestAudioOutputRecoveryForTesting;
 - (void)stop;
 

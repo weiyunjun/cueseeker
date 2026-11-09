@@ -47,6 +47,22 @@
     _scrubPreviewQueue = dispatch_queue_create("CueSeeker.NativePlayback.ScrubPreview", DISPATCH_QUEUE_SERIAL);
     _thumbnailDecoder = [[SFXKeyframeThumbnailDecoder alloc] init];
     _nativeView = [[SFXNativePlaybackView alloc] initWithFrame:NSZeroRect];
+    __weak typeof(self) weakSelf = self;
+    _nativeView.displayHDRStateDidChangeHandler = ^(BOOL isHDRActive, CGFloat edrHeadroom) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
+        SFXNativePlaybackSession *activeSession = nil;
+        @synchronized (strongSelf) {
+            activeSession = strongSelf->_session;
+        }
+        if (activeSession != nil) {
+            [activeSession refreshDisplayForHDRModeChange:isHDRActive
+                                              edrHeadroom:edrHeadroom
+                                          switchStartedMs:SFXMonotonicMilliseconds()];
+        }
+    };
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         (void)SFXIsHardwareDecodeSupported(AV_CODEC_ID_HEVC);
         (void)SFXIsHardwareDecodeSupported(AV_CODEC_ID_H264);
@@ -65,6 +81,10 @@
 }
 
 - (NSView *)view {
+    return _nativeView;
+}
+
+- (SFXNativePlaybackView *)playbackView {
     return _nativeView;
 }
 
@@ -297,13 +317,15 @@
             [displayLayer flush];
         }
         [displayLayer enqueueSampleBuffer:sampleBuffer];
-        CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-        if (imageBuffer != NULL && imageBuffer != _latestSubmittedPixelBuffer) {
-            CVPixelBufferRetain((CVPixelBufferRef)imageBuffer);
+        CVPixelBufferRef snapshotBuffer = session->_latestSourceVideoPixelBuffer != NULL
+            ? session->_latestSourceVideoPixelBuffer
+            : (CVPixelBufferRef)CMSampleBufferGetImageBuffer(sampleBuffer);
+        if (snapshotBuffer != NULL && snapshotBuffer != _latestSubmittedPixelBuffer) {
+            CVPixelBufferRetain(snapshotBuffer);
             if (_latestSubmittedPixelBuffer != NULL) {
                 CVPixelBufferRelease(_latestSubmittedPixelBuffer);
             }
-            _latestSubmittedPixelBuffer = (CVPixelBufferRef)imageBuffer;
+            _latestSubmittedPixelBuffer = snapshotBuffer;
             _latestSubmittedVideoFrameSnapshot = nil;
         }
         return YES;
@@ -693,6 +715,14 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     @synchronized (self) {
         _scrubPreviewGeneration += 1;
     }
+}
+
+- (void)invalidateTimelineThumbnailCache {
+    [self cancelTimelineThumbnailRequests];
+    SFXKeyframeThumbnailDecoder *thumbnailDecoder = _thumbnailDecoder;
+    dispatch_async(_scrubPreviewQueue, ^{
+        [thumbnailDecoder clearCache];
+    });
 }
 
 - (void)requestAutomaticSoftwareRecycleForSession:(SFXNativePlaybackSession *)session

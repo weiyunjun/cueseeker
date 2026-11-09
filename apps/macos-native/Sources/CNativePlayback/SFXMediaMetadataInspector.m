@@ -227,6 +227,7 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
 @end
 
 static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
+    const AVFormatContext *formatContext,
     const AVStream *videoStream,
     const AVCodecContext *codecContext,
     const AVFrame *frame,
@@ -238,8 +239,37 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     enum AVPixelFormat inputFormat,
     NSInteger timestampMilliseconds,
     int scoringWidth,
-    int scoringHeight
+    int scoringHeight,
+    double decodeMs
 ) {
+    CGImageRef gpuRenderedImage = SFXCopyRenderedImageFromAVFrame(
+        formatContext,
+        videoStream,
+        codecContext,
+        frame,
+        0,
+        0,
+        decodeMs,
+        @"library_cover",
+        NULL
+    );
+    if (gpuRenderedImage != NULL) {
+        NSData *gpuScoringData = SFXCopyRGB24DataFromCGImage(
+            gpuRenderedImage,
+            (size_t)MAX(1, scoringWidth),
+            (size_t)MAX(1, scoringHeight)
+        );
+        if (gpuScoringData != nil) {
+            SFXMediaCoverCandidateFrame *candidate = [[SFXMediaCoverCandidateFrame alloc]
+                initWithTimestampMilliseconds:timestampMilliseconds
+                             scoringRGB24Data:gpuScoringData
+                                      cgImage:gpuRenderedImage];
+            CGImageRelease(gpuRenderedImage);
+            return candidate;
+        }
+        CGImageRelease(gpuRenderedImage);
+    }
+
     int targetDisplayWidth = displayWidth > 0 ? displayWidth : srcWidth;
     int targetDisplayHeight = displayHeight > 0 ? displayHeight : srcHeight;
     int fullStride = targetDisplayWidth * 3;
@@ -741,6 +771,7 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
         }
 
         avcodec_flush_buffers(codecContext);
+        CFTimeInterval candidateDecodeStart = CACurrentMediaTime();
 
         SFXMediaCoverCandidateFrame *decodedCandidate = nil;
         while (decodedCandidate == nil && av_read_frame(formatContext, packet) >= 0) {
@@ -763,10 +794,12 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                     && height > 0
                     && inputFormat != AV_PIX_FMT_NONE
                     && av_pix_fmt_desc_get(inputFormat) != NULL) {
+                    double decodeMs = (CACurrentMediaTime() - candidateDecodeStart) * 1000.0;
                     AVRational sar = SFXVideoSampleAspectRatio(formatContext, videoStream, codecContext, frame);
                     SFXVideoOrientation orientation = SFXResolveVideoOrientation(videoStream, frame);
                     int displayWidth = (int)SFXDisplayVideoWidthForDimensionsAndSAR(width, height, sar);
                     decodedCandidate = SFXCreateCoverCandidateFrame(
+                        formatContext,
                         videoStream,
                         codecContext,
                         frame,
@@ -778,7 +811,8 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                         inputFormat,
                         timestampMs,
                         targetScoringWidth,
-                        targetScoringHeight
+                        targetScoringHeight,
+                        decodeMs
                     );
                 }
                 av_frame_unref(frame);
@@ -795,10 +829,12 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                     && height > 0
                     && inputFormat != AV_PIX_FMT_NONE
                     && av_pix_fmt_desc_get(inputFormat) != NULL) {
+                    double decodeMs = (CACurrentMediaTime() - candidateDecodeStart) * 1000.0;
                     AVRational sar = SFXVideoSampleAspectRatio(formatContext, videoStream, codecContext, frame);
                     SFXVideoOrientation orientation = SFXResolveVideoOrientation(videoStream, frame);
                     int displayWidth = (int)SFXDisplayVideoWidthForDimensionsAndSAR(width, height, sar);
                     decodedCandidate = SFXCreateCoverCandidateFrame(
+                        formatContext,
                         videoStream,
                         codecContext,
                         frame,
@@ -810,7 +846,8 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                         inputFormat,
                         timestampMs,
                         targetScoringWidth,
-                        targetScoringHeight
+                        targetScoringHeight,
+                        decodeMs
                     );
                 }
                 av_frame_unref(frame);

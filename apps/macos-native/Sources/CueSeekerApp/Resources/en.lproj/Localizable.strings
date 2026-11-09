@@ -447,6 +447,7 @@
 /* Settings: Appearance */
 "settings.appearance.description" = "Choose how CueSeeker follows light and dark mode.";
 "settings.appearance.mode" = "Appearance Mode";
+"settings.appearance.hdr_screenshot" = "HDR Screenshot";
 "settings.appearance.note" = "Auto follows the current macOS system appearance.";
 "settings.appearance.light" = "Light";
 "settings.appearance.dark" = "Dark";

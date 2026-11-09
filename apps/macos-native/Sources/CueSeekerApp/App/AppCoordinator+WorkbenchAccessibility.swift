@@ -2042,6 +2042,7 @@ extension AppCoordinator {
             for mode in AppAppearanceMode.allCases {
                 targets.append(.appearanceMode(mode))
             }
+            targets.append(.hdrScreenshot)
             targets.append(.searchShowCueGroup)
             targets.append(.searchPrefillCommandPanel)
             targets.append(.languageDropdown)
@@ -2229,6 +2230,10 @@ extension AppCoordinator {
             if settings.appAppearanceMode != mode {
                 settings.appAppearanceMode = mode
             }
+            return true
+
+        case .hdrScreenshot:
+            settings.hdrScreenshotEnabled.toggle()
             return true
 
         case .searchShowCueGroup:

@@ -148,6 +148,17 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             _collagePreviewStore = previewStore
         }
     }
+
+    func refreshCollagePreview() {
+        guard let oldPreviewStore = _collagePreviewStore else {
+            return
+        }
+        let previewStore = makeCollagePreviewStore()
+        previewStore.update(plan: _collageSelectionPlan)
+        oldPreviewStore.invalidate()
+        objectWillChange.send()
+        _collagePreviewStore = previewStore
+    }
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
     @Published private(set) var libraryStore: PlaybackLibrarySessionStore?
 

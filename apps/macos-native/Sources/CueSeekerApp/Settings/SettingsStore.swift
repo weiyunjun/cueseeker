@@ -78,6 +78,7 @@ struct CueGroupPresentationGate: View {
 @MainActor
 final class SettingsStore: ObservableObject {
     private static let appAppearanceModeKey = "appAppearanceMode"
+    static let hdrScreenshotEnabledKey = "hdrScreenshotEnabled"
     private static let appLanguageKey = "appLanguage"
     private static let searchFacetExclusionsKey = "searchFacetExclusions"
     private static let searchSortOrderKey = "searchSortOrder"
@@ -109,6 +110,13 @@ final class SettingsStore: ObservableObject {
         didSet {
             userDefaults.set(appAppearanceMode.rawValue, forKey: Self.appAppearanceModeKey)
             Self.applyAppAppearanceMode(appAppearanceMode)
+        }
+    }
+
+    @Published var hdrScreenshotEnabled: Bool {
+        didSet {
+            userDefaults.set(hdrScreenshotEnabled, forKey: Self.hdrScreenshotEnabledKey)
+            PlaybackPlayer.setHDRScreenshotEnabled(hdrScreenshotEnabled)
         }
     }
 
@@ -254,6 +262,7 @@ final class SettingsStore: ObservableObject {
             && requestedAutoSwitchPreference
         userDefaults.register(defaults: [
             Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
+            Self.hdrScreenshotEnabledKey: true,
             Self.appLanguageKey: AppLanguage.followSystem.rawValue,
             Self.showCueGroupKey: false,
             Self.prefillCommandPanelWithFocusedCueKey: false,
@@ -276,6 +285,11 @@ final class SettingsStore: ObservableObject {
         self.playbackShortcuts = PlaybackShortcutStore(userDefaults: userDefaults)
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
         self.appAppearanceMode = loadedAppearance
+        let loadedHDRScreenshotEnabled = userDefaults.object(forKey: Self.hdrScreenshotEnabledKey) == nil
+            ? true
+            : userDefaults.bool(forKey: Self.hdrScreenshotEnabledKey)
+        self.hdrScreenshotEnabled = loadedHDRScreenshotEnabled
+        PlaybackPlayer.setHDRScreenshotEnabled(loadedHDRScreenshotEnabled)
         self.searchFacetFilter = Self.loadSearchFacetFilter(from: userDefaults)
         self.searchSortOrder = Self.loadSearchSortOrder(from: userDefaults)
         self.prefillCommandPanelWithFocusedCue = userDefaults.bool(

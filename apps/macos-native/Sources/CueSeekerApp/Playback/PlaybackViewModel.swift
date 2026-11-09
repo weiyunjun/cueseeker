@@ -346,6 +346,13 @@ public final class PlaybackViewModel: ObservableObject {
         timelineThumbnailStore.clear()
     }
 
+    func invalidateTimelineThumbnailCache() {
+        player.invalidateTimelineThumbnailCache()
+        timelineThumbnailStore.clear()
+        timelineThumbnailContextRevision &+= 1
+        refreshActiveTimelineThumbnailPreviewIfNeeded()
+    }
+
     @discardableResult
     public func playFromCue(
         at seconds: Double,

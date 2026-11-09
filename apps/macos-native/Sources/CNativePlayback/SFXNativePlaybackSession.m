@@ -1508,6 +1508,9 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 }
 
 - (void)stopAndWait {
+#if DEBUG
+    [self emitDebugHeartbeatWithReason:@"stop"];
+#endif
     [self cancelAsync];
 
     if (_decodeQueue != NULL) {
@@ -1692,6 +1695,12 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     if (!paused) {
         [self requestAudioPlaybackStartIfReadyForGeneration:generation];
     }
+
+#if DEBUG
+    if (wasPaused != paused) {
+        [self emitDebugHeartbeatWithReason:paused ? @"pause" : @"resume"];
+    }
+#endif
 
     [self notifyTimeIfNeeded:YES];
 }
@@ -2236,6 +2245,9 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 }
 
 - (SFXQueuedPacket *)dequeueVideoPacket {
+#if DEBUG
+    CFTimeInterval waitStart = CACurrentMediaTime();
+#endif
     [_packetQueueCondition lock];
     BOOL armedStarvationWatchdog = NO;
 	    while (!atomic_load(&_cancelled)
@@ -2294,6 +2306,15 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         [_packetQueueCondition broadcast];
     }
     [_packetQueueCondition unlock];
+#if DEBUG
+    double packetWaitMs = (CACurrentMediaTime() - waitStart) * 1000.0;
+    @synchronized (self) {
+        _telemetryWindowPacketWaitSumMs += packetWaitMs;
+        if (packetWaitMs > _telemetryWindowPacketWaitMaxMs) {
+            _telemetryWindowPacketWaitMaxMs = packetWaitMs;
+        }
+    }
+#endif
     return queuedPacket;
 }
 
@@ -2516,12 +2537,28 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     _perfSkippedVideoFramesForFirstFrame = 0;
     _perfFirstPacketRecorded = NO;
     _perfFirstVideoDecodedRecorded = NO;
+    double totalSeekPrepareMs = (now - seekStart) * 1000.0;
     NSLog(@"[PlaybackPerf] IN_SESSION_SEEK_PREPARE gen=%lu targetMs=%ld totalSeekPrepare=%.1fms | stopReadAhead=%.1fms avSeekFrame=%.1fms",
           (unsigned long)presentationGeneration,
           (long)llround(seekSeconds * 1000.0),
-          (now - seekStart) * 1000.0,
+          totalSeekPrepareMs,
           stopReadAheadMs,
           avSeekMs);
+#if DEBUG
+    [self emitDebugHeartbeatWithReason:@"seek"];
+    SFXEmitDebugTelemetryLog(
+        @"playback.diagnostics.seek",
+        [NSString stringWithFormat:
+            @"path=\"%@\" target_ms=%ld stop_read_ahead_ms=%.2f av_seek_frame_ms=%.2f total_seek_prepare_ms=%.2f slow_seek=%@",
+            _path.lastPathComponent ?: @"unknown",
+            (long)llround(seekSeconds * 1000.0),
+            stopReadAheadMs,
+            avSeekMs,
+            totalSeekPrepareMs,
+            totalSeekPrepareMs > 80.0 ? @"true" : @"false"
+        ]
+    );
+#endif
 
     if (rebuildsAudioOutput || !audioOutputReady) {
         atomic_store(&_pauseAfterFirstFrame, pauseAfterFirstFrame);

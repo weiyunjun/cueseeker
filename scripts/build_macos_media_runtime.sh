@@ -430,6 +430,28 @@ build_ffmpeg() {
     )
 }
 
+stage_libplacebo() {
+    if [ -d "/opt/homebrew/opt/libplacebo/include/libplacebo" ] && [ -f "/opt/homebrew/opt/libplacebo/lib/libplacebo.360.dylib" ]; then
+        rm -rf "$PREFIX/include/libplacebo"
+        cp -R "/opt/homebrew/opt/libplacebo/include/libplacebo" "$PREFIX/include/libplacebo"
+        cp -f "/opt/homebrew/opt/libplacebo/lib/libplacebo.360.dylib" "$PREFIX/lib/libplacebo.360.dylib"
+        ln -sf libplacebo.360.dylib "$PREFIX/lib/libplacebo.dylib"
+        if [ -f "/opt/homebrew/opt/shaderc/lib/libshaderc_shared.1.dylib" ]; then
+            cp -f "/opt/homebrew/opt/shaderc/lib/libshaderc_shared.1.dylib" "$PREFIX/lib/libshaderc_shared.1.dylib"
+            ln -sf libshaderc_shared.1.dylib "$PREFIX/lib/libshaderc_shared.dylib"
+        fi
+        if [ -f "/opt/homebrew/opt/vulkan-loader/lib/libvulkan.1.dylib" ]; then
+            cp -f "/opt/homebrew/opt/vulkan-loader/lib/libvulkan.1.dylib" "$PREFIX/lib/libvulkan.1.dylib"
+            ln -sf libvulkan.1.dylib "$PREFIX/lib/libvulkan.dylib"
+        fi
+        if [ -f "/opt/homebrew/opt/little-cms2/lib/liblcms2.2.dylib" ]; then
+            cp -f "/opt/homebrew/opt/little-cms2/lib/liblcms2.2.dylib" "$PREFIX/lib/liblcms2.2.dylib"
+            ln -sf liblcms2.2.dylib "$PREFIX/lib/liblcms2.dylib"
+        fi
+        chmod u+w "$PREFIX/lib"/lib*.dylib
+    fi
+}
+
 rewrite_install_names() {
     mapfile_path="$BUILD_ROOT/dylib-map.txt"
     : > "$mapfile_path"
@@ -504,6 +526,7 @@ build_dav1d
 build_libsmb2
 build_libnfs
 build_ffmpeg
+stage_libplacebo
 rewrite_install_names
 stage_licenses_and_manifest
 "$SCRIPT_DIR/verify_macos_media_runtime.sh" "$PREFIX"

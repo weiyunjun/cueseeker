@@ -447,6 +447,7 @@
 /* Settings: Appearance */
 "settings.appearance.description" = "選擇字幕求索如何跟隨淺色與深色模式。";
 "settings.appearance.mode" = "外觀模式";
+"settings.appearance.hdr_screenshot" = "HDR 截圖";
 "settings.appearance.note" = "「自動」會跟隨目前的 macOS 系統外觀。";
 "settings.appearance.light" = "淺色";
 "settings.appearance.dark" = "深色";

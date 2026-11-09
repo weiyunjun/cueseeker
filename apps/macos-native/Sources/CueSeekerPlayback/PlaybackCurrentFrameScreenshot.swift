@@ -73,6 +73,15 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
             throw PlaybackCurrentFrameScreenshotError.invalidFrameSize
         }
 
+        if let gpuRenderedImage = SFXCopyRenderedImageFromPixelBuffer(
+            pixelBuffer,
+            0,
+            0,
+            "current_frame"
+        ) {
+            return gpuRenderedImage
+        }
+
         var image = CIImage(
             cvPixelBuffer: pixelBuffer,
             options: [.applyOrientationProperty: false]

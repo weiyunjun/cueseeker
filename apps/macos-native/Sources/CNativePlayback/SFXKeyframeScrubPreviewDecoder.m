@@ -24,6 +24,10 @@
     [self invalidate];
 }
 
+- (void)clearCache {
+    [self invalidate];
+}
+
 - (void)invalidate {
     _path = nil;
     _httpHeaders = nil;
@@ -193,6 +197,7 @@
 }
 
 - (nullable CGImageRef)copyScaledImageFromCurrentFrameWithTargetPixelWidth:(NSInteger)targetPixelWidth
+                                                                  decodeMs:(double)decodeMs
                                                              videoWidthOut:(nullable NSInteger *)videoWidthOut
                                                             videoHeightOut:(nullable NSInteger *)videoHeightOut CF_RETURNS_RETAINED {
     int srcWidth = _frame->width > 0 ? _frame->width : _codecContext->width;
@@ -218,6 +223,22 @@
     }
     if (videoHeightOut != NULL) {
         *videoHeightOut = displayHeight;
+    }
+
+    CGSize renderedDisplaySize = CGSizeZero;
+    CGImageRef gpuRendered = SFXCopyRenderedImageFromAVFrame(
+        _formatContext,
+        videoStream,
+        _codecContext,
+        _frame,
+        (size_t)MAX(1, targetPixelWidth),
+        0,
+        decodeMs,
+        @"timeline_scrub",
+        &renderedDisplaySize
+    );
+    if (gpuRendered != NULL) {
+        return gpuRendered;
     }
 
     int targetWidth = (int)MAX(1, targetPixelWidth);
@@ -327,6 +348,7 @@
                          keyframeMillisecondsOut:(nullable NSInteger *)keyframeMillisecondsOut
                                    videoWidthOut:(nullable NSInteger *)videoWidthOut
                                   videoHeightOut:(nullable NSInteger *)videoHeightOut {
+    CFTimeInterval decodeStart = CACurrentMediaTime();
     if (![self isPreparedForPath:path httpHeaders:httpHeaders]) {
         if (![self openMediaForPath:path httpHeaders:httpHeaders]) {
             return NULL;
@@ -409,6 +431,7 @@
         return NULL;
     }
 
+    double decodeMs = (CACurrentMediaTime() - decodeStart) * 1000.0;
     if (keyframeMillisecondsOut != NULL) {
         AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
         double frameSeconds = SFXFramePlaybackSeconds(_frame, videoStream, _timelineOriginSeconds);
@@ -418,6 +441,7 @@
     }
 
     CGImageRef image = [self copyScaledImageFromCurrentFrameWithTargetPixelWidth:targetPixelWidth
+                                                                        decodeMs:decodeMs
                                                                    videoWidthOut:videoWidthOut
                                                                   videoHeightOut:videoHeightOut];
     av_frame_unref(_frame);

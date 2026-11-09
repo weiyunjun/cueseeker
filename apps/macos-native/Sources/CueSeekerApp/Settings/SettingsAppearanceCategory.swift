@@ -20,6 +20,19 @@ struct SettingsAppearanceCategory: View {
                         }
                     )
                 }
+
+                SettingsRowDivider()
+
+                SettingsRow(L("settings.appearance.hdr_screenshot")) {
+                    Toggle("", isOn: $settingsStore.hdrScreenshotEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .focusable(false)
+                        .workbenchAccessibilityFocusRing(
+                            isFocused: accessibility?.isSettingsFocused(.hdrScreenshot) == true,
+                            isCapsule: true
+                        )
+                }
             }
         }
     }

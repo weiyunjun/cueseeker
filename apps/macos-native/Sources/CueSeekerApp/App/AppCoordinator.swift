@@ -794,6 +794,16 @@ final class AppCoordinator: ObservableObject {
             }
             .store(in: &settingsCancellables)
 
+        settings.$hdrScreenshotEnabled
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] enabled in
+                PlaybackPlayer.setHDRScreenshotEnabled(enabled)
+                self?.playback.playbackViewModel?.invalidateTimelineThumbnailCache()
+                self?.playback.subtitleFocusSession?.refreshCollagePreview()
+            }
+            .store(in: &settingsCancellables)
+
     }
 
     nonisolated static func runCancellableDetached<T: Sendable>(

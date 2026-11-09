@@ -182,6 +182,31 @@ func simplifiedAndTraditionalChineseRefinedTranslationsMatchSpecification() {
     #expect(en["webdav.dialog.title"] == "WebDAV Folder")
 }
 
+@MainActor
+@Test
+func hdrScreenshotSettingLocalizationAndPersistence() {
+    let en = localizableEntries(for: .english)
+    let zhHans = localizableEntries(for: .simplifiedChinese)
+    let zhHant = localizableEntries(for: .traditionalChinese)
+    #expect(en["settings.appearance.hdr_screenshot"] == "HDR Screenshot")
+    #expect(zhHans["settings.appearance.hdr_screenshot"] == "HDR 截图")
+    #expect(zhHant["settings.appearance.hdr_screenshot"] == "HDR 截圖")
+
+    withTemporaryLocalizationUserDefaults { userDefaults in
+        let settings = SettingsStore(userDefaults: userDefaults)
+        #expect(settings.hdrScreenshotEnabled == true)
+
+        settings.hdrScreenshotEnabled = false
+        #expect(userDefaults.bool(forKey: SettingsStore.hdrScreenshotEnabledKey) == false)
+
+        let reloaded = SettingsStore(userDefaults: userDefaults)
+        #expect(reloaded.hdrScreenshotEnabled == false)
+
+        reloaded.hdrScreenshotEnabled = true
+        #expect(userDefaults.bool(forKey: SettingsStore.hdrScreenshotEnabledKey) == true)
+    }
+}
+
 /// Reads the keys a language actually ships, so a translation that is added to
 /// one language but forgotten in another fails the build instead of silently
 /// falling back to the key name at runtime.

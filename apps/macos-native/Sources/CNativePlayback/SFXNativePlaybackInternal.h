@@ -215,6 +215,42 @@ NSData * _Nullable SFXTransformRGB24DataForVideoOrientation(
     int * _Nullable outHeight
 );
 
+double SFXMonotonicMilliseconds(void);
+void SFXAttachHDRMetadataToPixelBuffer(
+    CVPixelBufferRef pixelBuffer,
+    const AVCodecContext * _Nullable codecContext,
+    const AVStream * _Nullable stream,
+    const AVFrame * _Nullable frame
+);
+uint64_t SFXPixelBufferColorSignature(CVPixelBufferRef _Nullable pixelBuffer);
+NSString *SFXDescribePixelBufferColorSummary(CVPixelBufferRef _Nullable pixelBuffer);
+BOOL SFXFastPackSoftwareAVFrameIntoPixelBuffer(
+    const AVFrame *frame,
+    CVPixelBufferRef pixelBuffer
+);
+CVPixelBufferRef _Nullable SFXCreateDisplayPixelBufferForPlayback(
+    CVPixelBufferRef _Nullable sourcePixelBuffer,
+    BOOL isDisplayHDRActive,
+    CGFloat displayEDRHeadroom,
+    double * _Nullable outRenderMilliseconds
+) CF_RETURNS_RETAINED;
+CGImageRef _Nullable SFXCopyRenderedImageFromAVFrame(
+    const AVFormatContext * _Nullable formatContext,
+    const AVStream * _Nullable videoStream,
+    const AVCodecContext * _Nullable codecContext,
+    const AVFrame *frame,
+    size_t requestedTargetWidth,
+    size_t requestedTargetHeight,
+    double decodeMilliseconds,
+    NSString * _Nullable sceneName,
+    CGSize * _Nullable outDisplaySize
+) CF_RETURNS_RETAINED;
+NSData * _Nullable SFXCopyRGB24DataFromCGImage(
+    CGImageRef image,
+    size_t targetWidth,
+    size_t targetHeight
+);
+
 @interface SFXKeyframeThumbnailDecoder : NSObject
 - (nullable CGImageRef)copyThumbnailImageForPath:(NSString *)path
                                      httpHeaders:(nullable NSString *)httpHeaders
@@ -223,6 +259,7 @@ NSData * _Nullable SFXTransformRGB24DataForVideoOrientation(
                          keyframeMillisecondsOut:(nullable NSInteger *)keyframeMillisecondsOut
                                    videoWidthOut:(nullable NSInteger *)videoWidthOut
                                   videoHeightOut:(nullable NSInteger *)videoHeightOut CF_RETURNS_RETAINED;
+- (void)clearCache;
 - (void)invalidate;
 @end
 
@@ -230,6 +267,10 @@ NSData * _Nullable SFXTransformRGB24DataForVideoOrientation(
 @property (nonatomic, strong, readonly) AVSampleBufferDisplayLayer *displayLayer;
 @property (nonatomic, readonly) NSUInteger displayImageRemovalCount;
 @property (nonatomic) SFXVideoOrientation videoOrientation;
+@property (nonatomic, readonly) BOOL isDisplayHDRActive;
+@property (nonatomic, readonly) CGFloat displayEDRHeadroom;
+@property (nonatomic, copy, nullable) void (^displayHDRStateDidChangeHandler)(BOOL isHDRActive, CGFloat edrHeadroom);
+- (void)updateForStreamHDRState:(BOOL)isHDRStream;
 - (void)updateDisplayLayerFrameWithLogName:(NSString *)logName;
 - (void)flush;
 @end
@@ -241,6 +282,7 @@ NSData * _Nullable SFXTransformRGB24DataForVideoOrientation(
 @class SFXNativePlaybackSession;
 
 @interface SFXNativePlaybackPlayer ()
+@property (nonatomic, strong, readonly) SFXNativePlaybackView *playbackView;
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
  endMilliseconds:(NSInteger)endMilliseconds
@@ -321,6 +363,24 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     size_t _cachedVideoFormatHeight;
     int _cachedVideoFormatSARNum;
     int _cachedVideoFormatSARDen;
+    uint64_t _cachedVideoFormatColorSignature;
+    CVPixelBufferRef _Nullable _latestSourceVideoPixelBuffer;
+    CMTime _latestSourcePresentationTime;
+    AVRational _latestSourceSampleAspectRatio;
+    NSInteger _latestSourceFrameMilliseconds;
+    BOOL _hasLoggedInitialColorState;
+    uint64_t _activeStreamColorSignature;
+    BOOL _activeStreamIsHDR;
+    double _lastFrameDecodeDurationMs;
+    double _telemetryLastHeartbeatHostSeconds;
+    NSUInteger _telemetryWindowFrameCount;
+    NSUInteger _telemetryWindowDroppedFrames;
+    double _telemetryWindowDecodeSumMs;
+    double _telemetryWindowDecodeMaxMs;
+    double _telemetryWindowRenderSumMs;
+    double _telemetryWindowRenderMaxMs;
+    double _telemetryWindowPacketWaitSumMs;
+    double _telemetryWindowPacketWaitMaxMs;
     AVRational _videoSampleAspectRatio;
     SFXVideoOrientation _videoOrientation;
     int _videoFrameWidth;
@@ -652,6 +712,10 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds;
                                   generation:(NSUInteger)generation;
 - (void)notifyTimeIfNeeded:(BOOL)force;
 - (void)notifyFailure:(NSString *)message;
+- (void)refreshDisplayForHDRModeChange:(BOOL)isHDRActive
+                           edrHeadroom:(CGFloat)edrHeadroom
+                       switchStartedMs:(double)switchStartedMs;
+- (void)emitDebugHeartbeatWithReason:(NSString *)reason;
 - (void)teardown;
 @end
 

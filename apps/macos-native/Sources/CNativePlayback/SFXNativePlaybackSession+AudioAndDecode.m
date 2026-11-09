@@ -438,20 +438,9 @@
             ? (isFullRange ? kCVPixelFormatType_420YpCbCr8BiPlanarFullRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)
             : kCVPixelFormatType_32BGRA);
 
-    if (![self ensureSoftwareVideoScalerForFrame:frame width:width height:height outputFormat:targetFFmpegFormat]
-        || ![self ensureSoftwarePixelBufferPoolWithWidth:width height:height pixelFormat:targetCVPixelFormat]) {
+    if (![self ensureSoftwarePixelBufferPoolWithWidth:width height:height pixelFormat:targetCVPixelFormat]) {
         return NULL;
     }
-    SFXConfigureSwsContextColorSpace(
-        _videoScaler,
-        videoStream,
-        _videoCodecContext,
-        frame,
-        width,
-        height,
-        inputFormat,
-        targetFFmpegFormat
-    );
 
     CVPixelBufferRef pixelBuffer = NULL;
     CVReturn createResult = CVPixelBufferPoolCreatePixelBuffer(
@@ -463,41 +452,60 @@
         return NULL;
     }
 
-    CVReturn lockResult = CVPixelBufferLockBaseAddress(pixelBuffer, 0);
-    if (lockResult != kCVReturnSuccess) {
-        CVPixelBufferRelease(pixelBuffer);
-        return NULL;
-    }
+    BOOL fastPacked = SFXFastPackSoftwareAVFrameIntoPixelBuffer(frame, pixelBuffer);
+    if (!fastPacked) {
+        if (![self ensureSoftwareVideoScalerForFrame:frame width:width height:height outputFormat:targetFFmpegFormat]) {
+            CVPixelBufferRelease(pixelBuffer);
+            return NULL;
+        }
+        SFXConfigureSwsContextColorSpace(
+            _videoScaler,
+            videoStream,
+            _videoCodecContext,
+            frame,
+            width,
+            height,
+            inputFormat,
+            targetFFmpegFormat
+        );
 
-    uint8_t *destinationData[4] = { NULL, NULL, NULL, NULL };
-    int destinationLinesize[4] = { 0, 0, 0, 0 };
-    if (CVPixelBufferIsPlanar(pixelBuffer)) {
-        destinationData[0] = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0);
-        destinationData[1] = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1);
-        destinationLinesize[0] = (int)CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0);
-        destinationLinesize[1] = (int)CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 1);
-    } else {
-        destinationData[0] = (uint8_t *)CVPixelBufferGetBaseAddress(pixelBuffer);
-        destinationLinesize[0] = (int)CVPixelBufferGetBytesPerRow(pixelBuffer);
-    }
+        CVReturn lockResult = CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+        if (lockResult != kCVReturnSuccess) {
+            CVPixelBufferRelease(pixelBuffer);
+            return NULL;
+        }
 
-    int convertedHeight = sws_scale(
-        _videoScaler,
-        (const uint8_t * const *)frame->data,
-        frame->linesize,
-        0,
-        height,
-        destinationData,
-        destinationLinesize
-    );
-    CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+        uint8_t *destinationData[4] = { NULL, NULL, NULL, NULL };
+        int destinationLinesize[4] = { 0, 0, 0, 0 };
+        if (CVPixelBufferIsPlanar(pixelBuffer)) {
+            destinationData[0] = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0);
+            destinationData[1] = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1);
+            destinationLinesize[0] = (int)CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0);
+            destinationLinesize[1] = (int)CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 1);
+        } else {
+            destinationData[0] = (uint8_t *)CVPixelBufferGetBaseAddress(pixelBuffer);
+            destinationLinesize[0] = (int)CVPixelBufferGetBytesPerRow(pixelBuffer);
+        }
 
-    if (convertedHeight <= 0) {
-        CVPixelBufferRelease(pixelBuffer);
-        return NULL;
+        int convertedHeight = sws_scale(
+            _videoScaler,
+            (const uint8_t * const *)frame->data,
+            frame->linesize,
+            0,
+            height,
+            destinationData,
+            destinationLinesize
+        );
+        CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+
+        if (convertedHeight <= 0) {
+            CVPixelBufferRelease(pixelBuffer);
+            return NULL;
+        }
     }
 
     SFXApplyColorSpaceAttachments(pixelBuffer, videoStream, _videoCodecContext, frame);
+    SFXAttachHDRMetadataToPixelBuffer(pixelBuffer, _videoCodecContext, videoStream, frame);
     return pixelBuffer;
 }
 
@@ -519,6 +527,7 @@
         _perfVideoPacketsForFirstFrame += 1;
     }
 
+    CFTimeInterval sendPacketStart = CACurrentMediaTime();
     int result = avcodec_send_packet(_videoCodecContext, packet);
     if (result < 0
         && result != AVERROR(EAGAIN)
@@ -548,9 +557,17 @@
     if (result < 0) {
         return;
     }
+    double sendPacketDurationMs = (CACurrentMediaTime() - sendPacketStart) * 1000.0;
 
     AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
-    while ((result = avcodec_receive_frame(_videoCodecContext, _videoFrame)) >= 0) {
+    while (YES) {
+        CFTimeInterval receiveStart = CACurrentMediaTime();
+        result = avcodec_receive_frame(_videoCodecContext, _videoFrame);
+        if (result < 0) {
+            break;
+        }
+        double frameDecodeMs = sendPacketDurationMs + (CACurrentMediaTime() - receiveStart) * 1000.0;
+        sendPacketDurationMs = 0.0;
         [_packetQueueCondition lock];
         BOOL hasPendingSeek = [self hasPendingSeekRequestLocked] || _audioOutputRecoveryRequested;
         [_packetQueueCondition unlock];
@@ -620,9 +637,15 @@
                 break;
             }
             CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)_videoFrame->data[3];
+            CFTimeInterval metadataStart = CACurrentMediaTime();
             SFXApplyColorSpaceAttachments(pixelBuffer, videoStream, _videoCodecContext, _videoFrame);
+            SFXAttachHDRMetadataToPixelBuffer(pixelBuffer, _videoCodecContext, videoStream, _videoFrame);
             SFXApplyPixelAspectRatioAttachment(pixelBuffer, frameSAR);
             SFXApplyVideoOrientationAttachment(pixelBuffer, frameOrientation);
+            frameDecodeMs += (CACurrentMediaTime() - metadataStart) * 1000.0;
+            @synchronized (self) {
+                _lastFrameDecodeDurationMs = frameDecodeMs;
+            }
             submittedVideoFrame = [self enqueuePixelBuffer:pixelBuffer
                                           presentationTime:presentationTime
                                          sampleAspectRatio:frameSAR
@@ -646,6 +669,7 @@
                 av_frame_unref(_videoFrame);
                 break;
             }
+            CFTimeInterval copyStart = CACurrentMediaTime();
             CVPixelBufferRef pixelBuffer = [self copyPixelBufferForSoftwareFrame:_videoFrame];
             if (pixelBuffer == NULL) {
                 NSString *formatName = SFXPixelFormatName((enum AVPixelFormat)_videoFrame->format);
@@ -659,6 +683,10 @@
             }
             SFXApplyPixelAspectRatioAttachment(pixelBuffer, frameSAR);
             SFXApplyVideoOrientationAttachment(pixelBuffer, frameOrientation);
+            frameDecodeMs += (CACurrentMediaTime() - copyStart) * 1000.0;
+            @synchronized (self) {
+                _lastFrameDecodeDurationMs = frameDecodeMs;
+            }
 
             automaticRecycleMilliseconds = [self markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:mediaSeconds];
             submittedVideoFrame = [self enqueuePixelBuffer:pixelBuffer
@@ -992,12 +1020,14 @@
     BOOL validSAR = sampleAspectRatio.num > 0 && sampleAspectRatio.den > 0;
     int sarNum = validSAR ? sampleAspectRatio.num : 1;
     int sarDen = validSAR ? sampleAspectRatio.den : 1;
+    uint64_t colorSignature = SFXPixelBufferColorSignature(pixelBuffer);
     if (_cachedVideoFormatDescription == NULL
         || _cachedVideoFormatPixelFormat != pixelFormat
         || _cachedVideoFormatWidth != width
         || _cachedVideoFormatHeight != height
         || _cachedVideoFormatSARNum != sarNum
-        || _cachedVideoFormatSARDen != sarDen) {
+        || _cachedVideoFormatSARDen != sarDen
+        || _cachedVideoFormatColorSignature != colorSignature) {
         if (_cachedVideoFormatDescription != NULL) {
             CFRelease(_cachedVideoFormatDescription);
             _cachedVideoFormatDescription = NULL;
@@ -1016,6 +1046,7 @@
         _cachedVideoFormatHeight = height;
         _cachedVideoFormatSARNum = sarNum;
         _cachedVideoFormatSARDen = sarDen;
+        _cachedVideoFormatColorSignature = colorSignature;
     }
 
     CMSampleTimingInfo timing = {
@@ -1076,12 +1107,75 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
         return NO;
     }
 
+    @synchronized (self) {
+        if (_latestSourceVideoPixelBuffer != NULL) {
+            CVPixelBufferRelease(_latestSourceVideoPixelBuffer);
+        }
+        _latestSourceVideoPixelBuffer = CVPixelBufferRetain(pixelBuffer);
+        _latestSourcePresentationTime = presentationTime;
+        _latestSourceSampleAspectRatio = sampleAspectRatio;
+        _latestSourceFrameMilliseconds = frameMilliseconds;
+    }
+
+    SFXNativePlaybackPlayer *owner = _owner;
+    SFXNativePlaybackView *ownerView = owner.playbackView;
+    BOOL streamIsHDR = SFXPixelBufferIsHDR(pixelBuffer);
+    uint64_t sourceColorSig = SFXPixelBufferColorSignature(pixelBuffer);
+    BOOL colorStateChanged = NO;
+    BOOL isFirstColorStateLog = NO;
+    @synchronized (self) {
+        if (!_hasLoggedInitialColorState || _activeStreamColorSignature != sourceColorSig) {
+            isFirstColorStateLog = !_hasLoggedInitialColorState;
+            colorStateChanged = YES;
+            _hasLoggedInitialColorState = YES;
+            _activeStreamColorSignature = sourceColorSig;
+            _activeStreamIsHDR = streamIsHDR;
+        }
+    }
+    if (colorStateChanged && ownerView != nil) {
+        [ownerView updateForStreamHDRState:streamIsHDR];
+    }
+    BOOL displayHDRActive = ownerView != nil ? ownerView.isDisplayHDRActive : NO;
+    CGFloat edrHeadroom = ownerView != nil ? ownerView.displayEDRHeadroom : 1.0;
+#if DEBUG
+    if (colorStateChanged) {
+        NSString *decodePipeline = self.usingHardwareDecode ? @"Hardware" : @"Software";
+        NSString *toneMapDesc = (!streamIsHDR)
+            ? @"sdr_passthrough_gamma22"
+            : (displayHDRActive ? @"hdr_edr_pq" : @"libplacebo_spline_to_sdr");
+        SFXEmitDebugTelemetryLog(
+            @"playback.stream.color_state",
+            [NSString stringWithFormat:
+                @"trigger=%@ path=\"%@\" decode_pipeline=%@ stream_color=\"%@\" display_hdr_active=%@ edr_headroom=%.2f tone_map=%@",
+                isFirstColorStateLog ? @"open" : @"mid_stream_switch",
+                _path.lastPathComponent ?: @"unknown",
+                decodePipeline,
+                SFXDescribePixelBufferColorSummary(pixelBuffer),
+                displayHDRActive ? @"true" : @"false",
+                edrHeadroom,
+                toneMapDesc
+            ]
+        );
+    }
+#endif
+
+    double renderMs = 0.0;
+    CVPixelBufferRef displayPixelBuffer = SFXCreateDisplayPixelBufferForPlayback(
+        pixelBuffer,
+        displayHDRActive,
+        edrHeadroom,
+        &renderMs
+    );
+    if (displayPixelBuffer == NULL) {
+        displayPixelBuffer = CVPixelBufferRetain(pixelBuffer);
+    }
+
     BOOL enqueued = NO;
-    CMSampleBufferRef sampleBuffer = [self sampleBufferForPixelBuffer:pixelBuffer
+    CMSampleBufferRef sampleBuffer = [self sampleBufferForPixelBuffer:displayPixelBuffer
                                                      presentationTime:presentationTime
                                                     sampleAspectRatio:sampleAspectRatio];
+    CVPixelBufferRelease(displayPixelBuffer);
     if (sampleBuffer != NULL) {
-        SFXNativePlaybackPlayer *owner = _owner;
         enqueued = [owner enqueueSampleBuffer:sampleBuffer
                                    forSession:self
                        presentationGeneration:presentationGeneration
@@ -1169,6 +1263,58 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
                                            atMilliseconds:automaticRecycleMilliseconds
                                    presentationGeneration:presentationGeneration];
     }
+#if DEBUG
+    if (enqueued) {
+        double nowHost = CACurrentMediaTime();
+        double decodeMs = 0.0;
+        double avDriftMs = 0.0;
+        @synchronized (self) {
+            decodeMs = _lastFrameDecodeDurationMs;
+            if (_telemetryLastHeartbeatHostSeconds <= 0) {
+                _telemetryLastHeartbeatHostSeconds = nowHost;
+            }
+            _telemetryWindowFrameCount += 1;
+            _telemetryWindowDecodeSumMs += decodeMs;
+            if (decodeMs > _telemetryWindowDecodeMaxMs) {
+                _telemetryWindowDecodeMaxMs = decodeMs;
+            }
+            _telemetryWindowRenderSumMs += renderMs;
+            if (renderMs > _telemetryWindowRenderMaxMs) {
+                _telemetryWindowRenderMaxMs = renderMs;
+            }
+            if (_audioClockInitialized && CMTIME_IS_NUMERIC(presentationTime)) {
+                double rate = fmax((double)atomic_load(&_playbackRate), 0.001);
+                double audioNowMedia = _audioFirstMediaSeconds + ((nowHost - _audioStartHostSeconds) * rate);
+                double videoMedia = CMTimeGetSeconds(presentationTime);
+                if (isfinite(audioNowMedia) && isfinite(videoMedia)) {
+                    avDriftMs = (videoMedia - audioNowMedia) * 1000.0;
+                }
+            }
+        }
+        double totalFrameWorkMs = decodeMs + renderMs;
+        if (totalFrameWorkMs > 28.0 || fabs(avDriftMs) > 65.0) {
+            SFXEmitDebugTelemetryLog(
+                @"playback.diagnostics.slow_frame",
+                [NSString stringWithFormat:
+                    @"path=\"%@\" frame_ms=%ld decode_ms=%.2f render_ms=%.2f total_work_ms=%.2f av_drift_ms=%.2f",
+                    _path.lastPathComponent ?: @"unknown",
+                    (long)frameMilliseconds,
+                    decodeMs,
+                    renderMs,
+                    totalFrameWorkMs,
+                    avDriftMs
+                ]
+            );
+        }
+        double elapsedWindow = 0.0;
+        @synchronized (self) {
+            elapsedWindow = nowHost - _telemetryLastHeartbeatHostSeconds;
+        }
+        if (elapsedWindow >= 1.0) {
+            [self emitDebugHeartbeatWithReason:@"periodic"];
+        }
+    }
+#endif
     SFXLogIfSlow(@"SFXNativePlaybackSession.enqueuePixelBuffer", start, 8);
     return enqueued;
 }
@@ -1657,6 +1803,151 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     });
 }
 
+- (void)refreshDisplayForHDRModeChange:(BOOL)isHDRActive
+                           edrHeadroom:(CGFloat)edrHeadroom
+                       switchStartedMs:(double)switchStartedMs {
+    CVPixelBufferRef sourceBuffer = NULL;
+    CMTime presentationTime = kCMTimeInvalid;
+    AVRational sar = (AVRational){1, 1};
+    @synchronized (self) {
+        if (_latestSourceVideoPixelBuffer != NULL) {
+            sourceBuffer = CVPixelBufferRetain(_latestSourceVideoPixelBuffer);
+            presentationTime = _latestSourcePresentationTime;
+            sar = _latestSourceSampleAspectRatio;
+        }
+    }
+    if (sourceBuffer == NULL) {
+        return;
+    }
+
+    BOOL streamIsHDR = SFXPixelBufferIsHDR(sourceBuffer);
+    double renderMs = 0.0;
+    if (self.isPaused && !atomic_load(&_cancelled)) {
+        [_packetQueueCondition lock];
+        NSUInteger presentationGeneration = _presentationGeneration;
+        [_packetQueueCondition unlock];
+        CVPixelBufferRef displayPixelBuffer = SFXCreateDisplayPixelBufferForPlayback(
+            sourceBuffer,
+            isHDRActive,
+            edrHeadroom,
+            &renderMs
+        );
+        if (displayPixelBuffer == NULL) {
+            displayPixelBuffer = CVPixelBufferRetain(sourceBuffer);
+        }
+        CMSampleBufferRef sampleBuffer = [self sampleBufferForPixelBuffer:displayPixelBuffer
+                                                         presentationTime:presentationTime
+                                                        sampleAspectRatio:sar];
+        CVPixelBufferRelease(displayPixelBuffer);
+        if (sampleBuffer != NULL) {
+            SFXNativePlaybackPlayer *owner = _owner;
+            [owner enqueueSampleBuffer:sampleBuffer
+                            forSession:self
+                presentationGeneration:presentationGeneration
+                    flushBeforeEnqueue:YES];
+            CFRelease(sampleBuffer);
+        }
+    }
+#if DEBUG
+    double switchDurationMs = switchStartedMs > 0 ? fmax(0.0, SFXMonotonicMilliseconds() - switchStartedMs) : renderMs;
+    NSString *toneMapDesc = (!streamIsHDR)
+        ? @"sdr_passthrough_gamma22"
+        : (isHDRActive ? @"hdr_edr_pq" : @"libplacebo_spline_to_sdr");
+    SFXEmitDebugTelemetryLog(
+        @"playback.stream.color_state",
+        [NSString stringWithFormat:
+            @"trigger=display_hdr_change path=\"%@\" decode_pipeline=%@ stream_color=\"%@\" display_hdr_active=%@ edr_headroom=%.2f tone_map=%@ switch_duration_ms=%.2f",
+            _path.lastPathComponent ?: @"unknown",
+            self.usingHardwareDecode ? @"Hardware" : @"Software",
+            SFXDescribePixelBufferColorSummary(sourceBuffer),
+            isHDRActive ? @"true" : @"false",
+            edrHeadroom,
+            toneMapDesc,
+            switchDurationMs
+        ]
+    );
+#endif
+    CVPixelBufferRelease(sourceBuffer);
+}
+
+- (void)emitDebugHeartbeatWithReason:(NSString *)reason {
+#if DEBUG
+    double nowHost = CACurrentMediaTime();
+    NSUInteger frameCount = 0;
+    double elapsedSeconds = 0.0;
+    double decodeAvgMs = 0.0;
+    double decodeMaxMs = 0.0;
+    double renderAvgMs = 0.0;
+    double renderMaxMs = 0.0;
+    double packetWaitAvgMs = 0.0;
+    double packetWaitMaxMs = 0.0;
+    NSUInteger droppedFrames = 0;
+    double avDriftMs = 0.0;
+    @synchronized (self) {
+        frameCount = _telemetryWindowFrameCount;
+        if (_telemetryLastHeartbeatHostSeconds > 0 && nowHost > _telemetryLastHeartbeatHostSeconds) {
+            elapsedSeconds = nowHost - _telemetryLastHeartbeatHostSeconds;
+        }
+        if (frameCount > 0) {
+            decodeAvgMs = _telemetryWindowDecodeSumMs / (double)frameCount;
+            decodeMaxMs = _telemetryWindowDecodeMaxMs;
+            renderAvgMs = _telemetryWindowRenderSumMs / (double)frameCount;
+            renderMaxMs = _telemetryWindowRenderMaxMs;
+            packetWaitAvgMs = _telemetryWindowPacketWaitSumMs / (double)frameCount;
+            packetWaitMaxMs = _telemetryWindowPacketWaitMaxMs;
+        }
+        droppedFrames = _telemetryWindowDroppedFrames;
+        if (_audioClockInitialized && _lastPacedVideoMediaSeconds >= 0 && !atomic_load(&_paused)) {
+            double rate = fmax((double)atomic_load(&_playbackRate), 0.001);
+            double audioNowMedia = _audioFirstMediaSeconds + ((nowHost - _audioStartHostSeconds) * rate);
+            avDriftMs = (_lastPacedVideoMediaSeconds - audioNowMedia) * 1000.0;
+        }
+        _telemetryLastHeartbeatHostSeconds = nowHost;
+        _telemetryWindowFrameCount = 0;
+        _telemetryWindowDroppedFrames = 0;
+        _telemetryWindowDecodeSumMs = 0.0;
+        _telemetryWindowDecodeMaxMs = 0.0;
+        _telemetryWindowRenderSumMs = 0.0;
+        _telemetryWindowRenderMaxMs = 0.0;
+        _telemetryWindowPacketWaitSumMs = 0.0;
+        _telemetryWindowPacketWaitMaxMs = 0.0;
+    }
+    if (frameCount == 0 && [reason isEqualToString:@"periodic"]) {
+        return;
+    }
+    double fps = elapsedSeconds > 0.001 ? ((double)frameCount / elapsedSeconds) : 0.0;
+    double bufferedSeconds = 0.0;
+    size_t bufferedBytes = 0;
+    [_packetQueueCondition lock];
+    bufferedSeconds = [self packetQueueBufferedSecondsLocked];
+    bufferedBytes = _packetQueueBytes;
+    [_packetQueueCondition unlock];
+
+    SFXEmitDebugTelemetryLog(
+        @"playback.diagnostics.heartbeat",
+        [NSString stringWithFormat:
+            @"reason=%@ path=\"%@\" fps=%.1f frames=%lu decode_avg_ms=%.2f decode_max_ms=%.2f render_avg_ms=%.2f render_max_ms=%.2f packet_wait_avg_ms=%.2f packet_wait_max_ms=%.2f dropped_frames=%lu av_drift_ms=%.2f buffer_sec=%.2f buffer_kb=%zu",
+            reason ?: @"periodic",
+            _path.lastPathComponent ?: @"unknown",
+            fps,
+            (unsigned long)frameCount,
+            decodeAvgMs,
+            decodeMaxMs,
+            renderAvgMs,
+            renderMaxMs,
+            packetWaitAvgMs,
+            packetWaitMaxMs,
+            (unsigned long)droppedFrames,
+            avDriftMs,
+            bufferedSeconds,
+            bufferedBytes / 1024
+        ]
+    );
+#else
+    (void)reason;
+#endif
+}
+
 - (void)teardown {
     [self stopStarvationWatchdog];
 
@@ -1669,6 +1960,12 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
     [self stopPacketReadAheadAndClear];
     [self clearPendingPixelBufferSubmission];
+    @synchronized (self) {
+        if (_latestSourceVideoPixelBuffer != NULL) {
+            CVPixelBufferRelease(_latestSourceVideoPixelBuffer);
+            _latestSourceVideoPixelBuffer = NULL;
+        }
+    }
 
     if (_audioDecodeQueue != NULL) {
         dispatch_sync(_audioDecodeQueue, ^{

@@ -310,6 +310,24 @@ enum AnkiPackageExporter {
         outputURL: URL
     ) async throws {
         let midpointMilliseconds = max(0, (item.startMilliseconds + item.endMilliseconds) / 2)
+        let customFFmpegBin = ProcessInfo.processInfo.environment["CUESEEKER_FFMPEG_BIN"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if customFFmpegBin.isEmpty {
+            let inputPath = resolvedInput.inputPath
+            let httpHeaders = resolvedInput.httpHeaders
+            if let renderedImage = await Task.detached(priority: .userInitiated, operation: {
+                SFXCopyRenderedVideoFrameImageAtMediaPath(
+                    inputPath,
+                    httpHeaders,
+                    midpointMilliseconds,
+                    "anki_export",
+                    nil
+                )
+            }).value,
+               writeJPEG(renderedImage, to: outputURL) {
+                return
+            }
+        }
         let midpointSeconds = Double(midpointMilliseconds) / 1_000
         var arguments = [
             "-nostdin",
@@ -332,6 +350,22 @@ enum AnkiPackageExporter {
             executableURL: ffmpegURL,
             arguments: arguments
         )
+    }
+
+    private static func writeJPEG(_ image: CGImage, to outputURL: URL) -> Bool {
+        let rep = NSBitmapImageRep(cgImage: image)
+        guard let jpegData = rep.representation(
+            using: .jpeg,
+            properties: [.compressionFactor: 0.92]
+        ) else {
+            return false
+        }
+        do {
+            try jpegData.write(to: outputURL, options: .atomic)
+            return true
+        } catch {
+            return false
+        }
     }
 
     private static func createCollection(

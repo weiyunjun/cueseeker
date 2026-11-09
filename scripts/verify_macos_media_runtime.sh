@@ -18,6 +18,7 @@ required=(
     libswscale
     libdav1d
     libass
+    libplacebo
     libfreetype
     libfribidi
     libharfbuzz

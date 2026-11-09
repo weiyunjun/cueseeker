@@ -136,9 +136,35 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     public override init() {
         super.init()
+        Self.installDebugTelemetryHandlerIfNeeded()
         nativePlayer.delegate = self
         nativePlayer.volume = Float(storedVolume / 100)
         nativePlayer.decodeMode = decodeMode.nativeDecodeMode
+    }
+
+    public static func setHDRScreenshotEnabled(_ enabled: Bool) {
+        Self.installDebugTelemetryHandlerIfNeeded()
+        SFXSetHDRScreenshotEnabled(enabled)
+    }
+
+    public static var isHDRScreenshotEnabled: Bool {
+        SFXIsHDRScreenshotEnabled()
+    }
+
+    private static let debugTelemetryInstallOnce: Void = {
+        #if DEBUG
+        SFXSetDebugTelemetryLogHandler { event, details in
+            AppLogger.shared.debug(
+                .playback,
+                event,
+                details: details
+            )
+        }
+        #endif
+    }()
+
+    private static func installDebugTelemetryHandlerIfNeeded() {
+        _ = debugTelemetryInstallOnce
     }
 
     @discardableResult
@@ -489,6 +515,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     public func cancelTimelineThumbnailRequests() {
         nativePlayer.cancelTimelineThumbnailRequests()
+    }
+
+    public func invalidateTimelineThumbnailCache() {
+        nativePlayer.invalidateTimelineThumbnailCache()
+        delegate?.playerDidResetTimelineThumbnails(self)
     }
 
     public func endTimelineScrubbing() throws {
