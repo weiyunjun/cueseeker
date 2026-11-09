@@ -172,6 +172,13 @@ struct WorkbenchSelectableTextTests {
         let clickPoint = statusView.convert(CGPoint(x: 24, y: 10), to: nil)
         #expect(statusView.pointerShape(atWindowPoint: clickPoint) == .grab)
 
+        // Underline rect at 2x Retina scale is positioned below the text vertical center (near bottom baseline).
+        let underlineRects = statusView.underlineRects(backingScaleFactor: 2.0)
+        #expect(underlineRects.count == 1)
+        if let underlineRect = underlineRects.first {
+            #expect(underlineRect.minY > statusView.bounds.midY + 4)
+        }
+
         // Single click without drag fires onTap and leaves no selection.
         statusView.mouseDown(
             with: makeMouseEvent(

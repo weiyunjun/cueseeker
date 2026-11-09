@@ -1205,19 +1205,19 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         return rects
     }
 
-    private func drawUnderline(
-        at origin: CGPoint,
-        color: NSColor,
-        thickness: CGFloat,
-        offset: CGFloat,
+    func underlineRects(
+        at origin: CGPoint? = nil,
+        thickness: CGFloat = WorkbenchControlMetrics.redesignInteractiveTextUnderlineThickness,
+        offset: CGFloat = WorkbenchControlMetrics.redesignInteractiveTextUnderlineOffset,
         backingScaleFactor: CGFloat
-    ) {
+    ) -> [CGRect] {
+        let resolvedOrigin = origin ?? textOrigin()
         let scale = max(1, backingScaleFactor)
         let lineThickness = max(1 / scale, thickness)
         let validGlyphRange = layoutManager.glyphRange(for: textContainer)
-        guard validGlyphRange.length > 0 else { return }
+        guard validGlyphRange.length > 0 else { return [] }
 
-        color.setFill()
+        var rects: [CGRect] = []
         var glyphIndex = validGlyphRange.location
         while glyphIndex < NSMaxRange(validGlyphRange) {
             var lineRange = NSRange(location: 0, length: 0)
@@ -1226,12 +1226,12 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
                 effectiveRange: &lineRange
             )
             if usedRect.width > 0 {
-                let baseline = origin.y
+                let baseline = resolvedOrigin.y
                     + usedRect.minY
                     + layoutManager.location(forGlyphAt: glyphIndex).y
-                let y = (baseline + offset * scale).rounded() / scale
-                let minX = floor((origin.x + usedRect.minX) * scale) / scale
-                let maxX = ceil((origin.x + usedRect.maxX) * scale) / scale
+                let y = ((baseline + offset) * scale).rounded() / scale
+                let minX = floor((resolvedOrigin.x + usedRect.minX) * scale) / scale
+                let maxX = ceil((resolvedOrigin.x + usedRect.maxX) * scale) / scale
                 let rect = CGRect(
                     x: minX,
                     y: y,
@@ -1239,11 +1239,30 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
                     height: lineThickness
                 )
                 if rect.width > 0 {
-                    rect.fill()
+                    rects.append(rect)
                 }
             }
             guard lineRange.length > 0 else { break }
             glyphIndex = NSMaxRange(lineRange)
+        }
+        return rects
+    }
+
+    private func drawUnderline(
+        at origin: CGPoint,
+        color: NSColor,
+        thickness: CGFloat,
+        offset: CGFloat,
+        backingScaleFactor: CGFloat
+    ) {
+        color.setFill()
+        for rect in underlineRects(
+            at: origin,
+            thickness: thickness,
+            offset: offset,
+            backingScaleFactor: backingScaleFactor
+        ) {
+            rect.fill()
         }
     }
 }
