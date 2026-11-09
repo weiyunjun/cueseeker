@@ -180,10 +180,12 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-player-stage-bg`: Light `#000000`; Dark `#000000`
 - `--color-player-control-bg-hover`: Light `rgba(255,255,255,0.16)`; Dark `rgba(255,255,255,0.16)`
 - `--color-player-control-bg-pressed`: Light `rgba(255,255,255,0.24)`; Dark `rgba(255,255,255,0.24)`
-- `--color-player-control-bg-active`: macOS accent color with Alpha `0.26`
 - `--color-player-menu-bg`: Light `rgba(0,0,0,0.55)`; Dark `rgba(0,0,0,0.55)`
 - `--color-player-menu-item-hover-bg`: Light `rgba(255,255,255,0.12)`; Dark `rgba(255,255,255,0.12)`
-- `--color-player-menu-item-selected-bg`: Light `rgba(255,255,255,0.16)`; Dark `rgba(255,255,255,0.16)`
+- `--color-player-menu-divider`: Light `rgba(255,255,255,0.10)`; Dark `rgba(255,255,255,0.10)`
+- `--color-player-scrollbar-thumb-default`: Light `rgba(255,255,255,0.24)`; Dark `rgba(255,255,255,0.24)`
+- `--color-player-scrollbar-thumb-interactive`: Light `rgba(255,255,255,0.38)`; Dark `rgba(255,255,255,0.38)`
+- `--color-player-keycap-bg`: Light `rgba(255,255,255,0.14)`; Dark `rgba(255,255,255,0.14)`
 - `--color-player-text-primary`: Light `rgba(255,255,255,0.94)`; Dark `rgba(255,255,255,0.94)`
 - `--color-player-text-secondary`: Light `rgba(255,255,255,0.62)`; Dark `rgba(255,255,255,0.62)`
 - `--color-player-text-tertiary`: Light `rgba(255,255,255,0.34)`; Dark `rgba(255,255,255,0.34)`
@@ -192,10 +194,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-player-progress-hover-track`: Light `rgba(255,255,255,0.38)`; Dark `rgba(255,255,255,0.38)`
 - `--color-player-topbar-gradient-start`: Light `rgba(18,18,24,0.66)`; Dark `rgba(18,18,24,0.66)`
 - `--color-player-topbar-gradient-end`: Light `rgba(18,18,24,0)`; Dark `rgba(18,18,24,0)`
-- `--color-player-cue-control-bar-border`: Light `rgba(255,255,255,0.15)`; Dark `rgba(255,255,255,0.15)`
-- `--color-player-cue-control-stepper-bg`: Light `rgba(255,255,255,0.06)`; Dark `rgba(255,255,255,0.06)`
-- `--color-player-cue-control-stepper-border`: Light `rgba(255,255,255,0.12)`; Dark `rgba(255,255,255,0.12)`
-- `--color-player-cue-control-status-active`: Light `#34D399`; Dark `#34D399`
 - `--color-player-error-bg`: Light `#B42318`; Dark `#B42318`
 - `--color-player-error-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-playback-feedback-spinner-track`: Light `rgba(255,255,255,0.24)`; Dark `rgba(255,255,255,0.24)`
@@ -348,8 +346,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--max-width-player-audio-track-menu`: `300px`
 - `--size-player-progress-thumb`: `12px`
 - `--width-player-progress-thumbnail`: `240px`
-- `--size-player-cue-status-dot`: `6px`
-- `--size-player-cue-stepper-button`: `--height-player-cue-control` 减去两倍 `--padding-player-cue-stepper` (`24px`)
 - `--size-player-cue-stepper-icon`: `14px`
 - `--width-player-cue-gap-value`: `64px`
 - `--width-player-topbar-title-max`: `520px`
@@ -423,7 +419,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--gap-app-topbar-content`: `12px`
 - `--gap-player-window-controls-return`: `16px`
 - `--gap-player-speed-menu-from-button`: `8px`
-- `--gap-player-cue-toggle-dot`: `6px`
 - `--gap-library-recent-grid`: `8px`
 - `--gap-library-episode-grid`: `8px`
 - `--gap-library-list-item`: `20px`
@@ -468,7 +463,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--padding-player-volume-trailing`: `10px`
 - `--padding-player-progress-time-capsule-x`: `8px`
 - `--padding-player-cue-toggle-x`: `10px`
-- `--padding-player-cue-stepper`: `2px`
 - `--padding-player-topbar-x`: `16px`
 - `--padding-player-error-x`: `12px`
 - `--padding-player-error-y`: `10px`
@@ -507,7 +501,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--radius-player-error`: `10px`
 - `--radius-player-cue-control-bar`: `10px`
 - `--radius-player-cue-control`: `--radius-player-cue-control-bar` 减去 `--spacing-1` (`6px`)
-- `--radius-player-cue-stepper-button`: `--radius-player-cue-control` 减去 `--padding-player-cue-stepper` (`4px`)
 - `--radius-library-cover`: `8px`
 - `--radius-library-time-badge`: `4px`
 - `--radius-library-folder-card`: `8px`

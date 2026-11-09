@@ -704,10 +704,10 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-bg-popover`
-  - Border Color：`--color-border-muted`
+  - Background：`--color-bg-popover`；在 Player Chrome 上为 `--color-player-menu-bg`
+  - Border Color：`--color-border-muted`；在 Player Chrome 上无边框（`None`）
   - Radius：`--radius-menu`
-  - Shadow：`--shadow-popover`
+  - Shadow：`--shadow-popover`；在 Player Chrome 上为 `--shadow-player-overlay`
 - Item Stack
 - Vertical Scrollbar
   - Presence：Content Overflow
@@ -832,16 +832,16 @@
 ##### States
 
 - Default
-  - Label Color：`--color-text-primary`
-  - Icon Color：`--color-text-primary`
+  - Label Color：`--color-text-primary`；在 Player Chrome 上为 `--color-player-text-primary`
+  - Icon Color：`--color-text-primary`；在 Player Chrome 上为 `--color-player-text-primary`
 - Hover
   - Background：`--color-bg-hover`（Player Chrome 表面为 `--color-player-menu-item-hover-bg`；弹出菜单与二级菜单中鼠标悬停与键盘/手柄高亮统一使用此状态）
 - Selected（仅 Command Panel Root 选项使用）
   - Background：`--color-menu-item-selected-bg`
   - 与 Hover 同时落在该项时只显示 Selected 背景，不叠加
 - Disabled
-  - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-text-disabled`
+  - Label Color：`--color-text-disabled`；在 Player Chrome 上为 `--color-player-text-tertiary`
+  - Icon Color：`--color-text-disabled`；在 Player Chrome 上为 `--color-player-text-tertiary`
 
 #### Variants
 
@@ -887,7 +887,7 @@
 ##### Anatomy
 
 - Divider
-  - Color：`--color-border-divider`
+  - Color：`--color-border-divider`；在 Player Chrome 上为 `--color-player-menu-divider`
 
 ##### Sizes
 
@@ -1253,7 +1253,7 @@
 - Track
   - Color：`--color-scrollbar-track`
 - Thumb
-  - Color：`--color-scrollbar-thumb-default`
+  - Color：`--color-scrollbar-thumb-default`；在 Player Chrome 上为 `--color-player-scrollbar-thumb-default`
   - Radius：`--scrollbar-radius`
 
 ##### Rendering
@@ -1278,10 +1278,10 @@
 
 - Hidden
 - Hover Visible
-  - Thumb Color：`--color-scrollbar-thumb-interactive`
+  - Thumb Color：`--color-scrollbar-thumb-interactive`；在 Player Chrome 上为 `--color-player-scrollbar-thumb-interactive`
 - Scrolling Visible
 - Dragging Visible
-  - Thumb Color：`--color-scrollbar-thumb-interactive`
+  - Thumb Color：`--color-scrollbar-thumb-interactive`；在 Player Chrome 上为 `--color-player-scrollbar-thumb-interactive`
 
 ##### Visibility
 

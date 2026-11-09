@@ -102,7 +102,7 @@
 - Font Family：`--font-family-base`
 - Font Size：`--font-size-task-count-badge`；在 Section Header 内为 `--font-size-caption`
 - Font Weight：`--font-weight-task-count-badge`
-- Text Color：`--color-text-secondary`；在 Player Chrome 上为 `--color-player-text-secondary`；按钮 Disabled 时为 `--color-text-disabled`
+- Text Color：`--color-text-secondary`；在 Player Chrome 上为 `--color-player-text-secondary`；按钮 Disabled 时为 `--color-text-disabled`（在 Player Chrome 上为 `--color-player-text-tertiary`）
 - States
   - Count
   - Hidden：数量为 0
@@ -187,20 +187,20 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-bg-popover`
-  - Border Color：`--color-border-control`
-  - Border Width：`--border-width-control`
+  - Background：`--color-bg-popover`；在 Player Chrome 上为 `--color-player-menu-bg`
+  - Border Color：`--color-border-control`；在 Player Chrome 上无边框（`None`）
+  - Border Width：`--border-width-control`（在 Player Chrome 上无）
   - Radius：`--radius-control`
-  - Shadow：`--shadow-popover`
-  - Polarity：在 Player Chrome 上固定使用 Dark Mode；其余界面（含 Playback Overlay 与 Command Panel）跟随当前 Light / Dark Mode
+  - Shadow：`--shadow-popover`；在 Player Chrome 上为 `--shadow-player-overlay`
+  - Polarity：在 Player Chrome 上使用独立的 Player Chrome 固定样式（不随 Light / Dark Mode 变化）；其余界面（含 Playback Overlay 与 Command Panel）跟随当前 Light / Dark Mode
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-control`
   - Font Weight：`--font-weight-control`
-  - Color：`--color-text-secondary`
+  - Color：`--color-text-secondary`；在 Player Chrome 上为 `--color-player-text-primary`
 - Shortcut
   - Presence：Optional
-  - Component：Keycap / Popover Surface
+  - Component：Keycap / Popover Surface；在 Player Chrome 上为 Keycap / Player Chrome
   - Gap：`--spacing-1`
   - 修饰键（⌃、⌥、⇧、⌘）与主键各占一个 Keycap
 - Content Gap：`--spacing-2`
@@ -272,7 +272,7 @@
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-caption`
   - Font Weight：`--font-weight-control`
-  - Color：`--color-text-muted`
+  - Color：`--color-text-muted`；在 Player Chrome 上为 `--color-player-text-primary`
 
 ##### Sizes
 
@@ -312,6 +312,11 @@
   - Background：`--color-popover-surface-keycap-bg-hover`
 - Pressed
   - Background：`--color-popover-surface-keycap-bg-pressed`
+
+##### Player Chrome
+
+- Default
+  - Background：`--color-player-keycap-bg`
 
 ## 2.9 Feedback
 
@@ -460,7 +465,7 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-player-topbar-gradient-start`
+  - Background：`--color-player-menu-bg`
   - Border：None
   - Radius：`--radius-playback-feedback`
   - Shadow：None
@@ -1074,19 +1079,13 @@
 
 - Container
   - Background：`--color-player-menu-bg`
-  - Border Color：`--color-player-cue-control-bar-border`
-  - Border Width：`--border-width-control`
+  - Border：None
   - Radius：`--radius-player-cue-control-bar`
 - Toggle Button（`Auto Pause`、`Auto Switch`）
   - Radius：`--radius-player-cue-control`
-  - Status Dot：直径 `--size-player-cue-status-dot`
   - Label：Font Size `--font-size-caption`，Font Weight `600`
 - Gap Stepper
-  - Background：`--color-player-cue-control-stepper-bg`
-  - Border Color：`--color-player-cue-control-stepper-border`
-  - Border Width：`--border-width-control`
-  - Radius：`--radius-player-cue-control`
-  - Step Buttons（`minus`、`plus`）：Radius `--radius-player-cue-stepper-button`，Icon Size `--size-player-cue-stepper-icon`
+  - Step Buttons（`minus`、`plus`）：Width / Height `--height-player-cue-control`，Radius `--radius-player-cue-control`，Icon Size `--size-player-cue-stepper-icon`
   - Value Label：只读等宽数字（`<N> ms`），Font Size `--font-size-player-time`，Font Weight `600`，居中对齐，不接受输入或聚焦
 
 ##### Sizes
@@ -1096,9 +1095,6 @@
 - Item Gap：`--spacing-1`
 - Control Height：`--height-player-cue-control`
 - Toggle Padding Inline：`--padding-player-cue-toggle-x`
-- Toggle Dot to Label Gap：`--gap-player-cue-toggle-dot`
-- Stepper Padding：`--padding-player-cue-stepper`
-- Stepper Button Size：`--size-player-cue-stepper-button`
 - Gap Value Width：`--width-player-cue-gap-value`
 
 ##### Interaction
@@ -1110,11 +1106,11 @@
 ##### States
 
 - Toggle Button
-  - Default（Off）：Background `Transparent`；Dot `--color-player-text-tertiary`；Label `--color-player-text-secondary`
-  - Hover（Off）：Background `--color-player-control-bg-hover`；Dot `--color-player-text-tertiary`；Label `--color-player-text-primary`
-  - Open（On，含 Hover）：Background `--color-player-control-bg-hover`；Dot `--color-player-cue-control-status-active`；Label `--color-player-text-primary`
+  - Default（Off）：Background `Transparent`；Label `--color-player-text-secondary`
+  - Hover（Off）：Background `--color-player-control-bg-hover`；Label `--color-player-text-primary`
+  - Open（On，含 Hover）：Background `--color-player-control-bg-hover`；Label `--color-player-text-primary`
   - Pressed：Background `--color-player-control-bg-pressed`；Label `--color-player-text-primary`
-  - Disabled：Background `Transparent`；Dot 与 Label 均为 `--color-player-text-tertiary`
+  - Disabled：Background `Transparent`；Label `--color-player-text-tertiary`
 - Gap Stepper
   - Enabled：Value Label `--color-player-text-primary`；两侧按钮 Default `Transparent`、Hover `--color-player-control-bg-hover`、Pressed `--color-player-control-bg-pressed`，到达 `0 ms` 或 `10000 ms` 边界时对应按钮进入 `Disabled`（图标色 `--color-player-text-tertiary`）
   - Disabled（`Auto Switch` 关闭）：两侧按钮与中间 Value Label 均为 `--color-player-text-tertiary`

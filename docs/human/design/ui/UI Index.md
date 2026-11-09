@@ -76,7 +76,7 @@
 | | `C-08.6` | Tooltip | — |
 | | `C-08.7` | Section Title | — |
 | | `C-08.8` | Workbench Page Title | — |
-| | `C-08.9` | Keycap | `Overlay Surface`、`Popover Surface` |
+| | `C-08.9` | Keycap | `Overlay Surface`、`Popover Surface`、`Player Chrome` |
 | **2.9 Feedback** | `C-09.1` | Toast | — |
 | | `C-09.2` | Empty State | — |
 | | `C-09.3` | Progress Indicator | `Bar` |
