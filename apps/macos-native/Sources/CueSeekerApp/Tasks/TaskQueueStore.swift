@@ -177,9 +177,27 @@ enum TaskRenameStage: Equatable {
 /// every other card.
 @MainActor
 final class TaskProgressModel: ObservableObject {
-    @Published fileprivate(set) var exportedCount = 0
+    @Published var exportedCount = 0
+    @Published var failedCount = 0
     @Published fileprivate(set) var renameStage = TaskRenameStage.checkingConflicts
     @Published fileprivate(set) var indexProgress = TaskIndexProgress()
+}
+
+private final class ExportProgressBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var latest = AnkiExportResult(succeededCount: 0, failedCount: 0)
+
+    func store(_ value: AnkiExportResult) {
+        lock.lock()
+        latest = value
+        lock.unlock()
+    }
+
+    func load() -> AnkiExportResult {
+        lock.lock()
+        defer { lock.unlock() }
+        return latest
+    }
 }
 
 /// Runs one export. The queue calls this rather than the exporter directly so
@@ -189,7 +207,7 @@ typealias TaskExportRunner = @Sendable (
     _ items: [AnkiExportItem],
     _ options: AnkiExportOptions,
     _ destinationURL: URL,
-    _ onItemExported: @escaping @Sendable (Int) -> Void
+    _ onItemExported: @escaping @Sendable (AnkiExportResult) -> Void
 ) async throws -> Void
 
 /// Runs one rename: the conflict check, then the renames and the database
@@ -326,11 +344,11 @@ final class TaskQueueStore: ObservableObject {
     private var lastHistoryChangedAt: Date = .distantPast
 
     static let ankiExportRunner: TaskExportRunner = { items, options, destinationURL, onItemExported in
-        try await AnkiPackageExporter.export(
+        _ = try await AnkiPackageExporter.export(
             items: items,
             options: options,
             to: destinationURL,
-            onItemExported: onItemExported
+            onProgress: onItemExported
         )
     }
 
@@ -739,11 +757,19 @@ final class TaskQueueStore: ObservableObject {
             }
             let progress = entry.progress
             let runExport = runExport
+            let progressBox = ExportProgressBox()
             run(id: entry.id) {
-                try await runExport(items, options, destinationURL) { exportedCount in
+                try await runExport(items, options, destinationURL) { exportProgress in
+                    progressBox.store(exportProgress)
                     Task { @MainActor in
-                        progress.exportedCount = exportedCount
+                        progress.exportedCount = exportProgress.succeededCount
+                        progress.failedCount = exportProgress.failedCount
                     }
+                }
+                let finalProgress = progressBox.load()
+                await MainActor.run {
+                    progress.exportedCount = finalProgress.succeededCount
+                    progress.failedCount = finalProgress.failedCount
                 }
                 return nil
             }
@@ -840,6 +866,26 @@ final class TaskQueueStore: ObservableObject {
                     AppLogger.shared.error(
                         .database,
                         "Failed to update task item count",
+                        details: "id=\(id) error=\"\(error.localizedDescription)\""
+                    )
+                }
+            }
+        }
+
+        if failure == nil,
+           cancelledTaskIDs.contains(id) == false,
+           let index = current.firstIndex(where: { $0.id == id }),
+           current[index].record.kind == .ankiExport {
+            let failedCount = current[index].progress.failedCount
+            current[index].record = current[index].record.withFailedCount(failedCount)
+            let database = self.database
+            writeQueue.async {
+                do {
+                    try database?.updateFailedCount(id: id, to: failedCount)
+                } catch {
+                    AppLogger.shared.error(
+                        .database,
+                        "Failed to update task failed count",
                         details: "id=\(id) error=\"\(error.localizedDescription)\""
                     )
                 }

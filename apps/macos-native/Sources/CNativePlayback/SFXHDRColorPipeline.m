@@ -2067,6 +2067,18 @@ CGImageRef _Nullable SFXCopyRenderedVideoFrameImageAtMediaPath(
     NSInteger clampedTargetMs = MAX(0, timestampMilliseconds);
     double timelineOriginSeconds = SFXMediaTimelineOriginSeconds(formatContext);
     double targetSeconds = (double)clampedTargetMs / 1000.0;
+    double resolvedDurationSeconds = SFXResolveMediaDurationSeconds(
+        formatContext,
+        videoStreamIndex,
+        timelineOriginSeconds
+    );
+    if (isfinite(resolvedDurationSeconds)
+        && resolvedDurationSeconds > 0.0
+        && targetSeconds > resolvedDurationSeconds + 0.05) {
+        avcodec_free_context(&codecContext);
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
     if (clampedTargetMs > 0) {
         SFXSeekToStartPosition(
             formatContext,
@@ -2082,6 +2094,7 @@ CGImageRef _Nullable SFXCopyRenderedVideoFrameImageAtMediaPath(
     AVFrame *frame = av_frame_alloc();
     AVFrame *bestFrame = av_frame_alloc();
     BOOL hasBestFrame = NO;
+    BOOL reachedTarget = NO;
 
     while (av_read_frame(formatContext, packet) >= 0) {
         if (packet->stream_index != videoStreamIndex) {
@@ -2093,7 +2106,6 @@ CGImageRef _Nullable SFXCopyRenderedVideoFrameImageAtMediaPath(
         if (sendStatus < 0) {
             continue;
         }
-        BOOL reachedTarget = NO;
         while (avcodec_receive_frame(codecContext, frame) == 0) {
             av_frame_unref(bestFrame);
             av_frame_move_ref(bestFrame, frame);
@@ -2116,6 +2128,13 @@ CGImageRef _Nullable SFXCopyRenderedVideoFrameImageAtMediaPath(
             av_frame_unref(bestFrame);
             av_frame_move_ref(bestFrame, frame);
             hasBestFrame = YES;
+        }
+    }
+
+    if (!reachedTarget && hasBestFrame) {
+        double finalFrameSec = SFXFramePlaybackSeconds(bestFrame, videoStream, timelineOriginSeconds);
+        if (finalFrameSec >= 0.0 && finalFrameSec + 1.0 < targetSeconds) {
+            hasBestFrame = NO;
         }
     }
 

@@ -359,7 +359,7 @@ func aFailedExportMovesToIncompleteCarryingItsError() async throws {
 func theRunningTaskReportsHowManyCardsAreDone() async throws {
     let (store, databaseURL) = try makeTaskQueueStore(runExport: { items, _, _, onItemExported in
         for index in items.indices {
-            onItemExported(index + 1)
+            onItemExported(AnkiExportResult(succeededCount: index + 1))
         }
     })
     defer { removeTemporaryDatabase(at: databaseURL) }
@@ -1097,12 +1097,86 @@ func taskRecordTypeTitleAndDetailHelpersFollowSpecification() async throws {
     let runningRename = try #require(store.current.first(where: { $0.record.kind == .renameFolder }))
     await store.waitUntilIdle()
 
-    #expect(runningExport.record.runningStageText(progress: runningExport.progress) == L("task.progress.exported", 2, 4))
+    #expect(runningExport.record.runningStageText(progress: runningExport.progress) == L("task.progress.exported", 2, 4, 0))
     #expect(runningExport.record.runningProgressFraction(progress: runningExport.progress) == 0.5)
     #expect(runningRename.record.runningStageText(progress: runningRename.progress) == TaskRenameStage.renaming.label)
     #expect(runningRename.record.runningProgressFraction(progress: runningRename.progress) == 0.5)
     #expect(indexFolderRecord.runningStageText(progress: defaultProgress) == defaultProgress.indexProgress.label)
     #expect(indexFolderRecord.runningProgressFraction(progress: defaultProgress) == defaultProgress.indexProgress.fraction)
+}
+
+@MainActor
+@Test
+func ankiExportTracksSucceededAndFailedCountsAcrossRunningCompletedAndIncompleteStates() async throws {
+    let (store, databaseURL) = try makeTaskQueueStore(
+        runExport: { items, _, destinationURL, onProgress in
+            if destinationURL.lastPathComponent == "AllFailed.apkg" {
+                onProgress(AnkiExportResult(succeededCount: 0, failedCount: items.count))
+                throw AnkiPackageExportError.allCardsFailed
+            }
+            onProgress(AnkiExportResult(succeededCount: 2, failedCount: 1))
+            onProgress(AnkiExportResult(succeededCount: 8, failedCount: 2))
+        }
+    )
+    defer { removeTemporaryDatabase(at: databaseURL) }
+
+    // Check running stage text and progress fraction when some cards fail.
+    let progress = TaskProgressModel()
+    let sampleRunningRecord = TaskRecord(
+        id: 1,
+        kind: .ankiExport,
+        fileName: "Sample.apkg",
+        folderPath: "/Exports",
+        itemCount: 10,
+        state: .running,
+        errorMessage: nil,
+        createdAt: Date(),
+        startedAt: Date(),
+        stateChangedAt: Date()
+    )
+    progress.exportedCount = 3
+    progress.failedCount = 1
+    #expect(
+        sampleRunningRecord.runningStageText(progress: progress)
+            == L("task.progress.exported", 3, 10, 1)
+    )
+    #expect(sampleRunningRecord.runningProgressFraction(progress: progress) == 0.4)
+
+    store.enqueueAnkiExport(
+        items: exportItems(10),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/Partial.apkg")
+    )
+    store.enqueueAnkiExport(
+        items: exportItems(10),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/AllFailed.apkg")
+    )
+    await store.waitUntilIdle()
+
+    let completedRecord = try #require(store.completed.first(where: { $0.fileName == "Partial.apkg" }))
+    #expect(completedRecord.itemCount == 10)
+    #expect(completedRecord.failedCount == 2)
+    #expect(completedRecord.ankiSucceededCount == 8)
+    #expect(completedRecord.ankiFailedCount == 2)
+
+    let failedRecord = try #require(store.incomplete.first(where: { $0.fileName == "AllFailed.apkg" }))
+    #expect(failedRecord.itemCount == 10)
+    #expect(failedRecord.failedCount == 10)
+    #expect(failedRecord.ankiSucceededCount == 0)
+    #expect(failedRecord.ankiFailedCount == 10)
+    #expect(failedRecord.errorMessage == L("export.error.all_cards_failed"))
+
+    // Reopening from the database preserves both completed and incomplete counts.
+    let reopenedDatabase = try TaskRecordDatabase(path: databaseURL)
+    let reopenedStore = TaskQueueStore(database: reopenedDatabase)
+    reopenedStore.loadPersistedRecords()
+    let reopenedCompleted = try #require(reopenedStore.completed.first(where: { $0.fileName == "Partial.apkg" }))
+    #expect(reopenedCompleted.ankiSucceededCount == 8)
+    #expect(reopenedCompleted.ankiFailedCount == 2)
+    let reopenedFailed = try #require(reopenedStore.incomplete.first(where: { $0.fileName == "AllFailed.apkg" }))
+    #expect(reopenedFailed.ankiSucceededCount == 0)
+    #expect(reopenedFailed.ankiFailedCount == 10)
 }
 
 @MainActor

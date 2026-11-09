@@ -208,9 +208,14 @@ extension AppCoordinator {
     /// Hands the queue the export runner configured with the debug task delay.
     func configureAnkiExportRunner() {
         let database = libraryDatabase
+        let cueContentDatabase = cueContentDatabase
         tasks.runExport = { items, options, destinationURL, onItemExported in
             await AppCoordinator.waitForDebugTaskDelay()
-            let resolvedItems = Self.resolveDefaultAudioTracks(in: items, using: database)
+            let resolvedItems = Self.resolveDefaultAudioTracks(
+                in: items,
+                using: database,
+                cueContentDatabase: cueContentDatabase
+            )
             try await TaskQueueStore.ankiExportRunner(
                 resolvedItems,
                 options,
@@ -224,24 +229,37 @@ extension AppCoordinator {
     /// in the background queue rather than blocking dialog presentation.
     nonisolated static func resolveDefaultAudioTracks(
         in items: [AnkiExportItem],
-        using database: LibraryDatabase?
+        using database: LibraryDatabase?,
+        cueContentDatabase: CueContentDatabase? = nil
     ) -> [AnkiExportItem] {
         guard let database else {
             return items
         }
-        var audioTrackIndexes: [String: Int] = [:]
+        let liveCueIDs: Set<Int64>? = if let cueContentDatabase {
+            try? cueContentDatabase.liveCueIDs(among: items.compactMap(\.cueID))
+        } else {
+            nil
+        }
+        var audioTracksByVideoPath: [String: VideoAudioTracks?] = [:]
         return items.map { item in
             var item = item
-            let index: Int
-            if let cached = audioTrackIndexes[item.videoPath] {
-                index = cached
+            let tracks: VideoAudioTracks?
+            if let cached = audioTracksByVideoPath[item.videoPath] {
+                tracks = cached
             } else {
-                index = (try? database.videoAudioTracks(
+                let fetched = try? database.videoAudioTracks(
                     forVideoFile: URL.fromMediaPath(item.videoPath)
-                ))?.defaultIndex ?? 0
-                audioTrackIndexes[item.videoPath] = index
+                )
+                audioTracksByVideoPath[item.videoPath] = fetched
+                tracks = fetched
             }
-            item.audioTrackIndex = index
+            if tracks == nil {
+                item.isInLibrary = false
+            }
+            if let liveCueIDs, let cueID = item.cueID, !liveCueIDs.contains(cueID) {
+                item.isInLibrary = false
+            }
+            item.audioTrackIndex = tracks?.defaultIndex ?? 0
             return item
         }
     }

@@ -1557,7 +1557,7 @@ func schema64UpgradesTo65WithSubtitleEncodingColumn() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 65)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     let columns = try sqliteColumnNames(in: "subtitle_files", databaseURL: databaseURL)
     #expect(columns.contains("encoding"))
     #expect(
@@ -1565,6 +1565,45 @@ func schema64UpgradesTo65WithSubtitleEncodingColumn() throws {
             at: databaseURL,
             sql: "SELECT COALESCE(encoding, 'NULL') FROM subtitle_files WHERE subtitle_path = '/Media/sample.srt';"
         ) == "NULL"
+    )
+}
+
+@Test
+func schema65UpgradesTo66WithTaskRecordFailedCountColumn() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        ALTER TABLE task_records DROP COLUMN failed_count;
+        INSERT INTO task_records (kind, file_name, folder_path, item_count, state, error_message, created_at, state_changed_at)
+        VALUES
+            ('anki_export', 'Completed.apkg', '/Exports', 10, 'completed', NULL, '2026-11-10T00:00:00Z', '2026-11-10T00:00:01Z'),
+            ('anki_export', 'Incomplete.apkg', '/Exports', 10, 'incomplete', 'Cancelled by user', '2026-11-10T00:00:00Z', '2026-11-10T00:00:02Z');
+        PRAGMA user_version = 65;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 66)
+    let columns = try sqliteColumnNames(in: "task_records", databaseURL: databaseURL)
+    #expect(columns.contains("failed_count"))
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT CAST(failed_count AS TEXT) FROM task_records WHERE file_name = 'Completed.apkg';"
+        ) == "0"
+    )
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT CAST(failed_count AS TEXT) FROM task_records WHERE file_name = 'Incomplete.apkg';"
+        ) == "10"
     )
 }
 

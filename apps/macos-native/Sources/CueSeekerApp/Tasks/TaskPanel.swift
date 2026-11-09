@@ -620,7 +620,7 @@ private struct TaskRunningAnkiContent: View {
     let itemCount: Int
 
     var body: some View {
-        Text(L("task.progress.exported", progress.exportedCount, itemCount))
+        Text(L("task.progress.exported", progress.exportedCount, itemCount, progress.failedCount))
             .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
             .foregroundStyle(WorkbenchRedesignColors.textMuted)
             .lineLimit(1)
@@ -631,7 +631,7 @@ private struct TaskRunningAnkiContent: View {
 
     private var fraction: Double {
         guard itemCount > 0 else { return 0 }
-        return min(1, Double(progress.exportedCount) / Double(itemCount))
+        return min(1, Double(progress.exportedCount + progress.failedCount) / Double(itemCount))
     }
 }
 
@@ -755,7 +755,8 @@ private struct TaskHistoryCard: View {
          let time = tableSandboxExcerptDateAddedDisplayText(for: record.stateChangedAt)
          switch record.kind {
          case .ankiExport:
-             return "\(L("task.card_count", record.itemCount))  \(time)"
+             let displayedCardCount = record.state == .completed ? record.ankiSucceededCount : record.itemCount
+             return "\(L("task.card_count", displayedCardCount))  \(time)"
          case .renameFolder, .index, .addFolder, .removeFolder:
              return time
          case .renameFiles:
@@ -948,7 +949,7 @@ extension TaskRecord {
     func runningStageText(progress: TaskProgressModel) -> String {
         switch kind {
         case .ankiExport:
-            return L("task.progress.exported", progress.exportedCount, itemCount)
+            return L("task.progress.exported", progress.exportedCount, itemCount, progress.failedCount)
         case .renameFolder, .renameFiles:
             return progress.renameStage.label
         case .index, .addFolder:
@@ -963,7 +964,7 @@ extension TaskRecord {
         switch kind {
         case .ankiExport:
             guard itemCount > 0 else { return 0 }
-            return min(1, Double(progress.exportedCount) / Double(itemCount))
+            return min(1, Double(progress.exportedCount + progress.failedCount) / Double(itemCount))
         case .renameFolder, .renameFiles:
             return progress.renameStage.fraction
         case .index, .addFolder:
@@ -1013,6 +1014,20 @@ struct TaskDetailDialog: View {
                 )
                 SettingsRowDivider()
                 FileDetailRow(label: L("task_detail.card_count"), value: "\(record.itemCount)")
+                if record.state == .running, let progress {
+                    TaskDetailAnkiCountRows(progress: progress)
+                } else if record.state != .queued {
+                    SettingsRowDivider()
+                    FileDetailRow(
+                        label: L("task_detail.succeeded_count"),
+                        value: "\(record.ankiSucceededCount)"
+                    )
+                    SettingsRowDivider()
+                    FileDetailRow(
+                        label: L("task_detail.failed_count"),
+                        value: "\(record.ankiFailedCount)"
+                    )
+                }
             }
         case .renameFolder:
             SettingsGroup(title: L("task_detail.section.rename_info")) {
@@ -1160,6 +1175,23 @@ struct TaskDetailDialog: View {
                 )
             }
         }
+    }
+}
+
+private struct TaskDetailAnkiCountRows: View {
+    @ObservedObject var progress: TaskProgressModel
+
+    var body: some View {
+        SettingsRowDivider()
+        FileDetailRow(
+            label: L("task_detail.succeeded_count"),
+            value: "\(progress.exportedCount)"
+        )
+        SettingsRowDivider()
+        FileDetailRow(
+            label: L("task_detail.failed_count"),
+            value: "\(progress.failedCount)"
+        )
     }
 }
 

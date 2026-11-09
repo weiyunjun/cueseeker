@@ -20,7 +20,7 @@ func migratedSchemaCarriesTheTaskRecordTable() throws {
         try sqliteColumnNames(in: "task_records", databaseURL: databaseURL) == [
             "id", "kind", "file_name", "folder_path", "item_count",
             "state", "error_message", "created_at", "state_changed_at",
-            "old_paths", "new_paths", "started_at"
+            "old_paths", "new_paths", "started_at", "failed_count"
         ]
     )
 }
@@ -305,6 +305,58 @@ func aRenameRecordKeepsItsPathsOnePerLine() throws {
     let record = try #require(try database.records().first)
     #expect(record.id == inserted.id)
     #expect(record.kind == .renameFiles)
-    #expect(record.oldPaths == ["/Show/EP01.mkv", "/Show/EP01.srt"])
+    #expect(record.oldPaths == ["/Show/EP01.mkv", "/Show/EP09.srt".replacingOccurrences(of: "EP09", with: "EP01")])
     #expect(record.newPaths == ["/Show/EP09.mkv", "/Show/EP09.srt"])
+}
+
+@Test
+func ankiExportRecordPersistsFailedCountAndDerivesSucceededAndFailedCounts() throws {
+    let (database, databaseURL) = try makeTaskRecordDatabase()
+    defer { removeTemporaryDatabase(at: databaseURL) }
+
+    let partial = try database.insertQueuedTask(
+        kind: .ankiExport,
+        fileName: "Partial.apkg",
+        folderPath: "/Exports",
+        itemCount: 10
+    )
+    try database.updateFailedCount(id: partial.id, to: 2)
+    try database.updateState(id: partial.id, to: .completed)
+
+    let cancelled = try database.insertQueuedTask(
+        kind: .ankiExport,
+        fileName: "Cancelled.apkg",
+        folderPath: "/Exports",
+        itemCount: 10
+    )
+    try database.updateState(id: cancelled.id, to: .incomplete, errorMessage: "Cancelled by user")
+
+    let interrupted = try database.insertQueuedTask(
+        kind: .ankiExport,
+        fileName: "Interrupted.apkg",
+        folderPath: "/Exports",
+        itemCount: 6
+    )
+    try database.markUnfinishedTasksIncomplete(message: "Interrupted")
+
+    let recordsByID = Dictionary(
+        uniqueKeysWithValues: try database.records().map { ($0.id, $0) }
+    )
+    let savedPartial = try #require(recordsByID[partial.id])
+    #expect(savedPartial.itemCount == 10)
+    #expect(savedPartial.failedCount == 2)
+    #expect(savedPartial.ankiSucceededCount == 8)
+    #expect(savedPartial.ankiFailedCount == 2)
+
+    let savedCancelled = try #require(recordsByID[cancelled.id])
+    #expect(savedCancelled.itemCount == 10)
+    #expect(savedCancelled.failedCount == 10)
+    #expect(savedCancelled.ankiSucceededCount == 0)
+    #expect(savedCancelled.ankiFailedCount == 10)
+
+    let savedInterrupted = try #require(recordsByID[interrupted.id])
+    #expect(savedInterrupted.itemCount == 6)
+    #expect(savedInterrupted.failedCount == 6)
+    #expect(savedInterrupted.ankiSucceededCount == 0)
+    #expect(savedInterrupted.ankiFailedCount == 6)
 }

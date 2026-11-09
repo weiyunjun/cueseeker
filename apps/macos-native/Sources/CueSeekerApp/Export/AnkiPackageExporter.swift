@@ -20,6 +20,24 @@ struct AnkiExportItem: Sendable {
     let subtitlePath: String
     /// The video's default audio track, counted from 0 among its audio streams.
     var audioTrackIndex = 0
+    /// False when the cue or its matched video has left the library before the
+    /// export task processes the card.
+    var isInLibrary = true
+}
+
+struct AnkiExportResult: Equatable, Sendable, ExpressibleByIntegerLiteral {
+    let succeededCount: Int
+    let failedCount: Int
+
+    init(succeededCount: Int, failedCount: Int = 0) {
+        self.succeededCount = succeededCount
+        self.failedCount = failedCount
+    }
+
+    init(integerLiteral value: Int) {
+        self.succeededCount = value
+        self.failedCount = 0
+    }
 }
 
 /// An item that can be placed on an Anki card.
@@ -71,8 +89,9 @@ struct AnkiExportOptions: Equatable, Codable, Sendable {
     }
 }
 
-enum AnkiPackageExportError: Error, CustomStringConvertible {
+enum AnkiPackageExportError: Error, Equatable, CustomStringConvertible {
     case emptyItems
+    case allCardsFailed
     case ffmpegNotFound
     case sqliteOpenFailed(String)
     case sqliteExecuteFailed(String)
@@ -85,6 +104,8 @@ enum AnkiPackageExportError: Error, CustomStringConvertible {
         switch self {
         case .emptyItems:
             L("export.error.no_items")
+        case .allCardsFailed:
+            L("export.error.all_cards_failed")
         case .ffmpegNotFound:
             L("export.error.ffmpeg_missing")
         case .sqliteOpenFailed(let message):
@@ -103,24 +124,31 @@ enum AnkiPackageExportError: Error, CustomStringConvertible {
     }
 }
 
+private enum AnkiCardExportFailure: Error {
+    case cardInvalidOrMediaExtractionFailed
+}
+
 enum AnkiPackageExporter {
     private static let deckPrefix = "CueSeeker::"
     /// Two spaces between the items that share a line of the card.
     private static let itemSeparator = "&nbsp;&nbsp;"
 
-    /// `onItemExported` reports how many cards are finished, once per card. It
-    /// is called off the main actor, so a caller that drives UI with it has to
-    /// hop.
+    /// `onItemExported` and `onProgress` report card counts as each card
+    /// finishes. They are called off the main actor, so a caller that drives UI
+    /// with them has to hop.
+    @discardableResult
     static func export(
         items: [AnkiExportItem],
         options: AnkiExportOptions,
         to destinationURL: URL,
-        onItemExported: (@Sendable (Int) -> Void)? = nil
-    ) async throws {
+        customFFmpegExecutableURL: URL? = nil,
+        onItemExported: (@Sendable (Int) -> Void)? = nil,
+        onProgress: (@Sendable (AnkiExportResult) -> Void)? = nil
+    ) async throws -> AnkiExportResult {
         guard !items.isEmpty else {
             throw AnkiPackageExportError.emptyItems
         }
-        guard let ffmpegURL = ffmpegExecutableURL() else {
+        guard let ffmpegURL = customFFmpegExecutableURL ?? ffmpegExecutableURL() else {
             throw AnkiPackageExportError.ffmpegNotFound
         }
 
@@ -134,75 +162,106 @@ enum AnkiPackageExporter {
         var notes: [AnkiPackageNote] = []
         var mediaMap: [String: String] = [:]
         var mediaIndex = 0
+        var failedCount = 0
         var audioTrackIndexes: [String: Int] = [:]
         var videoScaleFilters: [String: String] = [:]
 
         for (index, item) in items.enumerated() {
             try Task.checkCancellation()
 
+            guard canExportCard(for: item, options: options) else {
+                failedCount += 1
+                let progress = AnkiExportResult(succeededCount: notes.count, failedCount: failedCount)
+                onItemExported?(progress.succeededCount)
+                onProgress?(progress)
+                continue
+            }
+
             let baseName = "cueseeker_\(index + 1)_\(stableHash(item.videoPath + "\(item.startMilliseconds)"))"
-            var audioField = ""
-            if options.includes(.audio) {
-                let audioName = "\(baseName).mp3"
-                let audioMediaKey = "\(mediaIndex)"
-                let audioURL = workspaceURL.appendingPathComponent(audioMediaKey)
-                let audioExportURL = workspaceURL.appendingPathComponent("\(audioMediaKey).mp3")
-                mediaMap[audioMediaKey] = audioName
-                mediaIndex += 1
+            let tempAudioURL = workspaceURL.appendingPathComponent("temp_\(index).mp3")
+            let tempImageURL = workspaceURL.appendingPathComponent("temp_\(index).jpg")
+            let audioName = "\(baseName).mp3"
+            let imageName = "\(baseName).jpg"
 
-                let audioTrackIndex = audioTrackIndexes[item.videoPath] ?? audioTrackIndex(for: item)
-                audioTrackIndexes[item.videoPath] = audioTrackIndex
-                try await exportAudio(
-                    item: item,
-                    audioTrackIndex: audioTrackIndex,
-                    ffmpegURL: ffmpegURL,
-                    outputURL: audioExportURL
+            do {
+                if options.includes(.audio) {
+                    let audioTrackIndex = audioTrackIndexes[item.videoPath] ?? audioTrackIndex(for: item)
+                    audioTrackIndexes[item.videoPath] = audioTrackIndex
+                    try await exportAudio(
+                        item: item,
+                        audioTrackIndex: audioTrackIndex,
+                        ffmpegURL: ffmpegURL,
+                        outputURL: tempAudioURL
+                    )
+                }
+
+                if options.includes(.screenshot) {
+                    let resolvedInput = WebDAVClient.shared.resolvePlayableInput(
+                        for: URL.fromMediaPath(item.videoPath)
+                    )
+                    let scaleFilter = videoScaleFilters[item.videoPath]
+                        ?? videoScaleFilter(for: resolvedInput)
+                    videoScaleFilters[item.videoPath] = scaleFilter
+                    try await exportImage(
+                        item: item,
+                        resolvedInput: resolvedInput,
+                        scaleFilter: scaleFilter,
+                        ffmpegURL: ffmpegURL,
+                        usesCustomFFmpeg: customFFmpegExecutableURL != nil,
+                        outputURL: tempImageURL
+                    )
+                }
+
+                var audioField = ""
+                if options.includes(.audio) {
+                    let audioMediaKey = "\(mediaIndex)"
+                    let audioURL = workspaceURL.appendingPathComponent(audioMediaKey)
+                    try FileManager.default.moveItem(at: tempAudioURL, to: audioURL)
+                    mediaMap[audioMediaKey] = audioName
+                    mediaIndex += 1
+                    audioField = "[sound:\(audioName)]"
+                }
+
+                var imageField = ""
+                if options.includes(.screenshot) {
+                    let imageMediaKey = "\(mediaIndex)"
+                    let imageURL = workspaceURL.appendingPathComponent(imageMediaKey)
+                    try FileManager.default.moveItem(at: tempImageURL, to: imageURL)
+                    mediaMap[imageMediaKey] = imageName
+                    mediaIndex += 1
+                    imageField = "<img src=\"\(imageName)\">"
+                }
+
+                let details = detailFields(for: item, options: options)
+                notes.append(
+                    AnkiPackageNote(
+                        deckName: deckPrefix + item.deckDisplayTitle,
+                        audioField: audioField,
+                        imageField: imageField,
+                        textField: options.includes(.cueText) ? textHTML(for: item.text) : "",
+                        cueGroupField: details.cueGroup,
+                        displayTitleField: details.displayTitle,
+                        timeRangeField: details.timeRange,
+                        deepLinkField: details.deepLink
+                    )
                 )
-                try FileManager.default.moveItem(at: audioExportURL, to: audioURL)
-                audioField = "[sound:\(audioName)]"
+            } catch {
+                try? FileManager.default.removeItem(at: tempAudioURL)
+                try? FileManager.default.removeItem(at: tempImageURL)
+                if Task.isCancelled || error is CancellationError {
+                    throw CancellationError()
+                }
+                failedCount += 1
             }
 
-            var imageField = ""
-            if options.includes(.screenshot) {
-                let imageName = "\(baseName).jpg"
-                let imageMediaKey = "\(mediaIndex)"
-                let imageURL = workspaceURL.appendingPathComponent(imageMediaKey)
-                let imageExportURL = workspaceURL.appendingPathComponent("\(imageMediaKey).jpg")
-                mediaMap[imageMediaKey] = imageName
-                mediaIndex += 1
+            let progress = AnkiExportResult(succeededCount: notes.count, failedCount: failedCount)
+            onItemExported?(progress.succeededCount)
+            onProgress?(progress)
+        }
 
-                let resolvedInput = WebDAVClient.shared.resolvePlayableInput(
-                    for: URL.fromMediaPath(item.videoPath)
-                )
-                let scaleFilter = videoScaleFilters[item.videoPath]
-                    ?? videoScaleFilter(for: resolvedInput)
-                videoScaleFilters[item.videoPath] = scaleFilter
-                try await exportImage(
-                    item: item,
-                    resolvedInput: resolvedInput,
-                    scaleFilter: scaleFilter,
-                    ffmpegURL: ffmpegURL,
-                    outputURL: imageExportURL
-                )
-                try FileManager.default.moveItem(at: imageExportURL, to: imageURL)
-                imageField = "<img src=\"\(imageName)\">"
-            }
-
-            let details = detailFields(for: item, options: options)
-            notes.append(
-                AnkiPackageNote(
-                    deckName: deckPrefix + item.deckDisplayTitle,
-                    audioField: audioField,
-                    imageField: imageField,
-                    textField: options.includes(.cueText) ? textHTML(for: item.text) : "",
-                    cueGroupField: details.cueGroup,
-                    displayTitleField: details.displayTitle,
-                    timeRangeField: details.timeRange,
-                    deepLinkField: details.deepLink
-                )
-            )
-
-            onItemExported?(index + 1)
+        try Task.checkCancellation()
+        guard !notes.isEmpty else {
+            throw AnkiPackageExportError.allCardsFailed
         }
 
         let collectionURL = workspaceURL.appendingPathComponent("collection.anki2")
@@ -225,6 +284,37 @@ enum AnkiPackageExporter {
             arguments: ["-q", "-r", destinationURL.path, "collection.anki2", "media"] + mediaMap.keys.sorted(),
             currentDirectoryURL: workspaceURL
         )
+        return AnkiExportResult(succeededCount: notes.count, failedCount: failedCount)
+    }
+
+    static func canExportCard(for item: AnkiExportItem, options: AnkiExportOptions) -> Bool {
+        guard item.isInLibrary else {
+            return false
+        }
+        if options.includes(.cueText),
+           item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return false
+        }
+        if options.includes(.displayTitle),
+           item.displayTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return false
+        }
+        if options.includes(.timeRange),
+           item.timeRange.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return false
+        }
+        if options.includes(.deepLink),
+           item.cueID == nil {
+            return false
+        }
+        let hasCueGroupText = item.cueGroupOtherTexts.contains {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        if !hasCueGroupText,
+           options.frontItems == [.cueGroupText] || options.backItems == [.cueGroupText] {
+            return false
+        }
+        return true
     }
 
     static func defaultFileName(exportedAt: Date = Date()) -> String {
@@ -264,6 +354,14 @@ enum AnkiPackageExporter {
         let resolvedInput = WebDAVClient.shared.resolvePlayableInput(
             for: URL.fromMediaPath(item.videoPath)
         )
+        if let durationSeconds = (try? SFXMediaMetadataInspector.metadata(
+            atMediaPath: resolvedInput.inputPath,
+            httpHeaders: resolvedInput.httpHeaders
+        ))?.durationSeconds?.doubleValue,
+           durationSeconds > 0,
+           startSeconds >= durationSeconds {
+            throw AnkiCardExportFailure.cardInvalidOrMediaExtractionFailed
+        }
         var arguments = [
             "-nostdin",
             "-y",
@@ -289,6 +387,9 @@ enum AnkiPackageExporter {
             executableURL: ffmpegURL,
             arguments: arguments
         )
+        guard hasNonEmptyFile(at: outputURL) else {
+            throw AnkiCardExportFailure.cardInvalidOrMediaExtractionFailed
+        }
     }
 
     private static func videoScaleFilter(for resolvedInput: WebDAVPlayableInput) -> String {
@@ -307,12 +408,13 @@ enum AnkiPackageExporter {
         resolvedInput: WebDAVPlayableInput,
         scaleFilter: String,
         ffmpegURL: URL,
+        usesCustomFFmpeg: Bool = false,
         outputURL: URL
     ) async throws {
         let midpointMilliseconds = max(0, (item.startMilliseconds + item.endMilliseconds) / 2)
         let customFFmpegBin = ProcessInfo.processInfo.environment["CUESEEKER_FFMPEG_BIN"]?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if customFFmpegBin.isEmpty {
+        if !usesCustomFFmpeg, customFFmpegBin.isEmpty {
             let inputPath = resolvedInput.inputPath
             let httpHeaders = resolvedInput.httpHeaders
             if let renderedImage = await Task.detached(priority: .userInitiated, operation: {
@@ -324,7 +426,8 @@ enum AnkiPackageExporter {
                     nil
                 )
             }).value,
-               writeJPEG(renderedImage, to: outputURL) {
+               writeJPEG(renderedImage, to: outputURL),
+               hasNonEmptyFile(at: outputURL) {
                 return
             }
         }
@@ -350,6 +453,18 @@ enum AnkiPackageExporter {
             executableURL: ffmpegURL,
             arguments: arguments
         )
+        guard hasNonEmptyFile(at: outputURL) else {
+            throw AnkiCardExportFailure.cardInvalidOrMediaExtractionFailed
+        }
+    }
+
+    private static func hasNonEmptyFile(at url: URL) -> Bool {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let fileSize = attributes[.size] as? NSNumber
+        else {
+            return false
+        }
+        return fileSize.int64Value > 0
     }
 
     private static func writeJPEG(_ image: CGImage, to outputURL: URL) -> Bool {

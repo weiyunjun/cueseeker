@@ -575,6 +575,27 @@ extension DatabaseBootstrap {
         }
     }
 
+    /// Schema 66 stores `failed_count` on `task_records` so completed and
+    /// incomplete Anki export tasks preserve their per-card success and failure
+    /// counts across launches.
+    static func migrateSchema65To66(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let taskColumns = try columnNames(of: "task_records", in: database)
+            if !taskColumns.isEmpty, !taskColumns.contains("failed_count") {
+                try database.execute(
+                    """
+                    ALTER TABLE task_records
+                        ADD COLUMN failed_count INTEGER NOT NULL DEFAULT 0;
+                    UPDATE task_records
+                    SET failed_count = item_count
+                    WHERE kind = 'anki_export' AND state = 'incomplete';
+                    """
+                )
+            }
+            try database.execute("PRAGMA user_version = 66;")
+        }
+    }
+
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(

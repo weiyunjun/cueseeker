@@ -25,6 +25,7 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
     public let fileName: String
     public let folderPath: String
     public let itemCount: Int
+    public let failedCount: Int
     public let state: TaskRecordState
     public let errorMessage: String?
     public let createdAt: Date
@@ -45,6 +46,7 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
         fileName: String,
         folderPath: String,
         itemCount: Int,
+        failedCount: Int = 0,
         state: TaskRecordState,
         errorMessage: String?,
         createdAt: Date,
@@ -58,6 +60,7 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
         self.fileName = fileName
         self.folderPath = folderPath
         self.itemCount = itemCount
+        self.failedCount = failedCount
         self.state = state
         self.errorMessage = errorMessage
         self.createdAt = createdAt
@@ -65,6 +68,20 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
         self.stateChangedAt = stateChangedAt
         self.oldPaths = oldPaths
         self.newPaths = newPaths
+    }
+
+    public var ankiSucceededCount: Int {
+        guard state != .incomplete else {
+            return 0
+        }
+        return max(0, itemCount - ankiFailedCount)
+    }
+
+    public var ankiFailedCount: Int {
+        guard state != .incomplete else {
+            return max(0, itemCount)
+        }
+        return max(0, min(failedCount, max(0, itemCount)))
     }
 
     /// An Index only knows how much it indexed once it has run, so its count
@@ -76,6 +93,25 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
             fileName: fileName,
             folderPath: folderPath,
             itemCount: itemCount,
+            failedCount: failedCount,
+            state: state,
+            errorMessage: errorMessage,
+            createdAt: createdAt,
+            startedAt: startedAt,
+            stateChangedAt: stateChangedAt,
+            oldPaths: oldPaths,
+            newPaths: newPaths
+        )
+    }
+
+    public func withFailedCount(_ failedCount: Int) -> TaskRecord {
+        TaskRecord(
+            id: id,
+            kind: kind,
+            fileName: fileName,
+            folderPath: folderPath,
+            itemCount: itemCount,
+            failedCount: failedCount,
             state: state,
             errorMessage: errorMessage,
             createdAt: createdAt,
@@ -97,6 +133,7 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
             fileName: fileName,
             folderPath: folderPath,
             itemCount: itemCount,
+            failedCount: (kind == .ankiExport && state == .incomplete) ? itemCount : failedCount,
             state: state,
             errorMessage: errorMessage,
             createdAt: createdAt,
@@ -132,7 +169,8 @@ public final class TaskRecordDatabase: @unchecked Sendable {
                state_changed_at,
                old_paths,
                new_paths,
-               started_at
+               started_at,
+               failed_count
         FROM task_records
         """
 
@@ -239,7 +277,11 @@ public final class TaskRecordDatabase: @unchecked Sendable {
             SET state = ?,
                 error_message = ?,
                 state_changed_at = ?,
-                started_at = COALESCE(started_at, ?)
+                started_at = COALESCE(started_at, ?),
+                failed_count = CASE
+                    WHEN ? = 'incomplete' AND kind = 'anki_export' THEN item_count
+                    ELSE failed_count
+                END
             WHERE id = ?;
             """
         )
@@ -256,7 +298,8 @@ public final class TaskRecordDatabase: @unchecked Sendable {
         } else {
             try statement.bindNull(at: 4)
         }
-        try statement.bind(id, at: 5)
+        try statement.bind(state.rawValue, at: 5)
+        try statement.bind(id, at: 6)
         try statement.run()
     }
 
@@ -265,6 +308,15 @@ public final class TaskRecordDatabase: @unchecked Sendable {
             "UPDATE task_records SET item_count = ? WHERE id = ?;"
         )
         try statement.bind(itemCount, at: 1)
+        try statement.bind(id, at: 2)
+        try statement.run()
+    }
+
+    public func updateFailedCount(id: Int64, to failedCount: Int) throws {
+        let statement = try database.prepare(
+            "UPDATE task_records SET failed_count = ? WHERE id = ?;"
+        )
+        try statement.bind(failedCount, at: 1)
         try statement.bind(id, at: 2)
         try statement.run()
     }
@@ -286,7 +338,13 @@ public final class TaskRecordDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             UPDATE task_records
-            SET state = ?, error_message = ?, state_changed_at = ?
+            SET state = ?,
+                error_message = ?,
+                state_changed_at = ?,
+                failed_count = CASE
+                    WHEN kind = 'anki_export' THEN item_count
+                    ELSE failed_count
+                END
             WHERE state IN (?, ?);
             """
         )
@@ -313,6 +371,7 @@ public final class TaskRecordDatabase: @unchecked Sendable {
             fileName: statement.stringColumn(2),
             folderPath: statement.stringColumn(3),
             itemCount: statement.intColumn(4),
+            failedCount: statement.intColumn(12),
             state: state,
             errorMessage: statement.nullableStringColumn(6),
             createdAt: createdAt,

@@ -534,6 +534,7 @@
 "export.error.database_bind" = "Could not bind Anki database SQL: %@";
 "export.error.database_write" = "Could not write Anki database SQL: %@";
 "export.error.process_exit" = "%1$@ exited with status %2$d.";
+"export.error.all_cards_failed" = "All cards failed to export";
 
 /* Running status */
 "status.indexing_running" = "Indexing is running";
@@ -563,7 +564,7 @@
 "task.status.in_progress" = "In Progress";
 "task.status.queued" = "Queued";
 "task.name.anki_export" = "Export to Anki";
-"task.progress.exported" = "%1$d / %2$d cards exported";
+"task.progress.exported" = "%1$d / %2$d cards exported, %3$d unsuccessful";
 "task.card_count" = "%d cards";
 "task.files_count" = "%d files";
 "task.progress.removing" = "Removing folder";
@@ -700,6 +701,8 @@
 "task_detail.file_name" = "File Name";
 "task_detail.location" = "Location";
 "task_detail.card_count" = "Card Count";
+"task_detail.succeeded_count" = "Succeeded";
+"task_detail.failed_count" = "Failed";
 "task_detail.original_path" = "Original Path";
 "task_detail.new_path" = "New Path";
 "task_detail.file_count" = "File Count";

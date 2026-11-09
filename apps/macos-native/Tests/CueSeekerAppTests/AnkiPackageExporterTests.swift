@@ -451,3 +451,213 @@ func ankiPackageExporterExportsCardScreenshotsForSquareAndAnamorphicVideosWithBu
     #expect(stretchSize.width == 192 && stretchSize.height == 108)
     #expect(rotatedStretchSize.width == 108 && rotatedStretchSize.height == 192)
 }
+
+@Test
+func ankiCanExportCardValidatesLibraryMembershipMissingFieldsAndCueGroupTextBoundary() {
+    let validWithEmptyCueGroup = ankiCardItem(cueGroupOtherTexts: [])
+    #expect(
+        AnkiPackageExporter.canExportCard(
+            for: validWithEmptyCueGroup,
+            options: AnkiExportOptions(
+                frontItems: [.audio],
+                backItems: [.cueText, .cueGroupText]
+            )
+        )
+    )
+    #expect(
+        !AnkiPackageExporter.canExportCard(
+            for: validWithEmptyCueGroup,
+            options: AnkiExportOptions(
+                frontItems: [.cueGroupText],
+                backItems: [.cueText]
+            )
+        )
+    )
+    #expect(
+        !AnkiPackageExporter.canExportCard(
+            for: validWithEmptyCueGroup,
+            options: AnkiExportOptions(
+                frontItems: [.audio],
+                backItems: [.cueGroupText]
+            )
+        )
+    )
+    #expect(
+        AnkiPackageExporter.canExportCard(
+            for: ankiCardItem(cueGroupOtherTexts: ["Line two"]),
+            options: AnkiExportOptions(
+                frontItems: [.audio],
+                backItems: [.cueGroupText]
+            )
+        )
+    )
+
+    var removedFromLibrary = ankiCardItem()
+    removedFromLibrary.isInLibrary = false
+    #expect(!AnkiPackageExporter.canExportCard(for: removedFromLibrary, options: AnkiExportOptions()))
+
+    #expect(
+        !AnkiPackageExporter.canExportCard(
+            for: AnkiExportItem(
+                deckDisplayTitle: "Frieren",
+                videoPath: "/Videos/Frieren S01E01.mkv",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "   ",
+                displayTitle: "Frieren S01E01",
+                timeRange: "00:01 - 00:02",
+                cueGroupOtherTexts: [],
+                cueID: 1,
+                subtitlePath: "/Videos/Frieren S01E01.srt"
+            ),
+            options: AnkiExportOptions(frontItems: [.audio], backItems: [.cueText])
+        )
+    )
+    #expect(
+        !AnkiPackageExporter.canExportCard(
+            for: ankiCardItem(displayTitle: ""),
+            options: AnkiExportOptions(frontItems: [.audio], backItems: [.displayTitle])
+        )
+    )
+    #expect(
+        !AnkiPackageExporter.canExportCard(
+            for: ankiCardItem(timeRange: ""),
+            options: AnkiExportOptions(frontItems: [.audio], backItems: [.timeRange])
+        )
+    )
+    #expect(
+        !AnkiPackageExporter.canExportCard(
+            for: ankiCardItem(cueID: nil),
+            options: AnkiExportOptions(frontItems: [.audio], backItems: [.deepLink])
+        )
+    )
+}
+
+@Test
+func ankiPackageExporterSkipsFailedCardsContinuesRemainingCardsAndFailsTaskWhenAllCardsFail() async throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerAnkiEdgeCaseTests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let fakeFFmpeg = directory.appendingPathComponent("ffmpeg")
+    let script = """
+    #!/bin/sh
+    for arg in "$@"; do
+      case "$arg" in
+        *fail_media*) exit 1 ;;
+        *empty_image*)
+          last=""
+          for out in "$@"; do last="$out"; done
+          case "$last" in
+            *.mp3) printf 'mp3' > "$last"; exit 0 ;;
+            *.jpg) : > "$last"; exit 0 ;;
+          esac
+          ;;
+      esac
+      out="$arg"
+    done
+    case "$out" in
+      *.mp3) printf 'mp3' > "$out" ;;
+      *.jpg) printf 'jpg' > "$out" ;;
+    esac
+    """
+    try script.write(to: fakeFFmpeg, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeFFmpeg.path)
+
+    let options = AnkiExportOptions(
+        frontItems: [.audio, .screenshot],
+        backItems: [.cueText, .cueGroupText]
+    )
+    let firstValid = AnkiExportItem(
+        deckDisplayTitle: "Frieren",
+        videoPath: "/Videos/ok_first.mkv",
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000,
+        text: "First valid cue",
+        displayTitle: "Frieren S01E01",
+        timeRange: "00:01 - 00:02",
+        cueGroupOtherTexts: [],
+        cueID: 1,
+        subtitlePath: "/Videos/Frieren S01E01.srt"
+    )
+    let failedMedia = AnkiExportItem(
+        deckDisplayTitle: "Frieren",
+        videoPath: "/Videos/fail_media.mkv",
+        startMilliseconds: 3_000,
+        endMilliseconds: 4_000,
+        text: "Failed media cue",
+        displayTitle: "Frieren S01E01",
+        timeRange: "00:03 - 00:04",
+        cueGroupOtherTexts: ["Other line"],
+        cueID: 2,
+        subtitlePath: "/Videos/Frieren S01E01.srt"
+    )
+    let failedEmptyImageAfterValidAudio = AnkiExportItem(
+        deckDisplayTitle: "Frieren",
+        videoPath: "/Videos/empty_image.mkv",
+        startMilliseconds: 5_000,
+        endMilliseconds: 6_000,
+        text: "Failed screenshot cue",
+        displayTitle: "Frieren S01E01",
+        timeRange: "00:05 - 00:06",
+        cueGroupOtherTexts: ["Other line"],
+        cueID: 3,
+        subtitlePath: "/Videos/Frieren S01E01.srt"
+    )
+    var removedCue = firstValid
+    removedCue.isInLibrary = false
+    let secondValid = AnkiExportItem(
+        deckDisplayTitle: "Frieren",
+        videoPath: "/Videos/ok_second.mkv",
+        startMilliseconds: 7_000,
+        endMilliseconds: 8_000,
+        text: "Second valid cue",
+        displayTitle: "Frieren S01E01",
+        timeRange: "00:07 - 00:08",
+        cueGroupOtherTexts: ["Companion line"],
+        cueID: 4,
+        subtitlePath: "/Videos/Frieren S01E01.srt"
+    )
+
+    let partialApkgURL = directory.appendingPathComponent("Partial.apkg")
+    let result = try await AnkiPackageExporter.export(
+        items: [firstValid, failedMedia, failedEmptyImageAfterValidAudio, removedCue, secondValid],
+        options: options,
+        to: partialApkgURL,
+        customFFmpegExecutableURL: fakeFFmpeg
+    )
+    #expect(result == AnkiExportResult(succeededCount: 2, failedCount: 3))
+    #expect(FileManager.default.fileExists(atPath: partialApkgURL.path))
+
+    let unpackedDir = directory.appendingPathComponent("unpacked_partial", isDirectory: true)
+    try FileManager.default.createDirectory(at: unpackedDir, withIntermediateDirectories: true)
+    let unzipProcess = Process()
+    unzipProcess.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+    unzipProcess.arguments = ["-q", partialApkgURL.path, "-d", unpackedDir.path]
+    try unzipProcess.run()
+    unzipProcess.waitUntilExit()
+    #expect(unzipProcess.terminationStatus == 0)
+
+    let mediaData = try Data(contentsOf: unpackedDir.appendingPathComponent("media"))
+    let mediaMap = try #require(
+        try JSONSerialization.jsonObject(with: mediaData) as? [String: String]
+    )
+    // Only the 2 succeeded cards' audio + screenshot files (4 total) are packaged.
+    #expect(mediaMap.count == 4)
+    #expect(!FileManager.default.fileExists(atPath: unpackedDir.appendingPathComponent("4").path))
+
+    // When all cards fail, no .apkg is generated and allCardsFailed is thrown.
+    let allFailedApkgURL = directory.appendingPathComponent("AllFailed.apkg")
+    await #expect(throws: AnkiPackageExportError.allCardsFailed) {
+        try await AnkiPackageExporter.export(
+            items: [failedMedia, removedCue],
+            options: options,
+            to: allFailedApkgURL,
+            customFFmpegExecutableURL: fakeFFmpeg
+        )
+    }
+    #expect(!FileManager.default.fileExists(atPath: allFailedApkgURL.path))
+}

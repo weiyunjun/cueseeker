@@ -534,6 +534,7 @@
 "export.error.database_bind" = "无法绑定 Anki 数据库 SQL：%@";
 "export.error.database_write" = "无法写入 Anki 数据库 SQL：%@";
 "export.error.process_exit" = "%1$@ 退出，状态码 %2$d。";
+"export.error.all_cards_failed" = "全部卡片导出失败";
 
 /* Running status */
 "status.indexing_running" = "正在索引";
@@ -563,7 +564,7 @@
 "task.status.in_progress" = "进行中";
 "task.status.queued" = "排队中";
 "task.name.anki_export" = "导出到 Anki";
-"task.progress.exported" = "已导出 %1$d / %2$d 张卡片";
+"task.progress.exported" = "已导出 %1$d / %2$d 张卡片，%3$d 张失败";
 "task.card_count" = "%d 张卡片";
 "task.files_count" = "%d 个文件";
 "task.progress.removing" = "正在移除文件夹";
@@ -700,6 +701,8 @@
 "task_detail.file_name" = "文件名";
 "task_detail.location" = "位置";
 "task_detail.card_count" = "卡片数量";
+"task_detail.succeeded_count" = "成功数量";
+"task_detail.failed_count" = "失败数量";
 "task_detail.original_path" = "原路径";
 "task_detail.new_path" = "新路径";
 "task_detail.file_count" = "文件数量";
