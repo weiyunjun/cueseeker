@@ -163,13 +163,23 @@ struct WorkbenchPopoverRow: View {
 /// back the menu's padding, because the divider is laid out inside the item
 /// stack, which that padding has already moved in.
 struct WorkbenchMenuDivider: View {
+    var surface: MenuSurface = .workbench
+
     var body: some View {
-        Divider()
-            .padding(
-                .horizontal,
-                WorkbenchControlMetrics.redesignMenuDividerInset - MenuMetrics.padding
-            )
-            .padding(.vertical, WorkbenchControlMetrics.redesignMenuDividerGap)
+        Group {
+            if surface == .playerChrome {
+                Rectangle()
+                    .fill(PlaybackTheme.menuDivider)
+                    .frame(height: WorkbenchControlMetrics.redesignControlBorderWidth)
+            } else {
+                Divider()
+            }
+        }
+        .padding(
+            .horizontal,
+            WorkbenchControlMetrics.redesignMenuDividerInset - MenuMetrics.padding
+        )
+        .padding(.vertical, WorkbenchControlMetrics.redesignMenuDividerGap)
     }
 }
 
@@ -193,7 +203,6 @@ struct WorkbenchPopoverPanel<Content: View>: View {
     /// their own position for the reveal to find them.
     @ObservedObject var highlight: MenuHighlightModel
     @ViewBuilder var content: () -> Content
-    @Environment(\.colorScheme) private var colorScheme
     @State private var contentHeight: CGFloat = .infinity
 
     var body: some View {
@@ -208,7 +217,8 @@ struct WorkbenchPopoverPanel<Content: View>: View {
         ScrollViewReader { proxy in
             MenuHeightCap(height: maximumHeight) {
                 WorkbenchScrollView(
-                    scrollbarInset: MenuMetrics.scrollbarOuterGap
+                    scrollbarInset: MenuMetrics.scrollbarOuterGap,
+                    scrollbarAppearanceMode: isPlayerChrome ? .playerChrome : .inherited
                 ) {
                     MenuItemStack(
                         padding: MenuMetrics.padding,
@@ -230,7 +240,6 @@ struct WorkbenchPopoverPanel<Content: View>: View {
                     )
                 }
             }
-            .environment(\.colorScheme, isPlayerChrome ? .dark : colorScheme)
             .fixedSize(horizontal: true, vertical: false)
             .background(
                 Group {
@@ -253,13 +262,15 @@ struct WorkbenchPopoverPanel<Content: View>: View {
                 }
             )
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(
-                        isPlayerChrome
-                            ? PlaybackTheme.textTertiary.opacity(0.3)
-                            : WorkbenchRedesignColors.borderControl,
-                        lineWidth: 1.0
-                    )
+                Group {
+                    if !isPlayerChrome {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .strokeBorder(
+                                WorkbenchRedesignColors.borderControl,
+                                lineWidth: 1.0
+                            )
+                    }
+                }
             )
             .subtitleTableTextSelectionNonInteractiveRegion(
                 cornerRadius: cornerRadius

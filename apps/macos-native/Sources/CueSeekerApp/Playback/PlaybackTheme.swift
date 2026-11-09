@@ -204,11 +204,6 @@ public enum PlaybackTheme {
         Color.white.opacity(0.24)
     }
 
-    /// --color-player-control-bg-active
-    public static var controlActiveBackground: Color {
-        Color.accentColor.opacity(0.26)
-    }
-
     /// --color-player-menu-bg
     public static var menuBackground: Color {
         Color.black.opacity(0.55)
@@ -219,34 +214,33 @@ public enum PlaybackTheme {
         Color.white.opacity(0.12)
     }
 
-    /// --color-player-menu-item-selected-bg
-    public static var menuItemSelectedBackground: Color {
-        Color.white.opacity(0.16)
+    /// --color-player-menu-divider
+    public static var menuDivider: Color {
+        Color.white.opacity(0.10)
+    }
+
+    /// --color-player-scrollbar-thumb-default
+    public static var scrollbarThumbDefault: Color {
+        Color(nsColor: scrollbarThumbDefaultNative)
+    }
+
+    static let scrollbarThumbDefaultNative = NSColor.white.withAlphaComponent(0.24)
+
+    /// --color-player-scrollbar-thumb-interactive
+    public static var scrollbarThumbInteractive: Color {
+        Color(nsColor: scrollbarThumbInteractiveNative)
+    }
+
+    static let scrollbarThumbInteractiveNative = NSColor.white.withAlphaComponent(0.38)
+
+    /// --color-player-keycap-bg
+    public static var keycapBackground: Color {
+        Color.white.opacity(0.14)
     }
 
     /// --color-focus-ring (Player Chrome fixed Dark variant Alpha 0.30)
     public static var focusRing: Color {
         Color.accentColor.opacity(0.30)
-    }
-
-    /// --color-player-cue-control-bar-border
-    public static var cueControlBarBorder: Color {
-        Color.white.opacity(0.15)
-    }
-
-    /// --color-player-cue-control-stepper-bg
-    public static var cueControlStepperBackground: Color {
-        Color.white.opacity(0.06)
-    }
-
-    /// --color-player-cue-control-stepper-border
-    public static var cueControlStepperBorder: Color {
-        Color.white.opacity(0.12)
-    }
-
-    /// --color-player-cue-control-status-active
-    public static var cueControlStatusActive: Color {
-        Color(red: 52 / 255, green: 211 / 255, blue: 153 / 255)
     }
 
     /// --color-player-text-primary
@@ -667,16 +661,6 @@ enum PlaybackChromeMetrics {
     static let cueQueueToggleFontSize = WorkbenchControlMetrics.redesignFontSizeCaption
     /// --padding-player-cue-toggle-x: 10px
     static let cueQueueToggleHorizontalPadding: CGFloat = 10
-    /// --gap-player-cue-toggle-dot: 6px
-    static let cueQueueToggleDotGap: CGFloat = 6
-    /// --size-player-cue-status-dot: 6px
-    static let cueQueueStatusDotSize: CGFloat = 6
-    /// --padding-player-cue-stepper: 2px
-    static let cueQueueStepperPadding: CGFloat = 2
-    /// --size-player-cue-stepper-button: 24px (cueQueueControlHeight - cueQueueStepperPadding * 2)
-    static let cueQueueStepperButtonSize: CGFloat = cueQueueControlHeight - cueQueueStepperPadding * 2
-    /// --radius-player-cue-stepper-button: 4px (cueQueueControlRadius - cueQueueStepperPadding)
-    static let cueQueueStepperButtonRadius: CGFloat = cueQueueControlRadius - cueQueueStepperPadding
     /// --size-player-cue-stepper-icon: 14px
     static let cueQueueStepperIconSize: CGFloat = 14
     /// --width-player-cue-gap-value: 64px (fits "10000 ms" without jitter)

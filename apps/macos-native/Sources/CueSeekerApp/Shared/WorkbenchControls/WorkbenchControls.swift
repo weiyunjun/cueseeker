@@ -626,7 +626,9 @@ struct WorkbenchIconButton: View {
                     TaskCountBadge(
                         count: count,
                         background: isEnabled ? countBackground : countBackground.opacity(0.35),
-                        textColor: countTextColor
+                        textColor: isEnabled
+                            ? countTextColor
+                            : (isPlayerChrome ? PlaybackTheme.textTertiary : WorkbenchRedesignColors.textDisabled)
                     )
                 }
                 // The count ends as far from the button's edge as the glyph
@@ -665,7 +667,7 @@ struct WorkbenchIconButton: View {
 
     var redesignIconColor: Color {
         guard isEnabled else {
-            return WorkbenchRedesignColors.textDisabled
+            return isPlayerChrome ? PlaybackTheme.textTertiary : WorkbenchRedesignColors.textDisabled
         }
         if isOpen {
             return openIconColor ?? iconColor ?? WorkbenchRedesignColors.textSecondary

@@ -84,6 +84,6 @@ struct PlaybackFeedbackOverlay: View {
             cornerRadius: PlaybackChromeMetrics.feedbackRadius,
             style: .continuous
         )
-        .fill(PlaybackTheme.topbarGradientStart)
+        .fill(PlaybackTheme.menuBackground)
     }
 }

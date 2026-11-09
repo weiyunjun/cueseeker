@@ -41,6 +41,7 @@ final class WorkbenchScrollViewController {
 struct WorkbenchScrollView<Content: View>: View {
     private let axes: Axis.Set
     private let scrollbarInset: CGFloat
+    private let scrollbarAppearanceMode: TableScrollbarAppearanceMode
     private let controller: WorkbenchScrollViewController?
     private let content: Content
     @StateObject private var bridge: WorkbenchScrollViewBridge
@@ -48,11 +49,13 @@ struct WorkbenchScrollView<Content: View>: View {
     init(
         _ axes: Axis.Set = .vertical,
         scrollbarInset: CGFloat = TableScrollbarPrimitiveMetrics.inset,
+        scrollbarAppearanceMode: TableScrollbarAppearanceMode = .inherited,
         controller: WorkbenchScrollViewController? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.axes = axes
         self.scrollbarInset = scrollbarInset
+        self.scrollbarAppearanceMode = scrollbarAppearanceMode
         self.controller = controller
         self.content = content()
         _bridge = StateObject(wrappedValue: WorkbenchScrollViewBridge())
@@ -74,7 +77,8 @@ struct WorkbenchScrollView<Content: View>: View {
             WorkbenchScrollViewOverlayRepresentable(
                 axes: axes,
                 bridge: bridge,
-                scrollbarInset: scrollbarInset
+                scrollbarInset: scrollbarInset,
+                scrollbarAppearanceMode: scrollbarAppearanceMode
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -123,6 +127,7 @@ private struct WorkbenchScrollViewOverlayRepresentable: NSViewRepresentable {
     let axes: Axis.Set
     let bridge: WorkbenchScrollViewBridge
     let scrollbarInset: CGFloat
+    let scrollbarAppearanceMode: TableScrollbarAppearanceMode
     /// A menu open over this layer, or a higher layer covering it, freezes the
     /// Scrollbar the same way it freezes the cards beside it.
     @Environment(\.interfaceLayerContext) private var layerContext
@@ -131,6 +136,7 @@ private struct WorkbenchScrollViewOverlayRepresentable: NSViewRepresentable {
         let view = WorkbenchScrollViewOverlayView()
         view.isInteractionFrozen = layerContext.isFrozen
         view.edgeInset = scrollbarInset
+        view.appearanceMode = scrollbarAppearanceMode
         bridge.register(overlayView: view, axes: axes)
         return view
     }
@@ -141,6 +147,7 @@ private struct WorkbenchScrollViewOverlayRepresentable: NSViewRepresentable {
     ) {
         nsView.isInteractionFrozen = layerContext.isFrozen
         nsView.edgeInset = scrollbarInset
+        nsView.appearanceMode = scrollbarAppearanceMode
         bridge.register(overlayView: nsView, axes: axes)
     }
 

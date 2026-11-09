@@ -497,6 +497,28 @@ struct TooltipTests {
         #expect(center.activeItem?.targetID == playerChromeTarget)
         #expect(center.activeItem?.isPlayerChrome == true)
         center.dismiss()
+
+        let workbenchTooltipBubble = TooltipStandardBubbleView(
+            label: "Settings",
+            keycaps: [.text("⌘"), .text(",")],
+            wrapsText: false,
+            isPlayerChrome: false
+        )
+        #expect(workbenchTooltipBubble.showsSurfaceBorder == true)
+        #expect(workbenchTooltipBubble.resolvedLabelColor == WorkbenchRedesignColors.tooltipText)
+        #expect(workbenchTooltipBubble.resolvedKeycapBackground == WorkbenchRedesignColors.popoverSurfaceKeycapBg)
+        #expect(workbenchTooltipBubble.resolvedKeycapForeground == WorkbenchRedesignColors.textMuted)
+
+        let playerChromeTooltipBubble = TooltipStandardBubbleView(
+            label: "Play",
+            keycaps: [.text("Space")],
+            wrapsText: false,
+            isPlayerChrome: true
+        )
+        #expect(playerChromeTooltipBubble.showsSurfaceBorder == false)
+        #expect(playerChromeTooltipBubble.resolvedLabelColor == PlaybackTheme.textPrimary)
+        #expect(playerChromeTooltipBubble.resolvedKeycapBackground == PlaybackTheme.keycapBackground)
+        #expect(playerChromeTooltipBubble.resolvedKeycapForeground == PlaybackTheme.textPrimary)
     }
 
     @MainActor

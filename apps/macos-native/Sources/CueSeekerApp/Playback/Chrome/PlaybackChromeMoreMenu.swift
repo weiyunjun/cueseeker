@@ -536,7 +536,7 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
                 .id(index)
             }
 
-            WorkbenchMenuDivider()
+            WorkbenchMenuDivider(surface: .playerChrome)
 
             PlaybackChromeMenuItem(
                 name: L("playback.subtitle_menu.off"),

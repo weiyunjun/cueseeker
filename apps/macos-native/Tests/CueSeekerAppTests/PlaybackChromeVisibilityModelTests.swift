@@ -250,14 +250,8 @@ func cueQueueControlBarReportsInteractiveRegionWithStableWidthAcrossGapValuesAnd
         PlaybackChromeMetrics.cueQueueControlRadius
             == PlaybackChromeMetrics.cueQueueBarRadius - PlaybackChromeMetrics.cueQueueBarPadding
     )
-    #expect(
-        PlaybackChromeMetrics.cueQueueStepperButtonRadius
-            == PlaybackChromeMetrics.cueQueueControlRadius - PlaybackChromeMetrics.cueQueueStepperPadding
-    )
-    #expect(
-        PlaybackChromeMetrics.cueQueueStepperButtonSize
-            == PlaybackChromeMetrics.cueQueueControlHeight - PlaybackChromeMetrics.cueQueueStepperPadding * 2
-    )
+    #expect(PlaybackChromeMetrics.cueQueueControlHeight == 28)
+    #expect(PlaybackChromeMetrics.cueQueueControlRadius == 6)
     let stageSize = CGSize(width: 800, height: 600)
     let centerY = PlaybackChromeMetrics.cueQueueBarCenterY(stageHeight: stageSize.height)
     let expectedCenterY: CGFloat = 504
@@ -347,3 +341,23 @@ func cueQueueControlBarReportsInteractiveRegionWithStableWidthAcrossGapValuesAnd
     )
     #expect(area.model.isIdleCountdownRunning)
 }
+
+@MainActor
+@Test
+func playerChromeIndependentStyleTokensAndScrollbarColorsStayModeInvariant() {
+    #expect(PlaybackTheme.menuDivider == Color.white.opacity(0.10))
+    #expect(PlaybackTheme.keycapBackground == Color.white.opacity(0.14))
+    #expect(PlaybackTheme.menuBackground == Color.black.opacity(0.55))
+
+    let scrollbarView = TableScrollbarOverlayView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
+    scrollbarView.appearanceMode = .playerChrome
+    let defaultThumb = scrollbarView.resolvedThumbColor(isInteractive: false).usingColorSpace(.sRGB)
+    let interactiveThumb = scrollbarView.resolvedThumbColor(isInteractive: true).usingColorSpace(.sRGB)
+    #expect(defaultThumb != nil)
+    #expect(interactiveThumb != nil)
+    #expect(abs((defaultThumb?.alphaComponent ?? 0) - 0.24) < 0.001)
+    #expect(abs((interactiveThumb?.alphaComponent ?? 0) - 0.38) < 0.001)
+    #expect(abs((defaultThumb?.redComponent ?? 0) - 1.0) < 0.001)
+    #expect(abs((interactiveThumb?.redComponent ?? 0) - 1.0) < 0.001)
+}
+

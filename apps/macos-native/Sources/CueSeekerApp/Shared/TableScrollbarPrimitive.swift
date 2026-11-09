@@ -212,6 +212,7 @@ struct TableScrollbarDragEvent: Equatable {
 enum TableScrollbarAppearanceMode: Equatable {
     case inherited
     case fixedDark
+    case playerChrome
 }
 
 class TableScrollbarOverlayView: NSView {
@@ -476,6 +477,8 @@ class TableScrollbarOverlayView: NSView {
         case .fixedDark:
             (NSAppearance(named: .darkAqua) ?? effectiveAppearance)
                 .performAsCurrentDrawingAppearance(draw)
+        case .playerChrome:
+            draw()
         }
     }
 
@@ -687,6 +690,19 @@ class TableScrollbarOverlayView: NSView {
         setNeedsDisplay(dirtyRect.insetBy(dx: -2, dy: -2))
     }
 
+    func resolvedThumbColor(isInteractive: Bool) -> NSColor {
+        switch appearanceMode {
+        case .inherited, .fixedDark:
+            return isInteractive
+                ? WorkbenchRedesignColors.NS.scrollbarThumbInteractive
+                : WorkbenchRedesignColors.NS.scrollbarThumbDefault
+        case .playerChrome:
+            return isInteractive
+                ? PlaybackTheme.scrollbarThumbInteractiveNative
+                : PlaybackTheme.scrollbarThumbDefaultNative
+        }
+    }
+
     private func drawThumb(
         axis: TableScrollbarAxis,
         geometry: TableScrollbarGeometry
@@ -697,9 +713,7 @@ class TableScrollbarOverlayView: NSView {
         let isInteractive = showsInteractiveThumb
             || hoveredAxis == axis
             || draggingAxis == axis
-        let color = isInteractive
-            ? WorkbenchRedesignColors.NS.scrollbarThumbInteractive
-            : WorkbenchRedesignColors.NS.scrollbarThumbDefault
+        let color = resolvedThumbColor(isInteractive: isInteractive)
         color.setFill()
         NSBezierPath(
             roundedRect: rect,

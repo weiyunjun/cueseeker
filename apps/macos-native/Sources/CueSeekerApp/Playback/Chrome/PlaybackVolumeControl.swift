@@ -131,11 +131,11 @@ private struct PlaybackVolumeSlider: View {
                     .frame(height: trackHeight)
 
                 Capsule()
-                    .fill(Color.white)
+                    .fill(PlaybackTheme.errorContent)
                     .frame(width: width * progress, height: trackHeight)
 
                 Circle()
-                    .fill(Color.white)
+                    .fill(PlaybackTheme.errorContent)
                     .frame(width: thumbSize, height: thumbSize)
                     .offset(x: max(0, (width - thumbSize) * progress))
             }

@@ -71,16 +71,6 @@ struct PlaybackCueQueueControlBar: View {
                 )
                 .fill(PlaybackTheme.menuBackground)
             )
-            .overlay(
-                RoundedRectangle(
-                    cornerRadius: PlaybackChromeMetrics.cueQueueBarRadius,
-                    style: .continuous
-                )
-                .strokeBorder(
-                    PlaybackTheme.cueControlBarBorder,
-                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
-                )
-            )
             .contentShape(
                 RoundedRectangle(
                     cornerRadius: PlaybackChromeMetrics.cueQueueBarRadius,
@@ -108,41 +98,28 @@ private struct PlaybackCueQueueToggleButton: View {
             }
             action()
         } label: {
-            HStack(spacing: PlaybackChromeMetrics.cueQueueToggleDotGap) {
-                Circle()
-                    .fill(
-                        isOn && !isDisabled
-                            ? PlaybackTheme.cueControlStatusActive
-                            : PlaybackTheme.textTertiary
+            Text(label)
+                .font(
+                    .system(
+                        size: PlaybackChromeMetrics.cueQueueToggleFontSize,
+                        weight: .semibold
                     )
-                    .frame(
-                        width: PlaybackChromeMetrics.cueQueueStatusDotSize,
-                        height: PlaybackChromeMetrics.cueQueueStatusDotSize
-                    )
-
-                Text(label)
-                    .font(
-                        .system(
-                            size: PlaybackChromeMetrics.cueQueueToggleFontSize,
-                            weight: .semibold
-                        )
-                    )
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-            .padding(.horizontal, PlaybackChromeMetrics.cueQueueToggleHorizontalPadding)
-            .frame(height: PlaybackChromeMetrics.cueQueueControlHeight)
-            .workbenchAccessibilityFocusRing(
-                isFocused: isFocused,
-                cornerRadius: PlaybackChromeMetrics.cueQueueControlRadius,
-                isPlayerChrome: true
-            )
-            .contentShape(
-                RoundedRectangle(
-                    cornerRadius: PlaybackChromeMetrics.cueQueueControlRadius,
-                    style: .continuous
                 )
-            )
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, PlaybackChromeMetrics.cueQueueToggleHorizontalPadding)
+                .frame(height: PlaybackChromeMetrics.cueQueueControlHeight)
+                .workbenchAccessibilityFocusRing(
+                    isFocused: isFocused,
+                    cornerRadius: PlaybackChromeMetrics.cueQueueControlRadius,
+                    isPlayerChrome: true
+                )
+                .contentShape(
+                    RoundedRectangle(
+                        cornerRadius: PlaybackChromeMetrics.cueQueueControlRadius,
+                        style: .continuous
+                    )
+                )
         }
         .buttonStyle(
             PlaybackCueQueueToggleButtonStyle(isOn: isOn)
@@ -260,7 +237,7 @@ private struct PlaybackCueQueueGapStepper: View {
                 .lineLimit(1)
                 .frame(
                     width: PlaybackChromeMetrics.cueQueueGapValueWidth,
-                    height: PlaybackChromeMetrics.cueQueueStepperButtonSize,
+                    height: PlaybackChromeMetrics.cueQueueControlHeight,
                     alignment: .center
                 )
                 .allowsHitTesting(false)
@@ -280,25 +257,7 @@ private struct PlaybackCueQueueGapStepper: View {
                 label: canIncrease ? increaseLabel : increaseDisabledLabel
             )
         }
-        .padding(PlaybackChromeMetrics.cueQueueStepperPadding)
         .frame(height: PlaybackChromeMetrics.cueQueueControlHeight)
-        .background(
-            RoundedRectangle(
-                cornerRadius: PlaybackChromeMetrics.cueQueueControlRadius,
-                style: .continuous
-            )
-            .fill(PlaybackTheme.cueControlStepperBackground)
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: PlaybackChromeMetrics.cueQueueControlRadius,
-                style: .continuous
-            )
-            .strokeBorder(
-                PlaybackTheme.cueControlStepperBorder,
-                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
-            )
-        )
         .workbenchTooltip(
             scenarioID: "player.control.auto_switch_gap.disabled",
             isActive: !isEnabled,
@@ -326,17 +285,17 @@ private struct PlaybackCueQueueStepperIconButton: View {
                 size: PlaybackChromeMetrics.cueQueueStepperIconSize
             )
             .frame(
-                width: PlaybackChromeMetrics.cueQueueStepperButtonSize,
-                height: PlaybackChromeMetrics.cueQueueStepperButtonSize
+                width: PlaybackChromeMetrics.cueQueueControlHeight,
+                height: PlaybackChromeMetrics.cueQueueControlHeight
             )
             .workbenchAccessibilityFocusRing(
                 isFocused: isFocused,
-                cornerRadius: PlaybackChromeMetrics.cueQueueStepperButtonRadius,
+                cornerRadius: PlaybackChromeMetrics.cueQueueControlRadius,
                 isPlayerChrome: true
             )
             .contentShape(
                 RoundedRectangle(
-                    cornerRadius: PlaybackChromeMetrics.cueQueueStepperButtonRadius,
+                    cornerRadius: PlaybackChromeMetrics.cueQueueControlRadius,
                     style: .continuous
                 )
             )
@@ -359,7 +318,7 @@ private struct PlaybackCueQueueStepperIconButtonStyle: ButtonStyle {
             )
             .background(
                 RoundedRectangle(
-                    cornerRadius: PlaybackChromeMetrics.cueQueueStepperButtonRadius,
+                    cornerRadius: PlaybackChromeMetrics.cueQueueControlRadius,
                     style: .continuous
                 )
                 .fill(backgroundColor(isPressed: configuration.isPressed))

@@ -600,7 +600,6 @@ struct TooltipStandardBubbleView: View {
     let keycaps: [PlaybackCueFooterKeycap]
     let wrapsText: Bool
     let isPlayerChrome: Bool
-    @Environment(\.colorScheme) private var colorScheme
 
     init(
         label: String,
@@ -614,6 +613,22 @@ struct TooltipStandardBubbleView: View {
         self.isPlayerChrome = isPlayerChrome
     }
 
+    var resolvedLabelColor: Color {
+        isPlayerChrome ? PlaybackTheme.textPrimary : WorkbenchRedesignColors.tooltipText
+    }
+
+    var resolvedKeycapBackground: Color {
+        isPlayerChrome ? PlaybackTheme.keycapBackground : WorkbenchRedesignColors.popoverSurfaceKeycapBg
+    }
+
+    var resolvedKeycapForeground: Color {
+        isPlayerChrome ? PlaybackTheme.textPrimary : WorkbenchRedesignColors.textMuted
+    }
+
+    var showsSurfaceBorder: Bool {
+        !isPlayerChrome
+    }
+
     var body: some View {
         Group {
             if wrapsText {
@@ -623,7 +638,7 @@ struct TooltipStandardBubbleView: View {
                             size: WorkbenchControlMetrics.redesignFontSizeControl,
                             weight: WorkbenchControlMetrics.redesignFontWeightControl
                         ))
-                        .foregroundStyle(WorkbenchRedesignColors.tooltipText)
+                        .foregroundStyle(resolvedLabelColor)
                         .multilineTextAlignment(.leading)
                 }
                 .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
@@ -635,7 +650,7 @@ struct TooltipStandardBubbleView: View {
                             size: WorkbenchControlMetrics.redesignFontSizeControl,
                             weight: WorkbenchControlMetrics.redesignFontWeightControl
                         ))
-                        .foregroundStyle(WorkbenchRedesignColors.tooltipText)
+                        .foregroundStyle(resolvedLabelColor)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
 
@@ -644,11 +659,11 @@ struct TooltipStandardBubbleView: View {
                             ForEach(keycaps.indices, id: \.self) { index in
                                 PlaybackCueFooterKeycapView(
                                     keycap: keycaps[index],
-                                    background: WorkbenchRedesignColors.popoverSurfaceKeycapBg
+                                    background: resolvedKeycapBackground
                                 )
                             }
                         }
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                        .foregroundStyle(resolvedKeycapForeground)
                         .fixedSize(horizontal: true, vertical: false)
                     }
                 }
@@ -658,31 +673,42 @@ struct TooltipStandardBubbleView: View {
         }
         .background(
             TooltipSurfaceBackground(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                isPlayerChrome: isPlayerChrome
             )
         )
-        .environment(\.colorScheme, isPlayerChrome ? .dark : colorScheme)
     }
 }
 
 struct TooltipSurfaceBackground: View {
     let cornerRadius: CGFloat
+    var isPlayerChrome = false
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
-        shape
-            .fill(WorkbenchRedesignColors.tooltipBg)
-            .shadowToken(
-                WorkbenchRedesignColors.shadowPopover,
-                cornerRadius: cornerRadius
-            )
-            .overlay(
-                shape.strokeBorder(
-                    WorkbenchRedesignColors.tooltipBorder,
-                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+        if isPlayerChrome {
+            shape
+                .fill(PlaybackTheme.menuBackground)
+                .shadow(
+                    color: PlaybackTheme.overlayShadowColor,
+                    radius: PlaybackTheme.overlayShadowRadius,
+                    y: PlaybackTheme.overlayShadowYOffset
                 )
-            )
+        } else {
+            shape
+                .fill(WorkbenchRedesignColors.tooltipBg)
+                .shadowToken(
+                    WorkbenchRedesignColors.shadowPopover,
+                    cornerRadius: cornerRadius
+                )
+                .overlay(
+                    shape.strokeBorder(
+                        WorkbenchRedesignColors.tooltipBorder,
+                        lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                    )
+                )
+        }
     }
 }
 
