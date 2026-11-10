@@ -40,20 +40,17 @@ extension NSColor {
         }
     }
 
-    static func controlAccentBlended(lightBlackFraction: CGFloat, darkWhiteFraction: CGFloat) -> NSColor {
-        return NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+    static func controlAccentBlendedWithWhite(fraction: CGFloat) -> NSColor {
+        return NSColor(name: nil) { _ in
             guard let base = NSColor.controlAccentColor.usingColorSpace(.sRGB) else {
                 return NSColor.controlAccentColor
             }
             var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
             base.getRed(&r, green: &g, blue: &b, alpha: &a)
-            let fraction = isDark ? darkWhiteFraction : lightBlackFraction
-            let targetComponent: CGFloat = isDark ? 1.0 : 0.0
             return NSColor(
-                srgbRed: r * (1.0 - fraction) + targetComponent * fraction,
-                green: g * (1.0 - fraction) + targetComponent * fraction,
-                blue: b * (1.0 - fraction) + targetComponent * fraction,
+                srgbRed: r * (1.0 - fraction) + fraction,
+                green: g * (1.0 - fraction) + fraction,
+                blue: b * (1.0 - fraction) + fraction,
                 alpha: a
             )
         }
@@ -176,8 +173,8 @@ enum WorkbenchRedesignColors {
 
         // Primary Button
         static let primaryButtonBg = NSColor.controlAccentColor
-        static let primaryButtonBgHover = NSColor.controlAccentBlended(lightBlackFraction: 0.12, darkWhiteFraction: 0.12)
-        static let primaryButtonBgPressed = NSColor.controlAccentBlended(lightBlackFraction: 0.22, darkWhiteFraction: 0.22)
+        static let primaryButtonBgHover = NSColor.controlAccentBlendedWithWhite(fraction: 0.12)
+        static let primaryButtonBgPressed = NSColor.controlAccentBlendedWithWhite(fraction: 0.22)
         static let primaryButtonText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
 
         // Focus
@@ -203,10 +200,10 @@ enum WorkbenchRedesignColors {
 
         // Danger
         static let dangerText = NSColor.dynamic(lightHex: "#B42318", darkHex: "#FCA5A5")
-        static let dangerBgHover = NSColor.dynamic(lightHex: "#FEF3F2", darkHex: "#3A1717")
-        static let dangerBgPressed = NSColor.dynamic(lightHex: "#FEE4E2", darkHex: "#4C1D1D")
-        static let dangerBgSelected = NSColor.dynamic(lightHex: "#FEE2E2", darkHex: "#4C1D1D")
-        static let dangerMenuItemSelectedBg = dangerBgSelected
+        static let dangerBorder = NSColor.dynamic(lightHex: "#B42318", lightAlpha: 0.32, darkHex: "#FCA5A5", darkAlpha: 0.35)
+        static let dangerBorderHover = NSColor.dynamic(lightHex: "#B42318", lightAlpha: 0.50, darkHex: "#FCA5A5", darkAlpha: 0.55)
+        static let dangerBgHover = NSColor.dynamic(lightHex: "#FEF3F2", darkHex: "#FCA5A5", darkAlpha: 0.16)
+        static let dangerBgPressed = NSColor.dynamic(lightHex: "#FEE4E2", darkHex: "#FCA5A5", darkAlpha: 0.24)
 
         // Success
         static let successText = NSColor.dynamic(lightHex: "#047857", darkHex: "#6EE7B7")
@@ -445,10 +442,10 @@ enum WorkbenchRedesignColors {
 
     // Danger
     static let dangerText = Color(nsColor: NS.dangerText)
+    static let dangerBorder = Color(nsColor: NS.dangerBorder)
+    static let dangerBorderHover = Color(nsColor: NS.dangerBorderHover)
     static let dangerBgHover = Color(nsColor: NS.dangerBgHover)
     static let dangerBgPressed = Color(nsColor: NS.dangerBgPressed)
-    static let dangerBgSelected = Color(nsColor: NS.dangerBgSelected)
-    static let dangerMenuItemSelectedBg = Color(nsColor: NS.dangerMenuItemSelectedBg)
 
     // Success
     static let successText = Color(nsColor: NS.successText)

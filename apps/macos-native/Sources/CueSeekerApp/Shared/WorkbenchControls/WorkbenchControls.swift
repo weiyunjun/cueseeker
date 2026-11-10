@@ -514,8 +514,8 @@ struct WorkbenchDestructiveButton: View {
             return WorkbenchRedesignColors.borderDisabled
         }
         return (isPressed || isHovered)
-            ? WorkbenchRedesignColors.borderControlHover
-            : WorkbenchRedesignColors.borderControl
+            ? WorkbenchRedesignColors.dangerBorderHover
+            : WorkbenchRedesignColors.dangerBorder
     }
 }
 

@@ -413,12 +413,33 @@ func buttonPressedAndHoverColorTokensMatchDesignSpecification() {
         #expect(abs(b - 235.0 / 255.0) < 0.005)
         #expect(abs(a - 1.0) < 0.005)
 
-        // --color-danger-bg-pressed: Light #FEE4E2
+        // --color-danger-bg-hover: Light #FEF3F2 & --color-danger-bg-pressed: Light #FEE4E2
+        WorkbenchRedesignColors.NS.dangerBgHover.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 254.0 / 255.0) < 0.005)
+        #expect(abs(g - 243.0 / 255.0) < 0.005)
+        #expect(abs(b - 242.0 / 255.0) < 0.005)
+        #expect(abs(a - 1.0) < 0.005)
         WorkbenchRedesignColors.NS.dangerBgPressed.usingColorSpace(.sRGB)!
             .getRed(&r, green: &g, blue: &b, alpha: &a)
         #expect(abs(r - 254.0 / 255.0) < 0.005)
         #expect(abs(g - 228.0 / 255.0) < 0.005)
         #expect(abs(b - 226.0 / 255.0) < 0.005)
+        #expect(abs(a - 1.0) < 0.005)
+
+        // --color-danger-border: Light rgba(180,35,24,0.32) & --color-danger-border-hover: Light rgba(180,35,24,0.50)
+        WorkbenchRedesignColors.NS.dangerBorder.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 180.0 / 255.0) < 0.005)
+        #expect(abs(g - 35.0 / 255.0) < 0.005)
+        #expect(abs(b - 24.0 / 255.0) < 0.005)
+        #expect(abs(a - 0.32) < 0.005)
+        WorkbenchRedesignColors.NS.dangerBorderHover.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 180.0 / 255.0) < 0.005)
+        #expect(abs(g - 35.0 / 255.0) < 0.005)
+        #expect(abs(b - 24.0 / 255.0) < 0.005)
+        #expect(abs(a - 0.50) < 0.005)
 
         // --color-overlay-surface-shortcut-button-bg-pressed: Light #E1E4E9
         WorkbenchRedesignColors.NS.overlaySurfaceShortcutButtonPressedBg.usingColorSpace(.sRGB)!
@@ -456,20 +477,20 @@ func buttonPressedAndHoverColorTokensMatchDesignSpecification() {
             .getRed(&r, green: &g, blue: &b, alpha: &a)
         #expect(abs(a - 0.16) < 0.005)
 
-        // --color-primary-button-bg-hover (12% black blend) & --color-primary-button-bg-pressed (22% black blend)
+        // --color-primary-button-bg-hover (12% white blend) & --color-primary-button-bg-pressed (22% white blend)
         let baseAccent = NSColor.controlAccentColor.usingColorSpace(.sRGB)!
         var ar: CGFloat = 0, ag: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 0
         baseAccent.getRed(&ar, green: &ag, blue: &ab, alpha: &aa)
         WorkbenchRedesignColors.NS.primaryButtonBgHover.usingColorSpace(.sRGB)!
             .getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - ar * 0.88) < 0.01)
-        #expect(abs(g - ag * 0.88) < 0.01)
-        #expect(abs(b - ab * 0.88) < 0.01)
+        #expect(abs(r - (ar * 0.88 + 0.12)) < 0.01)
+        #expect(abs(g - (ag * 0.88 + 0.12)) < 0.01)
+        #expect(abs(b - (ab * 0.88 + 0.12)) < 0.01)
         WorkbenchRedesignColors.NS.primaryButtonBgPressed.usingColorSpace(.sRGB)!
             .getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - ar * 0.78) < 0.01)
-        #expect(abs(g - ag * 0.78) < 0.01)
-        #expect(abs(b - ab * 0.78) < 0.01)
+        #expect(abs(r - (ar * 0.78 + 0.22)) < 0.01)
+        #expect(abs(g - (ag * 0.78 + 0.22)) < 0.01)
+        #expect(abs(b - (ab * 0.78 + 0.22)) < 0.01)
     }
 
     let darkAppearance = NSAppearance(named: .darkAqua)!
@@ -482,12 +503,33 @@ func buttonPressedAndHoverColorTokensMatchDesignSpecification() {
         #expect(abs(r - 1.0) < 0.005)
         #expect(abs(a - 0.16) < 0.005)
 
-        // --color-danger-bg-pressed: Dark #4C1D1D
+        // --color-danger-bg-hover: Dark rgba(252,165,165,0.16) & --color-danger-bg-pressed: Dark rgba(252,165,165,0.24)
+        WorkbenchRedesignColors.NS.dangerBgHover.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 252.0 / 255.0) < 0.005)
+        #expect(abs(g - 165.0 / 255.0) < 0.005)
+        #expect(abs(b - 165.0 / 255.0) < 0.005)
+        #expect(abs(a - 0.16) < 0.005)
         WorkbenchRedesignColors.NS.dangerBgPressed.usingColorSpace(.sRGB)!
             .getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - 76.0 / 255.0) < 0.005)
-        #expect(abs(g - 29.0 / 255.0) < 0.005)
-        #expect(abs(b - 29.0 / 255.0) < 0.005)
+        #expect(abs(r - 252.0 / 255.0) < 0.005)
+        #expect(abs(g - 165.0 / 255.0) < 0.005)
+        #expect(abs(b - 165.0 / 255.0) < 0.005)
+        #expect(abs(a - 0.24) < 0.005)
+
+        // --color-danger-border: Dark rgba(252,165,165,0.35) & --color-danger-border-hover: Dark rgba(252,165,165,0.55)
+        WorkbenchRedesignColors.NS.dangerBorder.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 252.0 / 255.0) < 0.005)
+        #expect(abs(g - 165.0 / 255.0) < 0.005)
+        #expect(abs(b - 165.0 / 255.0) < 0.005)
+        #expect(abs(a - 0.35) < 0.005)
+        WorkbenchRedesignColors.NS.dangerBorderHover.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 252.0 / 255.0) < 0.005)
+        #expect(abs(g - 165.0 / 255.0) < 0.005)
+        #expect(abs(b - 165.0 / 255.0) < 0.005)
+        #expect(abs(a - 0.55) < 0.005)
 
         // --color-overlay-surface-shortcut-button-bg-pressed & --color-popover-surface-shortcut-button-bg-pressed: Dark alpha 0.12
         WorkbenchRedesignColors.NS.overlaySurfaceShortcutButtonPressedBg.usingColorSpace(.sRGB)!
