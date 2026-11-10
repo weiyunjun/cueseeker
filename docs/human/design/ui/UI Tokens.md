@@ -96,10 +96,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - `--color-primary-button-bg`: macOS accent color
 - `--color-primary-button-bg-hover`:
-  - Light: macOS accent color blended with `12%` `#000000`
+  - Light: macOS accent color blended with `12%` `#FFFFFF`
   - Dark: macOS accent color blended with `12%` `#FFFFFF`
 - `--color-primary-button-bg-pressed`:
-  - Light: macOS accent color blended with `22%` `#000000`
+  - Light: macOS accent color blended with `22%` `#FFFFFF`
   - Dark: macOS accent color blended with `22%` `#FFFFFF`
 - `--color-primary-button-text`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-bg-checkbox-checked`: macOS accent color
@@ -116,9 +116,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-spinner-track`: Light `#E5E7EB`; Dark `#3F3F46`
 - `--color-spinner-indicator`: Light `#717171`; Dark `#878787`
 - `--color-danger-text`: Light `#B42318`; Dark `#FCA5A5`
-- `--color-danger-bg-hover`: Light `#FEF3F2`; Dark `#3A1717`
-- `--color-danger-bg-pressed`: Light `#FEE4E2`; Dark `#4C1D1D`
-- `--color-danger-bg-selected`: Light `#FEE2E2`; Dark `#4C1D1D`
+- `--color-danger-border`: Light `rgba(180,35,24,0.32)`; Dark `rgba(252,165,165,0.35)`
+- `--color-danger-border-hover`: Light `rgba(180,35,24,0.50)`; Dark `rgba(252,165,165,0.55)`
+- `--color-danger-bg-hover`: Light `#FEF3F2`; Dark `rgba(252,165,165,0.16)`
+- `--color-danger-bg-pressed`: Light `#FEE4E2`; Dark `rgba(252,165,165,0.24)`
 - `--color-success-text`: Light `#047857`; Dark `#6EE7B7`
 - `--color-warning-text`: Light `#B45309`; Dark `#FCD34D`
 
@@ -160,8 +161,12 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-library-cover-crop-mask`: macOS shadow color with Alpha `0.55`
 - `--color-library-cover-edit-overlay`: Same as `--color-library-cover-crop-mask`
 - `--color-library-cover-edit-overlay-content`: Same as `--color-icon-on-dark`
-- `--color-library-media-card-hover-bg`: Light `#EEF2F7`; Dark `rgba(255,255,255,0.08)`
-- `--color-library-media-card-selected-bg`: Light `#E2E8F0`; Dark `rgba(255,255,255,0.14)`
+- `--color-library-media-card-hover-bg`:
+  - Light: macOS accent color with Alpha `0.08`
+  - Dark: macOS accent color with Alpha `0.12`
+- `--color-library-media-card-selected-bg`:
+  - Light: macOS accent color with Alpha `0.16`
+  - Dark: macOS accent color with Alpha `0.22`
 
 ### Cover Summary
 

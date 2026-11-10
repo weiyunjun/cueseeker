@@ -556,15 +556,15 @@
 
 - Default
   - Background：`--color-bg-control`
-  - Border Color：`--color-border-control`
+  - Border Color：`--color-danger-border`
   - Label Color：`--color-danger-text`
   - Icon Color：`--color-danger-text`
 - Hover
   - Background：`--color-danger-bg-hover`
-  - Border Color：`--color-border-control-hover`
+  - Border Color：`--color-danger-border-hover`
 - Pressed
   - Background：`--color-danger-bg-pressed`
-  - Border Color：`--color-border-control-hover`
+  - Border Color：`--color-danger-border-hover`
 - Focused
   - Border Color：`--color-border-focus`
 - Disabled
