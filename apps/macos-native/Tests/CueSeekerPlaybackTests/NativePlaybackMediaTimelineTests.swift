@@ -54,6 +54,7 @@ func nativePlaybackUsesCommonTimelineWhenVideoTrackStartsAfterAudio() async thro
     )
 
     let player = SFXNativePlaybackPlayer()
+    player.volume = 0
     player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 1)!
     defer {
         player.stop()
@@ -118,6 +119,7 @@ func nativePlaybackRebuildsAudioOutputAndContinuesInCurrentSession() async throw
     )
 
     let player = SFXNativePlaybackPlayer()
+    player.volume = 0
     let delegate = NativePlaybackCompletionDelegate()
     player.delegate = delegate
     player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 1)!
@@ -201,6 +203,7 @@ func nativePlaybackNotifiesNaturalCompletionAfterAudioDrain() async throws {
     )
 
     let player = SFXNativePlaybackPlayer()
+    player.volume = 0
     let delegate = NativePlaybackCompletionDelegate()
     player.delegate = delegate
     player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 1)!
@@ -225,6 +228,7 @@ func nativePlaybackNotifiesNaturalCompletionAfterAudioDrain() async throws {
     player.stop()
 
     let playbackPlayer = PlaybackPlayer()
+    playbackPlayer.setVolume(0)
     let playbackDelegate = PlaybackNaturalCompletionDelegate()
     playbackPlayer.delegate = playbackDelegate
     defer {
@@ -303,6 +307,7 @@ func nativeAutoStopKeepsSessionAliveAndResumesFromBoundary() async throws {
 
     let boundaryMilliseconds = 1_500
     let player = SFXNativePlaybackPlayer()
+    player.volume = 0
     let delegate = NativeAutoStopDelegate()
     player.delegate = delegate
     player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 1)!
@@ -386,6 +391,7 @@ func playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks() async throws {
     let staleBoundaryMilliseconds = 1_000
     let boundaryMilliseconds = 1_500
     let player = PlaybackPlayer()
+    player.setVolume(0)
     let delegate = PlaybackPlayerAutoPauseDelegate()
     player.delegate = delegate
     defer {
@@ -729,6 +735,7 @@ func nativePlaybackOpensAndSwitchesAudioTracksCountedAmongAudioStreams() async t
     // Hardware decode: a software session reopens itself once after its first
     // frame, which would drop the pause this test checks.
     let player = SFXNativePlaybackPlayer()
+    player.volume = 0
     player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 0)!
     defer {
         player.stop()
@@ -832,6 +839,7 @@ func nativePlaybackOpensAndSeeksMatroskaWithAttachmentsChaptersAndTags() async t
     #expect(metadata.audioTracks.count == 1)
 
     let player = SFXNativePlaybackPlayer()
+    player.volume = 0
     player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 0)!
     defer {
         player.stop()
@@ -1002,6 +1010,7 @@ func nativePlaybackFallsBackToSoftwareAndPresentsFramesForHEVC12BitAndVP9HighChr
         try runProcess(ffmpegURL, arguments: arguments)
 
         let player = SFXNativePlaybackPlayer()
+        player.volume = 0
         player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 0)! // Hardware
         defer {
             player.stop()
@@ -1069,6 +1078,7 @@ func nativePlaybackExtractsKeyframeTimestampsAndScaledTimelineThumbnails() async
     )
 
     let player = PlaybackPlayer()
+    player.setVolume(0)
     defer {
         try? player.stop()
     }
@@ -1203,6 +1213,7 @@ func nativePlaybackAndImageSamplersApplyAnamorphicDisplayAspectRatioWhileMetadat
 
     // 3. Playback session (Software & Hardware), Current Frame Screenshot, and Scrub Thumbnail
     let player = PlaybackPlayer()
+    player.setVolume(0)
     defer {
         try? player.stop()
     }
@@ -1232,6 +1243,7 @@ func nativePlaybackAndImageSamplersApplyAnamorphicDisplayAspectRatioWhileMetadat
     #expect(stretchThumbVideoSize == CGSize(width: 192, height: 108))
 
     let squeezePlayer = PlaybackPlayer()
+    squeezePlayer.setVolume(0)
     defer {
         try? squeezePlayer.stop()
     }
@@ -1341,6 +1353,7 @@ func nativePlaybackCoversThumbnailsScreenshotsAndMetadataApplyRotationAndFlipMet
     // 3. Hardware & Software playback, view transform, current frame screenshot, and scrub thumbnail
     for mode in [PlaybackDecodeMode.hardware, PlaybackDecodeMode.software] {
         let player = PlaybackPlayer()
+        player.setVolume(0)
         player.decodeMode = mode
         player.renderView.frame = NSRect(x: 0, y: 0, width: 192, height: 320)
         player.renderView.layoutSubtreeIfNeeded()
@@ -1436,6 +1449,7 @@ func nativeRapidConsecutiveInSessionSeeksCoalesceToFinalTargetWithoutBlocking() 
     )
 
     let player = SFXNativePlaybackPlayer()
+    player.volume = 0
     let delegate = NativePlaybackCompletionDelegate()
     player.delegate = delegate
     defer {
@@ -1546,6 +1560,7 @@ func nativePlaybackAlignsClockWhenFirstVideoKeyframeStartsAfterAudioAndWhenMedia
 
     do {
         let player = SFXNativePlaybackPlayer()
+        player.volume = 0
         let delegate = NativePlaybackCompletionDelegate()
         player.delegate = delegate
         defer { player.stop() }
@@ -1581,6 +1596,7 @@ func nativePlaybackAlignsClockWhenFirstVideoKeyframeStartsAfterAudioAndWhenMedia
 
     do {
         let player = SFXNativePlaybackPlayer()
+        player.volume = 0
         let delegate = NativePlaybackCompletionDelegate()
         player.delegate = delegate
         defer { player.stop() }
@@ -1681,6 +1697,7 @@ func nativePlaybackRecalibratesClockAcrossMidStreamTimestampWrapAroundAndForward
 
     do {
         let player = SFXNativePlaybackPlayer()
+        player.volume = 0
         let delegate = NativePlaybackCompletionDelegate()
         player.delegate = delegate
         defer { player.stop() }
@@ -1709,6 +1726,7 @@ func nativePlaybackRecalibratesClockAcrossMidStreamTimestampWrapAroundAndForward
 
     do {
         let player = SFXNativePlaybackPlayer()
+        player.volume = 0
         let delegate = NativePlaybackCompletionDelegate()
         player.delegate = delegate
         defer { player.stop() }
@@ -1753,6 +1771,7 @@ func nativePlaybackRetainsHardwareDecodeAcrossOpenAndSeekOnMPEGTSWithLeadingNonK
     )
 
     let player = SFXNativePlaybackPlayer()
+    player.volume = 0
     player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 2)! // Auto
     defer { player.stop() }
 
@@ -1806,6 +1825,7 @@ func nativePlaybackResamplesAndPlaysPCM24AudioWithUnspecifiedChannelLayout() asy
     )
 
     let player = SFXNativePlaybackPlayer()
+    player.volume = 0
     let delegate = NativePlaybackCompletionDelegate()
     player.delegate = delegate
     defer { player.stop() }
@@ -1851,6 +1871,7 @@ func nativePlaybackDecodesTimelineThumbnailsForRealVideoAndIncompleteKeyframeInd
 
     do {
         let player = PlaybackPlayer()
+        player.setVolume(0)
         defer { try? player.stop() }
 
         _ = try player.open(PlaybackRequest(videoURL: tsURL, startMilliseconds: 2_500))
@@ -1890,6 +1911,7 @@ func nativePlaybackDecodesTimelineThumbnailsForRealVideoAndIncompleteKeyframeInd
 
     do {
         let player = PlaybackPlayer()
+        player.setVolume(0)
         defer { try? player.stop() }
 
         _ = try player.open(PlaybackRequest(videoURL: rmURL, startMilliseconds: 0))

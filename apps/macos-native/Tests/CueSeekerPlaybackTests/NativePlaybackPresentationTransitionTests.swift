@@ -39,6 +39,7 @@ func nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits() async 
     )
 
     let player = SFXNativePlaybackPlayer()
+    player.volume = 0
     let delegate = NativePresentationTransitionDelegate()
     player.delegate = delegate
     #expect(delegate.responds(
@@ -151,6 +152,7 @@ func nativeRapidSeeksCommitOnlyLatestPresentationGeneration() async throws {
     )
 
     let player = SFXNativePlaybackPlayer()
+    player.volume = 0
     let delegate = NativePresentationTransitionDelegate()
     player.delegate = delegate
     #expect(delegate.responds(
