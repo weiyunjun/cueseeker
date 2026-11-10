@@ -771,11 +771,16 @@
   - Selection：Enabled（Pointer 为 I-beam）
 - Supporting Content
   - Font Size：`--font-size-body`
+  - Line Height：`--line-height-cover-summary-description`
   - Color：Split Form `--color-text-secondary`；Backdrop Form `--color-cover-summary-text` with `--opacity-cover-summary-description`
   - Text Hierarchy：Secondary
   - Each Item Maximum Lines：`1`
   - Each Item Overflow：Tail Truncation
-  - Selection：Enabled（Pointer 为 I-beam）
+  - Selection：Enabled（静态文本 Pointer 为 I-beam；可点击文本在 Hover 时显示与当前文字同色的下划线，Pointer 为 Grab，单击触发动作，拖拽划选文字）
+- Description Detail Popover（当 Secondary Metadata 为未完整显示的描述并点击展开时）
+  - Position & Size：首行文字起点及折行宽度与展开前第 2 行重合，外框向左右外扩 `--padding-cover-summary-description-popover-x`、向上下外扩 `--padding-cover-summary-description-popover-y`，下外框最高延伸至 Action Row 下外沿；圆角 `--radius-control`，外边框 `--border-width-control`
+  - Surface：Split Form 背景 `--color-bg-popover`、边框 `--color-border-control`、阴影 `--shadow-popover`；Backdrop Form 背景 `--color-cover-summary-description-popover-backdrop-bg`、边框 `--color-cover-summary-text`（`--opacity-cover-summary-button-border`）、阴影 `--shadow-player-overlay`
+  - Content & Interaction：字号 `--font-size-body`、行高 `--line-height-cover-summary-description`、颜色同 Supporting Content，保留换行并支持选词复制（Pointer 为 I-beam），超出最大高度时右侧悬浮显示 `C-07.1 Scrollbar / Vertical`；点击容器外部或按 `Esc` 收起（遵循菜单模态屏蔽规则）
 - Progress Label
   - Font Size：`--font-size-caption`
   - Font Weight：`500`

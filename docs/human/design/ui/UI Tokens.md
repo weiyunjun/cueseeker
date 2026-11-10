@@ -167,6 +167,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - `--color-cover-summary-scrim`: Light `#000000`; Dark `#000000`
 - `--color-cover-summary-text`: Light `#FFFFFF`; Dark `#FFFFFF`
+- `--color-cover-summary-description-popover-backdrop-bg`: Light `#4C4C54`; Dark `#4C4C54`
 
 ### Dialog
 
@@ -256,6 +257,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-library-list-meta`: `12px`
 - `--font-size-cover-summary-title`: `22px`
 - `--font-weight-cover-summary-title`: `700`
+- `--line-height-cover-summary-description`: `20px`
 - `--font-size-empty-state-title`: `15px`
 
 ### Text Decoration
@@ -426,8 +428,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--gap-library-folder-card-content`: `12px`
 - `--gap-cover-summary-to-toolbar`: `24px`
 - `--gap-cover-summary-split`: `24px`
-- `--gap-cover-summary-title-meta`: `8px`
-- `--gap-cover-summary-meta-lines`: `6px`
+- `--gap-cover-summary-title-meta`: `12px`
+- `--gap-cover-summary-meta-lines`: `10px`
 - `--gap-cover-summary-progress-label`: `6px`
 - `--gap-cover-summary-progress-actions`: `14px`
 - `--gap-cover-dialog-region`: `20px`
@@ -475,6 +477,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--padding-library-list-card`: `12px 16px`
 - `--padding-cover-summary-backdrop-inline`: `40px`
 - `--padding-cover-summary-backdrop-block`: `22.5px`
+- `--padding-cover-summary-description-popover-x`: `12px`
+- `--padding-cover-summary-description-popover-y`: `8px`
 
 ## 1.5 形状与效果
 

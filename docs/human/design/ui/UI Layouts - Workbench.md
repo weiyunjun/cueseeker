@@ -485,7 +485,7 @@
 - Cover Summary 使用 `--spacing-8` 边距，Episode Grid 使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的剧集封面图与 Cover Summary 水平边界齐平。
 - Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
 - Cover Summary 内容：
-  - Supporting Content 第 1 行为视频与字幕数量（`xx videos  yy subtitles`，中间以 2 个英文空格分隔），第 2 行为文件夹路径。
+  - Supporting Content 第 1 行为视频与字幕数量（`xx videos  yy subtitles`，中间以 2 个英文空格分隔），第 2 行为文件夹路径（本地文件夹路径支持点击在 Finder 中打开，Hover 显示同色下划线与 Grab 指针，拖拽则划选文字；远程文件夹路径为普通静态可选文本）。
   - Progress Label（仅 Resume 态显示）：`EPxx  mm:ss / mm:ss`（集数与时间戳之间以 2 个英文空格分隔，不显示百分比）。
   - Action Row：`Resume` / `Play`、`View in File`（图标 `folder`，点击跳转至 File 对应目录视图；若文件夹已不在媒体库中则拦截并弹出 Toast）、`More`（图标 `dots-three`，弹出菜单内容与 Library 一级界面文件夹卡片右键菜单一致）。
 
@@ -712,7 +712,7 @@
 - Cover Summary、Toolbar 与 Table Content Region 使用相同宽度和水平边界。
 - Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
 - Cover Summary 内容：
-  - Supporting Content 第 1 行为摘录列表描述（未填写时显示占位文案 `No description`），第 2 行为有效台词总数量与创建时间（`xx excerpts  Created yyyy-MM-dd`，中间以 2 个英文空格分隔）。
+  - Supporting Content 第 1 行为有效台词总数量与创建时间（`xx excerpts  Created yyyy-MM-dd`，中间以 2 个英文空格分隔），第 2 行为摘录列表描述（未填写时显示占位文案 `No description`；仅当描述发生单行截断或包含换行时支持点击在原地展开详情浮层，Hover 显示同色下划线与 Grab 指针，拖拽则划选文字）。
   - Progress Label（仅 Resume 态显示）：`#x / y  台词内容`（`y` 为有效台词数，序号与台词内容之间以 2 个英文空格分隔，超出单行或遇换行均在末尾以 `...` 截断）。
   - Action Row：`Resume` / `Play`、`More`（图标 `dots-three`，弹出菜单内容与 Excerpt 一级界面卡片右键菜单一致，含 `Edit List` 与 `Delete List`；确认删除当前列表后自动退回 Excerpt 一级界面）。
 
