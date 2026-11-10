@@ -387,9 +387,10 @@
 
 ##### Anatomy
 
-- Icon：68×68px 双色调大图标（`search-hint` 与 `collage-hint` 为系统强调色，其余 9 枚为中性灰色系，角标区域镂空透底，详见 [`Empty State Icon Registry.md`](Empty%20State%20Icon%20Registry.md)）
+- Icon：68×68px 双色调大图标（`search-hint`、`collage-hint` 与 `excerpt-hint` 为系统强调色，其余 9 枚为中性灰色系，角标区域镂空透底，详见 [`Empty State Icon Registry.md`](Empty%20State%20Icon%20Registry.md)）
   - `search-hint`：圆角卡片底板（`--color-empty-icon-search-card`）+ 5 段水平文本线（`--color-empty-icon-search-line`）+ 右下镂空放大镜（镜面 `--color-empty-icon-magnifier-fill`，外圈与手柄 `--color-card-icon-accent-foreground`）
   - `collage-hint`：右上后景叠层圆角框（`--color-empty-icon-collage-back`，被前景框带间隙镂空裁切）+ 左下前景相框底板（`--color-empty-icon-search-card`）+ 左上太阳圆点（`--color-empty-icon-search-line`）+ 底部双峰山脉剪影（`--color-card-icon-accent-foreground`）
+  - `excerpt-hint`：强调色单层圆角燕尾书签底板（`--color-empty-icon-collage-back`）
   - `search-no-results`：圆角卡片底板（`--color-empty-icon-base`）+ 左上圆头 `✕` 号（`--color-empty-icon-foreground`）+ 右下镂空放大镜（镜面 `--color-empty-icon-badge-fill`，外圈与手柄 `--color-empty-icon-foreground`）
   - `video`：圆角视频框底板（`--color-empty-icon-base`）+ 居中实心播放三角（`--color-empty-icon-foreground`）
   - `excerpt`：单层圆角燕尾书签底板（`--color-empty-icon-mid`）
@@ -410,12 +411,16 @@
   - Font Size：`--font-size-body`
   - Font Weight：`400`
   - Text Color：`--color-text-muted`
+- Action
+  - Presence：Optional（仅 Excerpt 一级空状态显示）
+  - Component：Button / Neutral（Leading Icon `plus`，文案 `New List`）
 
 ##### Sizes
 
 - Icon Size：`--size-empty-state-icon`
 - Icon to Text Gap：`--gap-empty-state-icon-to-text`
 - Title to Message Gap：`--gap-empty-state-title-to-message`
+- Message to Action Gap：`--gap-empty-state-icon-to-text`
 - Message Maximum Width：`--max-width-empty-state-message`
 - Alignment：在承载容器剩余可用空间内水平、垂直居中
 
@@ -800,7 +805,7 @@
 
 - Resume：存在最近播放记录，显示 Progress 区域，主按钮为 `Resume`。
 - Play：不存在最近播放记录，隐藏 Progress 区域，主按钮为 `Play`。
-- Disabled：没有可播放内容。
+- Disabled：没有可播放内容，隐藏 Progress 区域，主按钮为 Disabled 状态的 `Play`。
 
 ### C-11.3 Cover Crop Editor
 

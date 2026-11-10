@@ -2,6 +2,9 @@
 1. 本文档由人类维护，定义摘录管理、台词长截图与 Anki 导出的核心业务规则（待逐步补充）。
 
 # 1. Excerpt 列表增删改与排序
+1. 全新初始化时不自动创建默认摘录集（初始数量为 `0`）；允许删除最后一个摘录集。
+2. `Recent Excerpt Lists`（Workbench 与 Command Panel）收录全部已存在的摘录集；所属时间分组仅由历史实际播放时间决定（从未播放归入 `Never Played`，曾播放过的摘录集不因列表清空或摘录全部失效而改变分组，尝试播放被拦截时不刷新最近播放时间）。
+
 # 2. 摘录保存、跨列表移动与复制去重规则
 # 3. Playback Collage 长截图拼接与导出规则
 1. 每次进入 Playback Overlay 时，Collage 以打开浮层时的初始焦点字幕作为默认焦点并默认勾选该条字幕；Current 与 Collage 的字幕焦点彼此独立、互不影响。在 Playback Overlay 关闭前，切换顶栏标签页（`Current / Playlist / Collage`）或开关 Command Panel 均保留当前的长截图勾选草稿与焦点位置；关闭 Playback Overlay 返回播放或退出视频时清空。

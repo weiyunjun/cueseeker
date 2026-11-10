@@ -135,7 +135,7 @@
 #### Timing
 
 - Duration：Playback Feedback / Duration
-- 列表中没有有效项时在播放器画面导航（上一个、下一个、Auto Switch、视频播完自动播放下一个）：由 Playback Feedback 呈现（持续 1 秒），文案按来源为 `No Available Results`、`No Available Videos`
+- 列表中没有有效项时在播放器画面导航（上一个、下一个、Auto Switch、视频播完自动播放下一个）：由 Playback Feedback 呈现（持续 1 秒），文案按来源为 `No Available Results`、`No Available Excerpts`、`No Available Videos`
 - 加载状态（Spinner + `Loading` 文案）：常规操作 HUD 优先级高于加载状态；无操作 HUD 时等待画面超过 `--delay-playback-loading-feedback` 仍未就绪则显示加载状态，有操作 HUD 时待操作 HUD 结束后再按 `--delay-playback-loading-feedback` 计时，超时仍未就绪才显示加载状态；画面就绪或加载失败时立即消失
 
 #### Components
@@ -307,7 +307,7 @@
 
 - Save to Excerpt List 打开 Excerpt Destination Submenu 选择目标列表，不直接保存；结果由当前界面右下角 Toast 呈现，成功时 Icon 为实心书签，失败或已存在时 Icon 为 warning
 - 对不在数据库中的项执行 Save to Excerpt List 或 Copy Deep Link 时拦截，由当前界面右下角 Toast 呈现（持续 3 秒），Icon 为 warning，文案 `Cue Not in Library`，面板保持打开；执行 Play 时关闭浮层，进入黑屏播放界面并由 Player Error Banner 报错；从 Playback Overlay 正常执行 Play 进入播放时不显示 `Play` Playback Feedback
-- 在 Command Panel 的 Recent Excerpt Lists 中打开没有有效项的列表时拦截，由 Command Panel 右下角 Toast 呈现（持续 3 秒），Icon 为 warning，文案 `No Available Results`，面板保持打开
+- 在 Command Panel 的 Recent Excerpt Lists 中打开没有有效项的列表时拦截，由 Command Panel 右下角 Toast 呈现（持续 3 秒），Icon 为 warning，文案 `No Available Excerpts`，面板保持打开
 - `S`、`C`、`X`、`P`、`E` 为默认键位，Keycap 显示 Settings / Shortcuts 中的当前键位，修饰键（⌃、⌥、⇧、⌘）与主键各占一个 Keycap；快捷键已清空或冲突时不显示 Keycap
 
 #### States
@@ -518,7 +518,7 @@
 - Recent Videos
   - Content：Recent Watching Card Grid（按 Recent Layout 时间分组展示；无记录时居中展示 Empty State，图标 `video`）
 - Recent Excerpt Lists
-  - Content：Excerpt List Card Grid（按 Recent Layout 时间分组展示；无记录时居中展示 Empty State，图标 `excerpt`）
+  - Content：Excerpt List Card Grid（按 Recent Layout 时间分组展示；无摘录集时居中展示 Empty State，图标 `excerpt`）
 - Search Results
   - Header：右侧依次为 Filter Trigger、Sort Trigger，样式与交互同 Search / Excerpt Toolbar Layout 的 Search
   - Content：Command Panel Search Results Layout

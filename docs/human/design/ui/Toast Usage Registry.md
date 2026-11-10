@@ -425,16 +425,26 @@
 - 出现位置：Player Top-Left
 - 动画：None
 
-#### 38. 播放列表无可用结果
+#### 38. 搜索播放列表无可用结果
 - 英文：No Available Results
 - 简体中文：没有可用的结果
 - 繁体中文：沒有可用的結果
 - 图标：warning
-- 持续时间：1秒（Player Top-Left）/ 3秒（Command Panel 右下角 Toast）
+- 持续时间：1秒
 - Scenario ID：playback.hud.no_available_results
-- 出现位置：Player Top-Left（播放器画面切集无有效项时）/ Bottom Right（Command Panel 中打开无有效项的 Recent Excerpt List 时）
+- 出现位置：Player Top-Left
+- 动画：None
+- 说明：搜索播放列表中所有项目失效不可用时切集触发。
+
+#### 38.1 无可用摘录
+- 英文：No Available Excerpts
+- 简体中文：没有可用的摘录
+- 繁体中文：沒有可用的摘錄
+- 图标：warning
+- 持续时间：1秒（Player Top-Left）/ 3秒（Bottom Right Toast）
+- Scenario ID：playback.hud.no_available_excerpts
+- 出现位置：Player Top-Left（摘录播放列表切集无有效项时）/ Bottom Right（两处 Recent Excerpt Lists 打开无有效摘录的列表，或未刷新的 Excerpt 二级界面点击无有效摘录列表的 Play / Resume 时）
 - 动画：None（Player Top-Left）/ Default（Toast）
-- 说明：播放列表中所有项目失效不可用时触发（Search 与 Excerpt 均统一为此提示）。
 
 #### 39. 播放列表无可用视频
 - 英文：No Available Videos

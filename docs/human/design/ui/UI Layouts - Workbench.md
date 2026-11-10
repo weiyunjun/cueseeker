@@ -363,7 +363,8 @@
 - Tabs 默认在顶栏水平、垂直居中；空间不足时保持与左、右内容至少 `--spacing-3` 间距并向空余一侧偏移，两侧间距均达 `--spacing-3` 后截断左侧标题。卡片网格使用 `--padding-workbench-media-card-grid-inline`。
 - 默认选项：Videos。选择在 App 运行期间保留，重新启动后回到默认。
 - 按本地自然日凌晨 `00:00` 划分为 `Last 7 Days`、`Last 30 Days`、`Earlier`、`Never Played` 四个分组，仅展示非空分组；分组标题左边缘与未 Hover 时的卡片封面左边缘齐平。
-- `Never Played`：Videos 收录无播放记录的文件夹（默认展示 `EP01`，按文件夹名称升序）；Excerpt Lists 收录未播放过的有效摘录集（按创建时间正序，打开时从第 1 条有效字幕播放）。
+- `Excerpt Lists` 收录全部已存在的摘录集（仅在无任何摘录集时展示 Empty State），按历史实际播放时间归组，曾播放过的摘录集不因列表清空或摘录全部失效而改变分组；打开无有效摘录的摘录集时拦截并弹出右下角 `No Available Excerpts` Toast（持续 3 秒），不进入播放且不更新最近播放时间。
+- `Never Played`：Videos 收录无播放记录的文件夹（默认展示 `EP01`，按文件夹名称升序）；Excerpt Lists 收录从未实际播放过的摘录集（按创建时间正序，有有效摘录时从第 1 条有效字幕播放）。
 
 #### Sizes
 
@@ -642,7 +643,7 @@
 - Page Layout：Workbench Titled Page Layout
 - Action Bar 保持 `--spacing-8` 边距，左对齐，从左到右依次为搜索框（占位提示 `Search excerpt lists...`，进入页面不自动聚焦，输入内容在 App 运行期间保留、清除或重启后清空，仅实时匹配摘录集名称）、排序按钮（图标为 `funnel-simple`，文字为当前选中的排序方式）、新建按钮（Neutral，带 `plus` 图标）、统计文本（`xx lists  yy cues`，样式同 Workbench Status Indicator，随搜索结果实时变化并跨匹配摘录集去重，其中 `yy cues` 与卡片封面徽章仅统计有效字幕）；卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面左边缘与搜索框左边缘齐平。
 - 搜索框宽度与统计文本换行规则同 `L-04.1 Library Overview Layout`。
-- 搜索无匹配结果时保留 Action Bar，下方居中显示 Empty State（图标 `search-no-results`）。
+- 空状态：没有任何摘录集时隐藏 Action Bar（并清空残留搜索词），正文居中显示带 `+ New List` 按钮的 Empty State（图标 `excerpt-hint`，文案 `Create an excerpt list to collect excerpts.`）；有摘录集但搜索无匹配结果时保留 Action Bar，下方居中显示 Empty State（图标 `search-no-results`）。
 
 #### Ordering
 
@@ -685,8 +686,6 @@
 1. `Edit List`
 2. `Delete List`
 
-全局只有一个 Excerpt List 时 `Delete List` 为 Disabled（不受搜索过滤结果数量影响）。
-
 #### States
 
 - Default
@@ -714,7 +713,7 @@
 - Cover Summary 内容：
   - Supporting Content 第 1 行为有效台词总数量与创建时间（`xx excerpts  Created yyyy-MM-dd`，中间以 2 个英文空格分隔），第 2 行为摘录列表描述（未填写时显示占位文案 `No description`；仅当描述发生单行截断或包含换行时支持点击在原地展开详情浮层，Hover 显示同色下划线与 Grab 指针，拖拽则划选文字）。
   - Progress Label（仅 Resume 态显示）：`#x / y  台词内容`（`y` 为有效台词数，序号与台词内容之间以 2 个英文空格分隔，超出单行或遇换行均在末尾以 `...` 截断）。
-  - Action Row：`Resume` / `Play`、`More`（图标 `dots-three`，弹出菜单内容与 Excerpt 一级界面卡片右键菜单一致，含 `Edit List` 与 `Delete List`；确认删除当前列表后自动退回 Excerpt 一级界面）。
+  - Action Row：`Resume` / `Play`（已同步状态下无有效摘录时为 Disabled `Play`；未刷新冻结状态下后台已无有效摘录时点击拦截并弹出右下角 3 秒 `No Available Excerpts` Toast）、`More`（图标 `dots-three`，弹出菜单内容与 Excerpt 一级界面卡片右键菜单一致，含 `Edit List` 与 `Delete List`；确认删除当前列表后自动退回 Excerpt 一级界面）。
 
 #### Spacing
 
