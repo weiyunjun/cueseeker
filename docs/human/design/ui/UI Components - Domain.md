@@ -14,9 +14,11 @@
 
 - Container
   - Radius：`--radius-chip`
+  - Border Width：`--border-width-control`
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-caption`
+  - Font Weight：`--font-weight-control`
 
 ##### Sizes
 
@@ -28,15 +30,19 @@
 - Unwatched
   - Background：`--color-watch-status-unwatched-bg`
   - Text Color：`--color-watch-status-unwatched-text`
+  - Border Color：`--color-watch-status-unwatched-border`
 - Watching
   - Background：`--color-watch-status-watching-bg`
   - Text Color：`--color-watch-status-watching-text`
+  - Border Color：`--color-watch-status-watching-border`
 - Finished
   - Background：`--color-watch-status-finished-bg`
   - Text Color：`--color-watch-status-finished-text`
+  - Border Color：`--color-watch-status-finished-border`
 - Disabled
   - Background：`--color-bg-disabled`
   - Text Color：`--color-text-disabled`
+  - Border Color：`--color-border-disabled`
 
 ### C-08.2 Task Status Badge
 

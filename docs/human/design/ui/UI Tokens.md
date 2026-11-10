@@ -139,10 +139,13 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-chip-language-text`: Light `#0040FF`; Dark `#93C5FD`
 - `--color-watch-status-unwatched-bg`: Light `#F3F4F6`; Dark `#27272A`
 - `--color-watch-status-unwatched-text`: Light `#667085`; Dark `#A1A1AA`
+- `--color-watch-status-unwatched-border`: Light `#D0D5DD`; Dark `#3F3F46`
 - `--color-watch-status-watching-bg`: Light `#DBEAFE`; Dark `#172A4A`
 - `--color-watch-status-watching-text`: Light `#0040FF`; Dark `#93C5FD`
+- `--color-watch-status-watching-border`: Light `#93C5FD`; Dark `#2563EB`
 - `--color-watch-status-finished-bg`: Light `#D1FAE5`; Dark `#123A2A`
 - `--color-watch-status-finished-text`: Light `#047857`; Dark `#6EE7B7`
+- `--color-watch-status-finished-border`: Light `#6EE7B7`; Dark `#059669`
 
 ### Scrollbar
 
