@@ -10,11 +10,11 @@
 ## 1.1 按下态（Pressed）组件白名单与视觉约束
 - **白名单原则**：仅针对按钮类触发器、筛选筹码与可点击文件夹卡片引入 `Pressed` 视觉反馈；其余容器、列表与导航组件保持按住不改变外观。
 - **允许拥有按下态的组件白名单**：
-  1. **按钮与快捷动作**：`C-03.1 Button`（`Neutral`、`Cover Summary`、`Primary`、`Destructive` 及设置页字体下拉触发器）、`C-03.2 Icon Button`（含 `C-05.2 Sidebar Toggle`、卡片与表格行 `dots-three` 按钮、设置页恢复默认按钮、导出 Anki 的 `+` 与条目 `✕` 按钮）、`C-03.3 Shortcut Action Button`（内部 `C-08.9 Keycap` 同步进入 `Pressed`）、`L-06.8 File Detail Dialog Layout` 中 `File Info` 顶部文件切换触发器。
+  1. **按钮与快捷动作**：`C-03.1 Button`（`Neutral`、`Cover Summary`、`Primary`、`Destructive` 及设置页字体下拉触发器）、`C-03.2 Icon Button`（含 `C-05.2 Sidebar Toggle`、卡片与表格行 `dots-three` 按钮、设置页恢复默认按钮、导出 Anki 的 `+` 与条目 `✕` 按钮）、`C-03.3 Shortcut Action Button` 与未处于 `Recording` 态的 `C-01.5 Shortcut Field`（内部 `C-08.9 Keycap` 同步进入 `Pressed`）、`L-06.8 File Detail Dialog Layout` 中 `File Info` 顶部文件切换触发器。
   2. **筛选筹码与文件夹卡片**：`C-02.5 Filter Chip`（未选中与已选中）、`L-04.6 File Card Layout` 中的一级与二级可点击文件夹卡片（按住右侧 `dots-three` 按钮时仅按钮自身进入 `Pressed`，卡片维持 `Hover`）、`L-06.4` 远程目录浏览中的未添加文件夹主卡片与右侧独立 `>` 按钮。
   3. **播放控制按钮**：`C-12.1 Player Speed Button`、播放页顶底栏 `Icon Button`、`C-12.5 Player Volume Control` 左侧静音喇叭按钮（拖拽音量滑块不触发按钮 `Pressed`）、`C-12.7 Player Cue Queue Control Bar` 内部按钮。
 - **几何零缩放与 `Open` 态衔接**：`Pressed` 态严禁缩放几何尺寸或偏移内容，仅将背景色在 `Hover` 态基础上推进一档（带边框控件保持 `Hover` 边框色）；处于 `Open` 态（外观同 `Hover`）的按钮再次被按住时，同样切换为 `Pressed` 外观。
-- **非白名单维持原貌**：媒体卡片 `C-11.5`、File 剧集分组文件行、远程目录浏览中已添加文件夹主卡片与文件卡片、任务卡片 `L-06.10`、表头与表格行 `C-06.2`/`C-06.3`、Sidebar 项 `C-05.3`、标签页 `C-05.5`、面包屑 `C-05.6`、菜单项 `C-04.3`、分段控制器 `C-02.4`、复选框 `C-02.1`、开关 `C-02.2`、输入框 `C-01` 等按住期间保持既有外观不变。
+- **非白名单维持原貌**：媒体卡片 `C-11.5`、File 剧集分组文件行、远程目录浏览中已添加文件夹主卡片与文件卡片、任务卡片 `L-06.10`、表头与表格行 `C-06.2`/`C-06.3`、Sidebar 项 `C-05.3`、标签页 `C-05.5`、面包屑 `C-05.6`、菜单项 `C-04.3`、分段控制器 `C-02.4`、复选框 `C-02.1`、开关 `C-02.2`、输入框 `C-01`（未录制态的 `C-01.5` 除外）等按住期间保持既有外观不变。
 
 ## 1.2 选中态（Selected）组件白名单
 - **白名单原则**：只有具备「持久状态、当前位置指示或键盘导航焦点」语义的组件才拥有 `Selected`（或 `Checked`）视觉状态。

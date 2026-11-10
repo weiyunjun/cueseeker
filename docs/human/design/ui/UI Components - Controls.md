@@ -223,14 +223,18 @@
 
 ##### Anatomy
 
-- Container：同 Text Field
+- Container
+  - Background：Transparent
+  - Border：None
+  - Radius：`--radius-field`
 - Keycap
   - Component：Keycap / Popover Surface
-  - Placement：Leading
+  - Placement：Trailing
   - Gap：`--spacing-1`
   - 修饰键（⌃、⌥、⇧、⌘）与主键各占一个 Keycap
 - Placeholder
   - Presence：仅 Recording
+  - Placement：Leading
   - Font Size：`--font-size-control`
   - Color：`--color-text-placeholder`
 - Inline Clear
@@ -250,12 +254,21 @@
 - Default
 - Empty
   - 触发：快捷键已清空
+- Hover
+  - Background：`--color-bg-hover`
+  - 内部 Keycap 一并切换到 Hover
+- Pressed
+  - Background：`--color-bg-pressed`
+  - 内部 Keycap 一并切换到 Pressed
 - Recording
+  - Background：`--color-bg-control`
   - Border Color：`--color-border-focus`
+  - Border Width：`--border-width-control`
   - Keycap 换为 Placeholder 与 Inline Clear
 - Error
   - 触发：快捷键冲突；Recording 时按下排除或保留键静默忽略，不触发 Error
   - Border Color：`--color-danger-text`
+  - Border Width：`--border-width-control`
 
 ## 2.2 Selection Controls
 

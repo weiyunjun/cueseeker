@@ -289,9 +289,9 @@
 
 - Default
 - Hover
-  - 跟随所属 Shortcut Action Button
+  - 跟随所属 Shortcut Action Button 或 Shortcut Field
 - Pressed
-  - 跟随所属 Shortcut Action Button
+  - 跟随所属 Shortcut Action Button 或 Shortcut Field
 
 #### Variants
 
