@@ -136,10 +136,11 @@ struct SettingsShortcutsCategory: View {
     }
 }
 
-/// The key field: the shortcut's keycaps, or while recording the placeholder
-/// and an Inline Clear. It wears Text Field's container, with recording as its
-/// Focused state.
-private struct PlaybackShortcutField: View {
+/// The key field: the shortcut's keycaps aligned trailing, or while recording
+/// the leading placeholder and trailing Inline Clear. Default and Empty states
+/// stay borderless and transparent until hovered; Recording uses the control
+/// fill and focus border, and Error keeps the danger border.
+struct PlaybackShortcutField: View {
     let key: PlaybackShortcutKey?
     let isRecording: Bool
     let hasError: Bool
@@ -147,6 +148,38 @@ private struct PlaybackShortcutField: View {
     let onClear: () -> Void
 
     @State private var anchor = MenuAnchorHandle()
+    @State private var isHovered = false
+
+    var resolvedContentAlignment: Alignment {
+        isRecording ? .leading : .trailing
+    }
+
+    func resolvedContainerBackground(isHovered: Bool) -> Color {
+        if isRecording {
+            return WorkbenchRedesignColors.bgControl
+        }
+        if isHovered {
+            return WorkbenchRedesignColors.bgHover
+        }
+        return Color.clear
+    }
+
+    var resolvedContainerBorderColor: Color? {
+        if hasError {
+            return WorkbenchRedesignColors.dangerText
+        }
+        if isRecording {
+            return WorkbenchRedesignColors.borderFocus
+        }
+        return nil
+    }
+
+    func resolvedKeycapBackground(isHovered: Bool) -> Color {
+        if !isRecording && isHovered {
+            return WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg
+        }
+        return WorkbenchRedesignColors.popoverSurfaceKeycapBg
+    }
 
     var body: some View {
         ZStack(alignment: .trailing) {
@@ -159,17 +192,32 @@ private struct PlaybackShortcutField: View {
                         width: SettingsShortcutsMetrics.fieldWidth,
                         height: WorkbenchControlMetrics.redesignFieldHeight
                     )
-                    .overlay(alignment: .leading) {
+                    .overlay(alignment: resolvedContentAlignment) {
                         content
                             .padding(
                                 .horizontal,
                                 WorkbenchControlMetrics.redesignFieldPaddingX
                             )
                     }
-                    .workbenchFormFieldChrome(
-                        hasError: hasError,
-                        isFocused: isRecording
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
+                            style: .continuous
+                        )
+                        .fill(resolvedContainerBackground(isHovered: isHovered))
                     )
+                    .overlay {
+                        if let borderColor = resolvedContainerBorderColor {
+                            RoundedRectangle(
+                                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
+                                style: .continuous
+                            )
+                            .strokeBorder(
+                                borderColor,
+                                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                            )
+                        }
+                    }
                     .contentShape(Rectangle())
             }
             .buttonStyle(StaticButtonStyle())
@@ -193,6 +241,7 @@ private struct PlaybackShortcutField: View {
                     )
             }
         }
+        .onPointerHover { isHovered = $0 }
         .background(MenuAnchorProbe(handle: anchor))
     }
 
@@ -211,7 +260,7 @@ private struct PlaybackShortcutField: View {
                 ForEach(key.keycaps.indices, id: \.self) { index in
                     PlaybackCueFooterKeycapView(
                         keycap: key.keycaps[index],
-                        background: WorkbenchRedesignColors.popoverSurfaceKeycapBg
+                        background: resolvedKeycapBackground(isHovered: isHovered)
                     )
                 }
             }

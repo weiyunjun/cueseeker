@@ -266,3 +266,60 @@ func changedAndClearedShortcutsSurviveARelaunch() throws {
     #expect(userDefaults.object(forKey: "playbackShortcutOverrides") == nil)
     #expect(PlaybackShortcutStore(userDefaults: userDefaults).keymap == .defaults)
 }
+
+@MainActor
+@Test
+func shortcutFieldRightAlignsKeycapsAndUsesBorderlessHoverAndRecordingChrome() {
+    let defaultField = PlaybackShortcutField(
+        key: key(kVK_Space),
+        isRecording: false,
+        hasError: false,
+        onStart: { _ in },
+        onClear: {}
+    )
+    #expect(defaultField.resolvedContentAlignment == .trailing)
+    #expect(defaultField.resolvedContainerBackground(isHovered: false) == .clear)
+    #expect(defaultField.resolvedContainerBackground(isHovered: true) == WorkbenchRedesignColors.bgHover)
+    #expect(defaultField.resolvedContainerBorderColor == nil)
+    #expect(defaultField.resolvedKeycapBackground(isHovered: false) == WorkbenchRedesignColors.popoverSurfaceKeycapBg)
+    #expect(defaultField.resolvedKeycapBackground(isHovered: true) == WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg)
+
+    let emptyField = PlaybackShortcutField(
+        key: nil,
+        isRecording: false,
+        hasError: false,
+        onStart: { _ in },
+        onClear: {}
+    )
+    #expect(emptyField.resolvedContentAlignment == .trailing)
+    #expect(emptyField.resolvedContainerBackground(isHovered: false) == .clear)
+    #expect(emptyField.resolvedContainerBackground(isHovered: true) == WorkbenchRedesignColors.bgHover)
+    #expect(emptyField.resolvedContainerBorderColor == nil)
+
+    let recordingField = PlaybackShortcutField(
+        key: key(kVK_Space),
+        isRecording: true,
+        hasError: false,
+        onStart: { _ in },
+        onClear: {}
+    )
+    #expect(recordingField.resolvedContentAlignment == .leading)
+    #expect(recordingField.resolvedContainerBackground(isHovered: false) == WorkbenchRedesignColors.bgControl)
+    #expect(recordingField.resolvedContainerBackground(isHovered: true) == WorkbenchRedesignColors.bgControl)
+    #expect(recordingField.resolvedContainerBorderColor == WorkbenchRedesignColors.borderFocus)
+    #expect(recordingField.resolvedKeycapBackground(isHovered: true) == WorkbenchRedesignColors.popoverSurfaceKeycapBg)
+
+    let errorField = PlaybackShortcutField(
+        key: key(kVK_LeftArrow),
+        isRecording: false,
+        hasError: true,
+        onStart: { _ in },
+        onClear: {}
+    )
+    #expect(errorField.resolvedContentAlignment == .trailing)
+    #expect(errorField.resolvedContainerBackground(isHovered: false) == .clear)
+    #expect(errorField.resolvedContainerBackground(isHovered: true) == WorkbenchRedesignColors.bgHover)
+    #expect(errorField.resolvedContainerBorderColor == WorkbenchRedesignColors.dangerText)
+    #expect(errorField.resolvedKeycapBackground(isHovered: false) == WorkbenchRedesignColors.popoverSurfaceKeycapBg)
+    #expect(errorField.resolvedKeycapBackground(isHovered: true) == WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg)
+}
