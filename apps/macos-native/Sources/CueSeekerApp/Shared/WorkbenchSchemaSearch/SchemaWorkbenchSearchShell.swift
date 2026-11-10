@@ -512,6 +512,8 @@ struct SchemaWorkbenchSearchToolbar: View {
     var onToggleSelectionMode: () -> Void
 
     @State private var hasConsumedInitialAutofocus = false
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
     @StateObject private var defaultSelectionMenuController = SchemaWorkbenchSelectionMenuController()
 
     private var resolvedSelectionMenuController: SchemaWorkbenchSelectionMenuController {
@@ -519,6 +521,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     }
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         WorkbenchAccessibilityReader { accessibility in
             let _ = syncAccessibilityCallbacks(accessibility)
             VStack(spacing: SchemaWorkbenchStyle.toolbarRowSpacing) {
@@ -991,6 +994,14 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
             dismissSortMenu()
             dismissSelectionDestinationMenu()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            if activeSortMenu != nil {
+                openSortMenu()
+            }
+            if let actionID = activeSelectionMenu?.actionID {
+                openSelectionDestinationMenu(for: actionID)
+            }
+        }
     }
 
     private var isHostCovered: Bool {
@@ -1274,8 +1285,11 @@ struct SchemaWorkbenchSortMenuPopover: View {
     @ObservedObject var highlight: MenuHighlightModel
     let onSelect: (String) -> Void
     let onDismiss: () -> Void
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         WorkbenchPopoverPanel(
             maximumHeight: MenuMetrics.maximumHeight,
             highlight: highlight

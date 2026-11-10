@@ -8,13 +8,17 @@ struct WorkbenchSegmentedControl<Option: Hashable>: View {
     let accessibilityLabel: (Option) -> String
     var accessibilityIdentifier: ((Option) -> String)? = nil
     var focusedOption: Option? = nil
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         WorkbenchSegmentedControlLayout(spacing: WorkbenchControlMetrics.redesignSegmentedControlGap) {
             ForEach(options, id: \.self) { option in
                 segment(option)
             }
         }
+        .id(localizationObserver.revision)
         .padding(WorkbenchControlMetrics.redesignSegmentedControlPadding)
         .background(
             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)

@@ -189,8 +189,11 @@ private struct PlaybackCueQueueGapStepper: View {
     var isIncreaseFocused: Bool = false
     let onDecrease: () -> Void
     let onIncrease: () -> Void
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         let decreaseLabel = L(
             "tooltip.player.auto_switch_gap.decrease",
             SettingsStore.autoSwitchCueSequenceGapStepMilliseconds

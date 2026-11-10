@@ -865,8 +865,11 @@ private struct AppSidebarNavigationItem: View {
     var isFocused: Bool = false
     let isEnabled: Bool
     let onSelect: () -> Void
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         Button(action: onSelect) {
             AppSidebarItemLabel(
                 icon: mode.icon,

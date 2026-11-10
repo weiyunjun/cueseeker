@@ -296,9 +296,47 @@ func languageSwitchImmediatelyUpdatesMenusDialogSessionsAndPlaybackState() {
         #expect(playback.chromeSnapshot.displayTitle == "No video selected")
         #expect(playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
 
+        let appearanceHost = NSHostingView(
+            rootView: SettingsAppearanceCategory()
+                .environmentObject(settings.localization)
+                .environmentObject(settings)
+        )
+        appearanceHost.layoutSubtreeIfNeeded()
+        let decodeControlHost = NSHostingView(
+            rootView: SettingsDecodeCategory()
+                .environmentObject(settings.localization)
+                .environmentObject(settings)
+        )
+        decodeControlHost.layoutSubtreeIfNeeded()
+        var renderedAppearanceTitles: [String] = []
+        let segmentedHost = NSHostingView(
+            rootView: WorkbenchSegmentedControl(
+                options: AppAppearanceMode.allCases,
+                selection: .constant(.auto),
+                title: { mode in
+                    let title = mode.displayName
+                    if !renderedAppearanceTitles.contains(title) {
+                        renderedAppearanceTitles.append(title)
+                    }
+                    return title
+                },
+                accessibilityLabel: { L("settings.appearance.accessibility", $0.displayName) }
+            )
+        )
+        segmentedHost.frame = NSRect(x: 0, y: 0, width: 320, height: 80)
+        segmentedHost.layoutSubtreeIfNeeded()
+        #expect(renderedAppearanceTitles == ["Light", "Dark", "Auto"])
+
         settings.localization.set(.simplifiedChinese)
         excerptEditorSession.refreshLocalizedValidationMessages()
+        renderedAppearanceTitles.removeAll()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        appearanceHost.layoutSubtreeIfNeeded()
+        decodeControlHost.layoutSubtreeIfNeeded()
+        segmentedHost.layoutSubtreeIfNeeded()
 
+        #expect(renderedAppearanceTitles == ["浅色", "深色", "自动"])
+        #expect(AppAppearanceMode.allCases.map(\.displayName) == ["浅色", "深色", "自动"])
         #expect(LibraryCoverContextMenuItem.title == "更换封面")
         #expect(LibraryCoverEditingCopy.dialogTitle == "编辑封面")
         #expect(LibraryCoverEditingCopy.chooseImageActionTitle == "选择图片")

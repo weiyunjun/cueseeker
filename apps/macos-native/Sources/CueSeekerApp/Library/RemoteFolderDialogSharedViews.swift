@@ -491,7 +491,7 @@ struct WebDAVBrowserCard: View {
     let isSelected: Bool
     var isCardFocused: Bool = false
     var isEnterButtonFocused: Bool = false
-    var addedBadgeTitle: String = L("remote.browser.added")
+    var addedBadgeTitle: String? = nil
     let onToggleSelection: () -> Void
     let onOpenFolder: () -> Void
 
@@ -499,6 +499,8 @@ struct WebDAVBrowserCard: View {
     @State private var isCardPressed = false
     @State private var isEnterButtonHovered = false
     @State private var isEnterButtonPressed = false
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var isFolder: Bool {
         item.kind == .folder
@@ -621,6 +623,7 @@ struct WebDAVBrowserCard: View {
     }
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         let shape = RoundedRectangle(
             cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
             style: .continuous
@@ -644,7 +647,7 @@ struct WebDAVBrowserCard: View {
 
                 if showsAddedBadge {
                     WorkbenchBadge(
-                        title: addedBadgeTitle,
+                        title: addedBadgeTitle ?? L("remote.browser.added"),
                         foregroundColor: WorkbenchRedesignColors.watchStatusFinishedText,
                         fillColor: WorkbenchRedesignColors.watchStatusFinishedBg
                     )

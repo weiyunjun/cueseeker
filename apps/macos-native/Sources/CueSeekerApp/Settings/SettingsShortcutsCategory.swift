@@ -150,6 +150,8 @@ struct PlaybackShortcutField: View {
     @State private var anchor = MenuAnchorHandle()
     @State private var isHovered = false
     @State private var isPressed = false
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var resolvedContentAlignment: Alignment {
         isRecording ? .leading : .trailing
@@ -198,6 +200,7 @@ struct PlaybackShortcutField: View {
     }
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         ZStack(alignment: .trailing) {
             Button {
                 onStart(anchor)

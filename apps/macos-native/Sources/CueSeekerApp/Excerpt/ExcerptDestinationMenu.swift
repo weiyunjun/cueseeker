@@ -13,6 +13,8 @@ struct ExcerptDestinationMenu: View {
     var maximumHeight: CGFloat = MenuMetrics.maximumHeight
     let onSelect: (SubtitleTableRowActionDestination) -> Void
     let onCreateList: () -> Void
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     /// `New List` sits after the lists, so it takes the position one past them.
     static func selectablePositions(
@@ -31,6 +33,7 @@ struct ExcerptDestinationMenu: View {
     }
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         WorkbenchPopoverPanel(
             maximumHeight: maximumHeight,
             highlight: highlight

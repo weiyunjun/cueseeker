@@ -341,8 +341,11 @@ private struct PlaybackPlayPauseChromeButton: View {
     @ObservedObject var viewModel: PlaybackViewModel
     var isFocused: Bool = false
     let action: () -> Void
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         PlaybackChromeIconButton(
             icon: viewModel.isPlaying ? .pause : .play,
             iconWeight: .fill,
@@ -418,8 +421,11 @@ private struct PlaybackSpeedChromeButton: View {
     @ObservedObject var viewModel: PlaybackViewModel
     @Binding var isSpeedMenuVisible: Bool
     var isFocused: Bool = false
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         Button {
             isSpeedMenuVisible.toggle()
         } label: {

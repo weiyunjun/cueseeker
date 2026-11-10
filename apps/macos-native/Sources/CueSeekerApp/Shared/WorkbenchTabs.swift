@@ -19,8 +19,11 @@ struct WorkbenchTabs<Value: Hashable>: View {
     /// leaving it inset by the hit-area padding every tab carries.
     var isLeadingEdgeAligned = false
     let onSelect: (Value) -> Void
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         HStack(spacing: PlaybackOverlayMetrics.tabGap) {
             ForEach(items) { item in
                 let isSelected = selection == item.value

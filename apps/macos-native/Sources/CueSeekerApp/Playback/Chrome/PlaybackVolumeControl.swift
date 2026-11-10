@@ -6,8 +6,11 @@ struct PlaybackVolumeControl: View {
     var isFocused: Bool = false
     @State private var isHovered = false
     @State private var isSpeakerPressed = false
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         HStack(spacing: 0) {
             Button {
                 viewModel.toggleMute()

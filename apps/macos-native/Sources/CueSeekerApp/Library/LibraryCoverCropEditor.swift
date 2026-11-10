@@ -232,8 +232,11 @@ struct LibraryCoverCropEditor: View {
     @State private var moveStartCropRect: CGRect?
     @State private var resizeStartCropRect: CGRect?
     @State private var activeCorner: LibraryCoverCropCorner?
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         GeometryReader { proxy in
             let layout = LibraryCoverCropLayout(
                 imageSize: source.pixelSize,

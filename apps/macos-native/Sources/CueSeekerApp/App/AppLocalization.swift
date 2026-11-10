@@ -92,6 +92,17 @@ enum AppLocalization {
     }
 }
 
+@MainActor
+final class AppLocalizationRevisionStore: ObservableObject {
+    static let shared = AppLocalizationRevisionStore()
+
+    @Published private(set) var revision = 0
+
+    func bump() {
+        revision &+= 1
+    }
+}
+
 /// Publishes interface-language changes to the views that render localized
 /// text.
 ///
@@ -114,6 +125,7 @@ final class AppLocalizationStore: ObservableObject {
         self.userDefaults = userDefaults
         self.userDefaultsKey = userDefaultsKey
         AppLocalization.apply(language)
+        AppLocalizationRevisionStore.shared.bump()
     }
 
     func set(_ language: AppLanguage) {
@@ -124,6 +136,7 @@ final class AppLocalizationStore: ObservableObject {
         // reads the new language.
         AppLocalization.apply(language)
         self.language = language
+        AppLocalizationRevisionStore.shared.bump()
         userDefaults.set(language.rawValue, forKey: userDefaultsKey)
         // The menu bar is built with AppKit and does not participate in SwiftUI
         // invalidation, so it is rebuilt explicitly.

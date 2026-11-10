@@ -89,8 +89,11 @@ struct CommandPanelEntryButton: View {
     var isFocused: Bool = false
     var isPlayerChrome: Bool = false
     let onOpen: () -> Void
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         WorkbenchIconButton(
             icon: .magnifyingGlass,
             isOpen: playback.commandPanelPresentation != nil,
@@ -127,8 +130,11 @@ struct SettingsEntryButton: View {
     var isFocused: Bool = false
     var isPlayerChrome: Bool = false
     let onOpen: () -> Void
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         WorkbenchIconButton(
             icon: .gear,
             isOpen: layoutState.isSettingsWindowOpen,

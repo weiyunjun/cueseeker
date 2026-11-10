@@ -211,6 +211,8 @@ struct PlaybackChromeMoreMenuOverlay: View {
     let suppressesInteraction: Bool
     let onSelect: (Int) -> Void
     @State private var layout: PlaybackMoreMenuLayout?
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     private static let padding = MenuMetrics.padding
     private static let itemHeight = WorkbenchControlMetrics.redesignMenuItemHeight
@@ -223,6 +225,7 @@ struct PlaybackChromeMoreMenuOverlay: View {
     }
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         GeometryReader { proxy in
             let menuFrame = layout?.menuFrame ?? .zero
             let submenu = submenuState.openParent != nil ? layout?.submenu : nil
@@ -286,6 +289,12 @@ struct PlaybackChromeMoreMenuOverlay: View {
             .onChange(of: LayoutInput(stageSize: proxy.size, buttonFrame: buttonFrame, menu: menu)) { input in
                 layout = measuredLayout(
                     stageSize: input.stageSize,
+                    recordsTelemetry: false
+                )
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+                layout = measuredLayout(
+                    stageSize: proxy.size,
                     recordsTelemetry: false
                 )
             }
@@ -458,6 +467,8 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
     let suppressesInteraction: Bool
     let onSelect: (Int) -> Void
     @State private var layout: PlaybackSubtitleMenuLayout?
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     private static let itemGap: CGFloat = 0
 
@@ -468,6 +479,7 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
     }
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         GeometryReader { proxy in
             let menuFrame = layout?.frame ?? .zero
 
@@ -511,6 +523,12 @@ struct PlaybackChromeSubtitleMenuOverlay: View {
             .onChange(of: LayoutInput(stageSize: proxy.size, buttonFrame: buttonFrame, menu: menu)) { input in
                 layout = measuredLayout(
                     stageSize: input.stageSize,
+                    recordsTelemetry: false
+                )
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+                layout = measuredLayout(
+                    stageSize: proxy.size,
                     recordsTelemetry: false
                 )
             }
@@ -631,8 +649,11 @@ private struct PlaybackMoreMenuTrigger: View {
     let suppressesInteraction: Bool
     @ObservedObject var highlight: MenuHighlightModel
     @ObservedObject var submenuState: MenuSubmenuState<PlaybackMoreSubmenu>
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         Button {
             guard !suppressesInteraction else {
                 return

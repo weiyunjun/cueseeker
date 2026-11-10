@@ -64,6 +64,8 @@ struct WorkbenchSearchField: View {
 
     @State private var isNativeFocused = false
     @State private var textFieldBox = WeakTextFieldBox()
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.workbenchAccessibility) private var workbenchAccessibility
 
@@ -101,6 +103,7 @@ struct WorkbenchSearchField: View {
     }
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             AppIconImage(.magnifyingGlass, size: WorkbenchControlMetrics.redesignControlIconSize)
                 .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)

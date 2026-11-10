@@ -276,6 +276,7 @@ private struct WorkbenchExcerptTableContent: View {
                     imageVerticalAlignment: .center
                 )
             }
+            .environmentObject(localization)
             .environment(\.workbenchAccessibility, appState.workbenchAccessibility)
         )
     }
@@ -375,6 +376,7 @@ private struct WorkbenchExcerptTableContent: View {
                 .padding(.bottom, SchemaWorkbenchStyle.toolbarBottomGap)
             }
             .background(WorkbenchRedesignColors.bgSurface)
+            .environmentObject(localization)
             .environment(\.workbenchAccessibility, appState.workbenchAccessibility)
         )
 

@@ -20,8 +20,11 @@ struct TaskEntryButton: View {
     var isFocused: Bool = false
     var isPlayerChrome: Bool = false
     let onOpen: () -> Void
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         WorkbenchIconButton(
             icon: .tray,
             isOpen: tasks.isPanelOpen,

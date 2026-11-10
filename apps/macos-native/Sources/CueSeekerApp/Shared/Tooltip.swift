@@ -506,8 +506,11 @@ private struct TooltipActiveBubbleView: View {
     let visibleSize: CGSize
     let keymap: PlaybackShortcutKeymap
     @State private var measuredSize: CGSize = .zero
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         let frame = TooltipGeometry.frame(
             anchor: item.anchorRect,
             size: measuredSize,
@@ -515,6 +518,7 @@ private struct TooltipActiveBubbleView: View {
         )
 
         tooltipContent
+            .id(localizationObserver.revision)
             .background(
                 GeometryReader { bubbleProxy in
                     Color.clear.preference(
@@ -533,6 +537,9 @@ private struct TooltipActiveBubbleView: View {
             .allowsHitTesting(false)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("workbench-tooltip-\(item.scenarioID)")
+            .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+                measuredSize = .zero
+            }
     }
 
     @ViewBuilder

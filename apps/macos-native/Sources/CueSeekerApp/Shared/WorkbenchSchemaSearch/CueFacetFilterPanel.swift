@@ -455,8 +455,11 @@ private struct CueFacetFilterChip: View {
     @State private var isHovered = false
     @State private var isPressed = false
     @State private var isTitleTruncated = false
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         Button(action: option.toggle) {
             label
         }

@@ -43,8 +43,11 @@ private struct WorkbenchDialogCloseButtonOverlay: View {
     let onClose: () -> Void
 
     @Environment(\.workbenchDialogID) private var dialogID
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         WorkbenchAccessibilityReader { accessibility in
             WorkbenchIconButton(
                 icon: .x,

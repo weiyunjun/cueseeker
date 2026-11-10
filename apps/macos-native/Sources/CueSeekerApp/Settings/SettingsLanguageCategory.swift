@@ -235,8 +235,11 @@ struct SettingsLanguageMenu: View {
     let selectedLanguage: AppLanguage
     @ObservedObject var highlight: MenuHighlightModel
     let onSelect: (AppLanguage) -> Void
+    private let localizationRevision = AppLocalizationRevisionStore.shared.revision
+    @ObservedObject private var localizationObserver = AppLocalizationRevisionStore.shared
 
     var body: some View {
+        let _ = (localizationRevision, localizationObserver.revision)
         WorkbenchPopoverPanel(
             maximumHeight: MenuMetrics.maximumHeight,
             highlight: highlight
