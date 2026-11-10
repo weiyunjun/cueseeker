@@ -278,11 +278,13 @@ func shortcutFieldRightAlignsKeycapsAndUsesBorderlessHoverAndRecordingChrome() {
         onClear: {}
     )
     #expect(defaultField.resolvedContentAlignment == .trailing)
-    #expect(defaultField.resolvedContainerBackground(isHovered: false) == .clear)
-    #expect(defaultField.resolvedContainerBackground(isHovered: true) == WorkbenchRedesignColors.bgHover)
+    #expect(defaultField.resolvedContainerBackground(isHovered: false, isPressed: false) == .clear)
+    #expect(defaultField.resolvedContainerBackground(isHovered: true, isPressed: false) == WorkbenchRedesignColors.bgHover)
+    #expect(defaultField.resolvedContainerBackground(isHovered: true, isPressed: true) == WorkbenchRedesignColors.bgPressed)
     #expect(defaultField.resolvedContainerBorderColor == nil)
-    #expect(defaultField.resolvedKeycapBackground(isHovered: false) == WorkbenchRedesignColors.popoverSurfaceKeycapBg)
-    #expect(defaultField.resolvedKeycapBackground(isHovered: true) == WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg)
+    #expect(defaultField.resolvedKeycapBackground(isHovered: false, isPressed: false) == WorkbenchRedesignColors.popoverSurfaceKeycapBg)
+    #expect(defaultField.resolvedKeycapBackground(isHovered: true, isPressed: false) == WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg)
+    #expect(defaultField.resolvedKeycapBackground(isHovered: true, isPressed: true) == WorkbenchRedesignColors.popoverSurfaceKeycapPressedBg)
 
     let emptyField = PlaybackShortcutField(
         key: nil,
@@ -292,8 +294,9 @@ func shortcutFieldRightAlignsKeycapsAndUsesBorderlessHoverAndRecordingChrome() {
         onClear: {}
     )
     #expect(emptyField.resolvedContentAlignment == .trailing)
-    #expect(emptyField.resolvedContainerBackground(isHovered: false) == .clear)
-    #expect(emptyField.resolvedContainerBackground(isHovered: true) == WorkbenchRedesignColors.bgHover)
+    #expect(emptyField.resolvedContainerBackground(isHovered: false, isPressed: false) == .clear)
+    #expect(emptyField.resolvedContainerBackground(isHovered: true, isPressed: false) == WorkbenchRedesignColors.bgHover)
+    #expect(emptyField.resolvedContainerBackground(isHovered: true, isPressed: true) == WorkbenchRedesignColors.bgPressed)
     #expect(emptyField.resolvedContainerBorderColor == nil)
 
     let recordingField = PlaybackShortcutField(
@@ -304,10 +307,12 @@ func shortcutFieldRightAlignsKeycapsAndUsesBorderlessHoverAndRecordingChrome() {
         onClear: {}
     )
     #expect(recordingField.resolvedContentAlignment == .leading)
-    #expect(recordingField.resolvedContainerBackground(isHovered: false) == WorkbenchRedesignColors.bgControl)
-    #expect(recordingField.resolvedContainerBackground(isHovered: true) == WorkbenchRedesignColors.bgControl)
+    #expect(recordingField.resolvedContainerBackground(isHovered: false, isPressed: false) == WorkbenchRedesignColors.bgControl)
+    #expect(recordingField.resolvedContainerBackground(isHovered: true, isPressed: false) == WorkbenchRedesignColors.bgControl)
+    #expect(recordingField.resolvedContainerBackground(isHovered: true, isPressed: true) == WorkbenchRedesignColors.bgControl)
     #expect(recordingField.resolvedContainerBorderColor == WorkbenchRedesignColors.borderFocus)
-    #expect(recordingField.resolvedKeycapBackground(isHovered: true) == WorkbenchRedesignColors.popoverSurfaceKeycapBg)
+    #expect(recordingField.resolvedKeycapBackground(isHovered: true, isPressed: false) == WorkbenchRedesignColors.popoverSurfaceKeycapBg)
+    #expect(recordingField.resolvedKeycapBackground(isHovered: true, isPressed: true) == WorkbenchRedesignColors.popoverSurfaceKeycapBg)
 
     let errorField = PlaybackShortcutField(
         key: key(kVK_LeftArrow),
@@ -317,9 +322,11 @@ func shortcutFieldRightAlignsKeycapsAndUsesBorderlessHoverAndRecordingChrome() {
         onClear: {}
     )
     #expect(errorField.resolvedContentAlignment == .trailing)
-    #expect(errorField.resolvedContainerBackground(isHovered: false) == .clear)
-    #expect(errorField.resolvedContainerBackground(isHovered: true) == WorkbenchRedesignColors.bgHover)
+    #expect(errorField.resolvedContainerBackground(isHovered: false, isPressed: false) == .clear)
+    #expect(errorField.resolvedContainerBackground(isHovered: true, isPressed: false) == WorkbenchRedesignColors.bgHover)
+    #expect(errorField.resolvedContainerBackground(isHovered: true, isPressed: true) == WorkbenchRedesignColors.bgPressed)
     #expect(errorField.resolvedContainerBorderColor == WorkbenchRedesignColors.dangerText)
-    #expect(errorField.resolvedKeycapBackground(isHovered: false) == WorkbenchRedesignColors.popoverSurfaceKeycapBg)
-    #expect(errorField.resolvedKeycapBackground(isHovered: true) == WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg)
+    #expect(errorField.resolvedKeycapBackground(isHovered: false, isPressed: false) == WorkbenchRedesignColors.popoverSurfaceKeycapBg)
+    #expect(errorField.resolvedKeycapBackground(isHovered: true, isPressed: false) == WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg)
+    #expect(errorField.resolvedKeycapBackground(isHovered: true, isPressed: true) == WorkbenchRedesignColors.popoverSurfaceKeycapPressedBg)
 }

@@ -138,8 +138,8 @@ struct SettingsShortcutsCategory: View {
 
 /// The key field: the shortcut's keycaps aligned trailing, or while recording
 /// the leading placeholder and trailing Inline Clear. Default and Empty states
-/// stay borderless and transparent until hovered; Recording uses the control
-/// fill and focus border, and Error keeps the danger border.
+/// stay borderless and transparent until hovered or pressed; Recording uses the
+/// control fill and focus border, and Error keeps the danger border.
 struct PlaybackShortcutField: View {
     let key: PlaybackShortcutKey?
     let isRecording: Bool
@@ -149,14 +149,21 @@ struct PlaybackShortcutField: View {
 
     @State private var anchor = MenuAnchorHandle()
     @State private var isHovered = false
+    @State private var isPressed = false
 
     var resolvedContentAlignment: Alignment {
         isRecording ? .leading : .trailing
     }
 
-    func resolvedContainerBackground(isHovered: Bool) -> Color {
+    func resolvedContainerBackground(
+        isHovered: Bool,
+        isPressed: Bool = false
+    ) -> Color {
         if isRecording {
             return WorkbenchRedesignColors.bgControl
+        }
+        if isPressed {
+            return WorkbenchRedesignColors.bgPressed
         }
         if isHovered {
             return WorkbenchRedesignColors.bgHover
@@ -174,8 +181,17 @@ struct PlaybackShortcutField: View {
         return nil
     }
 
-    func resolvedKeycapBackground(isHovered: Bool) -> Color {
-        if !isRecording && isHovered {
+    func resolvedKeycapBackground(
+        isHovered: Bool,
+        isPressed: Bool = false
+    ) -> Color {
+        guard !isRecording else {
+            return WorkbenchRedesignColors.popoverSurfaceKeycapBg
+        }
+        if isPressed {
+            return WorkbenchRedesignColors.popoverSurfaceKeycapPressedBg
+        }
+        if isHovered {
             return WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg
         }
         return WorkbenchRedesignColors.popoverSurfaceKeycapBg
@@ -204,7 +220,12 @@ struct PlaybackShortcutField: View {
                             cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
                             style: .continuous
                         )
-                        .fill(resolvedContainerBackground(isHovered: isHovered))
+                        .fill(
+                            resolvedContainerBackground(
+                                isHovered: isHovered,
+                                isPressed: isPressed
+                            )
+                        )
                     )
                     .overlay {
                         if let borderColor = resolvedContainerBorderColor {
@@ -220,7 +241,7 @@ struct PlaybackShortcutField: View {
                     }
                     .contentShape(Rectangle())
             }
-            .buttonStyle(StaticButtonStyle())
+            .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
             .focusable(false)
 
             // Laid over the field rather than inside its button, so a press on
@@ -260,7 +281,10 @@ struct PlaybackShortcutField: View {
                 ForEach(key.keycaps.indices, id: \.self) { index in
                     PlaybackCueFooterKeycapView(
                         keycap: key.keycaps[index],
-                        background: resolvedKeycapBackground(isHovered: isHovered)
+                        background: resolvedKeycapBackground(
+                            isHovered: isHovered,
+                            isPressed: isPressed
+                        )
                     )
                 }
             }
