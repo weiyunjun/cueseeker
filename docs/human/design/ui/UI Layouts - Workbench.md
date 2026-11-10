@@ -1248,14 +1248,14 @@
 
 1. Icon（Leading，36×36px 无底框系统强调色同色深浅大图标）
 2. Line 1: Title（动作前缀 + 目标名称，统一字重与字色，单行截断，无路径）
-3. Line 2: Progress Text（In Progress 阶段文字 / 导出张数；Queued 状态与数量）
-4. Line 3: Progress Bar（仅 In Progress，16px 高度容器居中展示 4px Capsule 进度条）
+3. Line 2: Progress Text（In Progress 阶段文字 / Export to Anki 展示已成功张数、总张数与失败张数；Queued 状态与数量）
+4. Line 3: Progress Bar（仅 In Progress，16px 高度容器居中展示 4px Capsule 进度条；Export to Anki 按已处理张数占总张数比例推进）
 
 #### Structure / History
 
 1. Icon（Leading，36×36px 无底框系统强调色同色深浅大图标）
 2. Line 1: Title（动作前缀 + 目标名称，统一字重与字色，单行截断，无路径）
-3. Line 2: 数量与时间（Completed 与 Incomplete 格式一致）
+3. Line 2: 数量与时间（Completed 与 Incomplete 格式一致；Export to Anki 在 Completed 下展示成功卡片数量，在 Incomplete 下展示总卡片数量）
 4. Line 3: Error Message（仅 Incomplete，16px 高度容器内单行尾部截断展示）
 
 #### Icon Mapping
@@ -1319,7 +1319,7 @@
 2. Content
    1. Task Header Row：任务图标与纯任务类型名称（`Export to Anki`、`Rename Folder`、`Rename Files`、`Index All`、`Index`、`Add Folder`、`Remove Folder`）
    2. Property Groups：Settings 风格卡片组（各属性行右侧数值、路径、文件名列表、进度百分比与失败原因文字可选中，Pointer 为 I-beam；左侧固定属性名与 `#1`、`#2`... 序号不可选），上方为业务信息分组（数量均为纯阿拉伯数字），最下方固定为 `Task Status` 分组
-      - Export to Anki：`Export Info`（File Name、Location、Card Count）
+      - Export to Anki：`Export Info`（File Name、Location、Card Count，以及 In Progress / Completed / Incomplete 状态下展示 Succeeded、Failed；Incomplete 状态下 Succeeded 固定为 0、Failed 固定为总数量）
       - Rename Folder：`Rename Info`（Original Path、New Path）
       - Rename Files：`Rename Info`（Location、File Count）、`Original File Names`（`#1`、`#2`... 完整文件名含扩展名）、`New File Names`（`#1`、`#2`... 完整文件名含扩展名）
       - Index：单文件夹为 `Index Info`（Path，以及仅 Completed 展示 Subtitle Count）；Index All 为 `Index Info`（Folder Count，以及仅 Completed 展示 Subtitle Count）、`Target Folders`（`#1`、`#2`... 完整文件夹路径）
