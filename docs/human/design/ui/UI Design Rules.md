@@ -29,7 +29,7 @@
 - **几何零偏移**：聚焦前后输入框的宽高、圆角、内边距以及单行文本/占位符的绘制起点必须完全一致（含内容溢出时），严禁因聚焦导致文字抖动或偏移。
 - **报错优先级**：报错状态边框（`--color-danger-text`）优先级高于聚焦边框（`Focused Error` 仍显示 `--color-danger-text`）。
 - **红字报错（`Validation Message`）预留规则**（报错文字可选中，Pointer 为 `I-beam`）：
-  - **Dialog 对话框内**：需要校验的输入框下方（间距 `--spacing-1: 4px`）恒定预留 `1` 行红字高度（左边缘与所属输入框左边缘对齐），确保报错出现或消失时对话框高度不发生跳动（`WebDAV Folder`、`SMB Folder` 与 `FTP Folder` 对话框仅在最下方 `Password` 输入框下预留 1 行，`NFS Folder` 对话框在 `Address` 输入框下预留 1 行）。
+  - **Dialog 对话框内**：需要校验的输入框下方（间距 `--spacing-1: 4px`）恒定预留 `1` 行红字高度（左内边距 `--padding-field-x`，与所属输入框内文本左边缘对齐），确保报错出现或消失时对话框高度不发生跳动（`WebDAV Folder`、`SMB Folder` 与 `FTP Folder` 对话框仅在最下方 `Password` 输入框下预留 1 行，`NFS Folder` 对话框在 `Address` 输入框下预留 1 行）。
   - **Settings 设置页内**：输入框平时不预留红字高度（`Reserved Lines: 0`），仅在存在报错提示时动态展开行高。
 
 ---

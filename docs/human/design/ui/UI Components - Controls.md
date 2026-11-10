@@ -33,9 +33,9 @@
 
 ##### Anatomy
 
-- Label
+- Label（纵向排布时左内边距 `--padding-field-x`，与框内文本左对齐）
 - Validation Message
-  - Placement：Below Container
+  - Placement：Below Container（左内边距 `--padding-field-x`，与框内文本左对齐）
   - Content：Optional
   - Reserved Lines：`1`
   - Maximum Lines：`1`
@@ -78,9 +78,9 @@
 
 ##### Anatomy
 
-- Label
+- Label（纵向排布时左内边距 `--padding-field-x`，与框内文本左对齐）
 - Validation Message
-  - Placement：Below Container
+  - Placement：Below Container（左内边距 `--padding-field-x`，与框内文本左对齐）
   - Content：Optional
   - Reserved Lines：`1`
   - Maximum Lines：`1`

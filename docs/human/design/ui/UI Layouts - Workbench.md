@@ -297,7 +297,7 @@
 #### Layout
 
 - Restore Default 与 Shortcut Field 靠右，Restore Default 位于 Shortcut Field 左侧
-- Validation Message 位于 Shortcut Field 下方，左侧与 Shortcut Field 对齐，较长时向功能名称一侧延伸；有提示时行随之变高，功能名称与 Shortcut Field 保持垂直居中对齐
+- Validation Message 位于 Shortcut Field 下方，左侧与 Shortcut Field 框内内容左边缘对齐（左内边距 `--padding-field-x`），较长时向功能名称一侧延伸；有提示时行随之变高，功能名称与 Shortcut Field 保持垂直居中对齐
 
 #### Spacing
 
@@ -1009,7 +1009,7 @@
 
 #### Layout
 
-- Step 1 Width：`--width-dialog-medium`；Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Address` 必填（粘贴百分号编码链接时即时还原为可读字符；`SMB Folder`、`FTP Folder` 与 `NFS Folder` 未带对应协议前缀时点击 `Connect` 自动补全 `smb://`、`ftp://` 或 `nfs://` 解析，不修改输入框内容；`NFS Folder` 支持斜杠路径或 `主机:/导出路径` 写法并由后台自动连接标准 `2049` 端口），`SMB Folder` 与 `FTP Folder` 的 `Port` 必填且分别默认预填 `445` 与 `21`，`Username` 与 `Password` 选填（留空以匿名/访客方式访问），均无占位提示；仅最下方输入框下预留 1 行 Validation Message（左边缘与输入框对齐），成功加载初始目录列表前的任何报错均停留在 Step 1 显示红字。
+- Step 1 Width：`--width-dialog-medium`；Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Address` 必填（粘贴百分号编码链接时即时还原为可读字符；`SMB Folder`、`FTP Folder` 与 `NFS Folder` 未带对应协议前缀时点击 `Connect` 自动补全 `smb://`、`ftp://` 或 `nfs://` 解析，不修改输入框内容；`NFS Folder` 支持斜杠路径或 `主机:/导出路径` 写法并由后台自动连接标准 `2049` 端口），`SMB Folder` 与 `FTP Folder` 的 `Port` 必填且分别默认预填 `445` 与 `21`，`Username` 与 `Password` 选填（留空以匿名/访客方式访问），均无占位提示；仅最下方输入框下预留 1 行 Validation Message（左边缘与输入框内文本左对齐），成功加载初始目录列表前的任何报错均停留在 Step 1 显示红字。
 - Step 2 Width：`--width-dialog-x-large`，Height：`--height-task-panel`；Header、Breadcrumb 与 Footer 固定，中间列表垂直滚动，滚动条位于右侧 `--inset-dialog` 通道内。
 - Breadcrumb Navigation：以 Step 1 所填地址对应的目录名称或主机名称为起点（不展示或回退至更上层父目录）。
 - Browser Card List：仅展示文件夹（或 SMB 顶层共享文件夹、NFS 顶层导出目录）、受支持的视频与字幕文件（文件夹在上、文件在下，按名称排序）。文件夹行拆分为左侧文件夹主卡片与右侧独立的 `>` 进入按钮（间距 `--spacing-3`）：左侧主卡片复用 `L-04.6 File Card Layout` 单行形态（高度 `68px`、内边距 `--spacing-4`、图标底容器 `36×36px`、标题 `--font-size-body` Medium 单行尾部截断；已添加文件夹在主卡片内部右侧展示复用 `Watch Status Badge` `Finished` 样式的 `Added` / `已添加` / `已加入` 胶囊标签）；右侧 `>` 按钮与主卡片等高（圆角 `--radius-control`、边框 `--color-border-control`、水平内边距 `--padding-control-x`、居中 `caret-right` 图标 `--size-card-chevron`，右边缘与底部主按钮右边缘对齐）。文件卡片无右侧 `>` 按钮，右边框与上方文件夹主卡片右边框对齐。
@@ -1070,7 +1070,7 @@
   - 数据对象高度 `--height-filter-chip`（`32px`），左侧为 6 点拖拽手柄（`dots-six-vertical`，`--size-anki-export-drag-handle: 12px`），右侧为删除按钮（`✕`，容器 `--size-anki-export-badge-remove-button: 14px`，图标 `--size-anki-export-badge-remove-icon: 12px`，圆角 `--radius-anki-export-badge-remove-button: 3px`，Hover 时显示 `--color-bg-hover` 背景，Pressed 时显示 `--color-bg-pressed` 背景，图标颜色保持 `--color-text-muted` 不变）。
   - 数据对象仅在所属白色卡片内部沿垂直方向（一维）上下拖拽排序；拖拽中数据对象本体呈半透明（`--opacity-anki-export-dragging: 0.5`）跟随移动，越过相邻项时实时换位。
 - 导出排版（所见即所得）：卡片正面与背面内容严格按 Front、Back 区域内自上而下的视觉顺序渲染；未放入卡片的不导出。
-- File Name 与 Location 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；Location 为单行 Text Field，两项下方均预留 1 行 Validation Message（左边缘与输入框对齐）；文件夹按钮在 Location 输入框右侧（间距 `--spacing-2`），字形墨迹右缘与内容右缘对齐。
+- File Name 与 Location 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；Location 为单行 Text Field，两项下方均预留 1 行 Validation Message（左边缘与输入框内文本左对齐）；文件夹按钮在 Location 输入框右侧（间距 `--spacing-2`），字形墨迹右缘与内容右缘对齐。
 - 默认：Front 放置 `Audio`，Back 放置 `Cue Text`；Location 为上次选择的文件夹。卡片布局与 Location 重新启动后保留，Search 与 Excerpt 共用；File Name 每次打开时重新生成。
 
 #### Spacing
