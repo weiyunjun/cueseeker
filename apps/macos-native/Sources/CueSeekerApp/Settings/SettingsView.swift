@@ -103,7 +103,6 @@ struct SettingsView: View {
         )
         .background(WorkbenchRedesignColors.bgSurface)
         .opensWithoutFocus()
-        .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
     }
 
     private var settingsTopbar: some View {

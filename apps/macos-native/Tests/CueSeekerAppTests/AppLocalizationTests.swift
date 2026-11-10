@@ -358,6 +358,99 @@ func languageSwitchImmediatelyUpdatesMenusDialogSessionsAndPlaybackState() {
     }
 }
 
+private struct AppearanceColorSchemeProbeView: View {
+    let onColorSchemeRead: (ColorScheme) -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let _ = onColorSchemeRead(colorScheme)
+        Color.clear.frame(width: 10, height: 10)
+    }
+}
+
+@MainActor
+@Test
+func switchingAppAppearanceModeToAutoImmediatelySynchronizesWindowAndHostedViewsWithSystemAppearance() {
+    withTemporaryLocalizationUserDefaults { userDefaults in
+        let previousAppearance = NSApp.appearance
+        defer {
+            NSApp.appearance = previousAppearance
+        }
+
+        NSApp.appearance = nil
+        let systemBestMatch = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])
+        let systemColorScheme: ColorScheme = systemBestMatch == .darkAqua ? .dark : .light
+
+        let settings = SettingsStore(userDefaults: userDefaults)
+        var observedColorScheme: ColorScheme?
+        let titlebarView = DraggableNSView(frame: NSRect(x: 0, y: 0, width: 200, height: 40))
+        titlebarView.wantsLayer = true
+        titlebarView.backgroundColor = WorkbenchRedesignColors.NS.bgSurface
+
+        let hostingView = CueSeekerHostingView(
+            rootView: VStack {
+                SettingsAppearanceCategory()
+                AppearanceColorSchemeProbeView { scheme in
+                    observedColorScheme = scheme
+                }
+            }
+            .environmentObject(settings.localization)
+            .environmentObject(settings)
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 480, height: 320)
+        hostingView.addSubview(titlebarView)
+
+        let window = CueSeekerWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 320),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+
+        for sequence in [
+            [AppAppearanceMode.light, .dark, .auto],
+            [AppAppearanceMode.dark, .light, .auto],
+        ] {
+            for mode in sequence {
+                settings.appAppearanceMode = mode
+                hostingView.layoutSubtreeIfNeeded()
+
+                let expectedMatch: NSAppearance.Name? = {
+                    switch mode {
+                    case .light:
+                        return .aqua
+                    case .dark:
+                        return .darkAqua
+                    case .auto:
+                        return systemBestMatch
+                    }
+                }()
+                let expectedScheme: ColorScheme = {
+                    switch mode {
+                    case .light:
+                        return .light
+                    case .dark:
+                        return .dark
+                    case .auto:
+                        return systemColorScheme
+                    }
+                }()
+
+                #expect(NSApp.appearance?.name == expectedMatch || (mode == .auto && NSApp.appearance == nil))
+                #expect(NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == expectedMatch)
+                #expect(window.appearance == nil)
+                #expect(hostingView.appearance == nil)
+                #expect(window.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == expectedMatch)
+                #expect(hostingView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == expectedMatch)
+                #expect(titlebarView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == expectedMatch)
+                #expect(observedColorScheme == expectedScheme)
+            }
+        }
+    }
+}
+
 /// Reads the keys a language actually ships, so a translation that is added to
 /// one language but forgotten in another fails the build instead of silently
 /// falling back to the key name at runtime.

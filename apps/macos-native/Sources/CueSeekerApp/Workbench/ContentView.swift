@@ -145,7 +145,6 @@ private struct ContentRootView: View {
             .ignoresSafeArea(.container, edges: .top)
             .frame(minWidth: AppShellLayout.minimumWindowWidth, minHeight: AppShellLayout.minimumWindowHeight)
             .opensWithoutFocus()
-            .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
             .background(LayoutPerformanceProbe(name: "ContentView.layout"))
         }
     }

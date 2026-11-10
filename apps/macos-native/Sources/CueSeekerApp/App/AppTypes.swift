@@ -152,17 +152,6 @@ enum AppAppearanceMode: String, CaseIterable, Identifiable {
         }
     }
 
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .light:
-            .light
-        case .dark:
-            .dark
-        case .auto:
-            nil
-        }
-    }
-
     var nsAppearance: NSAppearance? {
         switch self {
         case .light:
