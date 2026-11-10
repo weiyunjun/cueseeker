@@ -242,6 +242,13 @@ extension AppCoordinator {
     }
 
     private func appendExcerptOverviewAccessibilityTargets(to targets: inout [WorkbenchAccessibilityTarget]) {
+        guard excerpt.hasLoadedListOverview else {
+            return
+        }
+        if excerpt.listOverview.lists.isEmpty {
+            targets.append(.excerptNewListButton)
+            return
+        }
         targets.append(.toolbarSearchField)
         if !excerpt.overviewSearchDraft.isEmpty {
             targets.append(.toolbarSearchClearButton)
@@ -249,9 +256,6 @@ extension AppCoordinator {
         targets.append(.toolbarSortButton)
         targets.append(.excerptNewListButton)
 
-        guard excerpt.hasLoadedListOverview else {
-            return
-        }
         for summary in excerpt.displayedListSummaries {
             let cardID = String(summary.id)
             targets.append(.mediaCard(cardID))

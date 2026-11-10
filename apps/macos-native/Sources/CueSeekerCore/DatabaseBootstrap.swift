@@ -284,16 +284,6 @@ extension DatabaseBootstrap {
                     recent_played_at TEXT
                 );
 
-                INSERT OR IGNORE INTO excerpt_lists(
-                    id,
-                    name,
-                    normalized_name,
-                    description,
-                    cover_path,
-                    created_at
-                )
-                VALUES (1, 'Default', 'default', '', NULL, '1970-01-01T00:00:00Z');
-
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_excerpt_lists_normalized_name
                     ON excerpt_lists(normalized_name);
 

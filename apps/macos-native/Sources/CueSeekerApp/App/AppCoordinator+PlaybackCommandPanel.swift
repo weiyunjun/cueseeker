@@ -607,7 +607,7 @@ extension AppCoordinator {
         guard (try? excerptDatabase?.excerpts(listID: summary.list.id))?
             .contains(where: \.isValid) == true
         else {
-            toast.show(PlaybackToastRequest.noAvailableResults)
+            toast.show(PlaybackToastRequest.noAvailableExcerpts)
             return true
         }
         guard dismissPlaybackCommandPanelForAction() else {

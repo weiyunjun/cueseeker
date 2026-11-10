@@ -161,6 +161,8 @@ func aPlaylistShownThroughADatabaseChangeDropsWhatLeftOnlyOnceTheOverlayCloses()
 func nextFromATombstonedExcerptGoesToTheFirstExcerptStillInTheLibrary() async throws {
     try await withLibraryChangeApp { app, database in
         app.ensurePlayerInitialized()
+        let excerptDatabase = try ExcerptDatabase(path: database.path)
+        _ = try excerptDatabase.createExcerptList(name: "Default")
         var excerpts: [Excerpt] = []
         for name in ["A", "B", "C"] {
             try indexLibraryChangeVideo(name, in: database)
@@ -171,7 +173,7 @@ func nextFromATombstonedExcerptGoesToTheFirstExcerptStillInTheLibrary() async th
                 )
             )
             excerpts.append(
-                try ExcerptDatabase(path: database.path).upsertExcerpt(
+                try excerptDatabase.upsertExcerpt(
                     selection: selection
                 )
             )
@@ -199,6 +201,22 @@ func nextFromATombstonedExcerptGoesToTheFirstExcerptStillInTheLibrary() async th
         #expect(app.excerpt.selectedExcerpt?.id == excerpts[2].id)
         #expect(!app.currentPlaybackItemLeftLibrary)
         #expect(app.playback.playlistPosition?.ordinal == 0)
+
+        // C leaves too: navigating an Excerpt playlist with 0 available items shows "No Available Excerpts".
+        app.holdPlaybackBeforeIndexedContentChange()
+        try emptyLibraryChangeSubtitle("C", in: database)
+        app.reconcilePlaybackAfterIndexedContentChange()
+
+        #expect(app.currentPlaybackItemLeftLibrary)
+        #expect(app.playback.playlistSource?.boundary.totalCount == 0)
+        #expect(!app.playback.chromeSnapshot.canGoNext)
+        app.goNext()
+        #expect(app.excerpt.selectedExcerpt?.id == excerpts[2].id)
+        #expect(
+            app.playback.playbackViewModel?.feedback?.text
+                == "No Available Excerpts"
+        )
+        #expect(app.playback.playbackViewModel?.feedback?.icon == .warning)
     }
 }
 
@@ -529,14 +547,17 @@ func aRecentExcerptListWithNothingLeftInTheLibrarySaysSoAndStaysOpen() async thr
         app.ensurePlayerInitialized()
         _ = try playLibraryChangeSearch(["A", "B"], selecting: 1, app: app, database: database)
         let excerptDatabase = try #require(app.excerptDatabase)
+        let list = try excerptDatabase.createExcerptList(name: "Favorites")
         let selection = try #require(
             try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
                 forSubtitleFile: URL(fileURLWithPath: "/Media/A.srt"),
                 atMilliseconds: 1_500
             )
         )
-        let saved = try excerptDatabase.upsertExcerpt(selection: selection)
-        try excerptDatabase.recordRecentExcerptPlayback(excerptID: saved.id)
+        let saved = try excerptDatabase.upsertExcerpt(selection: selection, listID: list.id)
+        let pastPlayedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let expectedPlayedAt = ISO8601DateFormatter().string(from: pastPlayedAt)
+        try excerptDatabase.recordRecentExcerptPlayback(excerptID: saved.id, playedAt: pastPlayedAt)
         app.excerpt.installRecentListSummaries(
             try excerptDatabase.recentExcerptListSummaries()
         )
@@ -544,6 +565,11 @@ func aRecentExcerptListWithNothingLeftInTheLibrarySaysSoAndStaysOpen() async thr
             under: URL(fileURLWithPath: "/Media"),
             keeping: ["/Media/B.srt"]
         )
+        let summariesAfterRemoval = try excerptDatabase.recentExcerptListSummaries()
+        #expect(summariesAfterRemoval.map(\.id) == [list.id])
+        #expect(summariesAfterRemoval.first?.cueCount == 0)
+        #expect(summariesAfterRemoval.first?.list.recentPlayedAt == expectedPlayedAt)
+
         app.playback.presentCommandPanel(
             PlaybackCommandPanelPresentation(
                 page: .recentExcerpts,
@@ -556,9 +582,14 @@ func aRecentExcerptListWithNothingLeftInTheLibrarySaysSoAndStaysOpen() async thr
         #expect(app.openPlaybackCommandPanelRecentExcerpt(at: 0))
         #expect(app.playback.commandPanelPresentation?.page == .recentExcerpts)
         #expect(
-            app.toast.visibleItems.last?.request.message
-                == "No Available Results"
+            app.toast.visibleItems.last?.request
+                == PlaybackToastRequest.noAvailableExcerpts
         )
+        #expect(
+            app.toast.visibleItems.last?.request.message
+                == "No Available Excerpts"
+        )
+        #expect(try excerptDatabase.excerptList(id: list.id)?.recentPlayedAt == expectedPlayedAt)
     }
 }
 

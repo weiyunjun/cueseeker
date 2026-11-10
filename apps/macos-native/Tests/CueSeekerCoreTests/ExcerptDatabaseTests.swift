@@ -11,11 +11,8 @@ func excerptListsSupportMetadataValidationSortingAndDeletion() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
     let database = try ExcerptDatabase(path: databaseURL)
-    let initial = try #require(try database.excerptLists().first)
-    #expect(initial.id == ExcerptListIdentity.defaultListID)
-    #expect(initial.name == "Default")
-    #expect(initial.description.isEmpty)
-    #expect(initial.coverPath == nil)
+    #expect(try database.excerptLists().isEmpty)
+    #expect(try database.firstExcerptListID() == nil)
 
     let simultaneousErrors = try database.validateExcerptList(
         name: String(repeating: "N", count: 31),
@@ -43,7 +40,7 @@ func excerptListsSupportMetadataValidationSortingAndDeletion() throws {
     #expect(older.name == "Favorites")
     #expect(older.description == "First line\nSecond line")
     #expect(older.coverPath == "/tmp/favorites.jpg")
-    #expect(try database.excerptLists().map(\.id) == [initial.id, older.id, newer.id])
+    #expect(try database.excerptLists().map(\.id) == [older.id, newer.id])
 
     let duplicate = try database.validateExcerptList(
         name: "favorites",
@@ -67,9 +64,7 @@ func excerptListsSupportMetadataValidationSortingAndDeletion() throws {
 
     #expect(try database.deleteExcerptList(id: newer.id) == newer)
     #expect(try database.deleteExcerptList(id: older.id).id == older.id)
-    #expect(throws: ExcerptListMutationError.cannotDeleteOnlyList) {
-        _ = try database.deleteExcerptList(id: initial.id)
-    }
+    #expect(try database.excerptLists().isEmpty)
 }
 
 @Test
@@ -102,7 +97,8 @@ func excerptListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
-    _ = try excerptDatabase.upsertExcerpt(selection: selection)
+    let firstList = try excerptDatabase.createExcerptList(name: "First")
+    _ = try excerptDatabase.upsertExcerpt(selection: selection, listID: firstList.id)
     let secondList = try excerptDatabase.createExcerptList(name: "Second")
     try executeDatabaseTestSQLite(
         at: databaseURL,
@@ -159,24 +155,29 @@ func recentExcerptPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
         forSubtitleFile: subtitleFile,
         atMilliseconds: 3_500
     ))
+    let primaryList = try database.createExcerptList(
+        name: "Primary",
+        createdAt: Date(timeIntervalSince1970: 50)
+    )
     let older = try database.upsertExcerpt(
         selection: olderSelection,
-        listID: ExcerptListIdentity.defaultListID,
+        listID: primaryList.id,
         createdAt: Date(timeIntervalSince1970: 100)
     )
     let newer = try database.upsertExcerpt(
         selection: newerSelection,
-        listID: ExcerptListIdentity.defaultListID,
+        listID: primaryList.id,
         createdAt: Date(timeIntervalSince1970: 200)
     )
 
+    let playedAt = Date(timeIntervalSince1970: 300)
     try database.recordRecentExcerptPlayback(
         excerptID: older.id,
-        playedAt: Date(timeIntervalSince1970: 300)
+        playedAt: playedAt
     )
 
     var summary = try #require(try database.recentExcerptListSummaries().first)
-    #expect(summary.list.id == ExcerptListIdentity.defaultListID)
+    #expect(summary.list.id == primaryList.id)
     #expect(summary.list.recentSortOrder == "created_at_desc")
     #expect(summary.cueCount == 2)
     #expect(summary.resumeExcerpt?.id == older.id)
@@ -184,7 +185,7 @@ func recentExcerptPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
 
     _ = try database.removeExcerpt(id: older.id)
     let listAfterRemoveOlder = try #require(
-        try database.excerptList(id: ExcerptListIdentity.defaultListID)
+        try database.excerptList(id: primaryList.id)
     )
     #expect(listAfterRemoveOlder.recentCueID == newerSelection.cueLineID)
     summary = try #require(try database.recentExcerptListSummaries().first)
@@ -194,10 +195,18 @@ func recentExcerptPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
 
     let destinationList = try database.createExcerptList(name: "Moved Target")
     _ = try database.moveExcerpt(id: newer.id, toListID: destinationList.id)
-    let list = try #require(try database.excerptList(id: ExcerptListIdentity.defaultListID))
+    let list = try #require(try database.excerptList(id: primaryList.id))
     #expect(list.recentCueID == nil)
-    #expect(list.recentSortOrder == nil)
-    #expect(list.recentPlayedAt == nil)
+    #expect(list.recentSortOrder == "created_at_desc")
+    #expect(list.recentPlayedAt == ISO8601DateFormatter().string(from: playedAt))
+
+    let summariesAfterEmptied = try database.recentExcerptListSummaries()
+    #expect(summariesAfterEmptied.map(\.id) == [primaryList.id, destinationList.id])
+    #expect(summariesAfterEmptied[0].cueCount == 0)
+    #expect(summariesAfterEmptied[0].resumeExcerpt == nil)
+    #expect(summariesAfterEmptied[0].resumePosition == nil)
+    #expect(summariesAfterEmptied[0].list.recentPlayedAt == list.recentPlayedAt)
+    #expect(summariesAfterEmptied[1].list.recentPlayedAt == nil)
 }
 
 @Test
@@ -229,7 +238,8 @@ func readOnlyExcerptDatabaseLoadsRecentSummariesWithoutWriteAttemptWhenNoPlayabl
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
-    let saved = try rwDatabase.upsertExcerpt(selection: selection)
+    let defaultList = try rwDatabase.createExcerptList(name: "Default")
+    let saved = try rwDatabase.upsertExcerpt(selection: selection, listID: defaultList.id)
     try executeDatabaseTestSQLite(
         at: databaseURL,
         """
@@ -237,7 +247,7 @@ func readOnlyExcerptDatabaseLoadsRecentSummariesWithoutWriteAttemptWhenNoPlayabl
         SET recent_cue_id = 999999,
             recent_sort_order = 'created_at_desc',
             recent_played_at = '2026-10-22T00:00:00Z'
-        WHERE id = \(ExcerptListIdentity.defaultListID);
+        WHERE id = \(defaultList.id);
         """
     )
 
@@ -250,13 +260,18 @@ func readOnlyExcerptDatabaseLoadsRecentSummariesWithoutWriteAttemptWhenNoPlayabl
     let rwFallbackSummaries = try rwDatabase.recentExcerptListSummaries()
     #expect(rwFallbackSummaries.first?.list.recentCueID == selection.cueLineID)
     let persistedListAfterQuery = try #require(
-        try rwDatabase.excerptList(id: ExcerptListIdentity.defaultListID)
+        try rwDatabase.excerptList(id: defaultList.id)
     )
     #expect(persistedListAfterQuery.recentCueID == 999_999)
 
     _ = try rwDatabase.removeExcerpt(id: saved.id)
     let summaries = try readOnlyDB.recentExcerptListSummaries()
-    #expect(summaries.isEmpty)
+    #expect(summaries.count == 1)
+    #expect(summaries.first?.id == defaultList.id)
+    #expect(summaries.first?.cueCount == 0)
+    #expect(summaries.first?.resumeExcerpt == nil)
+    #expect(summaries.first?.resumePosition == nil)
+    #expect(summaries.first?.list.recentPlayedAt == "2026-10-22T00:00:00Z")
 
     let overview = try readOnlyDB.excerptListOverview()
     #expect(!overview.lists.isEmpty)
@@ -305,7 +320,10 @@ func recentExcerptListSummariesIncludesNeverPlayedPlayableListsOrderedByCreatedA
         atMilliseconds: 3_500
     ))
 
-    let defaultList = try #require(try database.excerptList(id: ExcerptListIdentity.defaultListID))
+    let defaultList = try database.createExcerptList(
+        name: "Default",
+        createdAt: Date(timeIntervalSince1970: 100)
+    )
     let secondList = try database.createExcerptList(
         name: "Second Unplayed",
         createdAt: Date(timeIntervalSince1970: 200)
@@ -314,7 +332,7 @@ func recentExcerptListSummariesIncludesNeverPlayedPlayableListsOrderedByCreatedA
         name: "Played List",
         createdAt: Date(timeIntervalSince1970: 300)
     )
-    _ = try database.createExcerptList(
+    let emptyList = try database.createExcerptList(
         name: "Empty List",
         createdAt: Date(timeIntervalSince1970: 400)
     )
@@ -328,7 +346,7 @@ func recentExcerptListSummariesIncludesNeverPlayedPlayableListsOrderedByCreatedA
     )
 
     let summaries = try database.recentExcerptListSummaries()
-    #expect(summaries.map(\.id) == [playedList.id, defaultList.id, secondList.id])
+    #expect(summaries.map(\.id) == [playedList.id, defaultList.id, secondList.id, emptyList.id])
     #expect(summaries[0].resumeExcerpt?.id == playedExcerpt.id)
     #expect(summaries[0].resumePosition == 1)
     #expect(summaries[1].list.recentPlayedAt == nil)
@@ -337,6 +355,10 @@ func recentExcerptListSummariesIncludesNeverPlayedPlayableListsOrderedByCreatedA
     #expect(summaries[2].list.recentPlayedAt == nil)
     #expect(summaries[2].resumeExcerpt == nil)
     #expect(summaries[2].resumePosition == nil)
+    #expect(summaries[3].cueCount == 0)
+    #expect(summaries[3].list.recentPlayedAt == nil)
+    #expect(summaries[3].resumeExcerpt == nil)
+    #expect(summaries[3].resumePosition == nil)
 }
 
 @Test
@@ -372,9 +394,10 @@ func excerptSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
             ),
         ]
     )
-    let defaultList = try #require(try database.excerptList(
-        id: ExcerptListIdentity.defaultListID
-    ))
+    let defaultList = try database.createExcerptList(
+        name: "Default",
+        createdAt: Date(timeIntervalSince1970: 100)
+    )
     let destinationList = try database.createExcerptList(
         name: "Destination",
         createdAt: Date(timeIntervalSince1970: 200)
@@ -482,6 +505,7 @@ func excerptPersistsCueIdentityAndCreatedAt() throws {
         atMilliseconds: 1_500
     ))
     let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+    _ = try ExcerptDatabase(path: database.path).createExcerptList(name: "Default")
 
     let excerpt = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection,
@@ -589,6 +613,7 @@ func excerptResidentSnapshotLoadsRelationsCurrentCueContentAndFacetsTogether() t
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
+    _ = try ExcerptDatabase(path: database.path).createExcerptList(name: "Default")
     let saved = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
@@ -683,6 +708,7 @@ func excerptResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throw
     )
     let availableCueID = try #require(availableSelection.cueLineID)
     let excerptDatabase = try ExcerptDatabase(path: database.path)
+    _ = try excerptDatabase.createExcerptList(name: "Default")
     let availableExcerpt = try excerptDatabase.upsertExcerpt(
         selection: availableSelection,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
@@ -757,8 +783,10 @@ func excerptRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
+    let defaultList = try ExcerptDatabase(path: database.path).createExcerptList(name: "Default")
     let defaultExcerpt = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection,
+        listID: defaultList.id,
         createdAt: Date(timeIntervalSince1970: 100)
     )
     let defaultOnlySelection = try #require(
@@ -770,6 +798,7 @@ func excerptRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     let defaultOnlyCueID = try #require(defaultOnlySelection.cueLineID)
     let defaultOnlyExcerpt = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: defaultOnlySelection,
+        listID: defaultList.id,
         createdAt: Date(timeIntervalSince1970: 200)
     )
 
@@ -860,14 +889,16 @@ func excerptPersistsAndResolvesCueID() throws {
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
+    let defaultList = try ExcerptDatabase(path: database.path).createExcerptList(name: "Default")
     let excerpt = try ExcerptDatabase(path: database.path).upsertExcerpt(
-        selection: selection
+        selection: selection,
+        listID: defaultList.id
     )
 
     let relation = try #require(try ExcerptDatabase(path: database.path).excerptRelation(id: excerpt.id))
     #expect(relation.cueID == cueID)
-    #expect(relation.listID == ExcerptListIdentity.defaultListID)
-    #expect(try ExcerptDatabase(path: database.path).excerptLists().map(\.id) == [ExcerptListIdentity.defaultListID])
+    #expect(relation.listID == defaultList.id)
+    #expect(try ExcerptDatabase(path: database.path).excerptLists().map(\.id) == [defaultList.id])
 
     let cueContent = try CueContentDatabase(path: database.path).cueContents(forCueIDs: [cueID])
     #expect(cueContent.first?.cueID == cueID)
@@ -903,6 +934,7 @@ func rebuildingSubtitlePreservesCueIDAndExcerptWhenContentChanges() throws {
     let originalCue = try #require(
         try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile).first
     )
+    _ = try ExcerptDatabase(path: database.path).createExcerptList(name: "Default")
     let originalExcerpt = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: excerptSelection(originalCue),
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
@@ -990,6 +1022,7 @@ func excerptStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() thro
     let cueRecords = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     let topSelection = excerptSelection(cueRecords[0])
     let bottomSelection = excerptSelection(cueRecords[1])
+    _ = try ExcerptDatabase(path: database.path).createExcerptList(name: "Default")
 
     let top = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: topSelection,
@@ -1046,6 +1079,7 @@ func removingIndexedFolderPreservesCueBoundExcerptRelation() throws {
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
+    _ = try ExcerptDatabase(path: database.path).createExcerptList(name: "Default")
     let savedExcerpt = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection
     )
@@ -1097,7 +1131,7 @@ func excerptSavesByCueIDIntoEachListWithoutDuplicatingWithinOne() throws {
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
-    let defaultListID = try #require(try excerptDatabase.firstExcerptListID())
+    let defaultListID = try excerptDatabase.createExcerptList(name: "Default").id
     let secondList = try excerptDatabase.createExcerptList(name: "Second")
 
     // The Search table has only the Cue, so the save goes in by CueID.
@@ -1155,6 +1189,7 @@ func cuesAndExcerptsLeaveTheLibraryWithTheTombstoneOrTheirFolder() throws {
     }
     let playbackDatabase = try PlaybackSubtitleDatabase(path: databaseURL)
     let excerptDatabase = try ExcerptDatabase(path: databaseURL)
+    _ = try excerptDatabase.createExcerptList(name: "Default")
     var cueIDs: [Int64] = []
     var excerptIDs: [Int64] = []
     for subtitleFile in [staying, tombstoned, removed] {
@@ -1340,3 +1375,151 @@ func overviewSearchAndSortFilterByNameOnlyAndDeduplicateMatchedListCues() throws
 }
 
 
+@Test
+func freshBootstrapCreatesZeroListsWhileUpgradePreservesExistingLists() throws {
+    let freshURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: freshURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: freshURL)
+    let freshDB = try ExcerptDatabase(path: freshURL)
+    #expect(try freshDB.excerptLists().isEmpty)
+    #expect(try freshDB.excerptListOverview().lists.isEmpty)
+    #expect(try freshDB.recentExcerptListSummaries().isEmpty)
+
+    let upgradeURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: upgradeURL)
+    }
+    try DatabaseBootstrap.prepare(at: upgradeURL)
+    try executeDatabaseTestSQLite(
+        at: upgradeURL,
+        """
+        INSERT INTO excerpt_lists(id, name, normalized_name, description, cover_path, created_at)
+        VALUES
+            (1, 'Default', 'default', '', NULL, '2026-07-20T00:00:00Z'),
+            (2, 'User List', 'user list', 'Kept across upgrade', NULL, '2026-07-21T00:00:00Z');
+        PRAGMA user_version = 65;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: upgradeURL)
+    let upgradedDB = try ExcerptDatabase(path: upgradeURL)
+    #expect(try upgradedDB.excerptLists().map(\.name) == ["Default", "User List"])
+}
+
+@Test
+func deletingLastExcerptListCascadesRelationsAndCleansUnreferencedTombstones() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let excerptDatabase = try ExcerptDatabase(path: databaseURL)
+
+    let folder = URL(fileURLWithPath: "/Media/LastListShow")
+    let subtitleFile = folder.appendingPathComponent("Episode 1.srt")
+    let videoFile = folder.appendingPathComponent("Episode 1.mkv")
+    try indexingDatabase.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Only excerpt in only list."
+            )
+        ]
+    )
+    let selection = try #require(try PlaybackSubtitleDatabase(path: databaseURL).cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let onlyList = try excerptDatabase.createExcerptList(name: "Only List")
+    _ = try excerptDatabase.upsertExcerpt(selection: selection, listID: onlyList.id)
+
+    try indexingDatabase.removeIndexedFolder(folder)
+    #expect(try excerptDatabase.excerpts().count == 1)
+
+    let deleted = try excerptDatabase.deleteExcerptList(id: onlyList.id)
+    #expect(deleted.id == onlyList.id)
+    #expect(try excerptDatabase.excerptLists().isEmpty)
+    #expect(try excerptDatabase.excerptRelations().isEmpty)
+    #expect(try excerptDatabase.excerptListOverview().lists.isEmpty)
+    #expect(try excerptDatabase.recentExcerptListSummaries().isEmpty)
+}
+
+@Test
+func playedExcerptListKeepsRecentPlayedTimestampWhenAllExcerptsBecomeUnavailableAndRecoversResumeOnRestore() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let excerptDatabase = try ExcerptDatabase(path: databaseURL)
+
+    let folder = URL(fileURLWithPath: "/Media/TemporaryOffline")
+    let subtitleFile = folder.appendingPathComponent("Episode 1.srt")
+    let videoFile = folder.appendingPathComponent("Episode 1.mkv")
+    let entry = SubtitleEntry(
+        sequenceNumber: 1,
+        startTimecode: "00:00:01,000",
+        endTimecode: "00:00:03,000",
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        text: "Played cue before folder removal."
+    )
+    try indexingDatabase.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [entry]
+    )
+    let selection = try #require(try PlaybackSubtitleDatabase(path: databaseURL).cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+
+    let unplayedList = try excerptDatabase.createExcerptList(
+        name: "Unplayed Empty",
+        createdAt: Date(timeIntervalSince1970: 100)
+    )
+    let playedList = try excerptDatabase.createExcerptList(
+        name: "Played Then Invalid",
+        createdAt: Date(timeIntervalSince1970: 200)
+    )
+    let saved = try excerptDatabase.upsertExcerpt(selection: selection, listID: playedList.id)
+    let playedAt = Date(timeIntervalSince1970: 1_700_000_500)
+    try excerptDatabase.recordRecentExcerptPlayback(excerptID: saved.id, playedAt: playedAt)
+    let expectedPlayedAtString = ISO8601DateFormatter().string(from: playedAt)
+
+    try indexingDatabase.removeIndexedFolder(folder)
+
+    let summariesWhileInvalid = try excerptDatabase.recentExcerptListSummaries()
+    #expect(summariesWhileInvalid.map(\.id) == [playedList.id, unplayedList.id])
+    #expect(summariesWhileInvalid[0].cueCount == 0)
+    #expect(summariesWhileInvalid[0].resumeExcerpt == nil)
+    #expect(summariesWhileInvalid[0].resumePosition == nil)
+    #expect(summariesWhileInvalid[0].list.recentPlayedAt == expectedPlayedAtString)
+    #expect(summariesWhileInvalid[1].cueCount == 0)
+    #expect(summariesWhileInvalid[1].list.recentPlayedAt == nil)
+
+    try indexingDatabase.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [entry]
+    )
+    let summariesAfterRestore = try excerptDatabase.recentExcerptListSummaries()
+    #expect(summariesAfterRestore.map(\.id) == [playedList.id, unplayedList.id])
+    #expect(summariesAfterRestore[0].cueCount == 1)
+    #expect(summariesAfterRestore[0].resumeExcerpt?.id == saved.id)
+    #expect(summariesAfterRestore[0].resumePosition == 1)
+    #expect(summariesAfterRestore[0].list.recentPlayedAt == expectedPlayedAtString)
+}

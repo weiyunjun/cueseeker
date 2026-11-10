@@ -509,7 +509,6 @@ extension AppCoordinator {
             showPlaybackItemNotInLibrary()
             if (playback.playlistSource?.boundary.totalCount ?? 0) == 0 {
                 playback.playbackViewModel?.showNoAvailableNavigationFeedback(
-                    direction: nil,
                     text: L("playback.hud.no_available_results")
                 )
             }

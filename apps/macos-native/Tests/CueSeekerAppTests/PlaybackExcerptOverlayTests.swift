@@ -95,7 +95,7 @@ func sharedExcerptFacetSelectionRestoresAndProjectsWithoutDatabaseReload() async
         timestamp: 2_000,
         durationMilliseconds: 4_000
     )
-    let listID = try #require(app.excerpt.activeListID)
+    let listID = try #require(try app.excerptDatabase?.firstExcerptListID())
     let persistedFilter = CueFacetFilter(durations: [.underOneSecond])
     app.settings.setExcerptFacetFilter(persistedFilter, forListID: listID)
 
@@ -169,7 +169,11 @@ private func playbackDatabaseExcerpt(
         forSubtitleFile: subtitleFile,
         atMilliseconds: timestamp
     ))
-    return try ExcerptDatabase(path: database.path).upsertExcerpt(
+    let excerptDatabase = try ExcerptDatabase(path: database.path)
+    if try excerptDatabase.firstExcerptListID() == nil {
+        _ = try excerptDatabase.createExcerptList(name: "Default")
+    }
+    return try excerptDatabase.upsertExcerpt(
         selection: selection,
         createdAt: Date(timeIntervalSince1970: TimeInterval(timestamp))
     )

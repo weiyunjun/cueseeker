@@ -106,8 +106,8 @@ final class ExcerptStore: ObservableObject {
         return ExcerptListSummary(
             list: overview.list,
             cueCount: overview.cueCount,
-            resumeExcerpt: recent.resumeExcerpt,
-            resumePosition: recent.resumePosition
+            resumeExcerpt: overview.cueCount > 0 ? recent.resumeExcerpt : nil,
+            resumePosition: overview.cueCount > 0 ? recent.resumePosition : nil
         )
     }
 
@@ -116,7 +116,7 @@ final class ExcerptStore: ObservableObject {
               residentListID == activeListID,
               residentDataRevision == tableDataRevision
         else {
-            return activeListSummary?.resumeExcerpt?.isValid == true
+            return (activeListSummary?.cueCount ?? 0) > 0
         }
         return residentExcerptsByID.values.contains(where: \.isValid)
     }
@@ -166,6 +166,9 @@ final class ExcerptStore: ObservableObject {
     }
 
     func installListOverview(_ overview: ExcerptListOverview) {
+        if overview.lists.isEmpty, !overviewSearchDraft.isEmpty {
+            overviewSearchDraft = ""
+        }
         guard listOverview != overview || !hasLoadedListOverview else {
             return
         }
@@ -225,19 +228,46 @@ final class ExcerptStore: ObservableObject {
                 installRecentListSummaries(updatedRecent)
             }
         } else {
-            lists.append(ExcerptListSummary(list: list, cueCount: 0))
+            let newSummary = ExcerptListSummary(list: list, cueCount: 0)
+            lists.append(newSummary)
             lists.sort {
                 if $0.list.createdAt != $1.list.createdAt {
                     return $0.list.createdAt < $1.list.createdAt
                 }
                 return $0.id < $1.id
             }
+            var updatedRecent = recentListSummaries.filter { $0.id != list.id }
+            updatedRecent.append(newSummary)
+            updatedRecent.sort(by: Self.ordersBeforeInRecentListSummaries)
+            installRecentListSummaries(updatedRecent)
         }
         installListOverview(ExcerptListOverview(
             lists: lists,
             uniqueCueCount: listOverview.uniqueCueCount
         ))
         return true
+    }
+
+    private static func ordersBeforeInRecentListSummaries(
+        _ lhs: ExcerptListSummary,
+        _ rhs: ExcerptListSummary
+    ) -> Bool {
+        switch (lhs.list.recentPlayedAt, rhs.list.recentPlayedAt) {
+        case (.some(let lhsPlayedAt), .some(let rhsPlayedAt)):
+            if lhsPlayedAt != rhsPlayedAt {
+                return lhsPlayedAt > rhsPlayedAt
+            }
+            return lhs.id > rhs.id
+        case (.some, .none):
+            return true
+        case (.none, .some):
+            return false
+        case (.none, .none):
+            if lhs.list.createdAt != rhs.list.createdAt {
+                return lhs.list.createdAt < rhs.list.createdAt
+            }
+            return lhs.id < rhs.id
+        }
     }
 
     @discardableResult
@@ -314,6 +344,26 @@ final class ExcerptStore: ObservableObject {
             lists: lists,
             uniqueCueCount: resolvedUniqueCueCount
         ))
+        let updatedRecent = recentListSummaries.map { summary -> ExcerptListSummary in
+            let delta = deltas[summary.id] ?? 0
+            let added = addedCueIDsByListID[summary.id] ?? []
+            let removed = removedCueIDsByListID[summary.id] ?? []
+            guard delta != 0 || !added.isEmpty || !removed.isEmpty else {
+                return summary
+            }
+            let nextCueCount = max(0, summary.cueCount + delta)
+            var updatedValidCueIDs = summary.validCueIDs
+            updatedValidCueIDs.subtract(removed)
+            updatedValidCueIDs.formUnion(added)
+            return ExcerptListSummary(
+                list: summary.list,
+                cueCount: nextCueCount,
+                validCueIDs: updatedValidCueIDs,
+                resumeExcerpt: nextCueCount > 0 ? summary.resumeExcerpt : nil,
+                resumePosition: nextCueCount > 0 ? summary.resumePosition : nil
+            )
+        }
+        installRecentListSummaries(updatedRecent)
         return true
     }
 

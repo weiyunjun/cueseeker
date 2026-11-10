@@ -183,6 +183,7 @@
 "excerpt.overview.summary" = "%1$@  %2$@";
 "excerpt.overview.search_placeholder" = "Search excerpt lists...";
 "excerpt.overview.search_no_results" = "No matching excerpt lists found.";
+"excerpt.overview.empty_hint" = "Create an excerpt list to collect excerpts.";
 "excerpt.overview.sort.oldest_created" = "Oldest Created";
 "excerpt.overview.sort.latest_created" = "Latest Created";
 "excerpt.list_count.one" = "1 list";

@@ -7,7 +7,6 @@ import SwiftUI
 /// through here instead of each building their own.
 struct ExcerptListCardGrid: View {
     @EnvironmentObject private var appState: AppCoordinator
-    @EnvironmentObject private var excerptStore: ExcerptStore
     @EnvironmentObject private var localization: AppLocalizationStore
     /// Set when the page already hosts the menu at its own root. The grid then
     /// uses that host, so the menu covers the whole page instead of only the
@@ -82,7 +81,6 @@ struct ExcerptListCardGrid: View {
                 highlight: highlight,
                 isSelected: highlight.isSelected(cardID),
                 isHovered: highlight.isHovered(cardID),
-                canDelete: excerptStore.listOverview.lists.count > 1,
                 onOpen: { onOpen(summary) },
                 onEdit: { appState.beginEditingExcerptList(summary.list) },
                 onDelete: { requestDeletion(of: summary) },
@@ -133,7 +131,6 @@ private struct ExcerptListCard: View {
     @ObservedObject var highlight: CardHighlightModel
     let isSelected: Bool
     let isHovered: Bool
-    let canDelete: Bool
     let onOpen: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
@@ -270,7 +267,6 @@ private struct ExcerptListCard: View {
             LibraryCardContextMenuItem(
                 title: L("excerpt.delete_list"),
                 icon: .trash,
-                isEnabled: canDelete,
                 action: onDelete
             ),
         ]

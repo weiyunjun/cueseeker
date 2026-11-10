@@ -407,6 +407,7 @@ func resurrectingVideoAndCueDoesNotAlterExistingFolderOrExcerptListResumeOrder()
             .cueLineRecords(forSubtitleFile: ep2.subtitle)
             .first
     )
+    _ = try excerptDatabase.createExcerptList(name: "Default")
     let saved1 = try excerptDatabase.upsertExcerpt(selection: excerptSelection(cue1))
     let saved2 = try excerptDatabase.upsertExcerpt(selection: excerptSelection(cue2))
     try excerptDatabase.recordRecentExcerptPlayback(
@@ -556,6 +557,7 @@ func referencedCueIsTombstonedWhenItsLibraryIsRemoved() throws {
             .first
     )
     let excerptDatabase = try ExcerptDatabase(path: fixture.databaseURL)
+    _ = try excerptDatabase.createExcerptList(name: "Default")
     let saved = try excerptDatabase.upsertExcerpt(selection: excerptSelection(cue))
 
     try database.removeIndexedFolder(fixture.root)

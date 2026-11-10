@@ -316,7 +316,6 @@ private struct WorkbenchExcerptTableContent: View {
             LibraryCardContextMenuItem(
                 title: L("excerpt.delete_list"),
                 icon: .trash,
-                isEnabled: excerptStore.listOverview.lists.count > 1,
                 action: { requestDeleteExcerptList(summary) }
             ),
         ]

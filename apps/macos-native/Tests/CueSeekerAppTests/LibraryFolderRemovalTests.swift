@@ -167,7 +167,9 @@ func libraryFolderRemovalKeepsUnavailableExcerptAndClearsCanonicalCueContent() a
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
-    _ = try ExcerptDatabase(path: database.path).upsertExcerpt(
+    let excerptDatabase = try ExcerptDatabase(path: database.path)
+    _ = try excerptDatabase.createExcerptList(name: "Default")
+    _ = try excerptDatabase.upsertExcerpt(
         selection: selection
     )
 
@@ -625,7 +627,9 @@ func renameUpdatesFileSearchLibraryRecentAndExcerptInPlaceWithoutRerunningSearch
             atMilliseconds: 1_500
         )
     )
-    _ = try ExcerptDatabase(path: databaseURL).upsertExcerpt(selection: selection)
+    let excerptDatabase = try ExcerptDatabase(path: databaseURL)
+    _ = try excerptDatabase.createExcerptList(name: "Default")
+    _ = try excerptDatabase.upsertExcerpt(selection: selection)
     userDefaults.set([oldFolder.path, otherFolder.path], forKey: "selectedFolderPaths")
 
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)

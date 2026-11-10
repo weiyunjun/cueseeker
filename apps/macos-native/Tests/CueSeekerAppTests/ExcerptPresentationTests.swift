@@ -73,9 +73,10 @@ func excerptOverviewAndTableLoadingFollowTheSelectedList() async throws {
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let indexingDatabase = try #require(app.indexingDatabase)
     let excerptDatabase = try #require(app.excerptDatabase)
-    let defaultList = try #require(try excerptDatabase.excerptList(
-        id: ExcerptListIdentity.defaultListID
-    ))
+    let defaultList = try excerptDatabase.createExcerptList(
+        name: "Default",
+        createdAt: Date(timeIntervalSince1970: 100)
+    )
     let secondList = try excerptDatabase.createExcerptList(
         name: "Second",
         createdAt: Date(timeIntervalSince1970: 200)
@@ -134,10 +135,15 @@ func excerptOverviewAndTableLoadingFollowTheSelectedList() async throws {
     #expect(app.workbenchLayout.selectedExcerptListID == nil)
     #expect(app.excerpt.activeListID == secondList.id)
 
-    let emptyList = try excerptDatabase.createExcerptList(name: "Empty")
+    let emptyList = try excerptDatabase.createExcerptList(
+        name: "Empty",
+        createdAt: Date(timeIntervalSince1970: 400)
+    )
     app.reloadExcerptListOverview()
     try await waitForExcerptTasksToFinish(app)
-    #expect(app.excerpt.recentListSummaries.map(\.id) == [secondList.id, defaultList.id])
+    #expect(app.excerpt.recentListSummaries.map(\.id) == [secondList.id, defaultList.id, emptyList.id])
+    #expect(app.excerpt.recentListSummaries.last?.cueCount == 0)
+    #expect(app.excerpt.recentListSummaries.last?.list.recentPlayedAt == nil)
     app.openExcerptList(id: emptyList.id)
     try await waitForExcerptTasksToFinish(app)
     #expect(app.excerpt.activeListSummary?.cueCount == 0)
@@ -169,10 +175,14 @@ func recentExcerptPlaybackRefreshesCommandPanelBeforeKeyboardNavigation() async 
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let indexingDatabase = try #require(app.indexingDatabase)
     let excerptDatabase = try #require(app.excerptDatabase)
-    let firstList = try #require(try excerptDatabase.excerptList(
-        id: ExcerptListIdentity.defaultListID
-    ))
-    let secondList = try excerptDatabase.createExcerptList(name: "Second")
+    let firstList = try excerptDatabase.createExcerptList(
+        name: "Default",
+        createdAt: Date(timeIntervalSince1970: 100)
+    )
+    let secondList = try excerptDatabase.createExcerptList(
+        name: "Second",
+        createdAt: Date(timeIntervalSince1970: 200)
+    )
     let firstItem = try makeExcerpt(
         in: indexingDatabase,
         id: 40,
@@ -229,22 +239,29 @@ func excerptTransfersRefreshPresentationAndPublishRegisteredToasts() async throw
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let indexingDatabase = try #require(app.indexingDatabase)
     let excerptDatabase = try #require(app.excerptDatabase)
-    let destination = try excerptDatabase.createExcerptList(name: "Destination")
+    let defaultList = try excerptDatabase.createExcerptList(
+        name: "Default",
+        createdAt: Date(timeIntervalSince1970: 100)
+    )
+    let destination = try excerptDatabase.createExcerptList(
+        name: "Destination",
+        createdAt: Date(timeIntervalSince1970: 200)
+    )
     let movedSource = try makeExcerpt(
         in: indexingDatabase,
         id: 30,
         content: "Move this cue",
-        listID: ExcerptListIdentity.defaultListID
+        listID: defaultList.id
     )
     let duplicatedSource = try makeExcerpt(
         in: indexingDatabase,
         id: 31,
         content: "Duplicate this cue",
-        listID: ExcerptListIdentity.defaultListID
+        listID: defaultList.id
     )
     app.reloadExcerptListOverview()
     try await waitForExcerptTasksToFinish(app)
-    app.openExcerptList(id: ExcerptListIdentity.defaultListID)
+    app.openExcerptList(id: defaultList.id)
     try await waitForExcerptTasksToFinish(app)
     #expect(app.excerpt.tableHasLoadedInitialPage)
     #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 2)
@@ -333,9 +350,7 @@ func excerptTableRowsAndOverviewLoadDuringIndexing() async throws {
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let indexingDatabase = try #require(app.indexingDatabase)
     let excerptDatabase = try #require(app.excerptDatabase)
-    let defaultList = try #require(try excerptDatabase.excerptList(
-        id: ExcerptListIdentity.defaultListID
-    ))
+    let defaultList = try excerptDatabase.createExcerptList(name: "Default")
     let item = try makeExcerpt(
         in: indexingDatabase,
         id: 42,
@@ -386,10 +401,17 @@ func openExcerptListTriggersPerformanceTrackingAndCompletesOnVisibleRows() async
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let indexingDatabase = try #require(app.indexingDatabase)
     let excerptDatabase = try #require(app.excerptDatabase)
+    try SQLiteDatabase(path: databaseURL).execute(
+        """
+        INSERT INTO excerpt_lists(id, name, normalized_name, description, created_at)
+        VALUES (8900, '__perf_seed__', '__perf_seed__', '', '2026-01-01T00:00:00Z');
+        """
+    )
     let list = try excerptDatabase.createExcerptList(
         name: "Tracked List",
         createdAt: Date()
     )
+    try excerptDatabase.deleteExcerptList(id: 8900)
     _ = try makeExcerpt(
         in: indexingDatabase,
         id: 101,
@@ -631,7 +653,11 @@ private func makeExcerpt(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
-    return try ExcerptDatabase(path: database.path).upsertExcerpt(
+    let excerptDatabase = try ExcerptDatabase(path: database.path)
+    if listID == nil, try excerptDatabase.firstExcerptListID() == nil {
+        _ = try excerptDatabase.createExcerptList(name: "Default")
+    }
+    return try excerptDatabase.upsertExcerpt(
         selection: selection,
         listID: listID,
         createdAt: createdAt

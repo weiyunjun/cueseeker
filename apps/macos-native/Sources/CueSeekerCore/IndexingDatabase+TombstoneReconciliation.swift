@@ -280,15 +280,6 @@ extension IndexingDatabase {
         let updateFallback = try database.prepare(
             "UPDATE excerpt_lists SET recent_cue_id = ? WHERE id = ?;"
         )
-        let clearRecent = try database.prepare(
-            """
-            UPDATE excerpt_lists
-            SET recent_cue_id = NULL,
-                recent_sort_order = NULL,
-                recent_played_at = NULL
-            WHERE id = ?;
-            """
-        )
 
         for listID in listIDs {
             try selectFirstPlayableCue.bind(listID, at: 1)
@@ -302,10 +293,6 @@ extension IndexingDatabase {
                 try updateFallback.bind(listID, at: 2)
                 try updateFallback.run()
                 try updateFallback.reset()
-            } else {
-                try clearRecent.bind(listID, at: 1)
-                try clearRecent.run()
-                try clearRecent.reset()
             }
         }
     }

@@ -699,6 +699,14 @@ final class PlaybackStore: ObservableObject {
         }
     }
 
+    func removeHeldCommandPanelExcerptList(id: Int64) {
+        if case .recentExcerpts(let summaries) = commandPanelHeldPage {
+            commandPanelHeldPage = .recentExcerpts(
+                summaries.filter { $0.id != id }
+            )
+        }
+    }
+
     @discardableResult
     func dismissCommandPanel() -> PlaybackCommandPanelPresentation? {
         defer {

@@ -125,17 +125,8 @@ extension AppCoordinator {
                 playlistSelectedOrdinal: ordinal,
                 displayTitle: target.displayTitle
             )
-        case .fallback(let fallbackTarget):
-            openExcerpt(
-                fallbackTarget,
-                navigationScopeIDs: [],
-                playlistScope: .explicitIDs([]),
-                playlistSelectedOrdinal: nil,
-                displayTitle: fallbackTarget.displayTitle,
-                allowsUnavailableTarget: true
-            )
-        case .empty:
-            reloadExcerptListOverview()
+        case .noAvailableExcerpts:
+            toast.show(PlaybackToastRequest.noAvailableExcerpts)
         }
     }
 
@@ -198,7 +189,14 @@ extension AppCoordinator {
             // is a step of its own, like any other page change.
             navigateWorkbench(to: .excerpt)
         }
-        return excerpt.deleteExcerptList(id: id, settings: settings)
+        let deleted = excerpt.deleteExcerptList(id: id, settings: settings)
+        if deleted {
+            playback.removeHeldCommandPanelExcerptList(id: id)
+            if playback.commandPanelPresentation?.page == .recentExcerpts {
+                synchronizePlaybackCommandPanelSelection()
+            }
+        }
+        return deleted
     }
 
     // MARK: - Table Rows, Projection & Refresh Forwarding
@@ -683,8 +681,7 @@ extension AppCoordinator {
             showPlaybackItemNotInLibrary()
             if (playback.playlistSource?.boundary.totalCount ?? 0) == 0 {
                 playback.playbackViewModel?.showNoAvailableNavigationFeedback(
-                    direction: nil,
-                    text: L("playback.hud.no_available_results")
+                    text: L("playback.hud.no_available_excerpts")
                 )
             }
         } else {

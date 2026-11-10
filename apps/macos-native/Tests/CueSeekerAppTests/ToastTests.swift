@@ -202,6 +202,10 @@ func playbackToastRequestsMatchTheUsageRegistry() {
     #expect(PlaybackToastRequest.noAvailableResults.message == "No Available Results")
     #expect(PlaybackToastRequest.noAvailableResults.icon == .warning)
     #expect(PlaybackToastRequest.noAvailableResults.duration == 3.0)
+
+    #expect(PlaybackToastRequest.noAvailableExcerpts.message == "No Available Excerpts")
+    #expect(PlaybackToastRequest.noAvailableExcerpts.icon == .warning)
+    #expect(PlaybackToastRequest.noAvailableExcerpts.duration == 3.0)
 }
 
 @MainActor

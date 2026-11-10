@@ -266,6 +266,10 @@ enum PlaybackToastRequest {
         alert("playback.hud.no_available_results", L("playback.hud.no_available_results"))
     }
 
+    static var noAvailableExcerpts: ToastRequest {
+        alert("playback.hud.no_available_excerpts", L("playback.hud.no_available_excerpts"))
+    }
+
     static func subtitleCopy(copied: Bool) -> ToastRequest {
         copied ? cueTextCopied : noSubtitle
     }

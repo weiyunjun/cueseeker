@@ -4,8 +4,7 @@ import CueSeekerCore
 
 enum ExcerptListPlaybackResolution {
     case resolved(target: Excerpt, navigationScopeIDs: [Int64], ordinal: Int)
-    case fallback(target: Excerpt)
-    case empty
+    case noAvailableExcerpts
 }
 
 @MainActor
@@ -99,12 +98,7 @@ extension ExcerptStore {
                   let target = resolvedByID[targetID],
                   let ordinal = navigationScopeIDs.firstIndex(of: targetID)
             else {
-                if let fallbackTarget = preferredExcerptID.flatMap({ resolvedByID[$0] })
-                    ?? summary.resumeExcerpt
-                    ?? relations.first.flatMap({ resolvedByID[$0.id] }) {
-                    return .fallback(target: fallbackTarget)
-                }
-                return .empty
+                return .noAvailableExcerpts
             }
             return .resolved(
                 target: target,
@@ -501,7 +495,10 @@ extension ExcerptStore {
                     return (list, count)
                 }
                 guard let self, !self.needsReloadAfterIndexedContentMutation else { return }
-                self.removeListSummary(id: id, uniqueCueCount: uniqueCueCount)
+                if !self.removeListSummary(id: id, uniqueCueCount: uniqueCueCount),
+                   !self.hasLoadedListOverview || self.listOverviewTask != nil {
+                    self.reloadListOverview()
+                }
                 if let coverPath = deleted.coverPath {
                     do {
                         try await self.coverStorage.remove(path: coverPath)

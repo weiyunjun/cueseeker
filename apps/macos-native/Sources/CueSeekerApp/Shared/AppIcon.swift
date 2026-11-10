@@ -889,12 +889,13 @@ private struct AccentDuotoneRenamePencilShape: Shape {
 }
 
 /// Duotone large icons dedicated to `C-09.2 Empty State` across Workbench
-/// pages, Dialogs, Playback Overlay, and Command Panel (`search-hint` and
-/// `collage-hint` use the system accent palette; the other 9 empty/unavailable
-/// icons use the neutral gray palette).
+/// pages, Dialogs, Playback Overlay, and Command Panel (`search-hint`,
+/// `collage-hint`, and `excerpt-hint` use the system accent palette; the other
+/// 9 empty/unavailable icons use the neutral gray palette).
 enum AppEmptyStateIcon: String, CaseIterable, Sendable {
     case searchHint = "search-hint"
     case collageHint = "collage-hint"
+    case excerptHint = "excerpt-hint"
     case searchNoResults = "search-no-results"
     case video = "video"
     case excerpt = "excerpt"
@@ -934,6 +935,8 @@ struct AppEmptyStateIconView: View {
                 searchHintIconView
             case .collageHint:
                 collageHintIconView
+            case .excerptHint:
+                excerptHintIconView
             case .searchNoResults:
                 searchNoResultsIconView
             case .video:
@@ -1057,6 +1060,11 @@ struct AppEmptyStateIconView: View {
             AccentDuotonePlayTriangleShape()
                 .fill(WorkbenchRedesignColors.emptyIconForeground)
         }
+    }
+
+    private var excerptHintIconView: some View {
+        AccentDuotoneExcerptBookmarkShape()
+            .fill(WorkbenchRedesignColors.emptyIconCollageBack)
     }
 
     private var excerptIconView: some View {

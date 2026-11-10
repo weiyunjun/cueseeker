@@ -327,6 +327,7 @@ func characterFacetCountsMatchAcrossCountCacheSearchAndExcerptWithEastAsianWidth
     }
 
     let excerptDB = try ExcerptDatabase(path: databaseURL)
+    _ = try excerptDB.createExcerptList(name: "Default")
     for cueID in searchPage.cueIDs {
         _ = try excerptDB.upsertExcerpt(cueID: cueID)
     }

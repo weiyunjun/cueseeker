@@ -1727,6 +1727,9 @@ private func withKeyboardActionApp(
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let database = try #require(app.indexingDatabase)
+    _ = try app.excerptDatabase?.createExcerptList(name: "Default")
+    app.reloadExcerptListOverview()
+    await app.excerptListOverviewTask?.value
     let source = keyboardActionSource()
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: source.subtitlePath),

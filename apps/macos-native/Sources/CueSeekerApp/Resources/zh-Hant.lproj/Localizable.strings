@@ -183,6 +183,7 @@
 "excerpt.overview.summary" = "%1$@  %2$@";
 "excerpt.overview.search_placeholder" = "搜尋摘錄集…";
 "excerpt.overview.search_no_results" = "找不到相符的摘錄集。";
+"excerpt.overview.empty_hint" = "建立摘錄集以收集摘錄。";
 "excerpt.overview.sort.oldest_created" = "最早建立";
 "excerpt.overview.sort.latest_created" = "最晚建立";
 "excerpt.list_count.one" = "1 個摘錄集";

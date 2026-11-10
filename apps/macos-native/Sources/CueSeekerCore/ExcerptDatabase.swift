@@ -436,6 +436,12 @@ public final class ExcerptDatabase: @unchecked Sendable {
                 return excerpt
             }
             guard !playable.isEmpty else {
+                summaries.append(ExcerptListSummary(
+                    list: list,
+                    cueCount: 0,
+                    resumeExcerpt: nil,
+                    resumePosition: nil
+                ))
                 continue
             }
 
@@ -616,11 +622,6 @@ public final class ExcerptDatabase: @unchecked Sendable {
         try database.withImmediateTransaction {
             guard let list = try excerptList(id: id) else {
                 throw ExcerptListMutationError.listNotFound
-            }
-            let countStatement = try database.prepare("SELECT COUNT(*) FROM excerpt_lists;")
-            let listCount = try countStatement.step() ? countStatement.intColumn(0) : 0
-            guard listCount > 1 else {
-                throw ExcerptListMutationError.cannotDeleteOnlyList
             }
 
             let cueStatement = try database.prepare(
@@ -1237,7 +1238,10 @@ public final class ExcerptDatabase: @unchecked Sendable {
             resolvedByID[relation.id]?.isValid == true
         }
         guard let firstPlayableRelation = playableRelations.first else {
-            try clearRecentExcerptPlayback(listID: listID)
+            if let recentCueID = list.recentCueID,
+               !relations.contains(where: { $0.cueID == recentCueID }) {
+                try clearRecentExcerptCueAnchor(listID: listID)
+            }
             return
         }
         let hasAnchoredPlayableCue = playableRelations.contains { relation in
@@ -1251,13 +1255,11 @@ public final class ExcerptDatabase: @unchecked Sendable {
         }
     }
 
-    private func clearRecentExcerptPlayback(listID: Int64) throws {
+    private func clearRecentExcerptCueAnchor(listID: Int64) throws {
         let statement = try database.prepare(
             """
             UPDATE excerpt_lists
-            SET recent_cue_id = NULL,
-                recent_sort_order = NULL,
-                recent_played_at = NULL
+            SET recent_cue_id = NULL
             WHERE id = ?;
             """
         )

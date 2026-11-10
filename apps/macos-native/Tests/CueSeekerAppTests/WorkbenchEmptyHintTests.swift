@@ -31,7 +31,7 @@ func workbenchEmptyHintPassesMouseHitTestingToUnderlyingTableSurface() {
 @MainActor
 @Test
 func workbenchEmptyHintAndDuotoneIconsMatchDesignMetrics() {
-    #expect(AppEmptyStateIcon.allCases.count == 11)
+    #expect(AppEmptyStateIcon.allCases.count == 12)
     #expect(WorkbenchControlMetrics.redesignEmptyStateIconSize == 68)
     #expect(WorkbenchControlMetrics.redesignEmptyStateIconToTextGap == 14)
     #expect(WorkbenchControlMetrics.redesignEmptyStateTitleToMessageGap == 4)
@@ -223,19 +223,25 @@ func emptyStateLocalizationMatchesRequirements() {
             "table.search_empty_hint": "Enter a search term to show cues.",
             "table.search_no_results": "No matching cues found.",
             "excerpt.table.empty_hint": "Save cues from search results or playback to collect excerpts.",
-            "excerpt.table.no_results": "No matching excerpts found."
+            "excerpt.table.no_results": "No matching excerpts found.",
+            "excerpt.overview.empty_hint": "Create an excerpt list to collect excerpts.",
+            "playback.hud.no_available_excerpts": "No Available Excerpts"
         ]),
         (.simplifiedChinese, [
             "table.search_empty_hint": "输入搜索词以显示台词。",
             "table.search_no_results": "未找到匹配的台词。",
             "excerpt.table.empty_hint": "从搜索结果中或在播放时保存台词，即可收集摘录。",
-            "excerpt.table.no_results": "未找到匹配的摘录。"
+            "excerpt.table.no_results": "未找到匹配的摘录。",
+            "excerpt.overview.empty_hint": "创建摘录集以收集摘录。",
+            "playback.hud.no_available_excerpts": "没有可用的摘录"
         ]),
         (.traditionalChinese, [
             "table.search_empty_hint": "輸入搜尋字詞以顯示台詞。",
             "table.search_no_results": "未找到相符的台詞。",
             "excerpt.table.empty_hint": "從搜尋結果中或在播放時儲存台詞，即可收集摘錄。",
-            "excerpt.table.no_results": "未找到相符的摘錄。"
+            "excerpt.table.no_results": "未找到相符的摘錄。",
+            "excerpt.overview.empty_hint": "建立摘錄集以收集摘錄。",
+            "playback.hud.no_available_excerpts": "沒有可用的摘錄"
         ])
     ]
 

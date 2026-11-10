@@ -1520,6 +1520,7 @@ func indexesSearchesAndReconcilesWebVTTSubtitleFiles() throws {
     #expect(matched.languages.contains(.english))
 
     let excerptDatabase = try ExcerptDatabase(path: databaseURL)
+    _ = try excerptDatabase.createExcerptList(name: "Default")
     _ = try excerptDatabase.upsertExcerpt(cueID: matched.entryID)
 
     // Edit text only (timestamp unchanged) and update modification date to trigger reindex.

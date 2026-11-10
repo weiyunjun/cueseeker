@@ -68,7 +68,7 @@ struct ExcerptLifecycleAndInvalidItemsTests {
             #expect(app.playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
             #expect(app.playback.isPlaybackSurfaceExpanded == true)
             #expect(app.playback.playlistPosition == nil)
-            #expect(app.playback.playbackViewModel?.feedback?.text == "No Available Results")
+            #expect(app.playback.playbackViewModel?.feedback?.text == "No Available Excerpts")
             #expect(app.playback.playbackViewModel?.feedback?.icon == .warning)
 
             // Exiting playback dismisses error banner
@@ -355,32 +355,90 @@ struct ExcerptLifecycleAndInvalidItemsTests {
     }
 
     @Test
-    func openingExcerptListPlaybackWhenAllCuesAreUnavailableShowsNotInLibraryError() async throws {
+    func openingExcerptListPlaybackInterceptsEmptyAndAllUnavailableListsWithoutUpdatingRecentPlayedAt() async throws {
         try await withExcerptTestApp { app, database in
             app.ensurePlayerInitialized()
             try indexExcerptVideo("Episode1", in: database)
             let excerptDB = try #require(app.excerptDatabase)
-            let list = try excerptDB.createExcerptList(name: "AllUnavailablePlayback", description: "")
+            let emptyList = try excerptDB.createExcerptList(
+                name: "NeverPlayedEmpty",
+                description: "",
+                createdAt: Date(timeIntervalSince1970: 100)
+            )
+            let playedList = try excerptDB.createExcerptList(
+                name: "AllUnavailablePlayback",
+                description: "",
+                createdAt: Date(timeIntervalSince1970: 200)
+            )
             let cue = try #require(try SearchDatabase(path: database.path).search("Episode1").first)
-            _ = try excerptDB.upsertExcerpt(cueID: cue.entryID, listID: list.id)
+            let saved = try excerptDB.upsertExcerpt(cueID: cue.entryID, listID: playedList.id)
+            let pastPlayedAt = Date(timeIntervalSince1970: 1_700_000_000)
+            let expectedPlayedAt = ISO8601DateFormatter().string(from: pastPlayedAt)
+            try excerptDB.recordRecentExcerptPlayback(excerptID: saved.id, playedAt: pastPlayedAt)
 
+            app.openExcerptList(id: playedList.id)
+            await app.excerptTableRowsTask?.value
             app.reloadExcerptListOverview()
             await app.excerptListOverviewTask?.value
-            let frozenSummary = try #require(app.excerpt.listOverview.lists.first(where: { $0.id == list.id }))
 
-            // Background mutation removes Episode1 while summary is still displayed on frozen page
+            // 1. Empty list is included in Recent (Never Played) and intercepted on click without updating recentPlayedAt
+            let emptyRecentSummary = try #require(app.excerpt.recentListSummaries.first(where: { $0.id == emptyList.id }))
+            #expect(emptyRecentSummary.list.recentPlayedAt == nil)
+            app.openRecentExcerpt(emptyRecentSummary)
+            #expect(app.playback.isPlaybackSurfaceExpanded == false)
+            #expect(app.toast.visibleItems.last?.request == PlaybackToastRequest.noAvailableExcerpts)
+            #expect(try excerptDB.excerptList(id: emptyList.id)?.recentPlayedAt == nil)
+
+            // 2. Frozen Excerpt Detail Play (resumeExcerpt == nil) and Resume (resumeExcerpt != nil) buttons,
+            //    as well as Workbench Recent click, intercept when background changes leave 0 valid excerpts
+            let frozenResumeSummary = try #require(app.excerpt.activeListSummary)
+            #expect(frozenResumeSummary.cueCount == 1)
+            #expect(frozenResumeSummary.resumeExcerpt?.id == saved.id)
+            let frozenPlaySummary = ExcerptListSummary(
+                list: frozenResumeSummary.list,
+                cueCount: frozenResumeSummary.cueCount,
+                resumeExcerpt: nil,
+                resumePosition: nil
+            )
+
+            app.prepareExcerptForIndexedContentMutation(under: [URL(fileURLWithPath: "/Media")])
             try database.replaceEntries(
                 subtitleFile: URL(fileURLWithPath: "/Media/Episode1.srt"),
                 videoFile: URL(fileURLWithPath: "/Media/Episode1.mkv"),
                 entries: []
             )
+            app.reloadExcerptAfterIndexedContentMutation()
 
-            app.openExcerptListPlayback(frozenSummary)
+            app.toast.dismissAll()
+            app.openExcerptListPlayback(frozenPlaySummary)
+            #expect(app.playback.isPlaybackSurfaceExpanded == false)
+            #expect(app.toast.visibleItems.last?.request == PlaybackToastRequest.noAvailableExcerpts)
+            #expect(try excerptDB.excerptList(id: playedList.id)?.recentPlayedAt == expectedPlayedAt)
 
-            #expect(app.currentPlaybackItemLeftLibrary == true)
-            #expect(app.playback.playbackStatus == .loadFailed)
-            #expect(app.playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
-            #expect(app.playback.isPlaybackSurfaceExpanded == true)
+            app.toast.dismissAll()
+            app.openExcerptListPlayback(frozenResumeSummary)
+            #expect(app.playback.isPlaybackSurfaceExpanded == false)
+            #expect(app.toast.visibleItems.last?.request == PlaybackToastRequest.noAvailableExcerpts)
+            #expect(try excerptDB.excerptList(id: playedList.id)?.recentPlayedAt == expectedPlayedAt)
+
+            app.toast.dismissAll()
+            app.openRecentExcerpt(frozenResumeSummary)
+            #expect(app.playback.isPlaybackSurfaceExpanded == false)
+            #expect(app.toast.visibleItems.last?.request == PlaybackToastRequest.noAvailableExcerpts)
+            #expect(try excerptDB.excerptList(id: playedList.id)?.recentPlayedAt == expectedPlayedAt)
+
+            // 3. Reconciled Excerpt Detail hides progress/resume and disables Play, while Recent retains playedList in its played group
+            app.refreshExcerptOnReappearanceIfNeeded()
+            await app.excerptTableRowsTask?.value
+            await app.excerptListOverviewTask?.value
+
+            #expect(app.excerpt.activeListSummary?.cueCount == 0)
+            #expect(app.excerpt.activeListSummary?.resumeExcerpt == nil)
+            #expect(app.excerpt.activeListSummary?.resumePosition == nil)
+            #expect(app.excerpt.activeListHasPlayableContent == false)
+            #expect(app.excerpt.recentListSummaries.map(\.id) == [playedList.id, emptyList.id])
+            #expect(app.excerpt.recentListSummaries.first?.cueCount == 0)
+            #expect(app.excerpt.recentListSummaries.first?.list.recentPlayedAt == expectedPlayedAt)
         }
     }
 

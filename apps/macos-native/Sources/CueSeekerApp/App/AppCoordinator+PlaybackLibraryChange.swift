@@ -115,7 +115,6 @@ extension AppCoordinator {
                   let first = detail.videos.first
             else {
                 playback.playbackViewModel?.showNoAvailableNavigationFeedback(
-                    direction: direction,
                     text: L("playback.hud.no_available_videos")
                 )
                 return
@@ -132,9 +131,14 @@ extension AppCoordinator {
         guard let source = playback.playlistSource,
               let item = firstPlaylistItemInLibrary(in: source)
         else {
+            let isExcerptPlaylist = playback.playlistSource?.kind == .excerpt
+                || activePlaybackSource == .excerpt
             playback.playbackViewModel?.showNoAvailableNavigationFeedback(
-                direction: direction,
-                text: L("playback.hud.no_available_results")
+                text: L(
+                    isExcerptPlaylist
+                        ? "playback.hud.no_available_excerpts"
+                        : "playback.hud.no_available_results"
+                )
             )
             return
         }

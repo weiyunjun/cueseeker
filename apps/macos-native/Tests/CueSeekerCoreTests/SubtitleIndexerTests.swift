@@ -1626,6 +1626,7 @@ func samePathAtomicSavePreservesSubtitleCueAndExcerptIDs() throws {
     )
     let originalCueID = originalCue.id
     let excerptDatabase = try ExcerptDatabase(path: fixture.databaseURL)
+    _ = try excerptDatabase.createExcerptList(name: "Default")
     let saved = try excerptDatabase.upsertExcerpt(
         selection: excerptSelection(originalCue)
     )
@@ -1720,6 +1721,7 @@ func samePathASSJapaneseTextEditKeepsExcerptAvailable() throws {
             .first
     )
     let excerptDatabase = try ExcerptDatabase(path: fixture.databaseURL)
+    _ = try excerptDatabase.createExcerptList(name: "Default")
     let saved = try excerptDatabase.upsertExcerpt(
         selection: excerptSelection(originalCue)
     )
@@ -1803,6 +1805,7 @@ func referencedCueTombstoneSurvivesMissingResourcesAndReturningFiles() throws {
     )
     let originalCueID = try #require(selection.cueLineID)
     let excerptDatabase = try ExcerptDatabase(path: fixture.databaseURL)
+    _ = try excerptDatabase.createExcerptList(name: "Default")
     let saved = try excerptDatabase.upsertExcerpt(selection: selection)
     let libraryDatabase = try LibraryDatabase(path: fixture.databaseURL)
     try libraryDatabase.refreshPresentationAfterIndexedContentChange()
@@ -1972,6 +1975,7 @@ func missingCueRemainsThePriorityWhenVideoLaterDisappears()
             $0.line.content == "Second Cue"
         }.first
     )
+    _ = try ExcerptDatabase(path: fixture.databaseURL).createExcerptList(name: "Default")
     let saved = try ExcerptDatabase(path: fixture.databaseURL)
         .upsertExcerpt(selection: excerptSelection(secondCue))
     let originalModificationDate = try #require(

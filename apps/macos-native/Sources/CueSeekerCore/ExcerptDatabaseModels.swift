@@ -13,7 +13,6 @@ public enum ExcerptListValidationError: Error, Equatable, Sendable {
 
 public enum ExcerptListMutationError: Error, Equatable, Sendable {
     case listNotFound
-    case cannotDeleteOnlyList
 }
 
 public struct ExcerptListValidation: Equatable, Sendable {

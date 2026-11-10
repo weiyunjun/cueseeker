@@ -239,20 +239,14 @@ extension PlaybackViewModel {
     }
 
     /// Previous, next or Auto Switch from an item the library no longer holds,
-    /// or a Recent Excerpt List opened, with nothing the library still holds
-    /// to go to.
+    /// or an invalid item opened into an empty playlist, with nothing the
+    /// library still holds to go to.
     func showNoAvailableNavigationFeedback(
-        direction: SearchResultNavigationDirection?,
         text: String
     ) {
-        let icon: AppIcon = switch direction {
-        case .previous: .caretLeft
-        case .next: .caretRight
-        case nil: .warning
-        }
         showFeedback(
             PlaybackFeedback(
-                icon: icon,
+                icon: .warning,
                 text: text
             ),
             durationMilliseconds: 1_000
