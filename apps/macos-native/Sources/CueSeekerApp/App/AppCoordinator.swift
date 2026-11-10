@@ -897,7 +897,7 @@ final class AppCoordinator: ObservableObject {
             )
         }
 
-        AppLogger.shared.info(
+        AppLogger.shared.debug(
             .app,
             "Workbench route changed",
             fields: logRouteFields(for: route)
@@ -974,7 +974,7 @@ final class AppCoordinator: ObservableObject {
                 startedAt: startedAt
             )
         }
-        AppLogger.shared.info(
+        AppLogger.shared.debug(
             .app,
             "Workbench route changed",
             fields: logRouteFields(for: currentRoute, navigation: "back")
@@ -1014,7 +1014,7 @@ final class AppCoordinator: ObservableObject {
                 startedAt: startedAt
             )
         }
-        AppLogger.shared.info(
+        AppLogger.shared.debug(
             .app,
             "Workbench route changed",
             fields: logRouteFields(for: currentRoute, navigation: "forward")

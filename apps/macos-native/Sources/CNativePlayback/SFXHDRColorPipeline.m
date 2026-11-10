@@ -52,26 +52,17 @@ BOOL SFXIsHDRScreenshotEnabled(void) {
 }
 
 void SFXSetDebugTelemetryLogHandler(SFXDebugTelemetryLogHandler _Nullable handler) {
-#if !defined(NDEBUG) || defined(DEBUG)
     os_unfair_lock_lock(&sTelemetryLock);
     sDebugTelemetryHandler = [handler copy];
     atomic_store_explicit(&sDebugTelemetryEnabled, sDebugTelemetryHandler != nil, memory_order_relaxed);
     os_unfair_lock_unlock(&sTelemetryLock);
-#else
-    (void)handler;
-#endif
 }
 
 BOOL SFXIsDebugTelemetryEnabled(void) {
-#if !defined(NDEBUG) || defined(DEBUG)
     return atomic_load_explicit(&sDebugTelemetryEnabled, memory_order_relaxed) ? YES : NO;
-#else
-    return NO;
-#endif
 }
 
 void SFXEmitDebugTelemetryLog(NSString *event, NSString * _Nullable details) {
-#if !defined(NDEBUG) || defined(DEBUG)
     if (!atomic_load_explicit(&sDebugTelemetryEnabled, memory_order_relaxed)) {
         return;
     }
@@ -82,10 +73,6 @@ void SFXEmitDebugTelemetryLog(NSString *event, NSString * _Nullable details) {
     if (handler != nil) {
         handler(event ?: @"playback.debug", details);
     }
-#else
-    (void)event;
-    (void)details;
-#endif
 }
 
 typedef struct {
@@ -1740,9 +1727,9 @@ CGImageRef _Nullable SFXCopyRenderedImageFromPixelBufferWithRotation(
                       quarterTurnsClockwise:(NSInteger)effectiveOrientation];
     }
     double renderMs = SFXMonotonicMilliseconds() - renderStartMs;
+    double totalStaticRenderMs = decodeMilliseconds + renderMs;
 
-#if !defined(NDEBUG) || defined(DEBUG)
-    if (sceneName != nil && SFXIsDebugTelemetryEnabled()) {
+    if (sceneName != nil && totalStaticRenderMs >= 200.0 && SFXIsDebugTelemetryEnabled()) {
         NSString *colorSummary = SFXDescribePixelBufferColorSummary(pixelBuffer);
         NSString *details = [NSString stringWithFormat:
             @"scene=%@ hdr_screenshot=%@ source_is_hdr=%@ source_color=%@ output=%zux%zu decode_ms=%.2f render_ms=%.2f total_ms=%.2f",
@@ -1754,13 +1741,9 @@ CGImageRef _Nullable SFXCopyRenderedImageFromPixelBufferWithRotation(
             outH,
             decodeMilliseconds,
             renderMs,
-            decodeMilliseconds + renderMs];
-        SFXEmitDebugTelemetryLog(@"playback.static_image.render", details);
+            totalStaticRenderMs];
+        SFXEmitDebugTelemetryLog(@"playback.static_image.slow_render", details);
     }
-#else
-    (void)decodeMilliseconds;
-    (void)sceneName;
-#endif
 
     return image;
 }

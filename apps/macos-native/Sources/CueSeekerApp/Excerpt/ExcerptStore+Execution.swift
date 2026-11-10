@@ -1038,7 +1038,7 @@ extension ExcerptStore {
                 "Excerpt search applied",
                 fields: [
                     ("list_id", "\(listID)"),
-                    ("query", trimmedSearchText),
+                    AppLogger.queryLogField(value: trimmedSearchText),
                     ("results", "\(relations.count)"),
                     ("total", "\(residentRelations.count)")
                 ]

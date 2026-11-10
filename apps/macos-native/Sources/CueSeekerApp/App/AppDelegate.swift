@@ -50,10 +50,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let buildVersion = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
         let osVersion = ProcessInfo.processInfo.operatingSystemVersion
         let osVersionString = "\(osVersion.majorVersion).\(osVersion.minorVersion).\(osVersion.patchVersion)"
+        let memoryGB = Int((Double(ProcessInfo.processInfo.physicalMemory) / (1024 * 1024 * 1024)).rounded())
+        let maxEDRHeadroom = NSScreen.main?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1.0
+        let mainDisplayHDR = maxEDRHeadroom > 1.0
         AppLogger.shared.info(
             .app,
             "App launched",
-            details: "version=\(shortVersion)(\(buildVersion)) build=\(AppBuildConfiguration.current.rawValue) macOS=\(osVersionString)"
+            fields: [
+                ("version", "\(shortVersion)(\(buildVersion))"),
+                ("build", AppBuildConfiguration.current.rawValue),
+                ("telemetry", AppDiagnosticTelemetryCollectionMode.current.rawValue),
+                ("macOS", osVersionString),
+                ("arch", Self.hardwareArchitectureString()),
+                ("chip", Self.hardwareChipBrandString()),
+                ("memory_gb", "\(memoryGB)"),
+                ("main_display_hdr", mainDisplayHDR ? "1" : "0"),
+                ("max_edr_headroom", String(format: "%.2f", maxEDRHeadroom))
+            ]
         )
         AppPerformanceProbe.mark("MARK CueSeeker.applicationDidFinishLaunching")
         UIInvalidationProbe.markStartup()
@@ -701,5 +714,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         NSApp.mainMenu = mainMenu
         NSApp.windowsMenu = windowMenu
+    }
+
+    private static func hardwareArchitectureString() -> String {
+        #if arch(arm64)
+        return "arm64"
+        #elseif arch(x86_64)
+        return "x86_64"
+        #else
+        return "unknown"
+        #endif
+    }
+
+    private static func hardwareChipBrandString() -> String {
+        if let brand = sysctlString(named: "machdep.cpu.brand_string"), !brand.isEmpty {
+            return brand
+        }
+        if let model = sysctlString(named: "hw.model"), !model.isEmpty {
+            return model
+        }
+        return "unknown"
+    }
+
+    private static func sysctlString(named name: String) -> String? {
+        var size: Int = 0
+        guard sysctlbyname(name, nil, &size, nil, 0) == 0, size > 0 else {
+            return nil
+        }
+        var buffer = [CChar](repeating: 0, count: size)
+        guard sysctlbyname(name, &buffer, &size, nil, 0) == 0 else {
+            return nil
+        }
+        let nullTerminated = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        return String(decoding: nullTerminated, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

@@ -1231,7 +1231,7 @@ public final class WebDAVClient: @unchecked Sendable {
         if let cached = resolvedPlayableCache[cacheKey], cached.expiresAt > now {
             lock.unlock()
             let elapsedMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-            AppLogger.shared.debug(
+            AppLogger.shared.info(
                 .network,
                 "WebDAV playable URL resolved",
                 details: "cached=1 elapsed_ms=\(String(format: "%.1f", elapsedMs)) target_host=\"\(URL(string: cached.input.url)?.host ?? "unknown")\""
@@ -1288,7 +1288,7 @@ public final class WebDAVClient: @unchecked Sendable {
                     )
                     cacheResolvedInput(resolved, forKey: cacheKey)
                     let elapsedMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-                    AppLogger.shared.debug(
+                    AppLogger.shared.info(
                         .network,
                         "WebDAV playable URL resolved",
                         details: "cached=0 status=\(status) cross_origin=1 elapsed_ms=\(String(format: "%.1f", elapsedMs)) target_host=\"\(nextURL.host ?? "unknown")\""
@@ -1310,7 +1310,7 @@ public final class WebDAVClient: @unchecked Sendable {
             )
             cacheResolvedInput(resolved, forKey: cacheKey)
             let elapsedMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
-            AppLogger.shared.debug(
+            AppLogger.shared.info(
                 .network,
                 "WebDAV playable URL resolved",
                 details: "cached=0 status=\(status) cross_origin=0 elapsed_ms=\(String(format: "%.1f", elapsedMs)) target_host=\"\(currentURL.host ?? "unknown")\""

@@ -547,6 +547,15 @@
             NSLog(@"[Playback] Gate 2 (First-Packet Software Fallback): hardware video decode failed on initial packet (%@), switched to Software (%s).",
                   sendError,
                   decoderName);
+            SFXEmitDebugTelemetryLog(
+                @"playback.hardware_decode.fallback",
+                [NSString stringWithFormat:
+                    @"stage=first_packet video=\"%@\" fallback_decoder=%s reason=\"%@\"",
+                    _path.lastPathComponent ?: @"unknown",
+                    decoderName,
+                    sendError
+                ]
+            );
             result = avcodec_send_packet(_videoCodecContext, packet);
         } else {
             NSLog(@"[Playback] Gate 2 (First-Packet Software Fallback) FAILED: hardware error=%@, software error=%@",
@@ -660,6 +669,15 @@
                 NSLog(@"[Playback] Gate 2 (First-Frame Software Fallback): decoder=%s produced software frame (%@) while in Hardware mode; switching session to Software rendering.",
                       decoderName,
                       formatName);
+                SFXEmitDebugTelemetryLog(
+                    @"playback.hardware_decode.fallback",
+                    [NSString stringWithFormat:
+                        @"stage=first_frame_pixel_buffer video=\"%@\" decoder=%s pixel_format=%@ reason=\"Hardware decoder produced software pixel buffer\"",
+                        _path.lastPathComponent ?: @"unknown",
+                        decoderName,
+                        formatName
+                    ]
+                );
                 @synchronized (self) {
                     _usingHardwareDecode = NO;
                 }
@@ -1137,7 +1155,6 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     }
     BOOL displayHDRActive = ownerView != nil ? ownerView.isDisplayHDRActive : NO;
     CGFloat edrHeadroom = ownerView != nil ? ownerView.displayEDRHeadroom : 1.0;
-#if DEBUG
     if (colorStateChanged) {
         NSString *decodePipeline = self.usingHardwareDecode ? @"Hardware" : @"Software";
         NSString *toneMapDesc = (!streamIsHDR)
@@ -1157,7 +1174,6 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
             ]
         );
     }
-#endif
 
     double renderMs = 0.0;
     CVPixelBufferRef displayPixelBuffer = SFXCreateDisplayPixelBufferForPlayback(
@@ -1242,6 +1258,23 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
                   (unsigned long)_perfSkippedVideoFramesForFirstFrame,
                   s73AudioPrimeWaitMs,
                   s74MainPresentMs);
+            SFXEmitDebugTelemetryLog(
+                @"playback.diagnostics.first_frame",
+                [NSString stringWithFormat:
+                    @"path=\"%@\" frame_ms=%ld total_open_to_present_ms=%.1f start_to_present_ms=%.1f first_packet_ms=%.1f video_decode_ms=%.1f packets=%lu skipped_frames=%lu audio_prime_wait_ms=%.1f main_present_ms=%.1f slow_first_frame=%@",
+                    _path.lastPathComponent ?: @"unknown",
+                    (long)frameMilliseconds,
+                    totalNativeMs,
+                    s7StartToPresentMs,
+                    s71FirstPacketMs,
+                    s72VideoDecodeMs,
+                    (unsigned long)_perfVideoPacketsForFirstFrame,
+                    (unsigned long)_perfSkippedVideoFramesForFirstFrame,
+                    s73AudioPrimeWaitMs,
+                    s74MainPresentMs,
+                    totalNativeMs >= 300.0 ? @"true" : @"false"
+                ]
+            );
             SFXNativePlaybackPlayer *owner = _owner;
             dispatch_async(dispatch_get_main_queue(), ^{
                 [owner session:self
@@ -1263,11 +1296,12 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
                                            atMilliseconds:automaticRecycleMilliseconds
                                    presentationGeneration:presentationGeneration];
     }
-#if DEBUG
     if (enqueued) {
         double nowHost = CACurrentMediaTime();
         double decodeMs = 0.0;
         double avDriftMs = 0.0;
+        BOOL shouldLogSlowFrame = NO;
+        double totalFrameWorkMs = 0.0;
         @synchronized (self) {
             decodeMs = _lastFrameDecodeDurationMs;
             if (_telemetryLastHeartbeatHostSeconds <= 0) {
@@ -1290,9 +1324,14 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
                     avDriftMs = (videoMedia - audioNowMedia) * 1000.0;
                 }
             }
+            totalFrameWorkMs = decodeMs + renderMs;
+            if ((totalFrameWorkMs > 28.0 || fabs(avDriftMs) > 65.0)
+                && (nowHost - _telemetryLastSlowFrameLogHostSeconds) >= 5.0) {
+                _telemetryLastSlowFrameLogHostSeconds = nowHost;
+                shouldLogSlowFrame = YES;
+            }
         }
-        double totalFrameWorkMs = decodeMs + renderMs;
-        if (totalFrameWorkMs > 28.0 || fabs(avDriftMs) > 65.0) {
+        if (shouldLogSlowFrame) {
             SFXEmitDebugTelemetryLog(
                 @"playback.diagnostics.slow_frame",
                 [NSString stringWithFormat:
@@ -1306,15 +1345,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
                 ]
             );
         }
-        double elapsedWindow = 0.0;
-        @synchronized (self) {
-            elapsedWindow = nowHost - _telemetryLastHeartbeatHostSeconds;
-        }
-        if (elapsedWindow >= 1.0) {
-            [self emitDebugHeartbeatWithReason:@"periodic"];
-        }
     }
-#endif
     SFXLogIfSlow(@"SFXNativePlaybackSession.enqueuePixelBuffer", start, 8);
     return enqueued;
 }
@@ -1848,7 +1879,6 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
             CFRelease(sampleBuffer);
         }
     }
-#if DEBUG
     double switchDurationMs = switchStartedMs > 0 ? fmax(0.0, SFXMonotonicMilliseconds() - switchStartedMs) : renderMs;
     NSString *toneMapDesc = (!streamIsHDR)
         ? @"sdr_passthrough_gamma22"
@@ -1866,12 +1896,10 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
             switchDurationMs
         ]
     );
-#endif
     CVPixelBufferRelease(sourceBuffer);
 }
 
 - (void)emitDebugHeartbeatWithReason:(NSString *)reason {
-#if DEBUG
     double nowHost = CACurrentMediaTime();
     NSUInteger frameCount = 0;
     double elapsedSeconds = 0.0;
@@ -1912,7 +1940,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
         _telemetryWindowPacketWaitSumMs = 0.0;
         _telemetryWindowPacketWaitMaxMs = 0.0;
     }
-    if (frameCount == 0 && [reason isEqualToString:@"periodic"]) {
+    if (frameCount == 0 && droppedFrames == 0) {
         return;
     }
     double fps = elapsedSeconds > 0.001 ? ((double)frameCount / elapsedSeconds) : 0.0;
@@ -1927,7 +1955,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
         @"playback.diagnostics.heartbeat",
         [NSString stringWithFormat:
             @"reason=%@ path=\"%@\" fps=%.1f frames=%lu decode_avg_ms=%.2f decode_max_ms=%.2f render_avg_ms=%.2f render_max_ms=%.2f packet_wait_avg_ms=%.2f packet_wait_max_ms=%.2f dropped_frames=%lu av_drift_ms=%.2f buffer_sec=%.2f buffer_kb=%zu",
-            reason ?: @"periodic",
+            reason ?: @"interval",
             _path.lastPathComponent ?: @"unknown",
             fps,
             (unsigned long)frameCount,
@@ -1943,9 +1971,6 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
             bufferedBytes / 1024
         ]
     );
-#else
-    (void)reason;
-#endif
 }
 
 - (void)teardown {

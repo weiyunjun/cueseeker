@@ -737,6 +737,14 @@ struct CoverSummaryCard<Cover: View>: View {
                     preferredPointerShape: .grab,
                     showsUnderline: isSecondaryMetadataHovered && !isDescriptionPopoverOpen,
                     onTap: {
+                        let startedAt = DebugInteractionLatencyProbe.now()
+                        DebugInteractionLatencyProbe.markMenuTriggerContext(
+                            menuID: "cover_summary_description_popover",
+                            trigger: "description_click",
+                            kind: "popover",
+                            startedAt: startedAt,
+                            measureMilliseconds: 0
+                        )
                         isSecondaryMetadataHovered = false
                         isDescriptionPopoverOpen = true
                     }

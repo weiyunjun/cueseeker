@@ -112,13 +112,7 @@ extension AppCoordinator {
             )
             return false
         }
-        let canSeek = player.currentAudioTrackIndex.map { $0 == request.audioTrackIndex } ?? true
-        AppLogger.shared.debug(
-            .playback,
-            "Evaluated in-session seek eligibility",
-            details: "video=\"\(request.videoURL.lastPathComponent)\" can_seek=\(canSeek ? 1 : 0) active_mode=\(player.activeDecodeMode.rawValue) hw_decode=\(player.usingHardwareDecode ? 1 : 0)"
-        )
-        return canSeek
+        return player.currentAudioTrackIndex.map { $0 == request.audioTrackIndex } ?? true
     }
 
     func togglePlaybackMoreMenu() {

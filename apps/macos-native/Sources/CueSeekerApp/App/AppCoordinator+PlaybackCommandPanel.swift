@@ -62,7 +62,13 @@ extension AppCoordinator {
         AppLogger.shared.info(
             .playback,
             "Command panel opened",
-            fields: [("prefilled_query", presentation.query.isEmpty ? nil : presentation.query)]
+            fields: [
+                AppLogger.queryLogField(
+                    name: "prefilled_query",
+                    lengthName: "prefilled_query_len",
+                    value: presentation.query.isEmpty ? nil : presentation.query
+                )
+            ]
         )
         if !presentation.query.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -143,7 +149,7 @@ extension AppCoordinator {
             .playback,
             "Command panel search opened",
             fields: [
-                ("query", trimmedQuery),
+                AppLogger.queryLogField(value: trimmedQuery),
                 ("starts_search", "\(shouldStartSearch)")
             ]
         )

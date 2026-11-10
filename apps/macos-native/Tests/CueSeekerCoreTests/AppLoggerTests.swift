@@ -214,4 +214,77 @@ struct AppLoggerTests {
         #expect(FileManager.default.fileExists(atPath: todayFileURL.path))
         #expect(!FileManager.default.fileExists(atPath: legacyCollageFileURL.path))
     }
+
+    @Test
+    func diagnosticTelemetryCollectionModeSwitchControlsReleaseDebugLogs() throws {
+        let baseTempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CueSeeker-AppLoggerTelemetryMode-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: baseTempURL)
+        }
+
+        #expect(AppDiagnosticTelemetryCollectionMode.debugOnly.collectsDiagnosticTelemetry(for: .debug) == true)
+        #expect(AppDiagnosticTelemetryCollectionMode.debugOnly.collectsDiagnosticTelemetry(for: .release) == false)
+        #expect(AppDiagnosticTelemetryCollectionMode.debugAndRelease.collectsDiagnosticTelemetry(for: .debug) == true)
+        #expect(AppDiagnosticTelemetryCollectionMode.debugAndRelease.collectsDiagnosticTelemetry(for: .release) == true)
+
+        let releaseDefaultDir = baseTempURL.appendingPathComponent("release-default", isDirectory: true)
+        let releaseDefaultLogger = AppLogger(
+            logDirectoryURL: releaseDefaultDir,
+            buildConfiguration: .release,
+            telemetryMode: .debugOnly,
+            isEnabled: true
+        )
+        releaseDefaultLogger.debug(.system, "Workbench navigation completed", details: "total_ms=12.4")
+        releaseDefaultLogger.info(.app, "App launched", details: "build=release")
+        releaseDefaultLogger.flush()
+
+        let defaultLines = try String(contentsOf: releaseDefaultLogger.logFileURL(), encoding: .utf8)
+            .split(separator: "\n")
+            .map(String.init)
+        #expect(defaultLines.count == 1)
+        #expect(defaultLines[0].contains("[INFO] [App] App launched"))
+
+        let releaseDiagDir = baseTempURL.appendingPathComponent("release-diag", isDirectory: true)
+        let releaseDiagLogger = AppLogger(
+            logDirectoryURL: releaseDiagDir,
+            buildConfiguration: .release,
+            telemetryMode: .debugAndRelease,
+            isEnabled: true
+        )
+        releaseDiagLogger.debug(.system, "Workbench navigation completed", details: "total_ms=12.4")
+        releaseDiagLogger.info(.app, "App launched", details: "build=release")
+        releaseDiagLogger.flush()
+
+        let diagLines = try String(contentsOf: releaseDiagLogger.logFileURL(), encoding: .utf8)
+            .split(separator: "\n")
+            .map(String.init)
+        #expect(diagLines.count == 2)
+        #expect(diagLines[0].contains("[DEBUG] [System] Workbench navigation completed | total_ms=12.4"))
+        #expect(diagLines[1].contains("[INFO] [App] App launched | build=release"))
+    }
+
+    @Test
+    func queryLogFieldRedactsRawQueryTextInReleaseConfiguration() {
+        let debugQuery = AppLogger.queryLogField(value: "hello world", for: .debug)
+        #expect(debugQuery.0 == "query")
+        #expect(debugQuery.1 == "hello world")
+
+        let releaseQuery = AppLogger.queryLogField(value: "hello world", for: .release)
+        #expect(releaseQuery.0 == "query_len")
+        #expect(releaseQuery.1 == "11")
+
+        let releasePrefilled = AppLogger.queryLogField(
+            name: "prefilled_query",
+            lengthName: "prefilled_query_len",
+            value: "subtitle cue",
+            for: .release
+        )
+        #expect(releasePrefilled.0 == "prefilled_query_len")
+        #expect(releasePrefilled.1 == "12")
+
+        let emptyRelease = AppLogger.queryLogField(value: "", for: .release)
+        #expect(emptyRelease.0 == "query_len")
+        #expect(emptyRelease.1 == nil)
+    }
 }

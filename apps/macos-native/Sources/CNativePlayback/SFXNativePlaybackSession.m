@@ -1062,6 +1062,17 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         if (fallbackReason != nil) {
             NSLog(@"[Playback] Open: path=%@, codec=%s, setting=%@, active=%@, fallbackReason=%@",
                   _path, codecName, settingName, activePipeline, fallbackReason);
+            SFXEmitDebugTelemetryLog(
+                @"playback.hardware_decode.fallback",
+                [NSString stringWithFormat:
+                    @"stage=open_init video=\"%@\" codec=%s setting=%@ fallback_decoder=%s reason=\"%@\"",
+                    _path.lastPathComponent ?: @"unknown",
+                    codecName,
+                    settingName,
+                    decoderName,
+                    fallbackReason
+                ]
+            );
         } else {
             NSLog(@"[Playback] Open: path=%@, codec=%s, setting=%@, active=%@",
                   _path, codecName, settingName, activePipeline);
@@ -1443,6 +1454,22 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
               _perfInitCodecAudioMs,
               _perfInitialSeekMs,
               self.usingHardwareDecode ? 1 : 0);
+        SFXEmitDebugTelemetryLog(
+            @"playback.diagnostics.open_prepare",
+            [NSString stringWithFormat:
+                @"path=\"%@\" start_ms=%ld total_prepare_ms=%.1f stop_prev_ms=%.1f avformat_open_ms=%.1f find_stream_info_ms=%.1f init_codec_audio_ms=%.1f initial_seek_ms=%.1f hw_decode=%d slow_open=%@",
+                _path.lastPathComponent ?: @"unknown",
+                (long)llround(_seekSeconds * 1000.0),
+                totalPrepareMs,
+                _perfStopPrevMs,
+                _perfAvformatOpenMs,
+                _perfFindStreamInfoMs,
+                _perfInitCodecAudioMs,
+                _perfInitialSeekMs,
+                self.usingHardwareDecode ? 1 : 0,
+                totalPrepareMs >= 250.0 ? @"true" : @"false"
+            ]
+        );
     }
     [self startStarvationWatchdog];
     dispatch_async(_decodeQueue, ^{
@@ -1477,6 +1504,22 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
                       _perfInitCodecAudioMs,
                       _perfInitialSeekMs,
                       self.usingHardwareDecode ? 1 : 0);
+                SFXEmitDebugTelemetryLog(
+                    @"playback.diagnostics.open_prepare",
+                    [NSString stringWithFormat:
+                        @"path=\"%@\" start_ms=%ld total_prepare_ms=%.1f stop_prev_ms=%.1f avformat_open_ms=%.1f find_stream_info_ms=%.1f init_codec_audio_ms=%.1f initial_seek_ms=%.1f hw_decode=%d slow_open=%@",
+                        _path.lastPathComponent ?: @"unknown",
+                        (long)llround(_seekSeconds * 1000.0),
+                        totalPrepareMs,
+                        _perfStopPrevMs,
+                        _perfAvformatOpenMs,
+                        _perfFindStreamInfoMs,
+                        _perfInitCodecAudioMs,
+                        _perfInitialSeekMs,
+                        self.usingHardwareDecode ? 1 : 0,
+                        totalPrepareMs >= 250.0 ? @"true" : @"false"
+                    ]
+                );
             }
             [self decodeLoop];
             [self startAudioForDrainAfterVideoDecodeIfNeeded];
@@ -1494,6 +1537,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 }
 
 - (void)cancelAsync {
+    [self emitDebugHeartbeatWithReason:@"stop"];
     atomic_store(&_cancelled, true);
     atomic_store(&_paused, false);
     if (_audioDecodeQueue != NULL) {
@@ -1508,9 +1552,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 }
 
 - (void)stopAndWait {
-#if DEBUG
     [self emitDebugHeartbeatWithReason:@"stop"];
-#endif
     [self cancelAsync];
 
     if (_decodeQueue != NULL) {
@@ -1696,11 +1738,15 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         [self requestAudioPlaybackStartIfReadyForGeneration:generation];
     }
 
-#if DEBUG
     if (wasPaused != paused) {
-        [self emitDebugHeartbeatWithReason:paused ? @"pause" : @"resume"];
+        if (paused) {
+            [self emitDebugHeartbeatWithReason:@"pause"];
+        } else {
+            @synchronized (self) {
+                _telemetryLastHeartbeatHostSeconds = CACurrentMediaTime();
+            }
+        }
     }
-#endif
 
     [self notifyTimeIfNeeded:YES];
 }
@@ -2245,9 +2291,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
 }
 
 - (SFXQueuedPacket *)dequeueVideoPacket {
-#if DEBUG
     CFTimeInterval waitStart = CACurrentMediaTime();
-#endif
     [_packetQueueCondition lock];
     BOOL armedStarvationWatchdog = NO;
 	    while (!atomic_load(&_cancelled)
@@ -2306,7 +2350,6 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         [_packetQueueCondition broadcast];
     }
     [_packetQueueCondition unlock];
-#if DEBUG
     double packetWaitMs = (CACurrentMediaTime() - waitStart) * 1000.0;
     @synchronized (self) {
         _telemetryWindowPacketWaitSumMs += packetWaitMs;
@@ -2314,7 +2357,6 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
             _telemetryWindowPacketWaitMaxMs = packetWaitMs;
         }
     }
-#endif
     return queuedPacket;
 }
 
@@ -2544,7 +2586,6 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
           totalSeekPrepareMs,
           stopReadAheadMs,
           avSeekMs);
-#if DEBUG
     [self emitDebugHeartbeatWithReason:@"seek"];
     SFXEmitDebugTelemetryLog(
         @"playback.diagnostics.seek",
@@ -2558,7 +2599,6 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
             totalSeekPrepareMs > 80.0 ? @"true" : @"false"
         ]
     );
-#endif
 
     if (rebuildsAudioOutput || !audioOutputReady) {
         atomic_store(&_pauseAfterFirstFrame, pauseAfterFirstFrame);

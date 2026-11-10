@@ -496,45 +496,45 @@ private struct ContentDialogLayerHost: View {
     private var openDialogIDs: [AnyHashable] {
         var ids: [AnyHashable] = []
         if let session = libraryStore.coverEditingSession {
-            ids.append(session.id)
+            ids.append("edit_cover:\(session.id)")
         }
         if let session = excerptStore.listEditorSession {
-            ids.append(session.id)
+            ids.append("excerpt_list_editor:\(session.id)")
         }
         if let session = libraryStore.renameSession {
-            ids.append(session.id)
+            ids.append("rename:\(session.id)")
         }
         if let session = remoteFolderDialog.webdavSession {
-            ids.append(session.id)
+            ids.append("webdav_folder:\(session.id)")
         }
         if let session = remoteFolderDialog.smbSession {
-            ids.append(session.id)
+            ids.append("smb_folder:\(session.id)")
         }
         if let session = remoteFolderDialog.ftpSession {
-            ids.append(session.id)
+            ids.append("ftp_folder:\(session.id)")
         }
         if let session = remoteFolderDialog.nfsSession {
-            ids.append(session.id)
+            ids.append("nfs_folder:\(session.id)")
         }
         if let session = fileDetailDialog.session {
-            ids.append(session.id)
+            ids.append("file_detail:\(session.id)")
         }
         if let session = filterDialog.session {
-            ids.append(session.id)
+            ids.append("filter:\(session.id)")
         }
         if let session = tasks.ankiExportSession {
-            ids.append(session.id)
+            ids.append("anki_export:\(session.id)")
         }
         if tasks.isPanelOpen {
-            ids.append("task-panel")
+            ids.append("task_panel")
         }
         if let detailTaskID = tasks.detailTaskID,
            tasks.taskDetailSnapshot(for: detailTaskID) != nil
         {
-            ids.append("task-detail-\(detailTaskID)")
+            ids.append("task_detail:\(detailTaskID)")
         }
         if let session = confirmation.session {
-            ids.append(session.id)
+            ids.append("confirmation:\(session.id)")
         }
         return ids
     }

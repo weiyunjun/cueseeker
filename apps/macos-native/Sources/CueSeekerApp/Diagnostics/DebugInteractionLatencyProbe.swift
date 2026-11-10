@@ -18,13 +18,28 @@ struct LibraryCoverPrewarmStats: Equatable, Sendable {
 }
 
 enum DebugInteractionLatencyProbe {
+    static let slowMenuThresholdMilliseconds: Double = 100
+    static let mainThreadStallThresholdMilliseconds: Double = 200
+
     struct LoggedEvent: Equatable, Sendable {
+        let level: AppLogLevel
         let domain: AppLogCategory
         let message: String
         let fields: [String: String]
+
+        init(
+            level: AppLogLevel = .debug,
+            domain: AppLogCategory,
+            message: String,
+            fields: [String: String]
+        ) {
+            self.level = level
+            self.domain = domain
+            self.message = message
+            self.fields = fields
+        }
     }
 
-    #if DEBUG
     private struct PendingNavigationSession {
         let id: UUID
         let fromSurface: String
@@ -86,22 +101,43 @@ enum DebugInteractionLatencyProbe {
             measureMilliseconds: Double
         )?
         var pendingMenuSessionsByOwner: [String: PendingMenuOpenSession] = [:]
+        var inFlightMenuOpenOwners: Set<String> = []
         var lastOpenedMenuIDByOwner: [String: String] = [:]
         var pendingDialogOpens: [String: PendingDialogOpenSession] = [:]
         var pendingDialogTransitions: [UUID: PendingDialogTransitionSession] = [:]
         var peakFootprintBytes: UInt64 = 0
+        var buildConfigurationOverrideForTesting: AppBuildConfiguration?
         var onEventLoggedForTesting: (@Sendable (LoggedEvent) -> Void)?
     }
 
     private static let state = State()
-    #endif
+
+    private static var effectiveBuildConfiguration: AppBuildConfiguration {
+        state.lock.lock()
+        let override = state.buildConfigurationOverrideForTesting
+        state.lock.unlock()
+        return override ?? AppBuildConfiguration.current
+    }
 
     static var isEnabled: Bool {
-        #if DEBUG
-        return AppBuildConfiguration.current == .debug
-        #else
-        return false
-        #endif
+        AppLogger.isDiagnosticTelemetryEnabled(
+            for: effectiveBuildConfiguration,
+            mode: AppDiagnosticTelemetryCollectionMode.current
+        )
+    }
+
+    static func normalizedDialogID(_ rawDialogID: String) -> String {
+        let trimmed = rawDialogID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let colonIndex = trimmed.firstIndex(of: ":") {
+            let prefix = String(trimmed[..<colonIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !prefix.isEmpty {
+                return prefix
+            }
+        }
+        if UUID(uuidString: trimmed) != nil {
+            return "dialog"
+        }
+        return trimmed.isEmpty ? "dialog" : trimmed
     }
 
     static func now() -> UInt64 {
@@ -126,7 +162,6 @@ enum DebugInteractionLatencyProbe {
         return String(format: "%+.2f", normalized)
     }
 
-    #if DEBUG
     private static func currentPhysicalFootprintBytes() -> UInt64 {
         var info = task_vm_info_data_t()
         var count = mach_msg_type_number_t(
@@ -188,19 +223,26 @@ enum DebugInteractionLatencyProbe {
         state.lock.unlock()
     }
 
+    static func setBuildConfigurationForTesting(_ configuration: AppBuildConfiguration?) {
+        state.lock.lock()
+        state.buildConfigurationOverrideForTesting = configuration
+        state.lock.unlock()
+    }
+
     static func resetForTesting() {
         state.lock.lock()
         state.pendingNavigationsByDomain.removeAll()
         state.activeMenuContext = nil
         state.pendingMenuSessionsByOwner.removeAll()
+        state.inFlightMenuOpenOwners.removeAll()
         state.lastOpenedMenuIDByOwner.removeAll()
         state.pendingDialogOpens.removeAll()
         state.pendingDialogTransitions.removeAll()
         state.peakFootprintBytes = 0
+        state.buildConfigurationOverrideForTesting = nil
         state.onEventLoggedForTesting = nil
         state.lock.unlock()
     }
-    #endif
 
     // MARK: - Category 1: Page / View Navigation & Transitions
 
@@ -211,7 +253,6 @@ enum DebugInteractionLatencyProbe {
         trigger: String,
         startedAt: UInt64 = now()
     ) {
-        #if DEBUG
         guard isEnabled else { return }
         AppPerformanceProbe.breadcrumb("nav:\(domain):\(trigger):\(fromSurface)->\(toSurface)")
         let startFootprintBytes = sampleMemoryFootprintBytes()
@@ -226,7 +267,6 @@ enum DebugInteractionLatencyProbe {
         state.lock.lock()
         state.pendingNavigationsByDomain[domain] = session
         state.lock.unlock()
-        #endif
     }
 
     static func markNavigationSyncPrepFinished(
@@ -234,7 +274,6 @@ enum DebugInteractionLatencyProbe {
         to toSurface: String? = nil,
         at timestamp: UInt64 = now()
     ) {
-        #if DEBUG
         guard isEnabled else { return }
         state.lock.lock()
         if var session = state.pendingNavigationsByDomain[domain] {
@@ -247,28 +286,21 @@ enum DebugInteractionLatencyProbe {
             state.pendingNavigationsByDomain[domain] = session
         }
         state.lock.unlock()
-        #endif
     }
 
     static func hasPendingNavigation(domain: String = "workbench") -> Bool {
-        #if DEBUG
         guard isEnabled else { return false }
         state.lock.lock()
         let hasPending = state.pendingNavigationsByDomain[domain] != nil
         state.lock.unlock()
         return hasPending
-        #else
-        return false
-        #endif
     }
 
     static func cancelPendingNavigation(domain: String = "workbench") {
-        #if DEBUG
         guard isEnabled else { return }
         state.lock.lock()
         state.pendingNavigationsByDomain.removeValue(forKey: domain)
         state.lock.unlock()
-        #endif
     }
 
     static func recordNavigationPreparation(
@@ -281,7 +313,6 @@ enum DebugInteractionLatencyProbe {
         coverStats: LibraryCoverPrewarmStats,
         containerSwapAt: UInt64 = now()
     ) {
-        #if DEBUG
         guard isEnabled else { return }
         let fallbackFootprintBytes = sampleMemoryFootprintBytes()
         state.lock.lock()
@@ -323,7 +354,6 @@ enum DebugInteractionLatencyProbe {
         DispatchQueue.main.async {
             completeNavigationOnNextFrame(domain: domain, sessionID: sessionID)
         }
-        #endif
     }
 
     static func completeImmediateNavigation(
@@ -336,7 +366,6 @@ enum DebugInteractionLatencyProbe {
         dataReadyAt: UInt64? = nil,
         coverStats: LibraryCoverPrewarmStats = .zero
     ) {
-        #if DEBUG
         guard isEnabled else { return }
         state.lock.lock()
         let existing = state.pendingNavigationsByDomain.removeValue(forKey: domain)
@@ -380,10 +409,8 @@ enum DebugInteractionLatencyProbe {
                 fields: fields
             )
         }
-        #endif
     }
 
-    #if DEBUG
     private static func completeNavigationOnNextFrame(domain: String, sessionID: UUID) {
         state.lock.lock()
         guard let session = state.pendingNavigationsByDomain[domain],
@@ -448,7 +475,6 @@ enum DebugInteractionLatencyProbe {
             return "Workbench navigation completed"
         }
     }
-    #endif
 
     // MARK: - Category 2: Popup Menus, Submenus & Popovers
 
@@ -459,8 +485,6 @@ enum DebugInteractionLatencyProbe {
         startedAt: UInt64 = now(),
         measureMilliseconds: Double = 0
     ) {
-        #if DEBUG
-        guard isEnabled else { return }
         AppPerformanceProbe.breadcrumb("menu:\(menuID):\(trigger)")
         state.lock.lock()
         if let existing = state.activeMenuContext, existing.menuID == menuID {
@@ -481,12 +505,9 @@ enum DebugInteractionLatencyProbe {
             )
         }
         state.lock.unlock()
-        #endif
     }
 
     static func clearActiveMenuContext(menuID: String? = nil) {
-        #if DEBUG
-        guard isEnabled else { return }
         state.lock.lock()
         if let menuID {
             if state.activeMenuContext?.menuID == menuID {
@@ -496,7 +517,6 @@ enum DebugInteractionLatencyProbe {
             state.activeMenuContext = nil
         }
         state.lock.unlock()
-        #endif
     }
 
     static func markMenuTriggerContext(
@@ -522,8 +542,6 @@ enum DebugInteractionLatencyProbe {
     }
 
     static func recordLayoutMeasurementPass(durationNanoseconds: UInt64) {
-        #if DEBUG
-        guard isEnabled else { return }
         state.lock.lock()
         defer { state.lock.unlock() }
         for key in state.pendingMenuSessionsByOwner.keys {
@@ -533,7 +551,6 @@ enum DebugInteractionLatencyProbe {
                 state.pendingMenuSessionsByOwner[key] = session
             }
         }
-        #endif
     }
 
     static func recordMenuGateOpen(
@@ -557,9 +574,13 @@ enum DebugInteractionLatencyProbe {
         measurePasses: Int = 1,
         openedAt: UInt64 = now()
     ) {
-        #if DEBUG
-        guard isEnabled else { return }
+        let inFlightKey = "\(owner):\(fallbackMenuID ?? owner)"
         state.lock.lock()
+        if state.inFlightMenuOpenOwners.contains(inFlightKey) {
+            state.lock.unlock()
+            return
+        }
+        state.inFlightMenuOpenOwners.insert(inFlightKey)
         let context = state.activeMenuContext
         state.activeMenuContext = nil
         let existing = state.pendingMenuSessionsByOwner.removeValue(forKey: owner)
@@ -579,24 +600,36 @@ enum DebugInteractionLatencyProbe {
         AppPerformanceProbe.breadcrumb("menu:\(menuID):\(trigger)")
 
         DispatchQueue.main.async {
+            state.lock.lock()
+            state.inFlightMenuOpenOwners.remove(inFlightKey)
+            state.lock.unlock()
+
             let firstFrameAt = now()
             let firstFrameMs = elapsedMilliseconds(since: startedAt, now: firstFrameAt)
+            let isSlowMenu = firstFrameMs >= slowMenuThresholdMilliseconds
+            guard isSlowMenu || effectiveBuildConfiguration == .debug else {
+                return
+            }
+            var fields: [(String, String)] = [
+                ("menu_id", menuID),
+                ("owner", owner),
+                ("kind", kind),
+                ("trigger", trigger),
+                ("prep_and_measure_ms", formatMilliseconds(prepAndMeasureMs)),
+                ("measure_passes", "\(totalPasses)"),
+                ("first_frame_ms", formatMilliseconds(firstFrameMs)),
+                ("total_ms", formatMilliseconds(firstFrameMs))
+            ]
+            if isSlowMenu {
+                fields.append(("slow_menu", "true"))
+            }
             emit(
+                level: isSlowMenu ? .warn : .debug,
                 domain: .system,
                 message: "Menu open completed",
-                fields: [
-                    ("menu_id", menuID),
-                    ("owner", owner),
-                    ("kind", kind),
-                    ("trigger", trigger),
-                    ("prep_and_measure_ms", formatMilliseconds(prepAndMeasureMs)),
-                    ("measure_passes", "\(totalPasses)"),
-                    ("first_frame_ms", formatMilliseconds(firstFrameMs)),
-                    ("total_ms", formatMilliseconds(firstFrameMs))
-                ]
+                fields: fields
             )
         }
-        #endif
     }
 
     static func recordPopoverOpen(
@@ -606,29 +639,35 @@ enum DebugInteractionLatencyProbe {
         startedAt: UInt64,
         prepFinishedAt: UInt64 = now()
     ) {
-        #if DEBUG
-        guard isEnabled else { return }
         AppPerformanceProbe.breadcrumb("popover:\(menuID):\(trigger)")
         let prepMs = elapsedMilliseconds(since: startedAt, now: prepFinishedAt)
         DispatchQueue.main.async {
             let firstFrameAt = now()
             let firstFrameMs = elapsedMilliseconds(since: startedAt, now: firstFrameAt)
+            let isSlowMenu = firstFrameMs >= slowMenuThresholdMilliseconds
+            guard isSlowMenu || effectiveBuildConfiguration == .debug else {
+                return
+            }
+            var fields: [(String, String)] = [
+                ("menu_id", menuID),
+                ("owner", owner),
+                ("kind", "popover"),
+                ("trigger", trigger),
+                ("prep_and_measure_ms", formatMilliseconds(prepMs)),
+                ("measure_passes", "1"),
+                ("first_frame_ms", formatMilliseconds(firstFrameMs)),
+                ("total_ms", formatMilliseconds(firstFrameMs))
+            ]
+            if isSlowMenu {
+                fields.append(("slow_menu", "true"))
+            }
             emit(
+                level: isSlowMenu ? .warn : .debug,
                 domain: .system,
                 message: "Menu open completed",
-                fields: [
-                    ("menu_id", menuID),
-                    ("owner", owner),
-                    ("kind", "popover"),
-                    ("trigger", trigger),
-                    ("prep_and_measure_ms", formatMilliseconds(prepMs)),
-                    ("measure_passes", "1"),
-                    ("first_frame_ms", formatMilliseconds(firstFrameMs)),
-                    ("total_ms", formatMilliseconds(firstFrameMs))
-                ]
+                fields: fields
             )
         }
-        #endif
     }
 
     static func recordPopoverOpen(
@@ -658,20 +697,26 @@ enum DebugInteractionLatencyProbe {
         startedAt: UInt64,
         finishedAt: UInt64 = now()
     ) {
-        #if DEBUG
-        guard isEnabled else { return }
         AppPerformanceProbe.breadcrumb("menu_action:\(menuID):\(item)")
         let elapsedMs = elapsedMilliseconds(since: startedAt, now: finishedAt)
+        let isSlowMenu = elapsedMs >= slowMenuThresholdMilliseconds
+        guard isSlowMenu || effectiveBuildConfiguration == .debug else {
+            return
+        }
+        var fields: [(String, String)] = [
+            ("menu_id", menuID),
+            ("item", item),
+            ("elapsed_ms", formatMilliseconds(elapsedMs))
+        ]
+        if isSlowMenu {
+            fields.append(("slow_menu", "true"))
+        }
         emit(
+            level: isSlowMenu ? .warn : .debug,
             domain: .system,
             message: "Menu item action executed",
-            fields: [
-                ("menu_id", menuID),
-                ("item", item),
-                ("elapsed_ms", formatMilliseconds(elapsedMs))
-            ]
+            fields: fields
         )
-        #endif
     }
 
     static func measureMenuItemAction<T>(
@@ -679,18 +724,11 @@ enum DebugInteractionLatencyProbe {
         item: String,
         _ action: () throws -> T
     ) rethrows -> T {
-        #if DEBUG
-        guard isEnabled else {
-            return try action()
-        }
         let start = now()
         defer {
             recordMenuItemAction(menuID: menuID, item: item, startedAt: start, finishedAt: now())
         }
         return try action()
-        #else
-        return try action()
-        #endif
     }
 
     // MARK: - Category 3: In-Window Dialogs, Internal Transitions & System File Panels
@@ -702,41 +740,38 @@ enum DebugInteractionLatencyProbe {
         syncPrepFinishedAt: UInt64? = nil,
         hasEntranceAnimation: Bool = true
     ) {
-        #if DEBUG
         guard isEnabled else { return }
-        AppPerformanceProbe.breadcrumb("dialog:\(dialogID):\(trigger)")
+        let normalizedID = normalizedDialogID(dialogID)
+        AppPerformanceProbe.breadcrumb("dialog:\(normalizedID):\(trigger)")
         let startFootprintBytes = sampleMemoryFootprintBytes()
         let prepEnd = syncPrepFinishedAt ?? now()
         let syncPrepMs = elapsedMilliseconds(since: startedAt, now: prepEnd)
         let session = PendingDialogOpenSession(
-            dialogID: dialogID,
+            dialogID: normalizedID,
             trigger: trigger,
             startedAt: startedAt,
             startFootprintBytes: startFootprintBytes,
             syncPrepMilliseconds: syncPrepMs
         )
         state.lock.lock()
-        state.pendingDialogOpens[dialogID] = session
+        state.pendingDialogOpens[normalizedID] = session
         state.lock.unlock()
 
         DispatchQueue.main.async {
-            markDialogFirstFrame(dialogID: dialogID, hasEntranceAnimation: hasEntranceAnimation)
+            markDialogFirstFrame(dialogID: normalizedID, hasEntranceAnimation: hasEntranceAnimation)
         }
-        #endif
     }
 
     static func beginDialogOpenIfNeeded(
         dialogID: String,
         trigger: String = "dialog_layer"
     ) {
-        #if DEBUG
         guard isEnabled else { return }
         state.lock.lock()
         let hasPending = !state.pendingDialogOpens.isEmpty
         state.lock.unlock()
         guard !hasPending else { return }
-        beginDialogOpen(dialogID: dialogID, trigger: trigger)
-        #endif
+        beginDialogOpen(dialogID: normalizedDialogID(dialogID), trigger: trigger)
     }
 
     static func recordDialogAnimationFrame(
@@ -744,14 +779,13 @@ enum DebugInteractionLatencyProbe {
         progress: CGFloat,
         isEntering: Bool = true
     ) {
-        #if DEBUG
         guard isEnabled, isEntering else { return }
         let timestamp = now()
         var completedIDs: [String] = []
         state.lock.lock()
         let targetKeys: [String]
         if let dialogID {
-            targetKeys = [dialogID]
+            targetKeys = [normalizedDialogID(dialogID)]
         } else {
             targetKeys = Array(state.pendingDialogOpens.keys)
         }
@@ -781,10 +815,8 @@ enum DebugInteractionLatencyProbe {
         for id in completedIDs {
             completeDialogOpenIfNeeded(dialogID: id, animationDurationMilliseconds: 270)
         }
-        #endif
     }
 
-    #if DEBUG
     private static func markDialogFirstFrame(dialogID: String, hasEntranceAnimation: Bool) {
         let timestamp = now()
         state.lock.lock()
@@ -841,7 +873,6 @@ enum DebugInteractionLatencyProbe {
             fields: fields
         )
     }
-    #endif
 
     static func recordDialogInternalTransition(
         dialogID: String,
@@ -851,9 +882,9 @@ enum DebugInteractionLatencyProbe {
         syncPrepFinishedAt: UInt64? = nil,
         asyncLoadFinishedAt: UInt64? = nil
     ) {
-        #if DEBUG
         guard isEnabled else { return }
-        AppPerformanceProbe.breadcrumb("dialog_step:\(dialogID):\(transition)")
+        let normalizedID = normalizedDialogID(dialogID)
+        AppPerformanceProbe.breadcrumb("dialog_step:\(normalizedID):\(transition)")
         let startFootprintBytes = sampleMemoryFootprintBytes()
         let syncEnd = syncPrepFinishedAt ?? asyncLoadFinishedAt ?? now()
         let asyncEnd = asyncLoadFinishedAt ?? syncEnd
@@ -864,7 +895,7 @@ enum DebugInteractionLatencyProbe {
             let firstFrameAt = now()
             let firstFrameMs = elapsedMilliseconds(since: startedAt, now: firstFrameAt)
             var fields: [(String, String)] = [
-                ("dialog_id", dialogID),
+                ("dialog_id", normalizedID),
                 ("transition", transition),
                 ("trigger", trigger),
                 ("sync_prep_ms", formatMilliseconds(syncPrepMs)),
@@ -879,7 +910,6 @@ enum DebugInteractionLatencyProbe {
                 fields: fields
             )
         }
-        #endif
     }
 
     static func recordDialogInternalTransition(
@@ -913,7 +943,6 @@ enum DebugInteractionLatencyProbe {
         completedAt: UInt64 = now(),
         didSelect: Bool
     ) {
-        #if DEBUG
         guard isEnabled else { return }
         AppPerformanceProbe.breadcrumb("file_panel:\(panelType):\(trigger)")
         let panelOpenMs = elapsedMilliseconds(since: startedAt, now: panelPresentedAt)
@@ -930,10 +959,9 @@ enum DebugInteractionLatencyProbe {
                 ("result", didSelect ? "selected" : "cancelled")
             ]
         )
-        #endif
     }
 
-    // MARK: - Category 4: Main Thread Stall Monitoring (>= 32ms)
+    // MARK: - Category 4: Main Thread Stall Monitoring (>= 200ms)
 
     static func recordMainThreadStall(
         stalledMilliseconds: Double,
@@ -941,15 +969,15 @@ enum DebugInteractionLatencyProbe {
         lastAction: String,
         lastActionAgeMilliseconds: Double?
     ) {
-        #if DEBUG
-        guard isEnabled,
-              stalledMilliseconds >= 32,
-              !phase.hasPrefix("beforeWaiting->")
+        guard stalledMilliseconds >= mainThreadStallThresholdMilliseconds,
+              !phase.hasPrefix("beforeWaiting->"),
+              phase != "exit->entry"
         else {
             return
         }
         let ageText = lastActionAgeMilliseconds.map { formatMilliseconds($0) } ?? "none"
         emit(
+            level: .warn,
             domain: .system,
             message: "Main thread stall detected",
             fields: [
@@ -959,16 +987,20 @@ enum DebugInteractionLatencyProbe {
                 ("last_action_age_ms", ageText)
             ]
         )
-        #endif
     }
 
-    #if DEBUG
     private static func emit(
+        level: AppLogLevel = .debug,
         domain: AppLogCategory,
         message: String,
         fields: [(String, String)]
     ) {
-        AppLogger.shared.debug(domain, message, fields: fields)
+        AppLogger.shared.log(
+            level: level,
+            category: domain,
+            message: message,
+            details: AppLogger.formatFields(fields.map { ($0.0, Optional($0.1)) })
+        )
         state.lock.lock()
         let observer = state.onEventLoggedForTesting
         state.lock.unlock()
@@ -977,8 +1009,7 @@ enum DebugInteractionLatencyProbe {
             for (key, value) in fields {
                 dictionary[key] = value
             }
-            observer(LoggedEvent(domain: domain, message: message, fields: dictionary))
+            observer(LoggedEvent(level: level, domain: domain, message: message, fields: dictionary))
         }
     }
-    #endif
 }

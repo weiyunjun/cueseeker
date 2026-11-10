@@ -13,6 +13,26 @@ public enum AppBuildConfiguration: String, Sendable, Equatable {
     }
 }
 
+public enum AppDiagnosticTelemetryCollectionMode: String, Sendable, Equatable {
+    case debugOnly = "debug_only"
+    case debugAndRelease = "debug_and_release"
+
+    /// Engineering-level switch controlling whether deep diagnostic telemetry
+    /// is collected only in Debug builds or in both Debug and Release builds.
+    nonisolated(unsafe) public static var current: AppDiagnosticTelemetryCollectionMode = .debugOnly
+
+    public func collectsDiagnosticTelemetry(
+        for configuration: AppBuildConfiguration = .current
+    ) -> Bool {
+        switch self {
+        case .debugOnly:
+            return configuration == .debug
+        case .debugAndRelease:
+            return true
+        }
+    }
+}
+
 public enum AppLogLevel: Int, Comparable, Sendable, CaseIterable {
     case debug = 0
     case info = 1
@@ -36,13 +56,15 @@ public enum AppLogLevel: Int, Comparable, Sendable, CaseIterable {
         lhs.rawValue < rhs.rawValue
     }
 
+    public static func defaultMinimumLevel(
+        for configuration: AppBuildConfiguration = .current,
+        telemetryMode: AppDiagnosticTelemetryCollectionMode = .current
+    ) -> AppLogLevel {
+        telemetryMode.collectsDiagnosticTelemetry(for: configuration) ? .debug : .info
+    }
+
     public static var defaultMinimumLevel: AppLogLevel {
-        switch AppBuildConfiguration.current {
-        case .debug:
-            return .debug
-        case .release:
-            return .info
-        }
+        defaultMinimumLevel(for: .current, telemetryMode: .current)
     }
 }
 
@@ -67,31 +89,69 @@ public final class AppLogger: @unchecked Sendable {
     public static let shared = AppLogger()
 
     public let logDirectoryURL: URL
-    public let minimumLevel: AppLogLevel
+    public let buildConfiguration: AppBuildConfiguration
     public let maxFileSizeBytes: Int
     public let retentionDays: Int
     public let isEnabled: Bool
 
+    private let explicitMinimumLevel: AppLogLevel?
+    private let explicitTelemetryMode: AppDiagnosticTelemetryCollectionMode?
     private let calendar: Calendar
     private let queue = DispatchQueue(
         label: "com.cueseeker.app.logger",
         qos: .utility
     )
 
+    public var minimumLevel: AppLogLevel {
+        explicitMinimumLevel ?? AppLogLevel.defaultMinimumLevel(
+            for: buildConfiguration,
+            telemetryMode: explicitTelemetryMode ?? .current
+        )
+    }
+
     public init(
         logDirectoryURL: URL = AppLogger.defaultLogDirectoryURL(),
-        minimumLevel: AppLogLevel = .defaultMinimumLevel,
+        minimumLevel: AppLogLevel? = nil,
+        buildConfiguration: AppBuildConfiguration = .current,
+        telemetryMode: AppDiagnosticTelemetryCollectionMode? = nil,
         maxFileSizeBytes: Int = AppLogger.defaultMaxFileSizeBytes,
         retentionDays: Int = AppLogger.defaultRetentionDays,
         calendar: Calendar = .current,
         isEnabled: Bool = AppLogger.defaultIsEnabled
     ) {
         self.logDirectoryURL = logDirectoryURL
-        self.minimumLevel = minimumLevel
+        self.explicitMinimumLevel = minimumLevel
+        self.buildConfiguration = buildConfiguration
+        self.explicitTelemetryMode = telemetryMode
         self.maxFileSizeBytes = max(1, maxFileSizeBytes)
         self.retentionDays = max(1, retentionDays)
         self.calendar = calendar
         self.isEnabled = isEnabled
+    }
+
+    public static func isDiagnosticTelemetryEnabled(
+        for configuration: AppBuildConfiguration = .current,
+        mode: AppDiagnosticTelemetryCollectionMode = .current
+    ) -> Bool {
+        mode.collectsDiagnosticTelemetry(for: configuration)
+    }
+
+    public static func queryLogField(
+        name: String = "query",
+        lengthName: String? = nil,
+        value: String?,
+        for configuration: AppBuildConfiguration = .current
+    ) -> (String, String?) {
+        let resolvedLengthName = lengthName ?? "\(name)_len"
+        guard let value, !value.isEmpty else {
+            return (configuration == .debug ? name : resolvedLengthName, nil)
+        }
+        switch configuration {
+        case .debug:
+            return (name, value)
+        case .release:
+            return (resolvedLengthName, "\(value.count)")
+        }
     }
 
     public static var defaultIsEnabled: Bool {

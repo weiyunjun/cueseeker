@@ -1,3 +1,4 @@
+import CueSeekerCore
 import Darwin
 import Foundation
 import os
@@ -311,16 +312,20 @@ enum AppPerformanceProbe {
     }
 
     static func startMainRunLoopObserver(thresholdMilliseconds: Double = 250) {
-        guard isMainRunLoopObserverEnabled || DebugInteractionLatencyProbe.isEnabled else {
+        guard isMainRunLoopObserverEnabled
+            || AppLogger.shared.isEnabled
+            || DebugInteractionLatencyProbe.isEnabled
+        else {
             return
         }
         guard !state.hasRunLoopObserver() else {
             return
         }
 
-        let effectiveThreshold = DebugInteractionLatencyProbe.isEnabled
-            ? min(thresholdMilliseconds, 32)
-            : thresholdMilliseconds
+        let effectiveThreshold = min(
+            thresholdMilliseconds,
+            DebugInteractionLatencyProbe.mainThreadStallThresholdMilliseconds
+        )
 
         let activities: CFRunLoopActivity = [
             .entry,
@@ -346,11 +351,13 @@ enum AppPerformanceProbe {
             guard elapsedMilliseconds >= effectiveThreshold else {
                 return
             }
-            guard previous.previous != "beforeWaiting" else {
+            guard previous.previous != "beforeWaiting",
+                  !(previous.previous == "exit" && activityName == "entry")
+            else {
                 return
             }
 
-            if DebugInteractionLatencyProbe.isEnabled, elapsedMilliseconds >= 32 {
+            if elapsedMilliseconds >= DebugInteractionLatencyProbe.mainThreadStallThresholdMilliseconds {
                 let details = state.snapshotLastActionDetails(now: timestamp)
                 DebugInteractionLatencyProbe.recordMainThreadStall(
                     stalledMilliseconds: elapsedMilliseconds,

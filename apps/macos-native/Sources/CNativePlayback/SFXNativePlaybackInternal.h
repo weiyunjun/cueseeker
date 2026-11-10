@@ -373,6 +373,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     BOOL _activeStreamIsHDR;
     double _lastFrameDecodeDurationMs;
     double _telemetryLastHeartbeatHostSeconds;
+    double _telemetryLastSlowFrameLogHostSeconds;
     NSUInteger _telemetryWindowFrameCount;
     NSUInteger _telemetryWindowDroppedFrames;
     double _telemetryWindowDecodeSumMs;

@@ -397,7 +397,7 @@ extension SearchStore {
                         .search,
                         "Search page loaded",
                         fields: [
-                            ("query", trimmedQuery),
+                            AppLogger.queryLogField(value: trimmedQuery),
                             ("offset", "\(offset)"),
                             ("loaded", "\(self.loadedSearchResultCueIDs.count)"),
                             ("total", "\(self.searchResultTotalCount)"),
@@ -409,7 +409,7 @@ extension SearchStore {
                         .search,
                         "Search completed",
                         fields: [
-                            ("query", trimmedQuery),
+                            AppLogger.queryLogField(value: trimmedQuery),
                             ("results", "\(self.searchResultTotalCount)"),
                             ("files", "\(self.searchFileSummaries.count)"),
                             ("sort", sortOrder.rawValue),
@@ -484,7 +484,7 @@ extension SearchStore {
                     .search,
                     "Search failed",
                     fields: [
-                        ("query", trimmedQuery),
+                        AppLogger.queryLogField(value: trimmedQuery),
                         ("error", message)
                     ]
                 )
@@ -613,7 +613,7 @@ extension SearchStore {
                     .search,
                     "Search count completed",
                     fields: [
-                        ("query", trimmedQuery),
+                        AppLogger.queryLogField(value: trimmedQuery),
                         ("results", "\(result.totalCount)"),
                         ("filtered", "\(!facetFilter.isEmpty)"),
                         ("db_ms", String(format: "%.1f", result.databaseSearchMilliseconds))
@@ -700,7 +700,7 @@ extension SearchStore {
                 .search,
                 "Search filter/sort applied",
                 fields: [
-                    ("query", trimmedQuery),
+                    AppLogger.queryLogField(value: trimmedQuery),
                     ("results", "\(searchResultTotalCount)"),
                     ("files", "\(searchFileSummaries.count)"),
                     ("sort", resolvedSortOrder.rawValue),

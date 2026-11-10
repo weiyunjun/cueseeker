@@ -196,7 +196,7 @@ final class DebugInteractionLatencyProbeTests: XCTestCase {
         }
 
         DebugInteractionLatencyProbe.recordMainThreadStall(
-            stalledMilliseconds: 24.5,
+            stalledMilliseconds: 185.0,
             phase: "afterWaiting->beforeWaiting",
             lastAction: "nav:workbench:card_click",
             lastActionAgeMilliseconds: 10.0
@@ -220,17 +220,99 @@ final class DebugInteractionLatencyProbeTests: XCTestCase {
         XCTAssertTrue(events.isEmpty)
 
         DebugInteractionLatencyProbe.recordMainThreadStall(
-            stalledMilliseconds: 48.2,
+            stalledMilliseconds: 12_340.0,
+            phase: "exit->entry",
+            lastAction: "menu:coverSummaryDescriptionPopover:open",
+            lastActionAgeMilliseconds: 12_350.0
+        )
+        XCTAssertTrue(events.isEmpty)
+
+        DebugInteractionLatencyProbe.recordMainThreadStall(
+            stalledMilliseconds: 248.2,
             phase: "afterWaiting->beforeWaiting",
             lastAction: "nav:workbench:card_click",
             lastActionAgeMilliseconds: 18.4
         )
         XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.level, .warn)
         XCTAssertEqual(events.first?.message, "Main thread stall detected")
-        XCTAssertEqual(events.first?.fields["stalled_ms"], "48.20")
+        XCTAssertEqual(events.first?.fields["stalled_ms"], "248.20")
         XCTAssertEqual(events.first?.fields["phase"], "afterWaiting->beforeWaiting")
         XCTAssertEqual(events.first?.fields["last_action"], "nav:workbench:card_click")
         XCTAssertEqual(events.first?.fields["last_action_age_ms"], "18.40")
+    }
+
+    func testReleaseMenuDenoisingAndDuplicatePopoverDeduplication() async {
+        var events: [DebugInteractionLatencyProbe.LoggedEvent] = []
+        DebugInteractionLatencyProbe.setBuildConfigurationForTesting(.release)
+        DebugInteractionLatencyProbe.setTestObserver { event in
+            events.append(event)
+        }
+
+        // Fast menu open (< 100ms) and fast menu item action (< 100ms) in Release are suppressed.
+        let now = DebugInteractionLatencyProbe.now()
+        DebugInteractionLatencyProbe.recordMenuItemAction(
+            menuID: "card_button_menu",
+            item: "Play",
+            startedAt: now,
+            finishedAt: now + 5_000_000
+        )
+        XCTAssertTrue(events.isEmpty)
+
+        // Slow menu item action (>= 100ms) in Release emits a warning with slow_menu=true.
+        DebugInteractionLatencyProbe.recordMenuItemAction(
+            menuID: "card_button_menu",
+            item: "Slow Action",
+            startedAt: now,
+            finishedAt: now + 125_000_000
+        )
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.level, .warn)
+        XCTAssertEqual(events.first?.fields["slow_menu"], "true")
+
+        // Switch back to Debug and verify duplicate in-flight menu open for same owner/kind only logs once.
+        events.removeAll()
+        DebugInteractionLatencyProbe.setBuildConfigurationForTesting(.debug)
+        let openExpectation = expectation(description: "Single deduplicated popover open emitted")
+        DebugInteractionLatencyProbe.setTestObserver { event in
+            if event.message == "Menu open completed" {
+                events.append(event)
+                openExpectation.fulfill()
+            }
+        }
+
+        DebugInteractionLatencyProbe.markMenuTriggerContext(
+            menuID: "cover_summary_description_popover",
+            trigger: "description_click",
+            kind: "popover",
+            startedAt: DebugInteractionLatencyProbe.now(),
+            measureMilliseconds: 0
+        )
+        DebugInteractionLatencyProbe.recordMenuGateOpen(
+            kind: "popover",
+            owner: "coverSummaryDescriptionPopover"
+        )
+        // Second synchronous call within the same frame should be deduplicated.
+        DebugInteractionLatencyProbe.recordMenuGateOpen(
+            kind: "popover",
+            owner: "coverSummaryDescriptionPopover"
+        )
+
+        await fulfillment(of: [openExpectation], timeout: 1.0)
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.fields["menu_id"], "cover_summary_description_popover")
+        XCTAssertEqual(events.first?.fields["trigger"], "description_click")
+
+        // Verify normalizedDialogID strips UUID suffixes and replaces bare UUIDs.
+        let randomUUID = UUID().uuidString
+        XCTAssertEqual(
+            DebugInteractionLatencyProbe.normalizedDialogID("confirmation:\(randomUUID)"),
+            "confirmation"
+        )
+        XCTAssertEqual(
+            DebugInteractionLatencyProbe.normalizedDialogID(randomUUID),
+            "dialog"
+        )
     }
 
     func testImmediateNavigationDoesNotInheritMismatchedPendingFromSurface() async {

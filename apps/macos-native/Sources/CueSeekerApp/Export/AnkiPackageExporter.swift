@@ -170,6 +170,19 @@ enum AnkiPackageExporter {
             try Task.checkCancellation()
 
             guard canExportCard(for: item, options: options) else {
+                let reason = cardValidationFailureReason(for: item, options: options)
+                AppLogger.shared.warn(
+                    .export,
+                    "Anki card export failed",
+                    fields: [
+                        ("card_index", "\(index + 1)"),
+                        ("stage", "validation"),
+                        ("file", URL.fromMediaPath(item.videoPath).lastPathComponent),
+                        ("start_ms", "\(item.startMilliseconds)"),
+                        ("end_ms", "\(item.endMilliseconds)"),
+                        ("reason", reason)
+                    ]
+                )
                 failedCount += 1
                 let progress = AnkiExportResult(succeededCount: notes.count, failedCount: failedCount)
                 onItemExported?(progress.succeededCount)
@@ -182,9 +195,11 @@ enum AnkiPackageExporter {
             let tempImageURL = workspaceURL.appendingPathComponent("temp_\(index).jpg")
             let audioName = "\(baseName).mp3"
             let imageName = "\(baseName).jpg"
+            var currentStage = "audio_extraction"
 
             do {
                 if options.includes(.audio) {
+                    currentStage = "audio_extraction"
                     let audioTrackIndex = audioTrackIndexes[item.videoPath] ?? audioTrackIndex(for: item)
                     audioTrackIndexes[item.videoPath] = audioTrackIndex
                     try await exportAudio(
@@ -196,6 +211,7 @@ enum AnkiPackageExporter {
                 }
 
                 if options.includes(.screenshot) {
+                    currentStage = "frame_screenshot"
                     let resolvedInput = WebDAVClient.shared.resolvePlayableInput(
                         for: URL.fromMediaPath(item.videoPath)
                     )
@@ -212,6 +228,7 @@ enum AnkiPackageExporter {
                     )
                 }
 
+                currentStage = "file_write"
                 var audioField = ""
                 if options.includes(.audio) {
                     let audioMediaKey = "\(mediaIndex)"
@@ -251,6 +268,18 @@ enum AnkiPackageExporter {
                 if Task.isCancelled || error is CancellationError {
                     throw CancellationError()
                 }
+                AppLogger.shared.warn(
+                    .export,
+                    "Anki card export failed",
+                    fields: [
+                        ("card_index", "\(index + 1)"),
+                        ("stage", currentStage),
+                        ("file", URL.fromMediaPath(item.videoPath).lastPathComponent),
+                        ("start_ms", "\(item.startMilliseconds)"),
+                        ("end_ms", "\(item.endMilliseconds)"),
+                        ("reason", String(describing: error))
+                    ]
+                )
                 failedCount += 1
             }
 
@@ -288,33 +317,40 @@ enum AnkiPackageExporter {
     }
 
     static func canExportCard(for item: AnkiExportItem, options: AnkiExportOptions) -> Bool {
+        cardValidationFailureReason(for: item, options: options) == nil
+    }
+
+    private static func cardValidationFailureReason(
+        for item: AnkiExportItem,
+        options: AnkiExportOptions
+    ) -> String? {
         guard item.isInLibrary else {
-            return false
+            return "not_in_library"
         }
         if options.includes(.cueText),
            item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return false
+            return "empty_cue_text"
         }
         if options.includes(.displayTitle),
            item.displayTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return false
+            return "empty_display_title"
         }
         if options.includes(.timeRange),
            item.timeRange.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return false
+            return "empty_time_range"
         }
         if options.includes(.deepLink),
            item.cueID == nil {
-            return false
+            return "missing_deep_link_cue_id"
         }
         let hasCueGroupText = item.cueGroupOtherTexts.contains {
             !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
         if !hasCueGroupText,
            options.frontItems == [.cueGroupText] || options.backItems == [.cueGroupText] {
-            return false
+            return "empty_cue_group_text"
         }
-        return true
+        return nil
     }
 
     static func defaultFileName(exportedAt: Date = Date()) -> String {

@@ -8,7 +8,7 @@ enum AppMemoryPressureRelief {
         guard estimatedReleasedRows >= largeResultReleaseThreshold else {
             return
         }
-        AppLogger.shared.debug(
+        AppLogger.shared.info(
             .system,
             "Memory pressure relief triggered",
             details: "released_rows=\(estimatedReleasedRows)"

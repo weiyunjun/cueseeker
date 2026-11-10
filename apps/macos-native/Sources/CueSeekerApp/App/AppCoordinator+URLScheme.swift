@@ -52,7 +52,7 @@ extension AppCoordinator {
                 "URL scheme command received",
                 fields: [
                     ("kind", "search"),
-                    ("query", keyword),
+                    AppLogger.queryLogField(value: keyword),
                     ("play_first", "\(settings.urlSchemePlayFirstSearchResultEnabled ? 1 : 0)")
                 ]
             )

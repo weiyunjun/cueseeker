@@ -109,13 +109,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
     public var decodeMode: PlaybackDecodeMode = .auto {
         didSet {
-            if oldValue != decodeMode {
-                AppLogger.shared.debug(
-                    .playback,
-                    "Player decode mode updated",
-                    details: "from=\(oldValue.rawValue) to=\(decodeMode.rawValue)"
-                )
-            }
             nativePlayer.decodeMode = decodeMode.nativeDecodeMode
         }
     }
@@ -152,15 +145,35 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     private static let debugTelemetryInstallOnce: Void = {
-        #if DEBUG
         SFXSetDebugTelemetryLogHandler { event, details in
-            AppLogger.shared.debug(
-                .playback,
-                event,
-                details: details
-            )
+            switch event {
+            case "playback.stream.color_state":
+                AppLogger.shared.info(.playback, event, details: details)
+            case "playback.hardware_decode.fallback",
+                 "playback.static_image.slow_render":
+                AppLogger.shared.warn(.playback, event, details: details)
+            case "playback.diagnostics.open_prepare":
+                if details?.contains("slow_open=true") == true {
+                    AppLogger.shared.warn(.playback, event, details: details)
+                } else {
+                    AppLogger.shared.debug(.playback, event, details: details)
+                }
+            case "playback.diagnostics.first_frame":
+                if details?.contains("slow_first_frame=true") == true {
+                    AppLogger.shared.warn(.playback, event, details: details)
+                } else {
+                    AppLogger.shared.debug(.playback, event, details: details)
+                }
+            case "playback.diagnostics.seek":
+                if details?.contains("slow_seek=true") == true {
+                    AppLogger.shared.warn(.playback, event, details: details)
+                } else {
+                    AppLogger.shared.debug(.playback, event, details: details)
+                }
+            default:
+                AppLogger.shared.debug(.playback, event, details: details)
+            }
         }
-        #endif
     }()
 
     private static func installDebugTelemetryHandlerIfNeeded() {
@@ -169,11 +182,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     @discardableResult
     public func open(_ request: PlaybackRequest) throws -> UInt {
-        AppLogger.shared.debug(
-            .playback,
-            "Player opening media",
-            details: "video=\"\(request.videoURL.lastPathComponent)\" start_ms=\(request.startMilliseconds) decode_mode=\(decodeMode.rawValue) audio_track=\(request.audioTrackIndex)"
-        )
         nativePlayer.cancelTimelineThumbnailRequests()
         delegate?.playerDidResetTimelineThumbnails(self)
         reachedAutoStopBoundaryMilliseconds = nil
@@ -378,7 +386,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     ) throws -> UInt {
         reachedAutoStopBoundaryMilliseconds = nil
         replacePersistentAutoPauseBoundary(boundary)
-        AppLogger.shared.info(
+        AppLogger.shared.debug(
             .playback,
             "Player seek requested",
             details: "video=\"\(currentVideoURL?.lastPathComponent ?? "none")\" target_ms=\(boundary.startMilliseconds) auto_stop_ms=\(boundary.endMilliseconds) hw_decode=\(nativePlayer.usingHardwareDecode ? 1 : 0)"
