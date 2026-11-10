@@ -526,16 +526,43 @@ struct WorkbenchBadge: View {
     let title: String
     let foregroundColor: Color
     let fillColor: Color
+    let borderColor: Color
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    var resolvedForegroundColor: Color {
+        isEnabled ? foregroundColor : WorkbenchRedesignColors.textDisabled
+    }
+
+    var resolvedFillColor: Color {
+        isEnabled ? fillColor : WorkbenchRedesignColors.bgDisabled
+    }
+
+    var resolvedBorderColor: Color {
+        isEnabled ? borderColor : WorkbenchRedesignColors.borderDisabled
+    }
 
     var body: some View {
+        let shape = RoundedRectangle(
+            cornerRadius: WorkbenchControlMetrics.redesignChipRadius,
+            style: .continuous
+        )
         Text(title)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(foregroundColor)
-            .padding(.horizontal, 8)
-            .frame(height: 20)
+            .font(.system(
+                size: WorkbenchControlMetrics.redesignFontSizeCaption,
+                weight: WorkbenchControlMetrics.redesignFontWeightControl
+            ))
+            .foregroundStyle(resolvedForegroundColor)
+            .padding(.horizontal, WorkbenchControlMetrics.redesignChipHorizontalPadding)
+            .padding(.vertical, WorkbenchControlMetrics.redesignChipVerticalPadding)
             .background(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(fillColor)
+                shape.fill(resolvedFillColor)
+            )
+            .overlay(
+                shape.strokeBorder(
+                    resolvedBorderColor,
+                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                )
             )
     }
 }

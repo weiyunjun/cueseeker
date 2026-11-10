@@ -649,7 +649,8 @@ struct WebDAVBrowserCard: View {
                     WorkbenchBadge(
                         title: addedBadgeTitle ?? L("remote.browser.added"),
                         foregroundColor: WorkbenchRedesignColors.watchStatusFinishedText,
-                        fillColor: WorkbenchRedesignColors.watchStatusFinishedBg
+                        fillColor: WorkbenchRedesignColors.watchStatusFinishedBg,
+                        borderColor: WorkbenchRedesignColors.watchStatusFinishedBorder
                     )
                     .allowsHitTesting(false)
                 }

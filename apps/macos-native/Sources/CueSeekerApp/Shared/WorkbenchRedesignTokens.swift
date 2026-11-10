@@ -226,10 +226,13 @@ enum WorkbenchRedesignColors {
         // Watch Status
         static let watchStatusUnwatchedBg = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#27272A")
         static let watchStatusUnwatchedText = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")
+        static let watchStatusUnwatchedBorder = NSColor.dynamic(lightHex: "#D0D5DD", darkHex: "#3F3F46")
         static let watchStatusWatchingBg = NSColor.dynamic(lightHex: "#DBEAFE", darkHex: "#172A4A")
         static let watchStatusWatchingText = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#93C5FD")
+        static let watchStatusWatchingBorder = NSColor.dynamic(lightHex: "#93C5FD", darkHex: "#2563EB")
         static let watchStatusFinishedBg = NSColor.dynamic(lightHex: "#D1FAE5", darkHex: "#123A2A")
         static let watchStatusFinishedText = NSColor.dynamic(lightHex: "#047857", darkHex: "#6EE7B7")
+        static let watchStatusFinishedBorder = NSColor.dynamic(lightHex: "#6EE7B7", darkHex: "#059669")
 
         // Library Media
         static let libraryProgressFill = NSColor.controlAccentColor
@@ -468,10 +471,13 @@ enum WorkbenchRedesignColors {
     // Watch Status
     static let watchStatusUnwatchedBg = Color(nsColor: NS.watchStatusUnwatchedBg)
     static let watchStatusUnwatchedText = Color(nsColor: NS.watchStatusUnwatchedText)
+    static let watchStatusUnwatchedBorder = Color(nsColor: NS.watchStatusUnwatchedBorder)
     static let watchStatusWatchingBg = Color(nsColor: NS.watchStatusWatchingBg)
     static let watchStatusWatchingText = Color(nsColor: NS.watchStatusWatchingText)
+    static let watchStatusWatchingBorder = Color(nsColor: NS.watchStatusWatchingBorder)
     static let watchStatusFinishedBg = Color(nsColor: NS.watchStatusFinishedBg)
     static let watchStatusFinishedText = Color(nsColor: NS.watchStatusFinishedText)
+    static let watchStatusFinishedBorder = Color(nsColor: NS.watchStatusFinishedBorder)
 
     // Library Media
     static let libraryProgressFill = Color.accentColor

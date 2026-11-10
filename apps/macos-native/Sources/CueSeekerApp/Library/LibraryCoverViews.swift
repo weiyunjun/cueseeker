@@ -516,6 +516,17 @@ enum LibraryWatchStatus: Equatable {
             return WorkbenchRedesignColors.watchStatusFinishedBg
         }
     }
+
+    var borderColor: Color {
+        switch self {
+        case .unwatched:
+            return WorkbenchRedesignColors.watchStatusUnwatchedBorder
+        case .watching:
+            return WorkbenchRedesignColors.watchStatusWatchingBorder
+        case .finished:
+            return WorkbenchRedesignColors.watchStatusFinishedBorder
+        }
+    }
 }
 
 struct WatchStatusBadge: View {
@@ -526,7 +537,8 @@ struct WatchStatusBadge: View {
         WorkbenchBadge(
             title: status.title,
             foregroundColor: status.foregroundColor,
-            fillColor: status.fillColor
+            fillColor: status.fillColor,
+            borderColor: status.borderColor
         )
     }
 }

@@ -296,6 +296,27 @@ struct FileCardMenuTests {
             "http://192.168.1.173:5244/115/云下载/Ave Mujica/Episode 01.sc.ass"
         ])
     }
+
+    @Test
+    func watchStatusBadgeBorderTokensAndMetricsAlignment() {
+        #expect(hexString(WorkbenchRedesignColors.NS.watchStatusUnwatchedBorder, appearance: .aqua) == "#D0D5DD")
+        #expect(hexString(WorkbenchRedesignColors.NS.watchStatusUnwatchedBorder, appearance: .darkAqua) == "#3F3F46")
+        #expect(hexString(WorkbenchRedesignColors.NS.watchStatusWatchingBorder, appearance: .aqua) == "#93C5FD")
+        #expect(hexString(WorkbenchRedesignColors.NS.watchStatusWatchingBorder, appearance: .darkAqua) == "#2563EB")
+        #expect(hexString(WorkbenchRedesignColors.NS.watchStatusFinishedBorder, appearance: .aqua) == "#6EE7B7")
+        #expect(hexString(WorkbenchRedesignColors.NS.watchStatusFinishedBorder, appearance: .darkAqua) == "#059669")
+
+        #expect(LibraryWatchStatus.unwatched.borderColor == WorkbenchRedesignColors.watchStatusUnwatchedBorder)
+        #expect(LibraryWatchStatus.watching.borderColor == WorkbenchRedesignColors.watchStatusWatchingBorder)
+        #expect(LibraryWatchStatus.finished.borderColor == WorkbenchRedesignColors.watchStatusFinishedBorder)
+
+        #expect(WorkbenchControlMetrics.redesignChipRadius == 6)
+        #expect(WorkbenchControlMetrics.redesignChipHorizontalPadding == 10)
+        #expect(WorkbenchControlMetrics.redesignChipVerticalPadding == 4)
+        #expect(WorkbenchControlMetrics.redesignFontSizeCaption == 12)
+        #expect(WorkbenchControlMetrics.redesignFontWeightControl == .medium)
+        #expect(WorkbenchControlMetrics.redesignControlBorderWidth == 1)
+    }
 }
 
 private func hexString(_ color: NSColor, appearance: NSAppearance.Name = .aqua) -> String {
