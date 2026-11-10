@@ -156,6 +156,7 @@ struct LibraryRenameDialog: View {
                         )
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, WorkbenchControlMetrics.redesignFieldPaddingX)
                         .accessibilityIdentifier("rename-current-name")
                     }
 

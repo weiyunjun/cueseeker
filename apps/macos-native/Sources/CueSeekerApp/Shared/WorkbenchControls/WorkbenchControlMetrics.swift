@@ -29,8 +29,8 @@ enum WorkbenchControlMetrics {
     static let redesignControlPaddingX: CGFloat = 14
     /// --padding-field-x: 10px
     static let redesignFieldPaddingX: CGFloat = 10
-    /// --width-form-label: 72px
-    static let redesignFormLabelWidth: CGFloat = 72
+    /// --width-form-label: 96px
+    static let redesignFormLabelWidth: CGFloat = 96
     /// Provisional --size-inline-clear-symbol-font-size-macos: 14px icon box (document: 11pt)
     static let inlineClearSymbolFontSizeMacOS: CGFloat = 14
     /// --size-inline-clear-icon: 16px

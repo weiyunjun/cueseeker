@@ -1229,6 +1229,39 @@ struct WorkbenchInputControlsTests {
         #expect(renameEditor.string == "Season 01")
         #expect(renameEditor.selectedRange() == NSRange(location: 0, length: "Season 01".utf16.count))
 
+        // Verify "Current Name" single-line width fits within --width-form-label (96px) without wrapping,
+        // and Current Name value's leading edge aligns with New Name field's text leading edge (inset by --padding-field-x: 10px from container border).
+        let currentNameLabelFont = NSFont.systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .medium
+        )
+        let currentNameLabelSingleLineWidth = ("Current Name" as NSString).size(withAttributes: [.font: currentNameLabelFont]).width
+        #expect(currentNameLabelSingleLineWidth <= WorkbenchControlMetrics.redesignFormLabelWidth)
+
+        func collectSelectableTextViews(in view: NSView) -> [WorkbenchSelectableTextNSView] {
+            var result: [WorkbenchSelectableTextNSView] = []
+            if let selectableView = view as? WorkbenchSelectableTextNSView, selectableView.text == "Season 01" {
+                result.append(selectableView)
+            }
+            for subview in view.subviews {
+                result.append(contentsOf: collectSelectableTextViews(in: subview))
+            }
+            return result
+        }
+        let currentNameValueView = try #require(collectSelectableTextViews(in: renameHosting).first)
+        let renameContainerOverlay = try #require(collectContainerOverlays(in: renameHosting).first)
+        let currentNameValueWindowRect = currentNameValueView.convert(currentNameValueView.bounds, to: nil)
+        let renameFieldAlignmentRectInSuperview = renameField.alignmentRect(forFrame: renameField.frame)
+        let renameFieldAlignmentWindowRect = renameField.superview!.convert(renameFieldAlignmentRectInSuperview, to: nil)
+        let renameEditorTextOriginX = renameEditor.convert(
+            NSPoint(x: renameEditor.textContainer?.lineFragmentPadding ?? 0, y: 0),
+            to: nil
+        ).x
+        let renameContainerWindowRect = renameContainerOverlay.convert(renameContainerOverlay.bounds, to: nil)
+        #expect(abs(currentNameValueWindowRect.minX - renameFieldAlignmentWindowRect.minX) <= 0.5)
+        #expect(abs(currentNameValueWindowRect.minX - renameEditorTextOriginX) <= 0.5)
+        #expect(abs(currentNameValueWindowRect.minX - (renameContainerWindowRect.minX + WorkbenchControlMetrics.redesignFieldPaddingX)) <= 0.5)
+
         dialogState.renameSession = nil
         renameHosting.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.03))

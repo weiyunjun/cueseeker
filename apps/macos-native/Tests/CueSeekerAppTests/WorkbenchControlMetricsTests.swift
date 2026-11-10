@@ -133,7 +133,7 @@ func buttonHeightMatchesDesignSpecification() {
     #expect(WorkbenchControlMetrics.redesignFieldHeight == 30)
     #expect(WorkbenchControlMetrics.redesignFieldRadius == 6)
     #expect(WorkbenchControlMetrics.redesignFieldPaddingX == 10)
-    #expect(WorkbenchControlMetrics.redesignFormLabelWidth == 72)
+    #expect(WorkbenchControlMetrics.redesignFormLabelWidth == 96)
     #expect(WorkbenchControlMetrics.redesignTableCellHoverRadius == 8)
 }
 
