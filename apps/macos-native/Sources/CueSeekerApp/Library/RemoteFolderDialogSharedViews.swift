@@ -52,6 +52,7 @@ protocol RemoteFolderDialogSessionProtocol: AnyObject, ObservableObject, Identif
     var id: UUID { get }
     var step: RemoteFolderDialogStep { get set }
     var validationMessage: String? { get set }
+    var validationMessageKey: String? { get set }
     var isSubmitting: Bool { get set }
 
     var baseConfig: Config? { get set }
@@ -210,6 +211,28 @@ extension RemoteFolderDialogSessionProtocol {
         isSubmitting = false
         isLoadingDirectory = false
     }
+
+    func setValidationError(key: String) {
+        validationMessageKey = key
+        validationMessage = L(key)
+    }
+
+    func setRawValidationError(_ message: String) {
+        validationMessageKey = nil
+        validationMessage = message
+    }
+
+    func clearValidationError() {
+        validationMessageKey = nil
+        validationMessage = nil
+    }
+
+    func refreshLocalizedValidationMessage() {
+        guard let key = validationMessageKey, validationMessage != nil else {
+            return
+        }
+        validationMessage = L(key)
+    }
 }
 
 struct RemoteFolderDialogStyle {
@@ -238,8 +261,10 @@ struct RemoteFolderDialogContainer<
 
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
     @Environment(\.workbenchDialogID) private var dialogID
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         WorkbenchAccessibilityReader { accessibility in
             Group {
                 switch session.step {
@@ -252,6 +277,10 @@ struct RemoteFolderDialogContainer<
         }
         .background(WorkbenchRedesignColors.bgDialog)
         .workbenchDialogCloseButton(onClose: onClose)
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
+            session.refreshLocalizedValidationMessage()
+        }
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 
@@ -462,6 +491,7 @@ struct WebDAVBrowserCard: View {
     let isSelected: Bool
     var isCardFocused: Bool = false
     var isEnterButtonFocused: Bool = false
+    var addedBadgeTitle: String = L("remote.browser.added")
     let onToggleSelection: () -> Void
     let onOpenFolder: () -> Void
 
@@ -614,7 +644,7 @@ struct WebDAVBrowserCard: View {
 
                 if showsAddedBadge {
                     WorkbenchBadge(
-                        title: L("remote.browser.added"),
+                        title: addedBadgeTitle,
                         foregroundColor: WorkbenchRedesignColors.watchStatusFinishedText,
                         fillColor: WorkbenchRedesignColors.watchStatusFinishedBg
                     )

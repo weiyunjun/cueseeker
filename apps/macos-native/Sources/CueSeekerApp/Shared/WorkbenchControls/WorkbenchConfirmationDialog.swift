@@ -9,11 +9,31 @@ enum WorkbenchConfirmationActionStyle {
 
 struct WorkbenchConfirmationAction: Identifiable {
     let id: String
-    let title: String
+    private let titleProvider: () -> String
     let style: WorkbenchConfirmationActionStyle
     var isDefault = false
     var isCancel = false
     let action: () -> Void
+
+    var title: String {
+        titleProvider()
+    }
+
+    init(
+        id: String,
+        title: @autoclosure @escaping () -> String,
+        style: WorkbenchConfirmationActionStyle,
+        isDefault: Bool = false,
+        isCancel: Bool = false,
+        action: @escaping () -> Void
+    ) {
+        self.id = id
+        self.titleProvider = title
+        self.style = style
+        self.isDefault = isDefault
+        self.isCancel = isCancel
+        self.action = action
+    }
 }
 
 /// One open Confirmation. It is a session like the Edit Cover and Excerpt List
@@ -22,35 +42,43 @@ struct WorkbenchConfirmationAction: Identifiable {
 /// presents it owns the dimming and the input barrier.
 struct WorkbenchConfirmationSession: Identifiable {
     let id = UUID()
-    let title: String
-    let message: String
+    private let titleProvider: () -> String
+    private let messageProvider: () -> String
     let actions: [WorkbenchConfirmationAction]
 
+    var title: String {
+        titleProvider()
+    }
+
+    var message: String {
+        messageProvider()
+    }
+
     init(
-        title: String,
-        message: String,
+        title: @autoclosure @escaping () -> String,
+        message: @autoclosure @escaping () -> String,
         actions: [WorkbenchConfirmationAction]
     ) {
-        self.title = title
-        self.message = message
+        self.titleProvider = title
+        self.messageProvider = message
         self.actions = actions
     }
 
     init(
-        title: String,
-        message: String,
-        destructiveTitle: String,
-        cancelTitle: String,
+        title: @autoclosure @escaping () -> String,
+        message: @autoclosure @escaping () -> String,
+        destructiveTitle: @autoclosure @escaping () -> String,
+        cancelTitle: @autoclosure @escaping () -> String,
         onDestructive: @escaping () -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.init(
-            title: title,
-            message: message,
+            title: title(),
+            message: message(),
             actions: [
                 WorkbenchConfirmationAction(
                     id: "cancel",
-                    title: cancelTitle,
+                    title: cancelTitle(),
                     style: .neutral,
                     isDefault: true,
                     isCancel: true,
@@ -58,7 +86,7 @@ struct WorkbenchConfirmationSession: Identifiable {
                 ),
                 WorkbenchConfirmationAction(
                     id: "destructive",
-                    title: destructiveTitle,
+                    title: destructiveTitle(),
                     style: .destructive,
                     action: onDestructive
                 ),
@@ -87,8 +115,10 @@ struct WorkbenchConfirmationDialog: View {
 
     @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     @Environment(\.workbenchDialogID) private var workbenchDialogID
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         WorkbenchAccessibilityReader { accessibility in
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 WorkbenchDialogHeader(title: session.title)
@@ -124,6 +154,9 @@ struct WorkbenchConfirmationDialog: View {
             .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthSmall)
             .background(WorkbenchRedesignColors.bgDialog)
             .workbenchDialogCloseButton(onClose: onClose)
+            .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+                languageRevision &+= 1
+            }
             .subtitleTableTextSelectionNonInteractiveRegion()
             .background(WindowKeyDownMonitor(handle: handleKey))
         }

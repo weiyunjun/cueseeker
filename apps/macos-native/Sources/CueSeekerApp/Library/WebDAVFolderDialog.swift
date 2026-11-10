@@ -18,6 +18,7 @@ final class WebDAVFolderDialogSession: RemoteFolderDialogSessionProtocol {
     @Published var username: String = ""
     @Published var password: String = ""
     @Published var validationMessage: String? = nil
+    var validationMessageKey: String? = nil
     @Published var isSubmitting: Bool = false
 
     @Published var baseConfig: WebDAVRootConfig? = nil
@@ -54,8 +55,10 @@ struct WebDAVFolderDialog: View {
     @FocusState private var isAddressFocused: Bool
     @FocusState private var isUsernameFocused: Bool
     @FocusState private var isPasswordFocused: Bool
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         RemoteFolderDialogContainer(
             session: session,
             style: Self.dialogStyle,
@@ -97,6 +100,9 @@ struct WebDAVFolderDialog: View {
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("webdav-password")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
         }
     }
 }

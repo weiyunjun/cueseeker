@@ -304,8 +304,10 @@ struct CueFacetFilterDialog: View {
 
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
     @Environment(\.workbenchDialogID) private var dialogID
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         let _ = UIInvalidationProbe.count("UI.FilterDialog.body")
         let sections = CueFacetSection.sections(
             counts: counts,
@@ -349,6 +351,9 @@ struct CueFacetFilterDialog: View {
         .frame(height: min(WorkbenchControlMetrics.redesignFilterDialogHeight, availableSize.height))
         .background(WorkbenchRedesignColors.bgDialog)
         .workbenchDialogCloseButton(onClose: onClose)
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
+        }
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 

@@ -519,6 +519,7 @@ enum LibraryWatchStatus: Equatable {
 }
 
 struct WatchStatusBadge: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     let status: LibraryWatchStatus
 
     var body: some View {

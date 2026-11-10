@@ -8,6 +8,7 @@ import SwiftUI
 struct ExcerptListCardGrid: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var excerptStore: ExcerptStore
+    @EnvironmentObject private var localization: AppLocalizationStore
     /// Set when the page already hosts the menu at its own root. The grid then
     /// uses that host, so the menu covers the whole page instead of only the
     /// grid it was opened from.
@@ -124,6 +125,7 @@ struct ExcerptListCardGrid: View {
 }
 
 private struct ExcerptListCard: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
     @Environment(\.libraryCardContextMenuAnchorOwner) private var anchorMenuOwnerID

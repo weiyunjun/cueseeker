@@ -410,6 +410,7 @@ enum PlaybackCollageEditorLayout {
 }
 
 private struct PlaybackCollageEditor<SubtitleContent: View>: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     let plan: SubtitleCollageSelectionPlan
     let totalCueCount: Int
     @ObservedObject var previewStore: PlaybackCollagePreviewStore
@@ -595,6 +596,7 @@ struct PlaybackOverlayTopBar: View {
 }
 
 private struct PlaybackSubtitlePlaylist: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
     @ObservedObject var windowStore: PlaybackPlaylistSessionWindowStore
     let uiProbeScope: String?

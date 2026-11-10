@@ -247,6 +247,7 @@ struct CoverSummaryCard<Cover: View>: View {
     @State private var isDescriptionPopoverOpen = false
     @State private var isSecondaryMetadataHovered = false
     @State private var secondaryLineOffsetY: CGFloat = 68
+    @State private var languageRevision = 0
 
     init(
         title: String,
@@ -275,6 +276,7 @@ struct CoverSummaryCard<Cover: View>: View {
     }
 
     var body: some View {
+        let _ = languageRevision
         CoverSummaryCardSizingLayout {
             GeometryReader { proxy in
                 let layout = CoverSummaryCardLayout.resolve(
@@ -361,6 +363,9 @@ struct CoverSummaryCard<Cover: View>: View {
         }
         .onDisappear {
             isDescriptionPopoverOpen = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
         }
     }
 

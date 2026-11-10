@@ -135,8 +135,10 @@ struct LibraryRenameDialog: View {
 
     @FocusState private var isNameFocused: Bool
     @Environment(\.workbenchDialogID) private var dialogID
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         WorkbenchAccessibilityReader { accessibility in
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
                 WorkbenchDialogHeader(title: session.title)
@@ -185,6 +187,12 @@ struct LibraryRenameDialog: View {
         .background(WorkbenchRedesignColors.bgDialog)
         .workbenchDialogCloseButton(onClose: onClose)
         .onChange(of: session.newName) { _ in
+            if session.hasAttemptedValidation {
+                session.validate()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
             if session.hasAttemptedValidation {
                 session.validate()
             }

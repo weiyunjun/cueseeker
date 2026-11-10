@@ -43,13 +43,15 @@ struct PlaybackChromeSnapshot: Equatable {
     let hasPlaybackSelection: Bool
     var isCueQueuePlayback: Bool = false
 
-    static let empty = PlaybackChromeSnapshot(
-        displayTitle: L("playback.no_video_selected"),
-        canGoPrevious: false,
-        canGoNext: false,
-        hasPlaybackSelection: false,
-        isCueQueuePlayback: false
-    )
+    static var empty: PlaybackChromeSnapshot {
+        PlaybackChromeSnapshot(
+            displayTitle: L("playback.no_video_selected"),
+            canGoPrevious: false,
+            canGoNext: false,
+            hasPlaybackSelection: false,
+            isCueQueuePlayback: false
+        )
+    }
 }
 
 @MainActor
@@ -193,7 +195,9 @@ final class PlaybackStore: ObservableObject {
     /// subtitle. See `docs/human/requirements/20260921-Bug-Missing Files
     /// Treated As Missing Database Records.md`.
     @Published private(set) var errorMessages: [PlaybackErrorLine: String] = [:]
+    private var errorMessageProviders: [PlaybackErrorLine: () -> String] = [:]
     private var errorExpiryTasks: [PlaybackErrorLine: Task<Void, Never>] = [:]
+    private var languageChangeCancellable: AnyCancellable?
 
     /// The player speed menu lives here rather than in the chrome view because
     /// The menu's keys arrive two ways: from the menu gate's monitor, which
@@ -456,6 +460,28 @@ final class PlaybackStore: ObservableObject {
             } else {
                 moreSubmenuHighlight.close()
             }
+        }
+        languageChangeCancellable = NotificationCenter.default
+            .publisher(for: .cueSeekerAppLanguageChanged)
+            .sink { [weak self] _ in
+                if Thread.isMainThread {
+                    MainActor.assumeIsolated {
+                        self?.refreshLocalizedState()
+                    }
+                } else {
+                    Task { @MainActor [weak self] in
+                        self?.refreshLocalizedState()
+                    }
+                }
+            }
+    }
+
+    func refreshLocalizedState() {
+        if !chromeSnapshot.hasPlaybackSelection {
+            chromeSnapshot = .empty
+        }
+        for (line, provider) in errorMessageProviders where errorMessages[line] != nil {
+            errorMessages[line] = provider()
         }
     }
 
@@ -826,9 +852,10 @@ final class PlaybackStore: ObservableObject {
 
     /// Shows `message` on `line`, replacing what was there, for the banner's
     /// duration measured on the wall clock; nothing the user does holds it.
-    func showError(_ message: String, on line: PlaybackErrorLine) {
+    func showError(_ message: @autoclosure @escaping () -> String, on line: PlaybackErrorLine) {
         errorExpiryTasks[line]?.cancel()
-        errorMessages[line] = message
+        errorMessageProviders[line] = message
+        errorMessages[line] = message()
         errorExpiryTasks[line] = Task { [weak self] in
             try? await Task.sleep(
                 nanoseconds: UInt64(PlaybackChromeMetrics.errorDuration * 1_000_000_000)
@@ -844,6 +871,7 @@ final class PlaybackStore: ObservableObject {
     func clearError(on line: PlaybackErrorLine) {
         errorExpiryTasks[line]?.cancel()
         errorExpiryTasks[line] = nil
+        errorMessageProviders[line] = nil
         guard errorMessages[line] != nil else {
             return
         }

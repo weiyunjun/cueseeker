@@ -304,6 +304,7 @@ struct WorkbenchWorkspaceView: View {
 }
 
 private struct WorkbenchExcerptListSurfaceView: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
     // Observed so a Excerpt detail turns into the unknown page when its list
     // leaves the overview.

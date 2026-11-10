@@ -86,7 +86,7 @@ struct LibraryCardContextMenuItem: Identifiable {
 }
 
 enum LibraryCoverContextMenuItem {
-    static let title = L("library.change_cover")
+    static var title: String { L("library.change_cover") }
     static let icon = AppIcon.export
 }
 

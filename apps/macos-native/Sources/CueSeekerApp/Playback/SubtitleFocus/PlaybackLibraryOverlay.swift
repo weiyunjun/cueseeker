@@ -61,6 +61,7 @@ struct PlaybackLibraryOverlay: View {
 }
 
 private struct PlaybackLibraryEpisodeList: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     @ObservedObject var store: PlaybackLibrarySessionStore
     @ObservedObject var selection: PlaybackMediaSelectionStore
     @ObservedObject private var library: LibraryStore

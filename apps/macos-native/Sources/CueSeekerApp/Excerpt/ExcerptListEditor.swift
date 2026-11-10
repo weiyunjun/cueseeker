@@ -68,6 +68,7 @@ final class ExcerptListEditorSession: ObservableObject, Identifiable {
     @Published var descriptionValidationMessage: String?
     @Published var hasAttemptedValidation = false
     @Published var isSaving = false
+    private var lastValidation: ExcerptListValidation?
 
     init(
         mode: ExcerptListEditorMode,
@@ -98,8 +99,15 @@ final class ExcerptListEditorSession: ObservableObject, Identifiable {
 
     func apply(validation: ExcerptListValidation) {
         hasAttemptedValidation = true
+        lastValidation = validation
         nameValidationMessage = Self.message(for: validation.nameError)
         descriptionValidationMessage = Self.message(for: validation.descriptionError)
+    }
+
+    func refreshLocalizedValidationMessages() {
+        guard let lastValidation else { return }
+        nameValidationMessage = Self.message(for: lastValidation.nameError)
+        descriptionValidationMessage = Self.message(for: lastValidation.descriptionError)
     }
 
     private static func message(for error: ExcerptListValidationError?) -> String? {
@@ -129,8 +137,10 @@ struct ExcerptListEditorDialog: View {
     @FocusState private var isDescriptionFocused: Bool
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
     @Environment(\.workbenchDialogID) private var dialogID
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         WorkbenchAccessibilityReader { accessibility in
             WorkbenchDialogColumn(
                 spacing: WorkbenchControlMetrics.redesignCoverDialogRegionGap,
@@ -182,6 +192,10 @@ struct ExcerptListEditorDialog: View {
         }
         .onChange(of: session.descriptionValidationMessage) { _ in
             focusFirstErrorIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
+            session.refreshLocalizedValidationMessages()
         }
         .subtitleTableTextSelectionNonInteractiveRegion()
     }

@@ -16,6 +16,7 @@ final class NFSFolderDialogSession: RemoteFolderDialogSessionProtocol {
         }
     }
     @Published var validationMessage: String? = nil
+    var validationMessageKey: String? = nil
     @Published var isSubmitting: Bool = false
 
     @Published var baseConfig: NFSRootConfig? = nil
@@ -55,8 +56,10 @@ struct NFSFolderDialog: View {
     var onSelectBreadcrumb: ((NFSFolderDialogSession.BreadcrumbNode) -> Void)? = nil
 
     @FocusState private var isAddressFocused: Bool
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         RemoteFolderDialogContainer(
             session: session,
             style: Self.dialogStyle,
@@ -79,6 +82,9 @@ struct NFSFolderDialog: View {
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("nfs-address")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
         }
     }
 }

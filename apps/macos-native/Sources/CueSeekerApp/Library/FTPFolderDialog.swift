@@ -19,6 +19,7 @@ final class FTPFolderDialogSession: RemoteFolderDialogSessionProtocol {
     @Published var username: String = ""
     @Published var password: String = ""
     @Published var validationMessage: String? = nil
+    var validationMessageKey: String? = nil
     @Published var isSubmitting: Bool = false
 
     @Published var baseConfig: FTPRootConfig? = nil
@@ -56,8 +57,10 @@ struct FTPFolderDialog: View {
     @FocusState private var isPortFocused: Bool
     @FocusState private var isUsernameFocused: Bool
     @FocusState private var isPasswordFocused: Bool
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         RemoteFolderDialogContainer(
             session: session,
             style: Self.dialogStyle,
@@ -109,6 +112,9 @@ struct FTPFolderDialog: View {
             )
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("ftp-password")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
         }
     }
 }

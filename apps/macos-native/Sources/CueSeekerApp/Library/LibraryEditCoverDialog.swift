@@ -7,8 +7,10 @@ struct LibraryEditCoverDialog: View {
     let onSave: () -> Void
 
     @Environment(\.workbenchDialogID) private var dialogID
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         WorkbenchAccessibilityReader { accessibility in
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignCoverDialogRegionGap) {
                 WorkbenchDialogHeader(title: LibraryCoverEditingCopy.dialogTitle)
@@ -54,6 +56,9 @@ struct LibraryEditCoverDialog: View {
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthSmall)
         .background(WorkbenchRedesignColors.bgDialog)
         .workbenchDialogCloseButton(onClose: onCancel)
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
+        }
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 

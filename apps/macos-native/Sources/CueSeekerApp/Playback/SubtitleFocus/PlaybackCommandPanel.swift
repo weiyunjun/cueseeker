@@ -325,6 +325,7 @@ private enum PlaybackCommandPanelMetrics {
 }
 
 private struct PlaybackCommandPanelRoot: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     let presentation: PlaybackCommandPanelPresentation
     @ObservedObject var searchStore: SearchStore
     let allowsHover: Bool
@@ -637,6 +638,7 @@ private struct PlaybackCommandPanelSecondaryHeaderLayout: Layout {
 }
 
 private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     let title: String
     let onBack: () -> Bool
     let trailing: Trailing
@@ -912,6 +914,7 @@ private struct PlaybackCommandPanelSearchResults: View {
 }
 
 private struct PlaybackCommandPanelSearchReel: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     @ObservedObject var windowStore: PlaybackCueResultSessionWindowStore
     @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
@@ -1191,6 +1194,7 @@ enum PlaybackCommandPanelCardGrid {
 }
 
 private struct PlaybackCommandPanelRecentVideos: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     let presentation: PlaybackCommandPanelPresentation
     let scrollSequence: UInt64
     let items: [RecentLibraryWatchingPresentation]
@@ -1237,6 +1241,7 @@ private struct PlaybackCommandPanelRecentVideos: View {
 }
 
 private struct PlaybackCommandPanelRecentExcerpts: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     let presentation: PlaybackCommandPanelPresentation
     let scrollSequence: UInt64
     let summaries: [ExcerptListSummary]
@@ -1288,6 +1293,7 @@ private struct PlaybackCommandPanelRecentExcerpts: View {
 /// The pages whose only key is Return. Everything else about the footer comes
 /// from the shared component.
 private struct PlaybackCommandPanelFooter: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     let status: String?
     let onOpenSelectedItem: () -> Void
 

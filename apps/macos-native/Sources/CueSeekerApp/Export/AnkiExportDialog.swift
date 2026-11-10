@@ -229,6 +229,7 @@ struct AnkiExportDialog: View {
     @StateObject private var menuHighlight = MenuHighlightModel()
     @State private var dragState: AnkiRowDragState?
     @State private var dragTranslationY: CGFloat = 0
+    @State private var languageRevision = 0
 
     /// The folder glyph's ink stops short of its button's box. The button
     /// reaches past the content's edge by that much, so the ink lands on the
@@ -247,6 +248,7 @@ struct AnkiExportDialog: View {
     }
 
     var body: some View {
+        let _ = languageRevision
         WorkbenchAccessibilityReader { accessibility in
             WorkbenchDialogColumn(
                 spacing: WorkbenchControlMetrics.redesignSpacing4,
@@ -370,6 +372,12 @@ struct AnkiExportDialog: View {
         }
         .onDisappear {
             dismissMenu()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
+            if session.hasAttemptedValidation {
+                session.validate()
+            }
         }
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
@@ -804,8 +812,10 @@ private struct AnkiCardItemMenuPopover: View {
     let items: [AnkiCardItem]
     @ObservedObject var highlight: MenuHighlightModel
     let onSelect: (AnkiCardItem) -> Void
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         WorkbenchPopoverPanel(
             maximumHeight: MenuMetrics.maximumHeight,
             highlight: highlight
@@ -831,6 +841,9 @@ private struct AnkiCardItemMenuPopover: View {
             .frame(minWidth: 160, alignment: .leading)
         }
         .fixedSize(horizontal: true, vertical: false)
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
+        }
     }
 }
 
@@ -843,8 +856,10 @@ private struct AnkiCardBadgeRow: View {
 
     @State private var isRemoveHovered = false
     @State private var isRemovePressed = false
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             AppIconImage(
                 .dotsSixVertical,
@@ -913,5 +928,8 @@ private struct AnkiCardBadgeRow: View {
                 )
         )
         .contentShape(Rectangle())
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
+        }
     }
 }

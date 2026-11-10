@@ -1,6 +1,8 @@
 import AppKit
 import Combine
+import CueSeekerCore
 import Foundation
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -204,6 +206,117 @@ func hdrScreenshotSettingLocalizationAndPersistence() {
 
         reloaded.hdrScreenshotEnabled = true
         #expect(userDefaults.bool(forKey: SettingsStore.hdrScreenshotEnabledKey) == true)
+    }
+}
+
+@MainActor
+@Test
+func languageSwitchImmediatelyUpdatesMenusDialogSessionsAndPlaybackState() {
+    withTemporaryLocalizationUserDefaults { userDefaults in
+        let settings = SettingsStore(userDefaults: userDefaults)
+        defer {
+            settings.localization.set(.english)
+        }
+
+        settings.localization.set(.english)
+        #expect(LibraryCoverContextMenuItem.title == "Change Cover")
+        #expect(LibraryCoverEditingCopy.dialogTitle == "Edit Cover")
+        #expect(LibraryCoverEditingCopy.chooseImageActionTitle == "Choose Image")
+        #expect(LibraryCoverEditingCopy.cancelButtonTitle == "Cancel")
+        #expect(LibraryCoverEditingCopy.saveButtonTitle == "Save")
+
+        let excerptEditorSession = ExcerptListEditorSession(mode: .newList)
+        excerptEditorSession.apply(
+            validation: ExcerptListValidation(
+                nameError: .emptyName,
+                descriptionError: .descriptionTooLong(maximumCharacters: 200, currentCharacters: 201)
+            )
+        )
+        #expect(excerptEditorSession.nameValidationMessage == L("excerpt.validation.name_required"))
+
+        let renameSession = LibraryRenameSession(
+            rootFolder: URL(fileURLWithPath: "/tmp/AveMujica", isDirectory: true)
+        )
+        renameSession.newName = ""
+        _ = renameSession.validate()
+        let renameHost = NSHostingView(
+            rootView: LibraryRenameDialog(
+                session: renameSession,
+                onConfirm: {},
+                onClose: {}
+            )
+        )
+        renameHost.layoutSubtreeIfNeeded()
+        #expect(renameSession.validationMessage == "Enter a name")
+
+        let webdavSession = WebDAVFolderDialogSession()
+        webdavSession.setValidationError(key: "webdav.error.invalid_address")
+        let webdavHost = NSHostingView(
+            rootView: WebDAVFolderDialog(
+                session: webdavSession,
+                onConfirm: {},
+                onClose: {}
+            )
+        )
+        webdavHost.layoutSubtreeIfNeeded()
+        #expect(webdavSession.validationMessage == "Enter a valid WebDAV address")
+
+        let ankiSession = AnkiExportSession(
+            items: [],
+            options: AnkiExportOptions(frontItems: [], backItems: []),
+            folderURL: URL(fileURLWithPath: "/nonexistent-anki-export-folder", isDirectory: true),
+            onOptionsChange: { _ in }
+        )
+        ankiSession.fileName = ""
+        _ = ankiSession.validate()
+        let ankiHost = NSHostingView(
+            rootView: AnkiExportDialog(
+                session: ankiSession,
+                onChooseFolder: {},
+                onExport: {},
+                onClose: {}
+            )
+        )
+        ankiHost.layoutSubtreeIfNeeded()
+        #expect(ankiSession.validationMessage == "Enter a name")
+
+        let confirmationSession = WorkbenchConfirmationSession(
+            title: L("excerpt.delete_list"),
+            message: L("excerpt.delete_list.message", "Favorites"),
+            destructiveTitle: L("excerpt.delete"),
+            cancelTitle: L("common.cancel"),
+            onDestructive: {},
+            onCancel: {}
+        )
+        #expect(confirmationSession.title == "Delete List")
+        #expect(confirmationSession.actions.map(\.title) == ["Cancel", "Delete"])
+
+        let playback = PlaybackStore(userDefaults: userDefaults)
+        playback.showError(L("playback.error.not_in_library"), on: .notInLibrary)
+        #expect(playback.chromeSnapshot.displayTitle == "No video selected")
+        #expect(playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
+
+        settings.localization.set(.simplifiedChinese)
+        excerptEditorSession.refreshLocalizedValidationMessages()
+
+        #expect(LibraryCoverContextMenuItem.title == "更换封面")
+        #expect(LibraryCoverEditingCopy.dialogTitle == "编辑封面")
+        #expect(LibraryCoverEditingCopy.chooseImageActionTitle == "选择图片")
+        #expect(LibraryCoverEditingCopy.cancelButtonTitle == "取消")
+        #expect(LibraryCoverEditingCopy.saveButtonTitle == "保存")
+        #expect(excerptEditorSession.nameValidationMessage == L("excerpt.validation.name_required"))
+        #expect(excerptEditorSession.descriptionValidationMessage == L("excerpt.validation.description_too_long"))
+        #expect(renameSession.validationMessage == L("rename.validation.empty"))
+        #expect(webdavSession.validationMessage == "请输入有效的 WebDAV 地址")
+        #expect(ankiSession.validationMessage == L("rename.validation.empty"))
+        #expect(ankiSession.locationValidationMessage == L("anki_export.validation.location_invalid"))
+        #expect(ankiSession.frontValidationError == L("anki_export.validation.front_empty"))
+        #expect(ankiSession.backValidationError == L("anki_export.validation.back_empty"))
+        #expect(confirmationSession.title == "删除摘录集")
+        #expect(confirmationSession.actions.map(\.title) == ["取消", "删除"])
+        #expect(playback.chromeSnapshot.displayTitle == L("playback.no_video_selected"))
+        #expect(playback.errorMessages[.notInLibrary] == L("playback.error.not_in_library"))
+        playback.clearAllErrors()
     }
 }
 

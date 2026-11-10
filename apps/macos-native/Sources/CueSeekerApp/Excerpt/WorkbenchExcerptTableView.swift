@@ -36,6 +36,7 @@ private struct WorkbenchExcerptTableContent: View {
     private static let summaryMoreMenuOwnerID = "excerpt-cover-summary-more"
 
     let isTableResponseActive: Bool
+    @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var excerptStore: ExcerptStore
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -977,12 +978,11 @@ private struct WorkbenchExcerptTableContent: View {
         let listName = excerptStore.activeListSummary?.list.name
             ?? excerptStore.activeListID.map { excerptStore.listName(id: $0) }
             ?? ""
-        let message = items.count == 1
-            ? L("excerpt.remove.batch_message.one", listName)
-            : L("excerpt.remove.batch_message.other", items.count, listName)
         appState.confirmation.session = WorkbenchConfirmationSession(
             title: L("excerpt.remove.title"),
-            message: message,
+            message: items.count == 1
+                ? L("excerpt.remove.batch_message.one", listName)
+                : L("excerpt.remove.batch_message.other", items.count, listName),
             destructiveTitle: L("common.remove"),
             cancelTitle: L("common.cancel"),
             onDestructive: {

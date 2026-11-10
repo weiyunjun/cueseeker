@@ -4,6 +4,7 @@ import SwiftUI
 
 struct RecentWatchingGrid: View {
     @EnvironmentObject private var appState: AppCoordinator
+    @EnvironmentObject private var localization: AppLocalizationStore
     @Environment(\.libraryCardContextMenuOpen) private var pageContextMenuOpen
     let items: [RecentLibraryWatchingPresentation]
     @ObservedObject var highlight: CardHighlightModel
@@ -213,6 +214,7 @@ private struct LibraryVideoCardContent {
 }
 
 private struct LibraryVideoCard: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
     @Environment(\.libraryCardContextMenuAnchorOwner) private var anchorMenuOwnerID
@@ -418,6 +420,7 @@ struct CompleteLibraryFolderGrid: View {
 }
 
 struct LibraryFolderCard: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
     @Environment(\.libraryCardContextMenuAnchorOwner) private var anchorMenuOwnerID
     let folder: CompleteLibraryFolderSummaryPresentation
@@ -574,6 +577,7 @@ struct LibraryFolderCard: View {
 }
 
 struct CompleteLibraryEpisodeGrid: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     let folderTitle: String
     let videos: [CompleteLibraryVideoPresentation]
     @ObservedObject var highlight: CardHighlightModel

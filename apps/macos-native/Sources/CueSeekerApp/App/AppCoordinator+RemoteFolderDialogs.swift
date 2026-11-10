@@ -30,7 +30,7 @@ extension AppCoordinator {
         }
 
         guard WebDAVAddress.parseURL(from: session.address) != nil else {
-            session.validationMessage = L("webdav.error.invalid_address")
+            session.setValidationError(key: "webdav.error.invalid_address")
             return
         }
 
@@ -109,15 +109,15 @@ extension AppCoordinator {
 
         let trimmedAddress = session.address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAddress.isEmpty else {
-            session.validationMessage = L("smb.error.invalid_address")
+            session.setValidationError(key: "smb.error.invalid_address")
             return
         }
         guard let parsedPort = SMBAddress.parsePort(session.port) else {
-            session.validationMessage = L("smb.error.invalid_port")
+            session.setValidationError(key: "smb.error.invalid_port")
             return
         }
         guard SMBAddress.parseURL(from: trimmedAddress, portOverride: parsedPort) != nil else {
-            session.validationMessage = L("smb.error.invalid_address")
+            session.setValidationError(key: "smb.error.invalid_address")
             return
         }
 
@@ -198,15 +198,15 @@ extension AppCoordinator {
 
         let trimmedAddress = session.address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAddress.isEmpty else {
-            session.validationMessage = L("ftp.error.invalid_address")
+            session.setValidationError(key: "ftp.error.invalid_address")
             return
         }
         guard let parsedPort = FTPAddress.parsePort(session.port) else {
-            session.validationMessage = L("ftp.error.invalid_port")
+            session.setValidationError(key: "ftp.error.invalid_port")
             return
         }
         guard FTPAddress.parseURL(from: trimmedAddress, portOverride: parsedPort) != nil else {
-            session.validationMessage = L("ftp.error.invalid_address")
+            session.setValidationError(key: "ftp.error.invalid_address")
             return
         }
 
@@ -289,7 +289,7 @@ extension AppCoordinator {
         guard !trimmedAddress.isEmpty,
               NFSAddress.parseURL(from: trimmedAddress) != nil
         else {
-            session.validationMessage = L("nfs.error.invalid_address")
+            session.setValidationError(key: "nfs.error.invalid_address")
             return
         }
 
@@ -385,7 +385,7 @@ extension AppCoordinator {
         connect: @escaping @Sendable () async throws -> (config: Session.Config, items: [WebDAVBrowserItem])
     ) {
         let startedAt = DebugInteractionLatencyProbe.now()
-        session.validationMessage = nil
+        session.clearValidationError()
         session.isSubmitting = true
         let syncPrepFinishedAt = DebugInteractionLatencyProbe.now()
         session.validationTask = Task { @MainActor [weak self, weak session] in
@@ -428,7 +428,7 @@ extension AppCoordinator {
                 session.isSubmitting = false
                 session.validationTask = nil
                 let errorText = Self.errorMessage(for: error)
-                session.validationMessage = errorText
+                session.setRawValidationError(errorText)
                 DebugInteractionLatencyProbe.recordDialogInternalTransition(
                     dialogID: "remote_folder_\(String(describing: Session.self))",
                     transition: "step1_connect_failed",

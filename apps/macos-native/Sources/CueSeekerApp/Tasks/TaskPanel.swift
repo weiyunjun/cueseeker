@@ -506,6 +506,7 @@ struct TaskPanel: View {
 }
 
 private struct TaskCurrentCard: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     let cardID: String
     let entry: TaskQueueEntry
     let isCardMenuOpen: Bool
@@ -575,6 +576,7 @@ private struct TaskCurrentCard: View {
 }
 
 private struct TaskCurrentQueuedContent: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     let entry: TaskQueueEntry
 
     var body: some View {
@@ -596,6 +598,7 @@ private struct TaskCurrentQueuedContent: View {
 }
 
 private struct TaskCurrentRunningContent: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     let entry: TaskQueueEntry
 
     var body: some View {
@@ -616,6 +619,7 @@ private struct TaskCurrentRunningContent: View {
 }
 
 private struct TaskRunningAnkiContent: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     @ObservedObject var progress: TaskProgressModel
     let itemCount: Int
 
@@ -636,6 +640,7 @@ private struct TaskRunningAnkiContent: View {
 }
 
 private struct TaskRunningRenameContent: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     @ObservedObject var progress: TaskProgressModel
 
     var body: some View {
@@ -650,6 +655,7 @@ private struct TaskRunningRenameContent: View {
 }
 
 private struct TaskRunningIndexContent: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     @ObservedObject var progress: TaskProgressModel
 
     var body: some View {
@@ -675,6 +681,7 @@ private struct TaskProgressBarRow: View {
 }
 
 private struct TaskHistoryCard: View {
+    @EnvironmentObject private var localization: AppLocalizationStore
     let cardID: String
     let record: TaskRecord
     let isCardMenuOpen: Bool
@@ -979,8 +986,10 @@ struct TaskDetailDialog: View {
     let record: TaskRecord
     let progress: TaskProgressModel?
     let onClose: () -> Void
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         WorkbenchDetailDialogContainer(
             dialogTitle: L("task_detail.title"),
             icon: record.icon,
@@ -989,6 +998,9 @@ struct TaskDetailDialog: View {
         ) {
             businessGroups
             taskStatusGroup
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
         }
     }
 
@@ -1180,38 +1192,52 @@ struct TaskDetailDialog: View {
 
 private struct TaskDetailAnkiCountRows: View {
     @ObservedObject var progress: TaskProgressModel
+    @State private var languageRevision = 0
 
     var body: some View {
-        SettingsRowDivider()
-        FileDetailRow(
-            label: L("task_detail.succeeded_count"),
-            value: "\(progress.exportedCount)"
-        )
-        SettingsRowDivider()
-        FileDetailRow(
-            label: L("task_detail.failed_count"),
-            value: "\(progress.failedCount)"
-        )
+        let _ = languageRevision
+        Group {
+            SettingsRowDivider()
+            FileDetailRow(
+                label: L("task_detail.succeeded_count"),
+                value: "\(progress.exportedCount)"
+            )
+            SettingsRowDivider()
+            FileDetailRow(
+                label: L("task_detail.failed_count"),
+                value: "\(progress.failedCount)"
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
+        }
     }
 }
 
 private struct TaskDetailRunningRows: View {
     let record: TaskRecord
     @ObservedObject var progress: TaskProgressModel
+    @State private var languageRevision = 0
 
     var body: some View {
-        SettingsRowDivider()
-        FileDetailRow(
-            label: L("task_detail.current_stage"),
-            value: record.runningStageText(progress: progress)
-        )
-
-        if record.kind != .removeFolder {
+        let _ = languageRevision
+        Group {
             SettingsRowDivider()
-            TaskDetailProgressRow(
-                label: L("task_detail.progress"),
-                fraction: record.runningProgressFraction(progress: progress)
+            FileDetailRow(
+                label: L("task_detail.current_stage"),
+                value: record.runningStageText(progress: progress)
             )
+
+            if record.kind != .removeFolder {
+                SettingsRowDivider()
+                TaskDetailProgressRow(
+                    label: L("task_detail.progress"),
+                    fraction: record.runningProgressFraction(progress: progress)
+                )
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
         }
     }
 }

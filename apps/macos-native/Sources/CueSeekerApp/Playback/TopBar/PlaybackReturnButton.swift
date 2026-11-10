@@ -18,8 +18,10 @@ struct PlaybackReturnButton: View {
     var isPlayerChrome: Bool = false
     let action: () -> Void
     @Environment(\.isAppFullscreen) private var isAppFullscreen
+    @State private var languageRevision = 0
 
     var body: some View {
+        let _ = languageRevision
         WorkbenchIconButton(
             icon: .caretLeft,
             isFocused: isFocused,
@@ -38,6 +40,9 @@ struct PlaybackReturnButton: View {
         .accessibilityIdentifier("playback-return")
         .playerInteractiveRegion()
         .padding(.leading, leadingInset)
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
+        }
     }
 
     /// After the window controls: their inset, their measured width, then

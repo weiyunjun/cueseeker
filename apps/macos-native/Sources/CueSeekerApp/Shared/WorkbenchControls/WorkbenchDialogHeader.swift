@@ -225,21 +225,28 @@ typealias FileDetailRow = WorkbenchDetailRow<WorkbenchDetailValueText>
 /// Shared `#1, #2...` indexed list rows for detail dialogs, showing `#1  None` when empty.
 struct WorkbenchDetailIndexedRows: View {
     let values: [String]
+    @State private var languageRevision = 0
 
     var body: some View {
-        if values.isEmpty {
-            WorkbenchDetailRow(label: "#1", value: L("file_detail.none"), isIndex: true)
-        } else {
-            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
-                if index > 0 {
-                    SettingsRowDivider()
+        let _ = languageRevision
+        Group {
+            if values.isEmpty {
+                WorkbenchDetailRow(label: "#1", value: L("file_detail.none"), isIndex: true)
+            } else {
+                ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                    if index > 0 {
+                        SettingsRowDivider()
+                    }
+                    WorkbenchDetailRow(
+                        label: "#\(index + 1)",
+                        value: value,
+                        isIndex: true
+                    )
                 }
-                WorkbenchDetailRow(
-                    label: "#\(index + 1)",
-                    value: value,
-                    isIndex: true
-                )
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
+            languageRevision &+= 1
         }
     }
 }

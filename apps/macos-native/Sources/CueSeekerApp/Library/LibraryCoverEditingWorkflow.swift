@@ -4,12 +4,12 @@ import Foundation
 import UniformTypeIdentifiers
 
 enum LibraryCoverEditingCopy {
-    static let dialogTitle = L("cover.edit_title")
-    static let chooseImageActionTitle = L("cover.choose_image")
+    static var dialogTitle: String { L("cover.edit_title") }
+    static var chooseImageActionTitle: String { L("cover.choose_image") }
     static let editIcon = AppIcon.pencilSimple
-    static let hint = L("cover.support_note")
-    static let cancelButtonTitle = L("common.cancel")
-    static let saveButtonTitle = L("cover.save")
+    static var hint: String { L("cover.support_note") }
+    static var cancelButtonTitle: String { L("common.cancel") }
+    static var saveButtonTitle: String { L("cover.save") }
 }
 
 @MainActor
