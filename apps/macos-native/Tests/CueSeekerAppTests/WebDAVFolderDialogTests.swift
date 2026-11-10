@@ -141,11 +141,12 @@ struct WebDAVFolderDialogTests {
             databaseURL: fixture.databaseURL
         )
 
-        let rootAddress = "http://192.168.1.173:5244/115/%E4%BA%91%E4%B8%8B%E8%BD%BD/NieR:Automata"
+        let rootAddress = "192.168.1.173:5244/115/%E4%BA%91%E4%B8%8B%E8%BD%BD/NieR:Automata"
         let rootURL = try #require(WebDAVAddress.parseURL(from: rootAddress))
         defer { WebDAVConfigurationStore.shared.remove(url: rootURL) }
 
         WebDAVClient.shared.setCustomHTTPHandlerForTesting { request in
+            #expect(request.url?.scheme == "http")
             let xml = """
             <?xml version="1.0" encoding="utf-8"?>
             <D:multistatus xmlns:D="DAV:">
@@ -172,15 +173,17 @@ struct WebDAVFolderDialogTests {
         app.openWebDAVFolderDialog()
         let session = try #require(app.library.webdavDialogSession)
         session.address = rootAddress
+        #expect(session.address == "192.168.1.173:5244/115/云下载/NieR:Automata")
         session.username = ""
         session.password = ""
 
-        // Step 1 Connect -> enters Step 2 Browser
+        // Step 1 Connect without scheme -> auto-completes http:// in background without mutating session.address
         app.confirmWebDAVFolderDialog(session)
         await session.validationTask?.value
 
         #expect(app.library.webdavDialogSession?.id == session.id)
         #expect(session.step == .browser)
+        #expect(session.address == "192.168.1.173:5244/115/云下载/NieR:Automata")
         #expect(session.breadcrumbNodes.map(\.title) == ["NieR:Automata"])
         #expect(session.canAddInBrowser)
         #expect(session.selectedFolderPaths.isEmpty)

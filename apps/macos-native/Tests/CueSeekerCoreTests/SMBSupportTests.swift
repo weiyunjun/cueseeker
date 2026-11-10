@@ -276,12 +276,13 @@ private final class InMemorySMBBackend: SMBBackendProtocol, @unchecked Sendable 
 struct SMBSupportTests {
     @Test
     func smbAddressNormalizesPrefixHostClassificationPercentEncodingAndPorts() throws {
-        // Strict case-sensitive "smb://" prefix rule on parseURL:
-        // - Lowercase "smb://" is parsed directly
-        // - Missing "smb://" has "smb://" prepended in background
-        // - Uppercase "SMB://" or other schemes "http://" become "smb://SMB://..." and fail host validation
+        // Case-insensitive "smb://" prefix rule on parseURL:
+        // - Lowercase/uppercase/mixed-case "smb://" is normalized to "smb://"
+        // - Missing scheme has "smb://" prepended in background
+        // - Other schemes like "http://" are rejected
         #expect(SMBAddress.parseURL(from: "   ") == nil)
-        #expect(SMBAddress.parseURL(from: "SMB://nas.local/Media") == nil)
+        #expect(SMBAddress.parseURL(from: "SMB://nas.local/Media")?.mediaPath == "smb://nas.local/Media")
+        #expect(SMBAddress.parseURL(from: "Smb://nas.local/Media")?.mediaPath == "smb://nas.local/Media")
         #expect(SMBAddress.parseURL(from: "http://192.0.2.10/Media") == nil)
         #expect(SMBAddress.parseURL(from: "192.0.2.999/Media") == nil)
         #expect(SMBAddress.parseURL(from: "[not-an-ipv6]/Media") == nil)

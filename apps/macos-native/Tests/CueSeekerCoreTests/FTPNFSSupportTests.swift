@@ -534,7 +534,8 @@ struct FTPNFSSupportTests {
     @Test
     func ftpAddressNormalizesPrefixPercentEncodingAndPorts() throws {
         #expect(FTPAddress.parseURL(from: "   ") == nil)
-        #expect(FTPAddress.parseURL(from: "FTP://nas.local/Media") == nil)
+        #expect(FTPAddress.parseURL(from: "FTP://nas.local/Media")?.mediaPath == "ftp://nas.local/Media")
+        #expect(FTPAddress.parseURL(from: "Ftp://nas.local/Media")?.mediaPath == "ftp://nas.local/Media")
         #expect(FTPAddress.parseURL(from: "http://192.0.2.10/Media") == nil)
         #expect(FTPAddress.parseURL(from: "192.0.2.999/Media") == nil)
         #expect(FTPAddress.parseURL(from: "[not-an-ipv6]/Media") == nil)
@@ -561,7 +562,8 @@ struct FTPNFSSupportTests {
     @Test
     func nfsAddressNormalizesSlashAndColonSyntaxWithoutMisinterpretingPathAsPort() throws {
         #expect(NFSAddress.parseURL(from: "   ") == nil)
-        #expect(NFSAddress.parseURL(from: "NFS://192.168.1.100/volume1/video") == nil)
+        #expect(NFSAddress.parseURL(from: "NFS://192.168.1.100/volume1/video")?.mediaPath == "nfs://192.168.1.100/volume1/video")
+        #expect(NFSAddress.parseURL(from: "Nfs://192.168.1.100:/volume1/video")?.mediaPath == "nfs://192.168.1.100/volume1/video")
         #expect(NFSAddress.parseURL(from: "http://192.168.1.100/volume1/video") == nil)
         #expect(NFSAddress.parseURL(from: "192.0.2.999:/volume1/video") == nil)
 

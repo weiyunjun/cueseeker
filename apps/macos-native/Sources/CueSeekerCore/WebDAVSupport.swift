@@ -63,11 +63,12 @@ public struct WebDAVRootConfig: Codable, Equatable, Sendable {
         username: String,
         password: String
     ) {
-        let canonical = URL.fromMediaPath(address).mediaPath
+        let canonical = WebDAVAddress.parseURL(from: address)?.mediaPath
+            ?? URL.fromMediaPath(address).mediaPath
         self.rootPath = canonical
         self.davRootPath = canonical
         self.name = name
-        self.address = WebDAVAddress.decodedDisplayAddress(address)
+        self.address = WebDAVAddress.decodedDisplayAddress(canonical)
         self.username = username
         self.password = password
     }
@@ -364,75 +365,14 @@ public enum WebDAVAddress {
     }
 
     public static func parseURL(from rawAddress: String) -> URL? {
-        let trimmed = rawAddress.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let schemeRange = trimmed.range(of: "://") else {
-            return nil
-        }
-        let scheme = String(trimmed[..<schemeRange.lowerBound]).lowercased()
-        guard scheme == "http" || scheme == "https" else {
-            return nil
-        }
-
-        let afterScheme = trimmed[schemeRange.upperBound...]
-        let authority: Substring
-        let rawPathWithQuery: Substring
-        if let slashIndex = afterScheme.firstIndex(of: "/") {
-            authority = afterScheme[..<slashIndex]
-            rawPathWithQuery = afterScheme[slashIndex...]
-        } else {
-            authority = afterScheme
-            rawPathWithQuery = ""
-        }
-
-        guard !authority.isEmpty else { return nil }
-
-        let hostPart: String
-        var portValue: Int?
-        if authority.hasPrefix("[") {
-            // IPv6 host
-            guard let closeBracket = authority.firstIndex(of: "]") else { return nil }
-            let nextIndex = authority.index(after: closeBracket)
-            hostPart = String(authority[ authority.index(after: authority.startIndex)..<closeBracket ])
-            if nextIndex < authority.endIndex {
-                let remainder = authority[nextIndex...]
-                guard remainder.hasPrefix(":"),
-                      let parsedPort = Int(remainder.dropFirst()) else {
-                    return nil
-                }
-                portValue = parsedPort
-            }
-        } else if let colonIndex = authority.lastIndex(of: ":") {
-            hostPart = String(authority[..<colonIndex])
-            let portString = authority[authority.index(after: colonIndex)...]
-            guard let parsedPort = Int(portString) else { return nil }
-            portValue = parsedPort
-        } else {
-            hostPart = String(authority)
-        }
-
-        guard !hostPart.isEmpty else { return nil }
-
-        var rawPath = String(rawPathWithQuery)
-        if let queryIndex = rawPath.firstIndex(of: "?") {
-            rawPath = String(rawPath[..<queryIndex])
-        }
-
-        var normalizedPath = decodedDisplayAddress(rawPath)
-        if normalizedPath.isEmpty {
-            normalizedPath = "/"
-        } else if !normalizedPath.hasPrefix("/") {
-            normalizedPath = "/" + normalizedPath
-        }
-        while normalizedPath.count > 1 && normalizedPath.hasSuffix("/") {
-            normalizedPath.removeLast()
-        }
-
-        var components = URLComponents()
-        components.scheme = scheme
-        components.host = hostPart
-        components.port = portValue
-        components.path = normalizedPath == "/" ? "" : normalizedPath
-        return components.url
+        RemoteAddressParser.parseURL(
+            from: rawAddress,
+            scheme: "http",
+            allowedSchemes: ["http", "https"],
+            defaultPort: nil,
+            portOverride: nil,
+            allowCustomPort: true
+        )
     }
 
     public static func defaultDisplayName(for url: URL) -> String {
@@ -852,7 +792,7 @@ public final class WebDAVClient: @unchecked Sendable {
             rootPath: rootMediaPath,
             davRootPath: rootMediaPath,
             name: effectiveName,
-            address: trimmedAddress,
+            address: rootMediaPath,
             username: trimmedUsername,
             password: password
         )
@@ -917,7 +857,7 @@ public final class WebDAVClient: @unchecked Sendable {
             rootPath: rootMediaPath,
             davRootPath: rootMediaPath,
             name: effectiveName,
-            address: trimmedAddress,
+            address: rootMediaPath,
             username: trimmedUsername,
             password: password
         )

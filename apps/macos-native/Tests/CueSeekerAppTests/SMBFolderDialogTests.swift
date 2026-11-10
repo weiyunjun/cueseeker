@@ -149,8 +149,8 @@ struct SMBFolderDialogTests {
         session.address = "nas.local/Media/%E5%8A%A8%E6%BC%AB"
         #expect(session.address == "nas.local/Media/动漫")
 
-        // Uppercase SMB:// is rejected as invalid address on Connect
-        session.address = "SMB://nas.local/Media"
+        // Mismatched scheme (e.g. http://) is rejected as invalid address on Connect
+        session.address = "http://nas.local/Media"
         app.confirmSMBFolderDialog(session)
         #expect(session.step == .connection)
         #expect(session.validationMessage == L("smb.error.invalid_address"))

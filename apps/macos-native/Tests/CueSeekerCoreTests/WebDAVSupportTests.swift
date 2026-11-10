@@ -50,6 +50,37 @@ struct WebDAVSupportTests {
         #expect(parsed.mediaPath == "http://192.168.1.173:5244/115/云下载/NieR:Automata")
         #expect(WebDAVAddress.defaultDisplayName(for: parsed) == "NieR:Automata")
 
+        // Missing scheme auto-completes to http:// while preserving port and path
+        let schemeless = try #require(
+            WebDAVAddress.parseURL(from: "192.168.1.173:5244/115/%E4%BA%91%E4%B8%8B%E8%BD%BD/NieR:Automata/")
+        )
+        #expect(schemeless.isWebDAVURL)
+        #expect(schemeless.mediaPath == parsed.mediaPath)
+
+        // Case-insensitive http:// and https:// prefixes
+        let upperHTTP = try #require(WebDAVAddress.parseURL(from: "HTTP://192.168.1.173:5244/dav"))
+        #expect(upperHTTP.mediaPath == "http://192.168.1.173:5244/dav")
+        let mixedHTTPS = try #require(WebDAVAddress.parseURL(from: "Https://nas.local:8443/dav/"))
+        #expect(mixedHTTPS.mediaPath == "https://nas.local:8443/dav")
+
+        // Unbracketed IPv6, bracketed IPv6 with port, and user@ prefix stripping
+        let bareIPv6 = try #require(WebDAVAddress.parseURL(from: "2001:db8::1/dav/动漫"))
+        #expect(bareIPv6.mediaPath == "http://[2001:db8::1]/dav/动漫")
+        let bracketedIPv6Port = try #require(WebDAVAddress.parseURL(from: "https://[fe80::1]:5244/dav"))
+        #expect(bracketedIPv6Port.mediaPath == "https://[fe80::1]:5244/dav")
+        let withUserPrefix = try #require(WebDAVAddress.parseURL(from: "admin:pass@192.168.1.173:5244/dav"))
+        #expect(withUserPrefix.mediaPath == "http://192.168.1.173:5244/dav")
+
+        // Rejects non-WebDAV schemes, out-of-range IPv4, invalid IPv6, and out-of-range ports
+        #expect(WebDAVAddress.parseURL(from: "   ") == nil)
+        #expect(WebDAVAddress.parseURL(from: "smb://192.168.1.173/dav") == nil)
+        #expect(WebDAVAddress.parseURL(from: "ftp://192.168.1.173/dav") == nil)
+        #expect(WebDAVAddress.parseURL(from: "nfs://192.168.1.173/dav") == nil)
+        #expect(WebDAVAddress.parseURL(from: "192.168.1.999:5244/dav") == nil)
+        #expect(WebDAVAddress.parseURL(from: "[not-an-ipv6]/dav") == nil)
+        #expect(WebDAVAddress.parseURL(from: "192.168.1.173:70000/dav") == nil)
+        #expect(WebDAVAddress.parseURL(from: "192.168.1.173:0/dav") == nil)
+
         let rootOnly = try #require(WebDAVAddress.parseURL(from: "http://192.168.1.173:5244/"))
         #expect(WebDAVAddress.defaultDisplayName(for: rootOnly) == "192.168.1.173")
 

@@ -665,6 +665,44 @@ struct WorkbenchInputControlsTests {
             }
             #expect(diffPixels == 0)
         }
+
+        // Verify password field (WorkbenchNativeSecureTextField) renders identical mask dots and glyph bounds when unfocused vs focused
+        let secureField = WorkbenchNativeSecureTextField(frame: NSRect(x: 20, y: 10, width: 180, height: 17))
+        secureField.configure(placeholder: "", accessibilityLabel: "Password", isEnabled: true)
+        secureField.textColor = .white
+        container.addSubview(secureField)
+        container.layoutSubtreeIfNeeded()
+
+        for len in [1, 4, 8, 24] {
+            _ = window.makeFirstResponder(nil)
+            secureField.stringValue = String(repeating: "p", count: len)
+
+            let unfocusedRep = try #require(secureField.bitmapImageRepForCachingDisplay(in: secureField.bounds))
+            secureField.cacheDisplay(in: secureField.bounds, to: unfocusedRep)
+
+            #expect(window.makeFirstResponder(secureField))
+            let secureEditor = try #require(secureField.currentEditor() as? NSTextView)
+            let secureClipView = try #require(secureEditor.superview as? NSClipView)
+            #expect(secureClipView.frame == secureField.bounds)
+            #expect(secureClipView.bounds.origin == .zero)
+            secureEditor.setSelectedRange(NSRange(location: 0, length: 0))
+            secureEditor.insertionPointColor = .clear
+
+            let focusedRep = try #require(secureField.bitmapImageRepForCachingDisplay(in: secureField.bounds))
+            secureField.cacheDisplay(in: secureField.bounds, to: focusedRep)
+
+            var diffPixels = 0
+            for y in 0..<unfocusedRep.pixelsHigh {
+                for x in 0..<unfocusedRep.pixelsWide {
+                    let a0 = unfocusedRep.colorAt(x: x, y: y)?.alphaComponent ?? 0
+                    let a1 = focusedRep.colorAt(x: x, y: y)?.alphaComponent ?? 0
+                    if abs(a0 - a1) > 0.05 {
+                        diffPixels += 1
+                    }
+                }
+            }
+            #expect(diffPixels == 0)
+        }
     }
 
     @Test

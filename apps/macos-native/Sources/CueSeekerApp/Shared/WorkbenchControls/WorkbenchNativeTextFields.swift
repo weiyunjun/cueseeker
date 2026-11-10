@@ -916,14 +916,38 @@ struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
         )
         onBindSecureField?(nsView)
         let normalized = SearchInputNormalizer.singleLine(text)
-        if nsView.stringValue != normalized {
+        if let editor = nsView.currentEditor() as? NSTextView {
+            if editor.string != normalized, !editor.hasMarkedText() {
+                let selection = editor.selectedRange()
+                editor.string = normalized
+                nsView.applyTextStyleToCurrentEditor()
+                let length = (normalized as NSString).length
+                let clampedRange = NSRange(
+                    location: min(selection.location, length),
+                    length: 0
+                )
+                editor.setSelectedRange(clampedRange)
+                editor.scrollRangeToVisible(clampedRange)
+            }
+        } else if nsView.stringValue != normalized {
             nsView.stringValue = normalized
-            nsView.applyBulletKerningToCurrentEditor()
             nsView.needsDisplay = true
         }
         if focus.wrappedValue, !nsView.isCurrentlyFocused {
             nsView.window?.makeFirstResponder(nsView)
         }
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsView: WorkbenchNativeSecureTextField,
+        context: Context
+    ) -> CGSize? {
+        let height = nsView.intrinsicContentSize.height
+        let width = proposal
+            .replacingUnspecifiedDimensions(by: CGSize(width: 120, height: height))
+            .width
+        return CGSize(width: max(0, width), height: height)
     }
 
     @MainActor
@@ -936,7 +960,7 @@ struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
 
         func controlTextDidBeginEditing(_ obj: Notification) {
             if let field = obj.object as? WorkbenchNativeSecureTextField {
-                field.applyBulletKerningToCurrentEditor()
+                field.applyTextStyleToCurrentEditor()
             }
             setFocus(true)
         }
@@ -945,7 +969,7 @@ struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
             guard let field = obj.object as? WorkbenchNativeSecureTextField else {
                 return
             }
-            field.applyBulletKerningToCurrentEditor()
+            field.applyTextStyleToCurrentEditor()
             let normalized = SearchInputNormalizer.singleLine(field.stringValue)
             if parent.text != normalized {
                 parent.text = normalized
@@ -994,6 +1018,15 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
 
     var onFocusChange: ((Bool) -> Void)?
 
+    override var intrinsicContentSize: NSSize {
+        let resolvedFont = font ?? .systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .regular
+        )
+        let lineHeight = ceil(WorkbenchTextFieldFontMetrics.defaultLineHeight(for: resolvedFont))
+        return NSSize(width: NSView.noIntrinsicMetric, height: lineHeight)
+    }
+
     override var stringValue: String {
         get { super.stringValue }
         set { super.stringValue = SearchInputNormalizer.singleLine(newValue) }
@@ -1022,6 +1055,8 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
         customCell.isScrollable = true
         self.cell = customCell
 
+        isEditable = true
+        isSelectable = true
         isBordered = false
         drawsBackground = false
         usesSingleLineMode = true
@@ -1042,6 +1077,15 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
         _ = (window?.fieldEditor(true, for: self) as? NSTextView)?.layoutManager
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        isEnabled && isEditable
+    }
+
+    override func layout() {
+        super.layout()
+        applyTextStyleToCurrentEditor()
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
     }
@@ -1055,7 +1099,7 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
             editor.setSelectedRange(NSRange(location: editor.selectedRange().location, length: 0))
         }
         super.mouseDown(with: event)
-        applyBulletKerningToCurrentEditor()
+        applyTextStyleToCurrentEditor()
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -1063,7 +1107,7 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
         ensureFieldEditorUsesTextKit1()
         if !isCurrentlyFocused {
             _ = window?.makeFirstResponder(self)
-            applyBulletKerningToCurrentEditor()
+            applyTextStyleToCurrentEditor()
             if let editor = currentEditor() as? NSTextView {
                 let pointInEditor = editor.convert(event.locationInWindow, from: nil)
                 let clampedPoint = NSPoint(
@@ -1081,7 +1125,7 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
         let shouldSelectAll = (cell as? WorkbenchSecureTextFieldCell)?.selectsAllOnEditSessionStart == true
         let accepted = super.becomeFirstResponder()
         if accepted {
-            applyBulletKerningToCurrentEditor()
+            applyTextStyleToCurrentEditor()
             if let editor = currentEditor() as? NSTextView {
                 if shouldSelectAll {
                     let length = (editor.string as NSString).length
@@ -1110,7 +1154,7 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
                 let newCursor = affectedCharRange.location + (normalized as NSString).length
                 textView.setSelectedRange(NSRange(location: newCursor, length: 0))
                 textView.didChangeText()
-                applyBulletKerningToCurrentEditor()
+                applyTextStyleToCurrentEditor()
             }
             return false
         }
@@ -1119,13 +1163,16 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
 
     override func textDidBeginEditing(_ notification: Notification) {
         super.textDidBeginEditing(notification)
-        applyBulletKerningToCurrentEditor()
+        applyTextStyleToCurrentEditor()
         onFocusChange?(true)
     }
 
     override func textDidChange(_ notification: Notification) {
         super.textDidChange(notification)
-        applyBulletKerningToCurrentEditor()
+        applyTextStyleToCurrentEditor()
+        if let editor = currentEditor() as? NSTextView {
+            editor.scrollRangeToVisible(editor.selectedRange())
+        }
     }
 
     override func textDidEndEditing(_ notification: Notification) {
@@ -1144,7 +1191,7 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
         if !isCurrentlyFocused {
             _ = window?.makeFirstResponder(self)
         }
-        applyBulletKerningToCurrentEditor()
+        applyTextStyleToCurrentEditor()
         if let editor = currentEditor() as? NSTextView {
             let length = (editor.string as NSString).length
             let endRange = NSRange(location: length, length: 0)
@@ -1178,40 +1225,54 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
         if placeholder.isEmpty {
             self.placeholderAttributedString = nil
         } else {
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = .left
+            paragraphStyle.lineBreakMode = .byTruncatingTail
             self.placeholderAttributedString = NSAttributedString(
                 string: placeholder,
                 attributes: [
                     .font: font,
-                    .foregroundColor: NSColor(WorkbenchRedesignColors.textPlaceholder)
+                    .foregroundColor: NSColor(WorkbenchRedesignColors.textPlaceholder),
+                    .paragraphStyle: paragraphStyle
                 ]
             )
         }
-        applyBulletKerningToCurrentEditor()
+        cell?.usesSingleLineMode = true
+        cell?.wraps = false
+        cell?.isScrollable = true
+        applyTextStyleToCurrentEditor()
         needsDisplay = true
     }
 
-    func applyBulletKerningToCurrentEditor() {
+    func applyTextStyleToCurrentEditor() {
         guard let editor = currentEditor() as? NSTextView else {
             return
         }
         _ = editor.layoutManager
-        var typingAttrs = editor.typingAttributes
-        typingAttrs[.kern] = WorkbenchSecureTextFieldCell.bulletKern
-        if let font {
-            typingAttrs[.font] = font
-            editor.font = font
-        }
-        if let textColor {
-            typingAttrs[.foregroundColor] = textColor
-            editor.textColor = textColor
-        }
+        let resolvedFont = font ?? .systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .regular
+        )
+        let resolvedColor = textColor ?? .labelColor
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .left
+        paragraphStyle.lineBreakMode = .byClipping
+        paragraphStyle.tighteningFactorForTruncation = 0
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: resolvedFont,
+            .foregroundColor: resolvedColor,
+            .paragraphStyle: paragraphStyle
+        ]
+        editor.font = resolvedFont
+        editor.textColor = resolvedColor
         editor.insertionPointColor = isEnabled
             ? WorkbenchRedesignColors.NS.borderFocus
             : WorkbenchRedesignColors.NS.textDisabled
-        editor.typingAttributes = typingAttrs
+        editor.alignment = .left
+        editor.typingAttributes = attributes
         if let storage = editor.textStorage, storage.length > 0 {
             storage.addAttributes(
-                typingAttrs,
+                attributes,
                 range: NSRange(location: 0, length: storage.length)
             )
         }
@@ -1224,7 +1285,6 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
 }
 
 final class WorkbenchSecureTextFieldCell: NSSecureTextFieldCell {
-    static let bulletKern: CGFloat = 2.0
     var selectsAllOnEditSessionStart = false
 
     override func select(
@@ -1245,45 +1305,5 @@ final class WorkbenchSecureTextFieldCell: NSSecureTextFieldCell {
             start: effectiveStart,
             length: effectiveLength
         )
-    }
-
-    override func drawingRect(forBounds theRect: NSRect) -> NSRect {
-        let baseRect = super.drawingRect(forBounds: theRect)
-        let resolvedFont = font ?? NSFont.systemFont(
-            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
-            weight: .regular
-        )
-        let lineHeight = WorkbenchTextFieldFontMetrics.defaultLineHeight(for: resolvedFont)
-        var centered = baseRect
-        centered.origin.y = theRect.origin.y + floor((theRect.height - lineHeight) / 2.0)
-        centered.size.height = lineHeight
-        return centered
-    }
-
-    override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
-        guard controlView.window?.firstResponder !== (controlView as? NSControl)?.currentEditor(),
-              !stringValue.isEmpty
-        else {
-            super.drawInterior(withFrame: cellFrame, in: controlView)
-            return
-        }
-        let resolvedFont = font ?? NSFont.systemFont(
-            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
-            weight: .regular
-        )
-        let resolvedColor = textColor ?? NSColor.labelColor
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineBreakMode = .byTruncatingTail
-        let bullets = String(repeating: "\u{2022}", count: stringValue.count)
-        let attributed = NSAttributedString(
-            string: bullets,
-            attributes: [
-                .font: resolvedFont,
-                .foregroundColor: resolvedColor,
-                .kern: Self.bulletKern,
-                .paragraphStyle: paragraphStyle
-            ]
-        )
-        attributed.draw(in: drawingRect(forBounds: cellFrame))
     }
 }

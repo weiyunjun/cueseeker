@@ -92,7 +92,8 @@ public enum RemoteAddressParser {
     public static func parseURL(
         from rawAddress: String,
         scheme: String,
-        defaultPort: Int,
+        allowedSchemes: [String]? = nil,
+        defaultPort: Int? = nil,
         portOverride: Int? = nil,
         allowCustomPort: Bool = true
     ) -> URL? {
@@ -102,15 +103,23 @@ public enum RemoteAddressParser {
             return nil
         }
 
-        let prefix = "\(scheme)://"
-        let withScheme: String
-        if trimmed.hasPrefix(prefix) {
-            withScheme = trimmed
+        let normalizedDefaultScheme = scheme.lowercased()
+        let normalizedAllowedSchemes = Set((allowedSchemes ?? [normalizedDefaultScheme]).map { $0.lowercased() })
+
+        let resolvedScheme: String
+        let afterScheme: Substring
+        if let schemeRange = trimmed.range(of: "://") {
+            let candidateScheme = String(trimmed[..<schemeRange.lowerBound]).lowercased()
+            guard normalizedAllowedSchemes.contains(candidateScheme) else {
+                return nil
+            }
+            resolvedScheme = candidateScheme
+            afterScheme = trimmed[schemeRange.upperBound...]
         } else {
-            withScheme = prefix + trimmed
+            resolvedScheme = normalizedDefaultScheme
+            afterScheme = trimmed[...]
         }
 
-        let afterScheme = withScheme.dropFirst(prefix.count)
         guard !afterScheme.isEmpty,
               !afterScheme.hasPrefix("/"),
               !afterScheme.contains("://") else {
@@ -185,11 +194,11 @@ public enum RemoteAddressParser {
             guard isValidNonIPv6Host(trimmedHost) else { return nil }
         }
 
-        let effectivePort: Int
+        let effectivePort: Int?
         if allowCustomPort {
             if let portOverride {
                 guard (1...65535).contains(portOverride) else { return nil }
-                if portOverride == defaultPort, let portInAddress, portInAddress != defaultPort {
+                if let defaultPort, portOverride == defaultPort, let portInAddress, portInAddress != defaultPort {
                     effectivePort = portInAddress
                 } else {
                     effectivePort = portOverride
@@ -229,7 +238,18 @@ public enum RemoteAddressParser {
             hostComponent = encoded
         }
 
-        let portComponent = (!allowCustomPort || effectivePort == defaultPort) ? "" : ":\(effectivePort)"
+        let portComponent: String
+        if !allowCustomPort {
+            portComponent = ""
+        } else if let effectivePort {
+            if let defaultPort, effectivePort == defaultPort {
+                portComponent = ""
+            } else {
+                portComponent = ":\(effectivePort)"
+            }
+        } else {
+            portComponent = ""
+        }
         let pathComponent: String
         if normalizedPath.isEmpty || normalizedPath == "/" {
             pathComponent = ""
@@ -244,7 +264,7 @@ public enum RemoteAddressParser {
             pathComponent = "/" + encodedSegments.joined(separator: "/")
         }
 
-        return URL(string: "\(scheme)://\(hostComponent)\(portComponent)\(pathComponent)")
+        return URL(string: "\(resolvedScheme)://\(hostComponent)\(portComponent)\(pathComponent)")
     }
 
     public static func effectivePort(for url: URL, defaultPort: Int, fallbackPort: Int?) -> Int {
