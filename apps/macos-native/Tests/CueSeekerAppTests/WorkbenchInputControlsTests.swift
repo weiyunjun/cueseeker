@@ -1238,17 +1238,17 @@ struct WorkbenchInputControlsTests {
         let currentNameLabelSingleLineWidth = ("Current Name" as NSString).size(withAttributes: [.font: currentNameLabelFont]).width
         #expect(currentNameLabelSingleLineWidth <= WorkbenchControlMetrics.redesignFormLabelWidth)
 
-        func collectSelectableTextViews(in view: NSView) -> [WorkbenchSelectableTextNSView] {
+        func collectSelectableTextViews(in view: NSView, matching text: String) -> [WorkbenchSelectableTextNSView] {
             var result: [WorkbenchSelectableTextNSView] = []
-            if let selectableView = view as? WorkbenchSelectableTextNSView, selectableView.text == "Season 01" {
+            if let selectableView = view as? WorkbenchSelectableTextNSView, selectableView.text == text {
                 result.append(selectableView)
             }
             for subview in view.subviews {
-                result.append(contentsOf: collectSelectableTextViews(in: subview))
+                result.append(contentsOf: collectSelectableTextViews(in: subview, matching: text))
             }
             return result
         }
-        let currentNameValueView = try #require(collectSelectableTextViews(in: renameHosting).first)
+        let currentNameValueView = try #require(collectSelectableTextViews(in: renameHosting, matching: "Season 01").first)
         let renameContainerOverlay = try #require(collectContainerOverlays(in: renameHosting).first)
         let currentNameValueWindowRect = currentNameValueView.convert(currentNameValueView.bounds, to: nil)
         let renameFieldAlignmentRectInSuperview = renameField.alignmentRect(forFrame: renameField.frame)
@@ -1261,6 +1261,15 @@ struct WorkbenchInputControlsTests {
         #expect(abs(currentNameValueWindowRect.minX - renameFieldAlignmentWindowRect.minX) <= 0.5)
         #expect(abs(currentNameValueWindowRect.minX - renameEditorTextOriginX) <= 0.5)
         #expect(abs(currentNameValueWindowRect.minX - (renameContainerWindowRect.minX + WorkbenchControlMetrics.redesignFieldPaddingX)) <= 0.5)
+
+        dialogState.renameSession?.validationMessage = "Name cannot be empty."
+        renameHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        renameHosting.layoutSubtreeIfNeeded()
+        let renameValidationView = try #require(collectSelectableTextViews(in: renameHosting, matching: "Name cannot be empty.").first)
+        let renameValidationWindowRect = renameValidationView.convert(renameValidationView.bounds, to: nil)
+        #expect(abs(renameValidationWindowRect.minX - renameEditorTextOriginX) <= 0.5)
+        #expect(abs(renameValidationWindowRect.minX - (renameContainerWindowRect.minX + WorkbenchControlMetrics.redesignFieldPaddingX)) <= 0.5)
 
         dialogState.renameSession = nil
         renameHosting.layoutSubtreeIfNeeded()
@@ -1410,6 +1419,157 @@ struct WorkbenchInputControlsTests {
             )
             #expect(dynamicClipView.bounds.maxX >= endGlyphRect.maxX - 2)
         }
+    }
+
+    @Test
+    func verticalFormLabelsAndValidationMessagesAlignWithFieldTextOrigin() throws {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.regular)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 700),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.makeKeyAndOrderFront(nil)
+        defer { window.orderOut(nil) }
+
+        func collectSelectableTextViews(in view: NSView, matching text: String) -> [WorkbenchSelectableTextNSView] {
+            var result: [WorkbenchSelectableTextNSView] = []
+            if let selectableView = view as? WorkbenchSelectableTextNSView, selectableView.text == text {
+                result.append(selectableView)
+            }
+            for subview in view.subviews {
+                result.append(contentsOf: collectSelectableTextViews(in: subview, matching: text))
+            }
+            return result
+        }
+
+        // 1. Vertical form fields (WorkbenchFormTextField & WorkbenchFormTextArea, as used in Edit List / New Excerpt List):
+        //    both the top label and bottom Validation Message align with the inner text origin (container.minX + 10px).
+        final class VerticalFormBox: ObservableObject {
+            @Published var name = "我喜欢的字幕"
+            @Published var descriptionText = "喜欢就收藏哦"
+        }
+        struct VerticalFormHarness: View {
+            @ObservedObject var box: VerticalFormBox
+            @FocusState private var isNameFocused: Bool
+            @FocusState private var isDescriptionFocused: Bool
+
+            var body: some View {
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    WorkbenchFormTextField(
+                        label: "List Name",
+                        placeholder: "",
+                        text: $box.name,
+                        validationMessage: "List name error",
+                        focus: $isNameFocused
+                    )
+                    WorkbenchFormTextArea(
+                        label: "Description",
+                        placeholder: "",
+                        text: $box.descriptionText,
+                        validationMessage: "Description error",
+                        focus: $isDescriptionFocused,
+                        height: WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight
+                    )
+                }
+                .frame(width: WorkbenchControlMetrics.redesignExcerptListEditorWideFormWidth)
+                .padding(40)
+            }
+        }
+
+        let verticalBox = VerticalFormBox()
+        let verticalHosting = NSHostingView(rootView: VerticalFormHarness(box: verticalBox))
+        verticalHosting.frame = NSRect(x: 0, y: 0, width: 900, height: 700)
+        window.contentView = verticalHosting
+        verticalHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        verticalHosting.layoutSubtreeIfNeeded()
+
+        let singleLineOverlay = try #require(collectContainerOverlays(in: verticalHosting).first)
+        let singleLineContainerMinX = singleLineOverlay.convert(singleLineOverlay.bounds, to: nil).minX
+        let expectedTextOriginX = singleLineContainerMinX + WorkbenchControlMetrics.redesignFieldPaddingX
+
+        let nameValidationView = try #require(collectSelectableTextViews(in: verticalHosting, matching: "List name error").first)
+        let descValidationView = try #require(collectSelectableTextViews(in: verticalHosting, matching: "Description error").first)
+        let nameValidationMinX = nameValidationView.convert(nameValidationView.bounds, to: nil).minX
+        let descValidationMinX = descValidationView.convert(descValidationView.bounds, to: nil).minX
+        #expect(abs(nameValidationMinX - expectedTextOriginX) <= 0.5)
+        #expect(abs(descValidationMinX - expectedTextOriginX) <= 0.5)
+
+        func collectMultilineTextViews(in view: NSView) -> [NSTextView] {
+            var result: [NSTextView] = []
+            if let textView = view as? NSTextView, !textView.isFieldEditor {
+                result.append(textView)
+            }
+            for subview in view.subviews {
+                result.append(contentsOf: collectMultilineTextViews(in: subview))
+            }
+            return result
+        }
+        if let textAreaView = collectMultilineTextViews(in: verticalHosting).first {
+            let textAreaOriginX = textAreaView.convert(
+                NSPoint(x: textAreaView.textContainerInset.width + (textAreaView.textContainer?.lineFragmentPadding ?? 0), y: 0),
+                to: nil
+            ).x
+            #expect(abs(textAreaOriginX - expectedTextOriginX) <= 0.5)
+        }
+
+        // 2. Settings -> Shortcuts validation message alignment under the 144px Shortcut Field:
+        //    short messages start at field.minX + 10px; long messages extend leftward while keeping maxX == field.maxX.
+        struct ShortcutValidationHarness: View {
+            let message: String
+            var body: some View {
+                HStack {
+                    Spacer(minLength: 0)
+                    VStack(alignment: .trailing, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                        WorkbenchSingleLineContainerOverlay(isEnabled: true)
+                            .frame(
+                                width: SettingsShortcutsMetrics.fieldWidth,
+                                height: WorkbenchControlMetrics.redesignFieldHeight
+                            )
+                        WorkbenchValidationMessage(text: message)
+                            .fixedSize()
+                            .frame(
+                                minWidth: SettingsShortcutsMetrics.fieldWidth,
+                                alignment: .leading
+                            )
+                    }
+                }
+                .frame(width: 500)
+                .padding(40)
+            }
+        }
+
+        let shortHosting = NSHostingView(rootView: ShortcutValidationHarness(message: "Short error"))
+        shortHosting.frame = NSRect(x: 0, y: 0, width: 900, height: 700)
+        window.contentView = shortHosting
+        shortHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        shortHosting.layoutSubtreeIfNeeded()
+
+        let shortFieldOverlay = try #require(collectContainerOverlays(in: shortHosting).first)
+        let shortFieldRect = shortFieldOverlay.convert(shortFieldOverlay.bounds, to: nil)
+        let shortMessageView = try #require(collectSelectableTextViews(in: shortHosting, matching: "Short error").first)
+        let shortMessageRect = shortMessageView.convert(shortMessageView.bounds, to: nil)
+        #expect(abs(shortMessageRect.minX - (shortFieldRect.minX + WorkbenchControlMetrics.redesignFieldPaddingX)) <= 0.5)
+
+        let longText = "Conflicts with \"Toggle Subtitle Visibility\" and \"Play / Pause\""
+        let longHosting = NSHostingView(rootView: ShortcutValidationHarness(message: longText))
+        longHosting.frame = NSRect(x: 0, y: 0, width: 900, height: 700)
+        window.contentView = longHosting
+        longHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        longHosting.layoutSubtreeIfNeeded()
+
+        let longFieldOverlay = try #require(collectContainerOverlays(in: longHosting).first)
+        let longFieldRect = longFieldOverlay.convert(longFieldOverlay.bounds, to: nil)
+        let longMessageView = try #require(collectSelectableTextViews(in: longHosting, matching: longText).first)
+        let longMessageRect = longMessageView.convert(longMessageView.bounds, to: nil)
+        #expect(abs(longMessageRect.maxX - longFieldRect.maxX) <= 0.5)
+        #expect(longMessageRect.minX < longFieldRect.minX)
     }
 }
 

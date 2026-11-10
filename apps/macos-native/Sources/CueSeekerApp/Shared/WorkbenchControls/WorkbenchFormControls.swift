@@ -558,6 +558,7 @@ private struct WorkbenchFormFieldContainer<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
             WorkbenchFormLabel(text: label)
+                .padding(.leading, WorkbenchControlMetrics.redesignFieldPaddingX)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
                 content
@@ -588,6 +589,7 @@ struct WorkbenchValidationMessage: View {
             truncationMode: .tail,
             isSelectable: hasText
         )
+        .padding(.leading, WorkbenchControlMetrics.redesignFieldPaddingX)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityHidden(!hasText)
     }
