@@ -88,7 +88,7 @@
 
 ## 4.3 水平双列表单对齐法则
 - 对话框内的水平双列表单（`Rename`、`WebDAV Folder`、`SMB Folder`、`FTP Folder`、`NFS Folder`、`Export to Anki` 底部的 `File Name` 与 `Location`）：
-  - 左侧 Label 列固定宽度 `--width-form-label`（`72px`），左对齐；
+  - 左侧 Label 列固定宽度 `--width-form-label`（`96px`），左对齐；
   - Label 列与右侧输入框/内容列水平间距为 `--spacing-3`（`12px`），表单行间距为 `--spacing-3`（`12px`）；
   - 右侧输入框或尾部图标字形的可见右缘与 Footer 最右侧按钮的右缘严格对齐。
 

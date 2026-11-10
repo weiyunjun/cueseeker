@@ -963,7 +963,7 @@
 
 - Width：`--width-dialog-medium`
 - Form Region 为左 Label（宽度 `--width-form-label`）、右内容的双列水平布局；右侧内容与输入框的右缘与最右侧按钮的右缘对齐。
-- Current Name 的 Label 与 Text Field 的 Label 相同，右侧当前名文字多行自然折行完整显示且支持选中（Pointer 为 I-beam）；Rename Folder 显示当前文件夹名称，Rename Files 显示视频与字幕去掉扩展名后的公共名。
+- Current Name 的 Label 与 Text Field 的 Label 相同，右侧当前名文字左内边距 `--padding-field-x`（与下方输入框内文本左对齐），多行自然折行完整显示且支持选中（Pointer 为 I-beam）；Rename Folder 显示当前文件夹名称，Rename Files 显示视频与字幕去掉扩展名后的公共名。
 
 #### Spacing
 
