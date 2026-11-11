@@ -13,6 +13,7 @@ struct WorkbenchFileView: View {
     @EnvironmentObject private var library: LibraryStore
     /// Observed because any library task disables the folder controls and the
     static let fileCardCoordinateSpaceName = "WorkbenchFileViewCoordinateSpace"
+    static var lastZeroFolderMainBodyFrameForTesting: CGRect?
     private static let addFolderMenuID = "__add_folder_menu__"
 
     /// Observed because any library task disables the folder controls and the
@@ -27,7 +28,7 @@ struct WorkbenchFileView: View {
 
     var body: some View {
         WorkbenchAccessibilityReader { accessibility in
-            Group {
+            fileViewportHost {
                 switch routeState.currentRoute {
                 case .fileFolder(let rootPath):
                     fileScrollSurface(id: rootPath, accessibility: accessibility) { emptyMinHeight in
@@ -47,12 +48,7 @@ struct WorkbenchFileView: View {
                         )
                     }
                 default:
-                    fileScrollSurface(id: "root", accessibility: accessibility) { emptyMinHeight in
-                        rootContent(
-                            emptyMinHeight: emptyMinHeight,
-                            accessibility: accessibility
-                        )
-                    }
+                    rootPageSurface(accessibility: accessibility)
                 }
             }
         }
@@ -70,6 +66,61 @@ struct WorkbenchFileView: View {
         }
     }
 
+    private func fileViewportHost<Content: View>(
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        GeometryReader { geometry in
+            content()
+                .frame(
+                    width: geometry.size.width,
+                    height: geometry.size.height,
+                    alignment: .topLeading
+                )
+                .coordinateSpace(name: Self.fileCardCoordinateSpaceName)
+                .onAppear {
+                    viewportSize = geometry.size
+                }
+                .onChange(of: geometry.size) { newSize in
+                    viewportSize = newSize
+                }
+                .overlay(alignment: .topLeading) {
+                    if let activeMenu {
+                        let menuFrame = activeMenu.menuFrame
+                        ZStack(alignment: .topLeading) {
+                            MenuGateClientView(
+                                gate: appState.interfaceLayers.menuGate,
+                                owner: .workbenchPage,
+                                kind: .cardMenu,
+                                menuFrame: menuFrame,
+                                anchorFrame: activeMenu.anchorFrame,
+                                handleKey: { keyCode, _ in
+                                    highlight.handleStandardMenuKey(
+                                        keyCode: keyCode,
+                                        onActivate: { _ = activateHighlightedItem(in: activeMenu) },
+                                        onDismiss: { dismissMenu() }
+                                    )
+                                },
+                                dismiss: { _ in
+                                    dismissMenu(openedAs: activeMenu.id)
+                                }
+                            )
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .allowsHitTesting(false)
+
+                            FileCardMenuPopover(
+                                items: activeMenu.items,
+                                highlight: highlight,
+                                onDismiss: { dismissMenu() }
+                            )
+                            .offset(x: menuFrame.minX, y: menuFrame.minY)
+                        }
+                        .id(activeMenu.id)
+                        .zIndex(1000)
+                    }
+                }
+        }
+    }
+
     private func fileScrollSurface<Content: View>(
         id: AnyHashable,
         accessibility: WorkbenchAccessibilityCoordinator?,
@@ -78,94 +129,46 @@ struct WorkbenchFileView: View {
         let topFocusClearance = WorkbenchControlMetrics.redesignSpacing1
         let hasSecondaryHeaderRow = !breadcrumbNodes.isEmpty || !indexing.selectedFolders.isEmpty
 
-        return GeometryReader { geometry in
+        return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 0) {
-                    statusAndActionRow(accessibility: accessibility)
-                        .padding(
-                            .bottom,
-                            hasSecondaryHeaderRow
-                                ? WorkbenchControlMetrics.redesignSpacing4
-                                : (WorkbenchControlMetrics.redesignSpacing4 - topFocusClearance)
-                        )
-
-                    if !breadcrumbNodes.isEmpty {
-                        breadcrumbRow(accessibility: accessibility)
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3 - topFocusClearance)
-                    } else if !indexing.selectedFolders.isEmpty {
-                        rootFoldersHeaderRow
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3 - topFocusClearance)
-                    }
-                }
-                .workbenchPageInlinePadding()
-                .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
-
-                GeometryReader { scrollGeometry in
-                    let emptyMinHeight = max(
-                        0,
-                        scrollGeometry.size.height
-                            - topFocusClearance
-                            - WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                statusAndActionRow(accessibility: accessibility)
+                    .padding(
+                        .bottom,
+                        hasSecondaryHeaderRow
+                            ? WorkbenchControlMetrics.redesignSpacing4
+                            : (WorkbenchControlMetrics.redesignSpacing4 - topFocusClearance)
                     )
-                    WorkbenchScrollView([.vertical]) {
-                        content(emptyMinHeight)
-                            .padding(.top, topFocusClearance)
-                            .workbenchPageInlinePadding()
-                            .padding(.bottom, WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)
-                            .frame(width: scrollGeometry.size.width, alignment: .topLeading)
-                    }
-                    .id(id)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
-            .frame(
-                width: geometry.size.width,
-                height: geometry.size.height,
-                alignment: .topLeading
-            )
-            .coordinateSpace(name: Self.fileCardCoordinateSpaceName)
-            .onAppear {
-                viewportSize = geometry.size
-            }
-            .onChange(of: geometry.size) { newSize in
-                viewportSize = newSize
-            }
-            .overlay(alignment: .topLeading) {
-                if let activeMenu {
-                    let menuFrame = activeMenu.menuFrame
-                    ZStack(alignment: .topLeading) {
-                        MenuGateClientView(
-                            gate: appState.interfaceLayers.menuGate,
-                            owner: .workbenchPage,
-                            kind: .cardMenu,
-                            menuFrame: menuFrame,
-                            anchorFrame: activeMenu.anchorFrame,
-                            handleKey: { keyCode, _ in
-                                highlight.handleStandardMenuKey(
-                                    keyCode: keyCode,
-                                    onActivate: { _ = activateHighlightedItem(in: activeMenu) },
-                                    onDismiss: { dismissMenu() }
-                                )
-                            },
-                            dismiss: { _ in
-                                dismissMenu(openedAs: activeMenu.id)
-                            }
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .allowsHitTesting(false)
 
-                        FileCardMenuPopover(
-                            items: activeMenu.items,
-                            highlight: highlight,
-                            onDismiss: { dismissMenu() }
-                        )
-                        .offset(x: menuFrame.minX, y: menuFrame.minY)
-                    }
-                    .id(activeMenu.id)
-                    .zIndex(1000)
+                if !breadcrumbNodes.isEmpty {
+                    breadcrumbRow(accessibility: accessibility)
+                        .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3 - topFocusClearance)
+                } else if !indexing.selectedFolders.isEmpty {
+                    rootFoldersHeaderRow
+                        .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3 - topFocusClearance)
                 }
             }
+            .workbenchPageInlinePadding()
+            .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
+
+            GeometryReader { scrollGeometry in
+                let emptyMinHeight = max(
+                    0,
+                    scrollGeometry.size.height
+                        - topFocusClearance
+                        - WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                )
+                WorkbenchScrollView([.vertical]) {
+                    content(emptyMinHeight)
+                        .padding(.top, topFocusClearance)
+                        .workbenchPageInlinePadding()
+                        .padding(.bottom, WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)
+                        .frame(width: scrollGeometry.size.width, alignment: .topLeading)
+                }
+                .id(id)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func toggleMenu(for cardID: String, anchorFrame: CGRect, items: [FileCardMenuItem]) {
@@ -291,6 +294,137 @@ struct WorkbenchFileView: View {
 
     // MARK: - Level 1: Roots
 
+    @ViewBuilder
+    private func rootPageSurface(
+        accessibility: WorkbenchAccessibilityCoordinator?
+    ) -> some View {
+        let folders = FileFolderGroupingResolver.rootFolders(for: indexing.selectedFolders)
+        if appState.isFileOnboardingPresented {
+            fileOnboardingShellView(accessibility: accessibility)
+                .onAppear {
+                    dismissMenu()
+                    accessibility?.onToggleFileAddFolderMenu = nil
+                    appState.workbenchLayout.route.lockMandatoryFileOnboardingIfNeeded(
+                        hasIndexedFolders: !indexing.selectedFolders.isEmpty
+                    )
+                }
+        } else if folders.isEmpty {
+            fileZeroFolderEmptyStateView(accessibility: accessibility)
+        } else {
+            fileScrollSurface(id: "root", accessibility: accessibility) { emptyMinHeight in
+                rootContent(
+                    emptyMinHeight: emptyMinHeight,
+                    accessibility: accessibility
+                )
+            }
+        }
+    }
+
+    private func fileOnboardingShellView(
+        accessibility: WorkbenchAccessibilityCoordinator?
+    ) -> some View {
+        let step = appState.fileOnboardingStep
+
+        return VStack(spacing: WorkbenchControlMetrics.redesignSpacing6) {
+            Color.clear
+                .frame(height: WorkbenchControlMetrics.redesignFileOnboardingContentHeight)
+                .allowsHitTesting(false)
+
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                Spacer(minLength: 0)
+
+                if step > 1 {
+                    WorkbenchButton(
+                        title: L("file.onboarding.back"),
+                        isFocused: accessibility?.isFocused(.fileOnboardingBackButton) == true
+                    ) {
+                        appState.goBackFileOnboardingStep()
+                    }
+                }
+
+                WorkbenchPrimaryButton(
+                    title: step == 3 ? L("file.onboarding.done") : L("file.onboarding.next"),
+                    isFocused: accessibility?.isFocused(.fileOnboardingPrimaryButton) == true
+                ) {
+                    appState.advanceFileOnboardingStep()
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: WorkbenchControlMetrics.redesignHeight, maxHeight: WorkbenchControlMetrics.redesignHeight, alignment: .trailing)
+        }
+        .frame(maxWidth: WorkbenchControlMetrics.redesignFileOnboardingMaxWidth)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("file-onboarding-shell")
+        .workbenchPageInlinePadding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    private func fileZeroFolderEmptyStateView(
+        accessibility: WorkbenchAccessibilityCoordinator?
+    ) -> some View {
+        let statusSlotHeight = WorkbenchControlMetrics.redesignSpacing3 + WorkbenchControlMetrics.redesignHeight
+
+        return VStack(spacing: 0) {
+            Color.clear
+                .frame(height: statusSlotHeight)
+                .allowsHitTesting(false)
+
+            VStack(spacing: WorkbenchControlMetrics.redesignEmptyStateIconToTextGap) {
+                AppEmptyStateIconView(icon: .folderHint)
+
+                Text(L("file.empty.message"))
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: .regular
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                    WorkbenchButton(
+                        title: L("file.empty.view_tutorial"),
+                        icon: .info,
+                        isFocused: accessibility?.isFocused(.fileViewTutorialButton) == true
+                    ) {
+                        dismissMenu()
+                        appState.openFileOnboarding()
+                    }
+
+                    addFolderButton(accessibility: accessibility)
+                }
+            }
+            .background(
+                GeometryReader { geo in
+                    let frame = geo.frame(in: .named(Self.fileCardCoordinateSpaceName))
+                    Color.clear
+                        .onAppear {
+                            Self.lastZeroFolderMainBodyFrameForTesting = frame
+                        }
+                        .onChange(of: frame) { newFrame in
+                            Self.lastZeroFolderMainBodyFrameForTesting = newFrame
+                        }
+                }
+            )
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("file-empty-main-body")
+
+            ZStack(alignment: .top) {
+                Color.clear
+                    .frame(height: statusSlotHeight)
+                    .allowsHitTesting(false)
+
+                if appState.showsFileZeroFolderStatusIndicator {
+                    statusIndicator(accessibility: accessibility)
+                        .padding(.top, WorkbenchControlMetrics.redesignSpacing3)
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("file-empty-status-slot")
+        }
+        .workbenchPageInlinePadding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
     private func rootContent(
         emptyMinHeight: CGFloat,
         accessibility: WorkbenchAccessibilityCoordinator?
@@ -309,7 +443,7 @@ struct WorkbenchFileView: View {
     /// Only one library task exists at a time, so every control that would
     /// start one waits while one does.
     private var isFolderOperationBlocked: Bool {
-        tasks.hasLibraryTask
+        tasks.hasLibraryTask || indexing.databaseMaintenanceStatus.isCompacting
     }
 
     private var addFolderMenuItems: [FileCardMenuItem] {
@@ -362,61 +496,68 @@ struct WorkbenchFileView: View {
         ]
     }
 
-    private func actionRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
+    private func addFolderButton(
+        accessibility: WorkbenchAccessibilityCoordinator?
+    ) -> some View {
         let isAddFolderDisabled = isFolderOperationBlocked || isChoosingFolder
-        let isIndexNowDisabled = indexing.selectedFolders.isEmpty || isFolderOperationBlocked
 
-        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            WorkbenchButton(
-                title: L("settings.library.add_folder"),
-                icon: .folderPlus,
-                isOpen: activeMenu?.cardID == Self.addFolderMenuID,
-                isFocused: accessibility?.isFocused(.fileAddFolderButton) == true
-            ) {
+        return WorkbenchButton(
+            title: L("settings.library.add_folder"),
+            icon: .folderPlus,
+            isOpen: activeMenu?.cardID == Self.addFolderMenuID,
+            isFocused: accessibility?.isFocused(.fileAddFolderButton) == true
+        ) {
+            toggleMenu(
+                for: Self.addFolderMenuID,
+                anchorFrame: addFolderButtonAnchorFrame,
+                items: addFolderMenuItems
+            )
+        }
+        .disabled(isAddFolderDisabled)
+        .workbenchTooltip(
+            scenarioID: "disabled.file.add_folder",
+            isActive: isAddFolderDisabled,
+            label: L("tooltip.disabled.file.task_or_compaction_running")
+        )
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .preference(
+                        key: WorkbenchDropdownAnchorPreferenceKey.self,
+                        value: [Self.addFolderMenuID: geo.frame(in: .named(Self.fileCardCoordinateSpaceName))]
+                    )
+            }
+        )
+        .onAppear {
+            accessibility?.onToggleFileAddFolderMenu = {
+                guard !(isFolderOperationBlocked || isChoosingFolder) else { return }
                 toggleMenu(
                     for: Self.addFolderMenuID,
                     anchorFrame: addFolderButtonAnchorFrame,
                     items: addFolderMenuItems
                 )
             }
-            .disabled(isAddFolderDisabled)
-            .workbenchTooltip(
-                scenarioID: "disabled.file.add_folder",
-                isActive: isAddFolderDisabled,
-                label: L("tooltip.disabled.file.task_or_compaction_running")
-            )
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .preference(
-                            key: WorkbenchDropdownAnchorPreferenceKey.self,
-                            value: [Self.addFolderMenuID: geo.frame(in: .named(Self.fileCardCoordinateSpaceName))]
-                        )
-                }
-            )
-            .onAppear {
+        }
+        .onPreferenceChange(WorkbenchDropdownAnchorPreferenceKey.self) { anchors in
+            if let frame = anchors[Self.addFolderMenuID], frame != .zero {
+                addFolderButtonAnchorFrame = frame
                 accessibility?.onToggleFileAddFolderMenu = {
                     guard !(isFolderOperationBlocked || isChoosingFolder) else { return }
                     toggleMenu(
                         for: Self.addFolderMenuID,
-                        anchorFrame: addFolderButtonAnchorFrame,
+                        anchorFrame: frame,
                         items: addFolderMenuItems
                     )
                 }
             }
-            .onPreferenceChange(WorkbenchDropdownAnchorPreferenceKey.self) { anchors in
-                if let frame = anchors[Self.addFolderMenuID], frame != .zero {
-                    addFolderButtonAnchorFrame = frame
-                    accessibility?.onToggleFileAddFolderMenu = {
-                        guard !(isFolderOperationBlocked || isChoosingFolder) else { return }
-                        toggleMenu(
-                            for: Self.addFolderMenuID,
-                            anchorFrame: frame,
-                            items: addFolderMenuItems
-                        )
-                    }
-                }
-            }
+        }
+    }
+
+    private func actionRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
+        let isIndexNowDisabled = indexing.selectedFolders.isEmpty || isFolderOperationBlocked
+
+        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+            addFolderButton(accessibility: accessibility)
 
             WorkbenchButton(
                 title: L("settings.library.index_now"),
@@ -443,14 +584,7 @@ struct WorkbenchFileView: View {
     ) -> some View {
         let folders = FileFolderGroupingResolver.rootFolders(for: indexing.selectedFolders)
 
-        if folders.isEmpty {
-            WorkbenchEmptyHint(
-                icon: .folder,
-                title: L("settings.library.empty_title"),
-                message: L("settings.library.empty_message")
-            )
-            .frame(minHeight: emptyMinHeight)
-        } else {
+        if !folders.isEmpty {
             LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 ForEach(folders, id: \.self) { folder in
                     let rootPath = folder.mediaPath

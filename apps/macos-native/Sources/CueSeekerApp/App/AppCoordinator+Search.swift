@@ -4,6 +4,10 @@ import CueSeekerCore
 @MainActor
 extension AppCoordinator {
     func updateSearchQuery(_ query: String) {
+        if workbenchLayout.route.heldNoFolderSurface == .search,
+           indexing.selectedFolders.isEmpty {
+            unfreezeNoFolderWorkbenchSurfaceIfNeeded(for: .search)
+        }
         search.updateQuery(query)
         let normalizedQuery = search.searchQuery
         UIInvalidationProbe.mark(
@@ -24,6 +28,14 @@ extension AppCoordinator {
     /// new filter, so the first page and every later row are already filtered.
     func applySearchFacetFilter(_ filter: CueFacetFilter) {
         let normalizedFilter = search.normalizedFacetFilter(filter)
+        if workbenchLayout.route.heldNoFolderSurface == .search,
+           indexing.selectedFolders.isEmpty,
+           search.searchFacetFilter != normalizedFilter {
+            settings.searchFacetFilter = normalizedFilter
+            _ = search.updateSearchFacetFilter(normalizedFilter)
+            unfreezeNoFolderWorkbenchSurfaceIfNeeded(for: .search)
+            return
+        }
         settings.searchFacetFilter = normalizedFilter
         if search.applyProjectedFacetFilter(
             normalizedFilter,
@@ -70,6 +82,14 @@ extension AppCoordinator {
     }
 
     func updateSearchSortOrder(_ sortOrder: SearchSortOrder) {
+        if workbenchLayout.route.heldNoFolderSurface == .search,
+           indexing.selectedFolders.isEmpty,
+           search.searchSortOrder != sortOrder {
+            settings.searchSortOrder = sortOrder
+            _ = search.updateSearchSortOrder(sortOrder)
+            unfreezeNoFolderWorkbenchSurfaceIfNeeded(for: .search)
+            return
+        }
         settings.searchSortOrder = sortOrder
         if search.applyProjectedFacetFilter(
             search.searchFacetFilter,
@@ -129,6 +149,10 @@ extension AppCoordinator {
     }
 
     func submitSearch(_ query: String) {
+        if workbenchLayout.route.heldNoFolderSurface == .search,
+           indexing.selectedFolders.isEmpty {
+            unfreezeNoFolderWorkbenchSurfaceIfNeeded(for: .search)
+        }
         let normalizedQuery = SearchInputNormalizer.singleLine(query)
         let trimmedQuery = normalizedQuery.trimmingCharacters(
             in: .whitespacesAndNewlines

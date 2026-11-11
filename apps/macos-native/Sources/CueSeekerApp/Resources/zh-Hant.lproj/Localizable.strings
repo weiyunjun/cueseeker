@@ -355,8 +355,6 @@
 "settings.library.add_folder" = "加入資料夾";
 "settings.library.index_now" = "索引全部";
 "settings.library.choose_folder" = "選擇字幕資料夾";
-"settings.library.empty_title" = "沒有字幕資料夾";
-"settings.library.empty_message" = "選擇一個包含字幕檔案的本機資料夾。";
 "settings.library.remove_folder_title" = "移除資料夾？";
 "settings.library.remove_folder_message" = "要從字幕求索中移除「%@」嗎？這不會刪除本機檔案。";
 "settings.library.database_path" = "資料庫：%@";
@@ -819,3 +817,12 @@
 "tooltip.disabled.settings.subtitle.restore_defaults" = "目前全部字幕設定皆為預設值";
 "tooltip.disabled.settings.maintenance.actions" = "移除資料夾或壓縮資料庫期間無法使用";
 "tooltip.disabled.edit_cover.save" = "請先選擇一張圖片";
+
+/* No-folder onboarding and File empty state */
+"file.onboarding.back" = "返回";
+"file.onboarding.next" = "下一步";
+"file.onboarding.done" = "完成";
+"file.empty.message" = "加入包含影片與字幕檔案的資料夾。";
+"file.empty.view_tutorial" = "檢視教學";
+"onboarding.no_folder.message" = "加入資料夾以開始使用。";
+"onboarding.no_folder.go_to_file" = "前往檔案";

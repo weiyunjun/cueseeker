@@ -515,14 +515,12 @@ enum WorkbenchControlMetrics {
     static let redesignCoverPlaceholderIconSize: CGFloat = 57
     /// --size-empty-state-icon: 68px duotone icon container above an empty state's copy.
     static let redesignEmptyStateIconSize: CGFloat = 68
-    /// --gap-empty-state-icon-to-text: 14px vertical gap between the 68px duotone icon and copy.
+    /// --gap-empty-state-icon-to-text: 14px vertical gap between the 68px duotone icon, copy, and optional action.
     static let redesignEmptyStateIconToTextGap: CGFloat = 14
-    /// --gap-empty-state-title-to-message: 4px (--spacing-1)
-    static let redesignEmptyStateTitleToMessageGap = redesignSpacing1
-    /// --font-size-empty-state-title: 15px (--font-size-library-list-title)
-    static let redesignEmptyStateTitleFontSize = redesignFontSizeLibraryListTitle
-    /// --max-width-empty-state-message: 380px
-    static let redesignEmptyStateMessageMaxWidth: CGFloat = 380
+    /// --max-width-file-onboarding: 520px container max width of the 3-step File onboarding shell.
+    static let redesignFileOnboardingMaxWidth: CGFloat = 520
+    /// --height-file-onboarding-content: 280px upper content height of the 3-step File onboarding shell.
+    static let redesignFileOnboardingContentHeight: CGFloat = 280
     /// Provisional: a glyph standing in for a key name inside a keycap, 16px icon box.
     static let redesignKeycapIconSize: CGFloat = 16
     /// --radius-library-time-badge: 4px

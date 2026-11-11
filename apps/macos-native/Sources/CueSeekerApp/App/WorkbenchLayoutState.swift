@@ -67,6 +67,15 @@ enum WorkbenchRecentSection: String, CaseIterable {
     }
 }
 
+/// Level 1 Workbench surfaces that freeze in place when the last folder is
+/// removed until a refresh action or page/tab switch occurs.
+enum WorkbenchNoFolderHoldSurface: Equatable {
+    case search
+    case recent(WorkbenchRecentSection)
+    case libraryRoot
+    case excerptOverview
+}
+
 /// The two Tabs of the File page.
 enum WorkbenchFileSection: String, CaseIterable {
     case index
@@ -233,6 +242,16 @@ final class WorkbenchRouteState: ObservableObject {
     /// as long as the App runs; the launch page is its first entry.
     @Published fileprivate(set) var history: [WorkbenchRoute]
     @Published fileprivate(set) var historyIndex: Int
+    /// Active 3-step File onboarding step (`1...3`) when the tutorial is open.
+    @Published private(set) var activeFileOnboardingStep: Int?
+    /// Armed on App launch when 0 folders exist and the user has never clicked
+    /// `Done`. Entering `File` while still at 0 folders starts Step 1.
+    @Published private(set) var isMandatoryFileOnboardingArmedForZeroFolders = false
+    /// Holds a Level 1 Workbench surface after the last folder is removed so
+    /// the active page stays frozen until a refresh action or page/tab switch.
+    @Published private(set) var heldNoFolderSurface: WorkbenchNoFolderHoldSurface?
+    var onHeldNoFolderSurfaceInvalidated: (() -> Void)?
+    var onRecentSectionChanged: (() -> Void)?
 
     init(panelMode: WorkbenchPanelMode) {
         let route = WorkbenchRoute.firstLevel(of: panelMode)
@@ -253,7 +272,94 @@ final class WorkbenchRouteState: ObservableObject {
         historyIndex < history.count - 1
     }
 
+    var displayedFileOnboardingStep: Int {
+        activeFileOnboardingStep ?? 1
+    }
+
+    func isFileOnboardingPresented(hasIndexedFolders: Bool) -> Bool {
+        if activeFileOnboardingStep != nil {
+            return true
+        }
+        return isMandatoryFileOnboardingArmedForZeroFolders && !hasIndexedFolders
+    }
+
+    func configureInitialFileOnboarding(
+        hasIndexedFolders: Bool,
+        hasCompletedFileOnboarding: Bool
+    ) {
+        let shouldArm = !hasIndexedFolders && !hasCompletedFileOnboarding
+        isMandatoryFileOnboardingArmedForZeroFolders = shouldArm
+        if shouldArm && currentRoute == .file {
+            activeFileOnboardingStep = 1
+        } else {
+            activeFileOnboardingStep = nil
+        }
+    }
+
+    func lockMandatoryFileOnboardingIfNeeded(hasIndexedFolders: Bool) {
+        guard activeFileOnboardingStep == nil else {
+            return
+        }
+        if isMandatoryFileOnboardingArmedForZeroFolders && !hasIndexedFolders {
+            activeFileOnboardingStep = 1
+        } else if hasIndexedFolders {
+            isMandatoryFileOnboardingArmedForZeroFolders = false
+        }
+    }
+
+    func disarmMandatoryFileOnboarding() {
+        if isMandatoryFileOnboardingArmedForZeroFolders {
+            isMandatoryFileOnboardingArmedForZeroFolders = false
+        }
+    }
+
+    func openFileOnboarding() {
+        activeFileOnboardingStep = 1
+    }
+
+    func goBackFileOnboardingStep() {
+        let current = activeFileOnboardingStep ?? 1
+        activeFileOnboardingStep = max(1, current - 1)
+    }
+
+    func advanceFileOnboardingStep() {
+        let current = activeFileOnboardingStep ?? 1
+        activeFileOnboardingStep = min(3, current + 1)
+    }
+
+    func completeFileOnboarding() {
+        isMandatoryFileOnboardingArmedForZeroFolders = false
+        activeFileOnboardingStep = nil
+    }
+
+    func holdNoFolderSurface(_ surface: WorkbenchNoFolderHoldSurface?) {
+        heldNoFolderSurface = surface
+    }
+
+    func clearHeldNoFolderSurface() {
+        if heldNoFolderSurface != nil {
+            heldNoFolderSurface = nil
+        }
+    }
+
+    fileprivate func currentNoFolderHoldSurface(for route: WorkbenchRoute) -> WorkbenchNoFolderHoldSurface? {
+        switch route {
+        case .search:
+            return .search
+        case .recent:
+            return .recent(selectedRecentSection)
+        case .library:
+            return .libraryRoot
+        case .excerpt:
+            return .excerptOverview
+        case .libraryFolder, .file, .fileFolder, .fileFiles, .excerptList:
+            return nil
+        }
+    }
+
     fileprivate func show(_ route: WorkbenchRoute) {
+        let shouldInvalidateHeldSurface = heldNoFolderSurface != nil
+            && heldNoFolderSurface != currentNoFolderHoldSurface(for: route)
         panelMode = route.panelMode
         if case .libraryFolder(let folderPath) = route {
             selectedLibraryFolderPath = folderPath
@@ -278,6 +384,10 @@ final class WorkbenchRouteState: ObservableObject {
         default:
             selectedFileRootPath = nil
             selectedFileFolderPath = nil
+        }
+        if shouldInvalidateHeldSurface {
+            heldNoFolderSurface = nil
+            onHeldNoFolderSurfaceInvalidated?()
         }
     }
 }
@@ -438,6 +548,11 @@ final class WorkbenchLayoutState: ObservableObject {
         }
         route.selectedRecentSection = section
         if previousSection != section {
+            if route.heldNoFolderSurface != nil {
+                route.clearHeldNoFolderSurface()
+                route.onHeldNoFolderSurfaceInvalidated?()
+            }
+            route.onRecentSectionChanged?()
             DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "workbench")
         }
     }

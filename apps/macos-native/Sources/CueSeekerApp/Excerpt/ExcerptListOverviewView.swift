@@ -5,6 +5,8 @@ struct ExcerptListOverviewView: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
+    @EnvironmentObject private var indexing: IndexingStore
+    @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var excerptStore: ExcerptStore
     @Environment(\.workbenchAccessibility) private var accessibility
     @StateObject private var highlight = CardHighlightModel(
@@ -54,6 +56,23 @@ struct ExcerptListOverviewView: View {
                             }
                         }
                     }
+                } else if appState.showsNoFolderExcerptOnboarding {
+                    WorkbenchEmptyHint(
+                        icon: .folderHint,
+                        message: L("onboarding.no_folder.message"),
+                        actionTitle: L("onboarding.no_folder.go_to_file"),
+                        actionIcon: .folder,
+                        isActionFocused: accessibility?.isFocused(.noFolderGoToFileButton) == true,
+                        action: {
+                            appState.goToFileFromNoFolderOnboarding()
+                        }
+                    )
+                    .workbenchPageInlinePadding()
+                    .onAppear {
+                        if !excerptStore.overviewSearchDraft.isEmpty {
+                            excerptStore.overviewSearchDraft = ""
+                        }
+                    }
                 } else {
                     WorkbenchEmptyHint(
                         icon: .excerptHint,
@@ -63,6 +82,12 @@ struct ExcerptListOverviewView: View {
                         isActionFocused: accessibility?.isFocused(.excerptNewListButton) == true,
                         action: { appState.beginCreatingExcerptList() }
                     )
+                    .workbenchPageInlinePadding()
+                    .onAppear {
+                        if !excerptStore.overviewSearchDraft.isEmpty {
+                            excerptStore.overviewSearchDraft = ""
+                        }
+                    }
                 }
             } else {
                 Color.clear

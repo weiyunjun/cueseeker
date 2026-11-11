@@ -5,9 +5,11 @@ struct WorkbenchRecentView: View {
     // Observed so the tab labels below are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
+    @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var excerpt: ExcerptStore
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     var presentedSection: WorkbenchRecentSection? = nil
     /// One highlight for the page: only one card may be lit at a time.
     @StateObject private var highlight = CardHighlightModel(
@@ -109,7 +111,20 @@ struct WorkbenchRecentView: View {
             WorkbenchEmptyHint(icon: .videoQuestion, message: message)
                 .frame(minHeight: emptyMinHeight)
                 .workbenchPageInlinePadding()
-        } else if status == .completed || appState.indexing.selectedFolders.isEmpty {
+        } else if appState.showsNoFolderRecentVideosOnboarding {
+            WorkbenchEmptyHint(
+                icon: .folderHint,
+                message: L("onboarding.no_folder.message"),
+                actionTitle: L("onboarding.no_folder.go_to_file"),
+                actionIcon: .folder,
+                isActionFocused: workbenchAccessibility?.isFocused(.noFolderGoToFileButton) == true,
+                action: {
+                    appState.goToFileFromNoFolderOnboarding()
+                }
+            )
+            .frame(minHeight: emptyMinHeight)
+            .workbenchPageInlinePadding()
+        } else if status == .completed || indexing.selectedFolders.isEmpty {
             WorkbenchEmptyHint(
                 icon: .video,
                 message: L("library.recent_watching_empty")
@@ -136,6 +151,19 @@ struct WorkbenchRecentView: View {
                 appState.openRecentExcerpt(summary)
             }
             .workbenchMediaCardGridInlinePadding()
+        } else if appState.showsNoFolderRecentExcerptsOnboarding {
+            WorkbenchEmptyHint(
+                icon: .folderHint,
+                message: L("onboarding.no_folder.message"),
+                actionTitle: L("onboarding.no_folder.go_to_file"),
+                actionIcon: .folder,
+                isActionFocused: workbenchAccessibility?.isFocused(.noFolderGoToFileButton) == true,
+                action: {
+                    appState.goToFileFromNoFolderOnboarding()
+                }
+            )
+            .frame(minHeight: emptyMinHeight)
+            .workbenchPageInlinePadding()
         } else if excerpt.hasLoadedListOverview {
             WorkbenchEmptyHint(
                 icon: .excerpt,

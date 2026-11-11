@@ -271,6 +271,7 @@ struct PlaybackOverlay: View {
                     icon: .subtitleQuestion,
                     message: L("playback.current.left_library")
                 )
+                .padding(.horizontal, PlaybackSubtitleFocusMetrics.contentInset)
                 .background(PlaybackTheme.subtitleFocusOverlayBackground)
             }
         } else if presentedModule == .playlist {
@@ -295,6 +296,7 @@ struct PlaybackOverlay: View {
                     icon: .subtitleQuestion,
                     message: L("playback.playlist.left_library")
                 )
+                .padding(.horizontal, PlaybackSubtitleFocusMetrics.contentInset)
                 .background(PlaybackTheme.subtitleFocusOverlayBackground)
             }
         } else {
@@ -312,6 +314,7 @@ struct PlaybackOverlay: View {
                 icon: .subtitleQuestion,
                 message: L("playback.current.left_library")
             )
+            .padding(.horizontal, PlaybackSubtitleFocusMetrics.contentInset)
             .background(PlaybackTheme.subtitleFocusOverlayBackground)
         }
     }
@@ -612,6 +615,7 @@ private struct PlaybackSubtitlePlaylist: View {
                     icon: .subtitleQuestion,
                     message: L("playback.playlist.left_library")
                 )
+                .padding(.horizontal, PlaybackSubtitleFocusMetrics.contentInset)
                 .background(PlaybackTheme.subtitleFocusOverlayBackground)
             } else {
                 PlaybackCueResultOverlay(

@@ -624,6 +624,18 @@ final class AppCoordinator: ObservableObject {
         configureAnkiExportRunner()
         configureRenameRunner()
         configureLibraryTaskRunners()
+        workbenchLayout.route.onHeldNoFolderSurfaceInvalidated = { [weak self] in
+            self?.applyZeroFolderUnfreezeCleanupIfNeeded()
+        }
+        workbenchLayout.route.onRecentSectionChanged = { [weak self] in
+            guard let self else { return }
+            self.refreshExcerptOnReappearanceIfNeeded()
+            self.refreshRecentOnReappearanceIfNeeded()
+        }
+        workbenchLayout.route.configureInitialFileOnboarding(
+            hasIndexedFolders: !indexing.selectedFolders.isEmpty,
+            hasCompletedFileOnboarding: settings.hasCompletedFileOnboarding
+        )
 
         if let initialError {
             let errorText = Self.errorMessage(for: initialError)
@@ -652,6 +664,10 @@ final class AppCoordinator: ObservableObject {
         }
         excerpt.setRecentSaveListID(settings.recentExcerptSaveListID)
         discardUnfinishedFolderAdditions(tasks.loadPersistedRecords())
+        workbenchLayout.route.configureInitialFileOnboarding(
+            hasIndexedFolders: !indexing.selectedFolders.isEmpty,
+            hasCompletedFileOnboarding: settings.hasCompletedFileOnboarding
+        )
         if indexing.lastUpdatedDate != nil,
            !indexing.hasPersistedLastUpdatedTaskID,
            let latestCompletedTaskID = tasks.lastCompletedFileStatusTaskID {
@@ -1041,6 +1057,11 @@ final class AppCoordinator: ObservableObject {
         }
         switch route {
         case .excerpt:
+            if excerpt.hasLoadedListOverview,
+               excerpt.listOverview.lists.isEmpty,
+               !excerpt.overviewSearchDraft.isEmpty {
+                excerpt.overviewSearchDraft = ""
+            }
             refreshExcerptOnReappearanceIfNeeded()
             loadExcerptListOverviewIfNeeded()
         case .excerptList(let id):
@@ -1065,7 +1086,12 @@ final class AppCoordinator: ObservableObject {
             refreshRecentOnReappearanceIfNeeded()
         case .library:
             refreshLibraryOnReappearanceIfNeeded()
-        case .file, .fileFolder, .fileFiles:
+        case .file:
+            workbenchLayout.route.lockMandatoryFileOnboardingIfNeeded(
+                hasIndexedFolders: !indexing.selectedFolders.isEmpty
+            )
+            refreshFileOnReappearanceIfNeeded()
+        case .fileFolder, .fileFiles:
             refreshFileOnReappearanceIfNeeded()
         case .search:
             refreshSearchOnReappearanceIfNeeded()
@@ -1226,5 +1252,112 @@ final class AppCoordinator: ObservableObject {
             return description
         }
         return String(describing: error)
+    }
+
+    // MARK: - No-Folder Onboarding & File Empty State
+
+    var isFileOnboardingPresented: Bool {
+        workbenchLayout.route.isFileOnboardingPresented(
+            hasIndexedFolders: !indexing.selectedFolders.isEmpty
+        )
+    }
+
+    var fileOnboardingStep: Int {
+        workbenchLayout.route.displayedFileOnboardingStep
+    }
+
+    func openFileOnboarding() {
+        workbenchLayout.route.openFileOnboarding()
+        reconcileWorkbenchAccessibilityFocus()
+    }
+
+    func goBackFileOnboardingStep() {
+        workbenchLayout.route.goBackFileOnboardingStep()
+        reconcileWorkbenchAccessibilityFocus()
+    }
+
+    func advanceFileOnboardingStep() {
+        if fileOnboardingStep >= 3 {
+            completeFileOnboarding()
+            return
+        }
+        workbenchLayout.route.advanceFileOnboardingStep()
+        reconcileWorkbenchAccessibilityFocus()
+    }
+
+    func completeFileOnboarding() {
+        settings.markFileOnboardingCompleted()
+        workbenchLayout.route.completeFileOnboarding()
+        reconcileWorkbenchAccessibilityFocus()
+    }
+
+    func goToFileFromNoFolderOnboarding() {
+        navigateWorkbench(to: .file, trigger: "no_folder_go_to_file")
+        reconcileWorkbenchAccessibilityFocus()
+    }
+
+    func openFileFromPlaybackCommandPanel() {
+        _ = playback.dismissCommandPanel()
+        workbenchLayout.clearSearchFocus()
+        stopPlayback()
+        navigateWorkbench(to: .file, trigger: "command_panel_go_to_file")
+        reconcilePlaybackAccessibilityFocus()
+        reconcileWorkbenchAccessibilityFocus()
+    }
+
+    var currentNoFolderHoldSurface: WorkbenchNoFolderHoldSurface? {
+        switch workbenchLayout.currentRoute {
+        case .search:
+            return .search
+        case .recent:
+            return .recent(workbenchLayout.selectedRecentSection)
+        case .library:
+            return .libraryRoot
+        case .excerpt:
+            return .excerptOverview
+        case .libraryFolder, .file, .fileFolder, .fileFiles, .excerptList:
+            return nil
+        }
+    }
+
+    func holdActiveNoFolderWorkbenchSurfaceBeforeLastFolderRemoval() {
+        guard !isPlaybackPageVisible else {
+            workbenchLayout.route.clearHeldNoFolderSurface()
+            return
+        }
+        workbenchLayout.route.holdNoFolderSurface(currentNoFolderHoldSurface)
+    }
+
+    func unfreezeNoFolderWorkbenchSurfaceIfNeeded(
+        for triggerSurface: WorkbenchNoFolderHoldSurface? = nil
+    ) {
+        guard let held = workbenchLayout.route.heldNoFolderSurface else {
+            return
+        }
+        if let triggerSurface, held != triggerSurface {
+            return
+        }
+        workbenchLayout.route.clearHeldNoFolderSurface()
+        applyZeroFolderUnfreezeCleanupIfNeeded()
+    }
+
+    func applyZeroFolderUnfreezeCleanupIfNeeded() {
+        guard indexing.selectedFolders.isEmpty else {
+            return
+        }
+        _ = search.clearResults()
+        search.clearCachedCueContent()
+        _ = search.consumePendingReappearanceRefresh()
+        library.overviewSearchDraft = ""
+        if excerpt.listOverview.lists.isEmpty, !excerpt.overviewSearchDraft.isEmpty {
+            excerpt.overviewSearchDraft = ""
+        }
+        libraryNeedsReloadAfterIndexedMutation = false
+        refreshCompleteLibrary(force: true)
+        recentNeedsReloadAfterIndexedMutation = false
+        refreshTestRecentWatching()
+        refreshRecentWatching(force: true)
+        reloadExcerptListOverview()
+        reconcileWorkbenchAccessibilityFocus()
     }
 }

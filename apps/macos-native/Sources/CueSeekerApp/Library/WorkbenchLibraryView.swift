@@ -10,6 +10,7 @@ struct WorkbenchLibraryView: View {
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     private let presentedFolderPath: String?
     private let usesPresentedFolderPath: Bool
     /// The folder list and one folder's detail are two interfaces sharing this
@@ -114,6 +115,13 @@ struct WorkbenchLibraryView: View {
                 sortOptions: LibrarySortOrder.workbenchSortOptions,
                 selectedSortOptionID: library.sortOrder.rawValue,
                 onSelectSortOption: { optionID in
+                    if routeState.heldNoFolderSurface == .libraryRoot, indexing.selectedFolders.isEmpty {
+                        if let order = LibrarySortOrder(rawValue: optionID) {
+                            library.sortOrder = order
+                        }
+                        appState.unfreezeNoFolderWorkbenchSurfaceIfNeeded(for: .libraryRoot)
+                        return
+                    }
                     if let order = LibrarySortOrder(rawValue: optionID) {
                         library.sortOrder = order
                     }
@@ -133,11 +141,31 @@ struct WorkbenchLibraryView: View {
                     }
                 )
             }
+            .onChange(of: library.overviewSearchDraft) { _ in
+                if routeState.heldNoFolderSurface == .libraryRoot, indexing.selectedFolders.isEmpty {
+                    appState.unfreezeNoFolderWorkbenchSurfaceIfNeeded(for: .libraryRoot)
+                }
+            }
         } else if case .failed(let message) = library.completeLibraryStatus {
             completeLibraryFullPageState { emptyMinHeight in
                 WorkbenchEmptyHint(icon: .videoQuestion, message: message)
                     .frame(minHeight: emptyMinHeight)
                     .workbenchPageInlinePadding()
+            }
+        } else if appState.showsNoFolderLibraryOnboarding {
+            completeLibraryFullPageState { emptyMinHeight in
+                WorkbenchEmptyHint(
+                    icon: .folderHint,
+                    message: L("onboarding.no_folder.message"),
+                    actionTitle: L("onboarding.no_folder.go_to_file"),
+                    actionIcon: .folder,
+                    isActionFocused: workbenchAccessibility?.isFocused(.noFolderGoToFileButton) == true,
+                    action: {
+                        appState.goToFileFromNoFolderOnboarding()
+                    }
+                )
+                .frame(minHeight: emptyMinHeight)
+                .workbenchPageInlinePadding()
             }
         } else if library.completeLibraryStatus == .completed || indexing.selectedFolders.isEmpty {
             completeLibraryFullPageState { emptyMinHeight in

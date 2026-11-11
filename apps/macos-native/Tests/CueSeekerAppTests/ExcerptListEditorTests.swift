@@ -69,6 +69,7 @@ func appCoordinatorCreatesEditsAndDeletesExcerptListsFromEditorSessions() async 
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media/Anime", isDirectory: true)]
     let database = try #require(app.excerptDatabase)
     app.reloadExcerptListOverview()
     try await waitForExcerptListEditorTasks(app)
@@ -162,6 +163,7 @@ func deletingActiveLastExcerptListNavigatesBackToEmptyOnboardingAndClearsSearchD
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media/Anime", isDirectory: true)]
     let database = try #require(app.excerptDatabase)
     let onlyList = try database.createExcerptList(name: "Only List")
 

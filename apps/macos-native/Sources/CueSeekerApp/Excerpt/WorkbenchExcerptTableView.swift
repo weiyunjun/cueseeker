@@ -458,6 +458,7 @@ private struct WorkbenchExcerptTableContent: View {
                 Spacer()
                     .frame(height: topChromeHeight)
                 WorkbenchEmptyHint(icon: icon, message: message)
+                    .workbenchPageInlinePadding()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .allowsHitTesting(false)

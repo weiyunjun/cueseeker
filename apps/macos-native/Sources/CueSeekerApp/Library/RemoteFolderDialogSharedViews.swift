@@ -358,9 +358,11 @@ struct RemoteFolderDialogContainer<
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let errorMessage = session.directoryErrorMessage {
             WorkbenchEmptyHint(icon: .folderQuestion, message: errorMessage)
+                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if session.items.isEmpty {
             WorkbenchEmptyHint(icon: .folder, message: L(style.emptyFolderItemsKey))
+                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             let disabledIDs = session.disabledFolderItemIDs

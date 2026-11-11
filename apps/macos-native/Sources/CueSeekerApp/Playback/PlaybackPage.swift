@@ -68,6 +68,7 @@ struct PlaybackPageView: View {
                     PlaybackCommandPanel(
                         appState: appState,
                         playback: playback,
+                        indexingStore: appState.indexing,
                         searchStore: appState.search,
                         libraryStore: appState.library,
                         excerptStore: appState.excerpt

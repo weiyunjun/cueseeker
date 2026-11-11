@@ -21,6 +21,7 @@ struct PlaybackCommandPanel: View {
         PlaybackPointerVisibilityStore
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var playback: PlaybackStore
+    @ObservedObject var indexingStore: IndexingStore
     @ObservedObject var searchStore: SearchStore
     @ObservedObject var libraryStore: LibraryStore
     @ObservedObject var excerptStore: ExcerptStore
@@ -118,6 +119,10 @@ struct PlaybackCommandPanel: View {
                                 scrollSequence: playback.commandPanelRecentCardScrollSequence,
                                 items: appState.playbackCommandPanelRecentVideos,
                                 isLoading: appState.isPlaybackCommandPanelRecentVideosLoading,
+                                showsNoFolderOnboarding: appState.showsPlaybackCommandPanelNoFolderRecentVideosOnboarding,
+                                onGoToFile: {
+                                    appState.openFileFromPlaybackCommandPanel()
+                                },
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -148,6 +153,10 @@ struct PlaybackCommandPanel: View {
                                 scrollSequence: playback.commandPanelRecentCardScrollSequence,
                                 summaries: appState.playbackCommandPanelRecentExcerpts,
                                 isLoading: appState.isPlaybackCommandPanelRecentExcerptsLoading,
+                                showsNoFolderOnboarding: appState.showsPlaybackCommandPanelNoFolderRecentExcerptsOnboarding,
+                                onGoToFile: {
+                                    appState.openFileFromPlaybackCommandPanel()
+                                },
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -829,6 +838,7 @@ private struct PlaybackCommandPanelSearchResults: View {
                                 icon: .searchNoResults,
                                 message: L("table.search_no_results")
                             )
+                            .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
                         }
                     }
 
@@ -940,6 +950,7 @@ private struct PlaybackCommandPanelSearchReel: View {
                     icon: .searchNoResults,
                     message: L("table.search_no_results")
                 )
+                .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
             }
         } else {
             PlaybackCueResultReelRepresentable(
@@ -989,6 +1000,10 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
     let isLoading: Bool
     let emptyIcon: AppEmptyStateIcon
     let emptyMessage: String
+    var emptyActionTitle: String? = nil
+    var emptyActionIcon: AppIcon? = nil
+    var isEmptyActionFocused: Bool = false
+    var onEmptyAction: (() -> Void)? = nil
     let footerStatus: String?
     let onBack: () -> Bool
     let onSynchronize: () -> Void
@@ -1074,8 +1089,13 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
                         } else {
                             WorkbenchEmptyHint(
                                 icon: emptyIcon,
-                                message: emptyMessage
+                                message: emptyMessage,
+                                actionTitle: emptyActionTitle,
+                                actionIcon: emptyActionIcon,
+                                isActionFocused: isEmptyActionFocused,
+                                action: onEmptyAction
                             )
+                            .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
                         }
                     }
                     .onAppear {
@@ -1195,10 +1215,13 @@ enum PlaybackCommandPanelCardGrid {
 
 private struct PlaybackCommandPanelRecentVideos: View {
     @EnvironmentObject private var localization: AppLocalizationStore
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     let presentation: PlaybackCommandPanelPresentation
     let scrollSequence: UInt64
     let items: [RecentLibraryWatchingPresentation]
     let isLoading: Bool
+    let showsNoFolderOnboarding: Bool
+    let onGoToFile: () -> Void
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onGridLayoutChange: (Int) -> Void
@@ -1217,8 +1240,17 @@ private struct PlaybackCommandPanelRecentVideos: View {
                 timestamp: \.updatedAt
             ).map(\.items.count),
             isLoading: isLoading,
-            emptyIcon: .video,
-            emptyMessage: L("library.recent_watching_empty"),
+            emptyIcon: showsNoFolderOnboarding ? .folderHint : .video,
+            emptyMessage: showsNoFolderOnboarding
+                ? L("onboarding.no_folder.message")
+                : L("library.recent_watching_empty"),
+            emptyActionTitle: showsNoFolderOnboarding
+                ? L("onboarding.no_folder.go_to_file")
+                : nil,
+            emptyActionIcon: showsNoFolderOnboarding ? .folder : nil,
+            isEmptyActionFocused: showsNoFolderOnboarding
+                && workbenchAccessibility?.isPlaybackFocused(.commandPanelGoToFileButton) == true,
+            onEmptyAction: showsNoFolderOnboarding ? onGoToFile : nil,
             footerStatus: PlaybackCueFooterStatus.videos(totalCount: items.count),
             onBack: onBack,
             onSynchronize: onSynchronize,
@@ -1242,10 +1274,13 @@ private struct PlaybackCommandPanelRecentVideos: View {
 
 private struct PlaybackCommandPanelRecentExcerpts: View {
     @EnvironmentObject private var localization: AppLocalizationStore
+    @Environment(\.workbenchAccessibility) private var workbenchAccessibility
     let presentation: PlaybackCommandPanelPresentation
     let scrollSequence: UInt64
     let summaries: [ExcerptListSummary]
     let isLoading: Bool
+    let showsNoFolderOnboarding: Bool
+    let onGoToFile: () -> Void
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onGridLayoutChange: (Int) -> Void
@@ -1264,8 +1299,17 @@ private struct PlaybackCommandPanelRecentExcerpts: View {
                 timestamp: \.list.recentPlayedAt
             ).map(\.items.count),
             isLoading: isLoading,
-            emptyIcon: .excerpt,
-            emptyMessage: L("library.recent_excerpts_empty"),
+            emptyIcon: showsNoFolderOnboarding ? .folderHint : .excerpt,
+            emptyMessage: showsNoFolderOnboarding
+                ? L("onboarding.no_folder.message")
+                : L("library.recent_excerpts_empty"),
+            emptyActionTitle: showsNoFolderOnboarding
+                ? L("onboarding.no_folder.go_to_file")
+                : nil,
+            emptyActionIcon: showsNoFolderOnboarding ? .folder : nil,
+            isEmptyActionFocused: showsNoFolderOnboarding
+                && workbenchAccessibility?.isPlaybackFocused(.commandPanelGoToFileButton) == true,
+            onEmptyAction: showsNoFolderOnboarding ? onGoToFile : nil,
             footerStatus: PlaybackCueFooterStatus.excerptLists(totalCount: summaries.count),
             onBack: onBack,
             onSynchronize: onSynchronize,

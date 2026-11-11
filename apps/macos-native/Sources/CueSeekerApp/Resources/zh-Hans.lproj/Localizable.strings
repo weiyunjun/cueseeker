@@ -355,8 +355,6 @@
 "settings.library.add_folder" = "添加文件夹";
 "settings.library.index_now" = "索引全部";
 "settings.library.choose_folder" = "选择字幕文件夹";
-"settings.library.empty_title" = "没有字幕文件夹";
-"settings.library.empty_message" = "选择一个包含字幕文件的本地文件夹。";
 "settings.library.remove_folder_title" = "移除文件夹？";
 "settings.library.remove_folder_message" = "要从字幕求索中移除“%@”吗？这不会删除本地文件。";
 "settings.library.database_path" = "数据库：%@";
@@ -819,3 +817,12 @@
 "tooltip.disabled.settings.subtitle.restore_defaults" = "当前全部字幕设置均为默认值";
 "tooltip.disabled.settings.maintenance.actions" = "移除文件夹或压缩数据库期间不可用";
 "tooltip.disabled.edit_cover.save" = "请先选择一张图片";
+
+/* No-folder onboarding and File empty state */
+"file.onboarding.back" = "返回";
+"file.onboarding.next" = "下一步";
+"file.onboarding.done" = "完成";
+"file.empty.message" = "添加包含视频与字幕文件的文件夹。";
+"file.empty.view_tutorial" = "查看教程";
+"onboarding.no_folder.message" = "添加文件夹以开始使用。";
+"onboarding.no_folder.go_to_file" = "前往文件";

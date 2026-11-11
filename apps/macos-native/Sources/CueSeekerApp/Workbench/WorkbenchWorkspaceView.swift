@@ -318,6 +318,7 @@ private struct WorkbenchExcerptListSurfaceView: View {
                 icon: .excerptQuestion,
                 message: L("excerpt.list.not_found")
             )
+            .workbenchPageInlinePadding()
         } else {
             WorkbenchExcerptTableView(
                 isTableResponseActive: isTableResponseActive

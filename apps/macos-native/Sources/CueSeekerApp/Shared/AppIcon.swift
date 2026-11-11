@@ -890,12 +890,13 @@ private struct AccentDuotoneRenamePencilShape: Shape {
 
 /// Duotone large icons dedicated to `C-09.2 Empty State` across Workbench
 /// pages, Dialogs, Playback Overlay, and Command Panel (`search-hint`,
-/// `collage-hint`, and `excerpt-hint` use the system accent palette; the other
-/// 9 empty/unavailable icons use the neutral gray palette).
+/// `collage-hint`, `excerpt-hint`, and `folder-hint` use the system accent
+/// palette; the other 9 empty/unavailable icons use the neutral gray palette).
 enum AppEmptyStateIcon: String, CaseIterable, Sendable {
     case searchHint = "search-hint"
     case collageHint = "collage-hint"
     case excerptHint = "excerpt-hint"
+    case folderHint = "folder-hint"
     case searchNoResults = "search-no-results"
     case video = "video"
     case excerpt = "excerpt"
@@ -937,6 +938,8 @@ struct AppEmptyStateIconView: View {
                 collageHintIconView
             case .excerptHint:
                 excerptHintIconView
+            case .folderHint:
+                folderHintIconView
             case .searchNoResults:
                 searchNoResultsIconView
             case .video:
@@ -1065,6 +1068,16 @@ struct AppEmptyStateIconView: View {
     private var excerptHintIconView: some View {
         AccentDuotoneExcerptBookmarkShape()
             .fill(WorkbenchRedesignColors.emptyIconCollageBack)
+    }
+
+    private var folderHintIconView: some View {
+        ZStack {
+            AccentDuotoneFolderTabShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentFolderTab)
+
+            AccentDuotoneFolderBodyShape()
+                .fill(WorkbenchRedesignColors.cardIconAccentBase)
+        }
     }
 
     private var excerptIconView: some View {

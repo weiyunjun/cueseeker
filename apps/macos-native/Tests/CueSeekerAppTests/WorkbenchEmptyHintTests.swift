@@ -31,12 +31,12 @@ func workbenchEmptyHintPassesMouseHitTestingToUnderlyingTableSurface() {
 @MainActor
 @Test
 func workbenchEmptyHintAndDuotoneIconsMatchDesignMetrics() {
-    #expect(AppEmptyStateIcon.allCases.count == 12)
+    #expect(AppEmptyStateIcon.allCases.count == 13)
+    #expect(AppEmptyStateIcon.allCases.contains(.folderHint))
     #expect(WorkbenchControlMetrics.redesignEmptyStateIconSize == 68)
     #expect(WorkbenchControlMetrics.redesignEmptyStateIconToTextGap == 14)
-    #expect(WorkbenchControlMetrics.redesignEmptyStateTitleToMessageGap == 4)
-    #expect(WorkbenchControlMetrics.redesignEmptyStateTitleFontSize == 15)
-    #expect(WorkbenchControlMetrics.redesignEmptyStateMessageMaxWidth == 380)
+    #expect(WorkbenchControlMetrics.redesignFileOnboardingMaxWidth == 520)
+    #expect(WorkbenchControlMetrics.redesignFileOnboardingContentHeight == 280)
 
     #expect(WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity == 0.30)
     #expect(WorkbenchControlMetrics.redesignEmptyIconCollageBackOpacity == 0.52)
@@ -98,7 +98,6 @@ func workbenchEmptyHintAndDuotoneIconsMatchDesignMetrics() {
         let hintHostingView = NSHostingView(
             rootView: WorkbenchEmptyHint(
                 icon: icon,
-                title: icon == .folder ? "No Folders Selected" : nil,
                 message: "Empty state message for \(icon.rawValue)"
             )
             .frame(width: 480, height: 320)
@@ -106,6 +105,16 @@ func workbenchEmptyHintAndDuotoneIconsMatchDesignMetrics() {
         hintHostingView.layoutSubtreeIfNeeded()
         #expect(hintHostingView.fittingSize == CGSize(width: 480, height: 320))
     }
+
+    // Long single-sentence empty-state hints expand to container width instead of wrapping at 380px.
+    let longMessage = "Save cues from search results or playback to collect excerpts."
+    let wideHost = NSHostingView(
+        rootView: WorkbenchEmptyHint(icon: .excerpt, message: longMessage)
+            .fixedSize()
+    )
+    wideHost.layoutSubtreeIfNeeded()
+    #expect(wideHost.fittingSize.width > 380)
+    #expect(wideHost.fittingSize.height <= 68 + 14 + 24)
 }
 
 @MainActor
@@ -225,7 +234,14 @@ func emptyStateLocalizationMatchesRequirements() {
             "excerpt.table.empty_hint": "Save cues from search results or playback to collect excerpts.",
             "excerpt.table.no_results": "No matching excerpts found.",
             "excerpt.overview.empty_hint": "Create an excerpt list to collect excerpts.",
-            "playback.hud.no_available_excerpts": "No Available Excerpts"
+            "playback.hud.no_available_excerpts": "No Available Excerpts",
+            "file.onboarding.back": "Back",
+            "file.onboarding.next": "Next",
+            "file.onboarding.done": "Done",
+            "file.empty.message": "Add a folder containing video and subtitle files.",
+            "file.empty.view_tutorial": "View Tutorial",
+            "onboarding.no_folder.message": "Add a folder to get started.",
+            "onboarding.no_folder.go_to_file": "Go to File"
         ]),
         (.simplifiedChinese, [
             "table.search_empty_hint": "输入搜索词以显示台词。",
@@ -233,7 +249,14 @@ func emptyStateLocalizationMatchesRequirements() {
             "excerpt.table.empty_hint": "从搜索结果中或在播放时保存台词，即可收集摘录。",
             "excerpt.table.no_results": "未找到匹配的摘录。",
             "excerpt.overview.empty_hint": "创建摘录集以收集摘录。",
-            "playback.hud.no_available_excerpts": "没有可用的摘录"
+            "playback.hud.no_available_excerpts": "没有可用的摘录",
+            "file.onboarding.back": "返回",
+            "file.onboarding.next": "下一步",
+            "file.onboarding.done": "完成",
+            "file.empty.message": "添加包含视频与字幕文件的文件夹。",
+            "file.empty.view_tutorial": "查看教程",
+            "onboarding.no_folder.message": "添加文件夹以开始使用。",
+            "onboarding.no_folder.go_to_file": "前往文件"
         ]),
         (.traditionalChinese, [
             "table.search_empty_hint": "輸入搜尋字詞以顯示台詞。",
@@ -241,7 +264,14 @@ func emptyStateLocalizationMatchesRequirements() {
             "excerpt.table.empty_hint": "從搜尋結果中或在播放時儲存台詞，即可收集摘錄。",
             "excerpt.table.no_results": "未找到相符的摘錄。",
             "excerpt.overview.empty_hint": "建立摘錄集以收集摘錄。",
-            "playback.hud.no_available_excerpts": "沒有可用的摘錄"
+            "playback.hud.no_available_excerpts": "沒有可用的摘錄",
+            "file.onboarding.back": "返回",
+            "file.onboarding.next": "下一步",
+            "file.onboarding.done": "完成",
+            "file.empty.message": "加入包含影片與字幕檔案的資料夾。",
+            "file.empty.view_tutorial": "檢視教學",
+            "onboarding.no_folder.message": "加入資料夾以開始使用。",
+            "onboarding.no_folder.go_to_file": "前往檔案"
         ])
     ]
 
@@ -253,6 +283,8 @@ func emptyStateLocalizationMatchesRequirements() {
             Issue.record("Missing localization bundle for \(language)")
             continue
         }
+        #expect(entries["settings.library.empty_title"] == nil)
+        #expect(entries["settings.library.empty_message"] == nil)
         for (key, expectedValue) in expected {
             #expect(entries[key] == expectedValue, "Key \(key) does not match in \(language)")
         }

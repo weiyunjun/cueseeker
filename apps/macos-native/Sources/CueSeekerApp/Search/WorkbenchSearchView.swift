@@ -33,6 +33,8 @@ private struct WorkbenchSearchTableTextCopySource {
 struct WorkbenchSearchView: View {
     let isTableResponseActive: Bool
     @EnvironmentObject private var appState: AppCoordinator
+    @EnvironmentObject private var indexing: IndexingStore
+    @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var search: SearchStore
     @EnvironmentObject private var settingsStore: SettingsStore
     // Observed so the copy below is re-read when the language changes.
@@ -65,8 +67,35 @@ struct WorkbenchSearchView: View {
             SubtitleTableProbeSurface.search.counterName("surface_body"),
             scope: appState.uiProbeScope
         )
+        if indexing.selectedFolders.isEmpty && routeState.heldNoFolderSurface != .search {
+            WorkbenchAccessibilityReader { accessibility in
+                WorkbenchEmptyHint(
+                    icon: .folderHint,
+                    message: L("onboarding.no_folder.message"),
+                    actionTitle: L("onboarding.no_folder.go_to_file"),
+                    actionIcon: .folder,
+                    isActionFocused: accessibility?.isFocused(.noFolderGoToFileButton) == true,
+                    action: {
+                        appState.goToFileFromNoFolderOnboarding()
+                    }
+                )
+                .workbenchPageInlinePadding()
+                .background(WorkbenchRedesignColors.bgSurface)
+                .onAppear {
+                    exitSelectionMode()
+                    closeFilterDialog()
+                    accessibility?.onOpenToolbarFilterDialog = nil
+                    accessibility?.onToggleToolbarSortMenu = nil
+                }
+            }
+        } else {
+            searchShellBody
+        }
+    }
+
+    private var searchShellBody: some View {
         let textCopySource = tableTextCopySource
-        SchemaWorkbenchSearchShell(
+        return SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
             columns: SchemaWorkbenchSearchDefaults.columns,
             autofocusSearchOnAppear: true,
@@ -90,7 +119,10 @@ struct WorkbenchSearchView: View {
                     applySearchSortOrder(order)
                 }
             },
-            selectionOverlayAnchor: selectionOverlayAnchor
+            selectionOverlayAnchor: selectionOverlayAnchor,
+            onSearchSubmit: {
+                appState.submitSearch(search.searchQuery)
+            }
         ) { tableColumns in
             WorkbenchSearchTableRowsObserver(rowStore: rowStore) { snapshot in
                 ZStack {
@@ -288,6 +320,10 @@ struct WorkbenchSearchView: View {
     /// The dialog starts from the table's selection, and Show hands its
     /// selection back through the same path a changed selection always took.
     private func openFilterDialog() {
+        if routeState.heldNoFolderSurface == .search, indexing.selectedFolders.isEmpty {
+            appState.unfreezeNoFolderWorkbenchSurfaceIfNeeded(for: .search)
+            return
+        }
         let binding = searchFacetFilterBinding
         filterDialog.session = CueFacetFilterDialogSession(
             source: .search,
@@ -573,9 +609,18 @@ struct WorkbenchSearchView: View {
     }
 
     private func applySearchSortOrder(_ sortOrder: SearchSortOrder) {
-        guard !isSelectionMode,
-              search.searchSortOrder != sortOrder
-        else {
+        guard !isSelectionMode else {
+            return
+        }
+        if routeState.heldNoFolderSurface == .search, indexing.selectedFolders.isEmpty {
+            if search.searchSortOrder != sortOrder {
+                appState.updateSearchSortOrder(sortOrder)
+            } else {
+                appState.unfreezeNoFolderWorkbenchSurfaceIfNeeded(for: .search)
+            }
+            return
+        }
+        guard search.searchSortOrder != sortOrder else {
             return
         }
         UIInvalidationProbe.mark(

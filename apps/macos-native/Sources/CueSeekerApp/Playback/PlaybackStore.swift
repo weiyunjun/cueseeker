@@ -699,6 +699,17 @@ final class PlaybackStore: ObservableObject {
         }
     }
 
+    func clearCommandPanelHeldEmptyRecentPage() {
+        switch commandPanelHeldPage {
+        case .recentVideos(let items) where items.isEmpty:
+            commandPanelHeldPage = nil
+        case .recentExcerpts(let summaries) where summaries.isEmpty:
+            commandPanelHeldPage = nil
+        default:
+            break
+        }
+    }
+
     func removeHeldCommandPanelExcerptList(id: Int64) {
         if case .recentExcerpts(let summaries) = commandPanelHeldPage {
             commandPanelHeldPage = .recentExcerpts(

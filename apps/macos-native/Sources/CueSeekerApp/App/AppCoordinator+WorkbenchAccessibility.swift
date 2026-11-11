@@ -57,9 +57,82 @@ extension AppCoordinator {
         return targets
     }
 
+    var showsNoFolderSearchOnboarding: Bool {
+        indexing.selectedFolders.isEmpty && workbenchLayout.route.heldNoFolderSurface != .search
+    }
+
+    var showsNoFolderLibraryOnboarding: Bool {
+        guard library.completeLibraryFolderSummaries.isEmpty else {
+            return false
+        }
+        if case .failed = library.completeLibraryStatus {
+            return false
+        }
+        return indexing.selectedFolders.isEmpty
+            && workbenchLayout.route.heldNoFolderSurface != .libraryRoot
+    }
+
+    var showsNoFolderExcerptOnboarding: Bool {
+        excerpt.hasLoadedListOverview
+            && excerpt.listOverview.lists.isEmpty
+            && indexing.selectedFolders.isEmpty
+            && workbenchLayout.route.heldNoFolderSurface != .excerptOverview
+    }
+
+    var showsNoFolderRecentVideosOnboarding: Bool {
+        guard library.testRecentWatchingItems.isEmpty else {
+            return false
+        }
+        if case .failed = library.testRecentWatchingStatus {
+            return false
+        }
+        return indexing.selectedFolders.isEmpty
+            && workbenchLayout.route.heldNoFolderSurface != .recent(.videos)
+    }
+
+    var showsNoFolderRecentExcerptsOnboarding: Bool {
+        excerpt.hasLoadedListOverview
+            && excerpt.recentListSummaries.isEmpty
+            && indexing.selectedFolders.isEmpty
+            && workbenchLayout.route.heldNoFolderSurface != .recent(.excerpts)
+    }
+
+    var showsPlaybackCommandPanelNoFolderRecentVideosOnboarding: Bool {
+        playback.commandPanelHeldPage == nil
+            && !isPlaybackCommandPanelRecentVideosLoading
+            && playbackCommandPanelRecentVideos.isEmpty
+            && indexing.selectedFolders.isEmpty
+    }
+
+    var showsPlaybackCommandPanelNoFolderRecentExcerptsOnboarding: Bool {
+        playback.commandPanelHeldPage == nil
+            && !isPlaybackCommandPanelRecentExcerptsLoading
+            && playbackCommandPanelRecentExcerpts.isEmpty
+            && indexing.selectedFolders.isEmpty
+    }
+
+    var showsFileZeroFolderStatusIndicator: Bool {
+        let info = FileStatusResolver.resolve(
+            indexingStatus: indexing.indexingStatus,
+            folderRemovalStatus: indexing.folderRemovalStatus,
+            operationNotice: indexing.operationNotice,
+            lastUpdatedDate: indexing.lastUpdatedDate
+        )
+        switch info {
+        case .inProgress, .failed:
+            return true
+        case .idle, .completed:
+            return false
+        }
+    }
+
     private func appendRecentAccessibilityTargets(to targets: inout [WorkbenchAccessibilityTarget]) {
         switch workbenchLayout.route.selectedRecentSection {
         case .videos:
+            if showsNoFolderRecentVideosOnboarding {
+                targets.append(.noFolderGoToFileButton)
+                return
+            }
             if case .loading = library.testRecentWatchingStatus, library.testRecentWatchingItems.isEmpty {
                 return
             }
@@ -77,6 +150,10 @@ extension AppCoordinator {
                 }
             }
         case .excerpts:
+            if showsNoFolderRecentExcerptsOnboarding {
+                targets.append(.noFolderGoToFileButton)
+                return
+            }
             if !excerpt.hasLoadedListOverview && excerpt.recentListSummaries.isEmpty {
                 return
             }
@@ -95,6 +172,10 @@ extension AppCoordinator {
     }
 
     private func appendLibraryOverviewAccessibilityTargets(to targets: inout [WorkbenchAccessibilityTarget]) {
+        if showsNoFolderLibraryOnboarding {
+            targets.append(.noFolderGoToFileButton)
+            return
+        }
         if case .loading = library.completeLibraryStatus, library.completeLibraryFolderSummaries.isEmpty {
             return
         }
@@ -150,7 +231,7 @@ extension AppCoordinator {
     }
 
     private var isFileFolderOperationBlocked: Bool {
-        tasks.hasLibraryTask
+        tasks.hasLibraryTask || indexing.databaseMaintenanceStatus.isCompacting
     }
 
     private var isFileStatusIndicatorClickable: Bool {
@@ -183,8 +264,25 @@ extension AppCoordinator {
     }
 
     private func appendFileRootAccessibilityTargets(to targets: inout [WorkbenchAccessibilityTarget]) {
-        appendFileTopBarAndBreadcrumbTargets(to: &targets)
+        if isFileOnboardingPresented {
+            if fileOnboardingStep > 1 {
+                targets.append(.fileOnboardingBackButton)
+            }
+            targets.append(.fileOnboardingPrimaryButton)
+            return
+        }
+
         let folders = FileFolderGroupingResolver.rootFolders(for: indexing.selectedFolders)
+        if folders.isEmpty {
+            targets.append(.fileViewTutorialButton)
+            targets.append(.fileAddFolderButton)
+            if showsFileZeroFolderStatusIndicator {
+                targets.append(.fileStatusIndicatorText)
+            }
+            return
+        }
+
+        appendFileTopBarAndBreadcrumbTargets(to: &targets)
         for folder in folders {
             let rootPath = folder.mediaPath
             targets.append(.fileCard(rootPath))
@@ -243,6 +341,10 @@ extension AppCoordinator {
 
     private func appendExcerptOverviewAccessibilityTargets(to targets: inout [WorkbenchAccessibilityTarget]) {
         guard excerpt.hasLoadedListOverview else {
+            return
+        }
+        if showsNoFolderExcerptOnboarding {
+            targets.append(.noFolderGoToFileButton)
             return
         }
         if excerpt.listOverview.lists.isEmpty {
@@ -314,6 +416,10 @@ extension AppCoordinator {
     }
 
     private func appendSearchAccessibilityTargets(to targets: inout [WorkbenchAccessibilityTarget]) {
+        if showsNoFolderSearchOnboarding {
+            targets.append(.noFolderGoToFileButton)
+            return
+        }
         appendSchemaToolbarAndTableTargets(
             searchDraft: search.searchQuery,
             isExcerptTable: false,
@@ -657,6 +763,33 @@ extension AppCoordinator {
 
         case .mediaCardActionButton(let cardID):
             return workbenchAccessibility.activateMediaCardAction(id: cardID)
+
+        case .noFolderGoToFileButton:
+            guard !workbenchLayout.isVideoSizeTransitionInProgress else { return false }
+            performUserInitiatedAppCommand {
+                goToFileFromNoFolderOnboarding()
+            }
+            return true
+
+        case .fileOnboardingBackButton:
+            guard isFileOnboardingPresented,
+                  fileOnboardingStep > 1
+            else {
+                return false
+            }
+            goBackFileOnboardingStep()
+            return true
+
+        case .fileOnboardingPrimaryButton:
+            guard isFileOnboardingPresented else {
+                return false
+            }
+            advanceFileOnboardingStep()
+            return true
+
+        case .fileViewTutorialButton:
+            openFileOnboarding()
+            return true
 
         case .fileAddFolderButton:
             guard !isFileFolderOperationBlocked,
@@ -2799,18 +2932,26 @@ extension AppCoordinator {
 
             case .recentVideos:
                 targets.append(.commandPanelBackButton)
-                for item in playbackCommandPanelRecentVideos {
-                    targets.append(.commandPanelRecentCard(item.id))
-                    targets.append(.commandPanelRecentCardActionButton(item.id))
+                if showsPlaybackCommandPanelNoFolderRecentVideosOnboarding {
+                    targets.append(.commandPanelGoToFileButton)
+                } else {
+                    for item in playbackCommandPanelRecentVideos {
+                        targets.append(.commandPanelRecentCard(item.id))
+                        targets.append(.commandPanelRecentCardActionButton(item.id))
+                    }
                 }
                 targets.append(.commandPanelFooterAction("open"))
 
             case .recentExcerpts:
                 targets.append(.commandPanelBackButton)
-                for summary in playbackCommandPanelRecentExcerpts {
-                    let cardID = String(summary.id)
-                    targets.append(.commandPanelRecentCard(cardID))
-                    targets.append(.commandPanelRecentCardActionButton(cardID))
+                if showsPlaybackCommandPanelNoFolderRecentExcerptsOnboarding {
+                    targets.append(.commandPanelGoToFileButton)
+                } else {
+                    for summary in playbackCommandPanelRecentExcerpts {
+                        let cardID = String(summary.id)
+                        targets.append(.commandPanelRecentCard(cardID))
+                        targets.append(.commandPanelRecentCardActionButton(cardID))
+                    }
                 }
                 targets.append(.commandPanelFooterAction("open"))
 
@@ -3230,6 +3371,13 @@ extension AppCoordinator {
                 return false
             }
             toggleSort()
+            reconcilePlaybackAccessibilityFocus()
+            return true
+
+        case .commandPanelGoToFileButton:
+            performUserInitiatedAppCommand {
+                openFileFromPlaybackCommandPanel()
+            }
             reconcilePlaybackAccessibilityFocus()
             return true
 

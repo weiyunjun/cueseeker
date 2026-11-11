@@ -443,10 +443,13 @@ extension AppCoordinator {
         _ folder: URL,
         onProgress: @escaping @Sendable (TaskIndexProgress) -> Void
     ) async throws -> Int {
+        let wasZeroFoldersBeforeAddition = indexing.selectedFolders.isEmpty
+        let hadHeldCommandPanelPageBeforeAddition = playback.commandPanelHeldPage != nil
         if let coveringRoot = LibraryRootGroups.coveringRoot(of: folder, in: indexing.selectedFolders) {
             if !indexing.selectedFolders.contains(folder) {
                 try? indexingDatabase?.recordCoveredRootFolderAddition(folder, coveredBy: coveringRoot)
                 indexing.appendFolder(folder)
+                workbenchLayout.route.clearHeldNoFolderSurface()
             }
             return 0
         }
@@ -460,13 +463,32 @@ extension AppCoordinator {
                 coordinator: self
             )
             indexing.appendFolder(folder)
+            workbenchLayout.route.clearHeldNoFolderSurface()
             let hasPublishedChanges: Bool
             if case .completed(_, let result) = indexing.indexingStatus {
                 hasPublishedChanges = result.hasIndexedContentChanges || result.requiresExcerptRefresh
             } else {
                 hasPublishedChanges = false
             }
-            if hasPublishedChanges {
+            if wasZeroFoldersBeforeAddition {
+                if !hadHeldCommandPanelPageBeforeAddition {
+                    playback.clearCommandPanelHeldEmptyRecentPage()
+                }
+                libraryNeedsReloadAfterIndexedMutation = false
+                recentNeedsReloadAfterIndexedMutation = false
+                refreshLibrary()
+                refreshRecentWatching(force: true)
+                refreshTestRecentWatching()
+                refreshCompleteLibrary(force: true)
+                reloadExcerptListOverview()
+                if workbenchLayout.currentRoute == .search,
+                   !search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    refreshCurrentSearch(clearExistingResults: true)
+                }
+                synchronizePlaybackCommandPanelSelection()
+                reconcileWorkbenchAccessibilityFocus()
+                reconcilePlaybackAccessibilityFocus()
+            } else if hasPublishedChanges {
                 holdActiveWorkbenchRouteBeforeContentMutation()
                 // The pages refreshed when the index published, before the folder
                 // was in the scope they read.
@@ -589,6 +611,10 @@ extension AppCoordinator {
         }
 
         guard didRemoveIndexedContent else {
+            if remainingRoots.isEmpty {
+                holdActiveNoFolderWorkbenchSurfaceBeforeLastFolderRemoval()
+            }
+            workbenchLayout.route.disarmMandatoryFileOnboarding()
             holdActiveFileRouteIfRemovingRoot(folder)
             try? indexingDatabase?.removeRootFolderMetadata(folder)
             indexing.removeFolder(folder)
@@ -617,6 +643,10 @@ extension AppCoordinator {
         }
 
         prepareExcerptForIndexedContentMutation(under: [folder])
+        if remainingRoots.isEmpty {
+            holdActiveNoFolderWorkbenchSurfaceBeforeLastFolderRemoval()
+        }
+        workbenchLayout.route.disarmMandatoryFileOnboarding()
         holdActiveWorkbenchRouteBeforeContentMutation()
         indexing.removeFolder(folder)
         if folder.isWebDAVURL {

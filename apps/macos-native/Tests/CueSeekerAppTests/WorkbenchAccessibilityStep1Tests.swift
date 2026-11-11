@@ -55,9 +55,23 @@ struct WorkbenchAccessibilityStep1Tests {
         #expect(app.workbenchLayout.currentRoute == .file)
         #expect(app.workbenchAccessibility.focusedTarget == .sidebarItem(.file))
 
-        // Collapsing the sidebar removes sidebar items from the accessibility sequence,
-        // while keeping File top buttons and status indicator even when disabled/idle.
+        // Collapsing the sidebar removes sidebar items from the accessibility sequence:
+        // with 0 folders before completing onboarding, File exposes Step 1's primary button;
+        // once a folder is present (and onboarding dismissed), File exposes top buttons and status indicator.
         app.workbenchLayout.isSidebarVisible = false
+        let zeroFolderCollapsedTargets = app.currentWorkbenchAccessibilityTargets()
+        #expect(!zeroFolderCollapsedTargets.contains(.sidebarItem(.search)))
+        #expect(zeroFolderCollapsedTargets == [
+            .topbarSidebarToggle,
+            .topbarBackButton,
+            .topbarForwardButton,
+            .topbarTaskButton,
+            .topbarSettingsButton,
+            .fileOnboardingPrimaryButton,
+        ])
+
+        app.completeFileOnboarding()
+        app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media/Anime", isDirectory: true)]
         let collapsedTargets = app.currentWorkbenchAccessibilityTargets()
         #expect(!collapsedTargets.contains(.sidebarItem(.search)))
         #expect(collapsedTargets.starts(with: [
@@ -106,6 +120,7 @@ struct WorkbenchAccessibilityStep1Tests {
         let (app, suiteName, userDefaults) = makeTestCoordinator()
         defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
 
+        app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media/Anime", isDirectory: true)]
         app.activateWorkbenchPanelMode(.search)
         app.updateSearchQuery("hello")
 
@@ -125,6 +140,7 @@ struct WorkbenchAccessibilityStep1Tests {
         let (app, suiteName, userDefaults) = makeTestCoordinator()
         defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
 
+        app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media/Anime", isDirectory: true)]
         app.activateWorkbenchPanelMode(.search)
         app.workbenchAccessibility.isTableInSelectionMode = false
         app.workbenchAccessibility.tableTargetsOverrideForTesting = {
@@ -564,6 +580,7 @@ struct WorkbenchAccessibilityStep1Tests {
         let (app, suiteName, userDefaults) = makeTestCoordinator()
         defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
 
+        app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media/Anime", isDirectory: true)]
         app.activateWorkbenchPanelMode(.search)
 
         final class ToolbarStateBox: ObservableObject {

@@ -100,6 +100,7 @@ final class SettingsStore: ObservableObject {
     private static let autoPlayCueSequenceGapMillisecondsKey = "autoPlayCueSequenceGapMilliseconds"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
     private static let urlSchemePlayFirstSearchResultEnabledKey = "urlSchemePlayFirstSearchResultEnabled"
+    private static let hasCompletedFileOnboardingKey = "hasCompletedFileOnboarding"
     private static let srtSubtitleStyleKey = "srtSubtitleStyle"
     static let autoSwitchCueSequenceGapDefaultMilliseconds = 500
     static let autoSwitchCueSequenceGapMinimumMilliseconds = 0
@@ -139,6 +140,8 @@ final class SettingsStore: ObservableObject {
     let playbackShortcuts: PlaybackShortcutStore
 
     let confirmation = ConfirmationCenter()
+
+    @Published private(set) var hasCompletedFileOnboarding: Bool
 
     var showCueGroup: Bool {
         get { cueGroupPresentation.isEnabled }
@@ -310,6 +313,9 @@ final class SettingsStore: ObservableObject {
         self.urlSchemePlayFirstSearchResultEnabled = userDefaults.bool(
             forKey: Self.urlSchemePlayFirstSearchResultEnabledKey
         )
+        self.hasCompletedFileOnboarding = userDefaults.bool(
+            forKey: Self.hasCompletedFileOnboardingKey
+        )
         userDefaults.set(
             resolvedAutoPausePreference,
             forKey: Self.autoPauseAfterCueFinishesEnabledKey
@@ -329,6 +335,14 @@ final class SettingsStore: ObservableObject {
         }
 
         Self.applyAppAppearanceMode(loadedAppearance)
+    }
+
+    func markFileOnboardingCompleted() {
+        guard !hasCompletedFileOnboarding else {
+            return
+        }
+        hasCompletedFileOnboarding = true
+        userDefaults.set(true, forKey: Self.hasCompletedFileOnboardingKey)
     }
 
     var canDecreaseAutoSwitchCueSequenceGap: Bool {

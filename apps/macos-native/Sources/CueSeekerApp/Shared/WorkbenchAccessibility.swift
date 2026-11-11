@@ -273,7 +273,11 @@ enum WorkbenchAccessibilityTarget: Hashable {
     case mediaCard(String)
     case mediaCardActionButton(String)
 
-    // File Page (Level 1 / 2 / 3)
+    // No-Folder Onboarding & File Page (Level 1 / 2 / 3)
+    case noFolderGoToFileButton
+    case fileOnboardingBackButton
+    case fileOnboardingPrimaryButton
+    case fileViewTutorialButton
     case fileAddFolderButton
     case fileIndexNowButton
     case fileStatusIndicatorText
@@ -367,6 +371,7 @@ enum PlaybackAccessibilityTarget: Equatable, Hashable {
     case commandPanelSortButton
 
     // L-09 Command Panel - Recent Videos / Excerpt Lists Grid (L-09.2)
+    case commandPanelGoToFileButton
     case commandPanelRecentCard(String)
     case commandPanelRecentCardActionButton(String)
 

@@ -355,8 +355,6 @@
 "settings.library.add_folder" = "Add Folder";
 "settings.library.index_now" = "Index All";
 "settings.library.choose_folder" = "Choose Subtitle Folder";
-"settings.library.empty_title" = "No Subtitle Folders";
-"settings.library.empty_message" = "Choose a local folder containing subtitle files.";
 "settings.library.remove_folder_title" = "Remove Folder?";
 "settings.library.remove_folder_message" = "Remove “%@” from CueSeeker? This will not delete local files.";
 "settings.library.database_path" = "Database: %@";
@@ -819,3 +817,12 @@
 "tooltip.disabled.settings.subtitle.restore_defaults" = "All subtitle settings are already at default values";
 "tooltip.disabled.settings.maintenance.actions" = "Unavailable while folder removal or database compaction is running";
 "tooltip.disabled.edit_cover.save" = "Choose an image first";
+
+/* No-folder onboarding and File empty state */
+"file.onboarding.back" = "Back";
+"file.onboarding.next" = "Next";
+"file.onboarding.done" = "Done";
+"file.empty.message" = "Add a folder containing video and subtitle files.";
+"file.empty.view_tutorial" = "View Tutorial";
+"onboarding.no_folder.message" = "Add a folder to get started.";
+"onboarding.no_folder.go_to_file" = "Go to File";
