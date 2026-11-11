@@ -408,7 +408,7 @@
   - Text Color：`--color-text-muted`
 - Action
   - Presence：Optional（无文件夹引导空状态、File 一级空状态与 Excerpt 一级无摘录集空状态显示）
-  - Component：Button / Neutral（单个或并排双按钮，双按钮间距 `--spacing-4`）
+  - Component：Button / Neutral
 
 ##### Sizes
 
@@ -416,7 +416,6 @@
 - Icon Size：`--size-empty-state-icon`
 - Icon to Text Gap：`--gap-empty-state-icon-to-text`
 - Message to Action Gap：`--gap-empty-state-icon-to-text`
-- Action Gap：`--spacing-4`
 - Alignment：在承载容器剩余可用空间内水平、垂直居中
 
 ##### States
