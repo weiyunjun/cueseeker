@@ -35,8 +35,6 @@ func workbenchEmptyHintAndDuotoneIconsMatchDesignMetrics() {
     #expect(AppEmptyStateIcon.allCases.contains(.folderHint))
     #expect(WorkbenchControlMetrics.redesignEmptyStateIconSize == 68)
     #expect(WorkbenchControlMetrics.redesignEmptyStateIconToTextGap == 14)
-    #expect(WorkbenchControlMetrics.redesignFileOnboardingMaxWidth == 520)
-    #expect(WorkbenchControlMetrics.redesignFileOnboardingContentHeight == 280)
 
     #expect(WorkbenchControlMetrics.redesignEmptyIconSearchCardOpacity == 0.30)
     #expect(WorkbenchControlMetrics.redesignEmptyIconCollageBackOpacity == 0.52)

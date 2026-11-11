@@ -93,9 +93,37 @@ struct NoFolderOnboardingAndFileEmptyStateTests {
         #expect(relaunched.currentWorkbenchAccessibilityTargets().contains(.fileViewTutorialButton))
 
         // Clicking View Tutorial opens Step 1.
+        WorkbenchFileView.lastOnboardingFooterFrameForTesting = nil
         #expect(relaunched.activateWorkbenchAccessibilityTarget(.fileViewTutorialButton))
         #expect(relaunched.isFileOnboardingPresented)
         #expect(relaunched.fileOnboardingStep == 1)
+
+        let onboardingHost = NSHostingView(
+            rootView: WorkbenchFileView(tasks: relaunched.tasks)
+                .environmentObject(relaunched)
+                .environmentObject(relaunched.indexing)
+                .environmentObject(relaunched.workbenchLayout.route)
+                .environmentObject(relaunched.library)
+                .environmentObject(relaunched.settings.localization)
+                .environment(\.workbenchAccessibility, relaunched.workbenchAccessibility)
+        )
+        onboardingHost.frame = NSRect(x: 0, y: 0, width: 880, height: 640)
+        let onboardingWindow = NSWindow(
+            contentRect: onboardingHost.frame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        onboardingWindow.contentView = onboardingHost
+        onboardingHost.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        onboardingHost.layoutSubtreeIfNeeded()
+
+        let footerFrame = try #require(WorkbenchFileView.lastOnboardingFooterFrameForTesting)
+        #expect(abs(footerFrame.minX - WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding) < 0.5)
+        #expect(abs(footerFrame.maxX - (880 - WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding)) < 0.5)
+        #expect(abs(footerFrame.maxY - (640 - WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)) < 0.5)
+        #expect(abs(footerFrame.height - WorkbenchControlMetrics.redesignHeight) < 0.5)
     }
 
     @Test

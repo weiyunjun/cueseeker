@@ -14,6 +14,7 @@ struct WorkbenchFileView: View {
     /// Observed because any library task disables the folder controls and the
     static let fileCardCoordinateSpaceName = "WorkbenchFileViewCoordinateSpace"
     static var lastZeroFolderMainBodyFrameForTesting: CGRect?
+    static var lastOnboardingFooterFrameForTesting: CGRect?
     private static let addFolderMenuID = "__add_folder_menu__"
 
     /// Observed because any library task disables the folder controls and the
@@ -325,9 +326,9 @@ struct WorkbenchFileView: View {
     ) -> some View {
         let step = appState.fileOnboardingStep
 
-        return VStack(spacing: WorkbenchControlMetrics.redesignSpacing6) {
+        return VStack(spacing: 0) {
             Color.clear
-                .frame(height: WorkbenchControlMetrics.redesignFileOnboardingContentHeight)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(false)
 
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
@@ -349,13 +350,31 @@ struct WorkbenchFileView: View {
                     appState.advanceFileOnboardingStep()
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: WorkbenchControlMetrics.redesignHeight, maxHeight: WorkbenchControlMetrics.redesignHeight, alignment: .trailing)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: WorkbenchControlMetrics.redesignHeight,
+                maxHeight: WorkbenchControlMetrics.redesignHeight,
+                alignment: .trailing
+            )
+            .background(
+                GeometryReader { geo in
+                    let frame = geo.frame(in: .named(Self.fileCardCoordinateSpaceName))
+                    Color.clear
+                        .onAppear {
+                            Self.lastOnboardingFooterFrameForTesting = frame
+                        }
+                        .onChange(of: frame) { newFrame in
+                            Self.lastOnboardingFooterFrameForTesting = newFrame
+                        }
+                }
+            )
         }
-        .frame(maxWidth: WorkbenchControlMetrics.redesignFileOnboardingMaxWidth)
+        .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
+        .padding(.bottom, WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)
+        .workbenchPageInlinePadding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("file-onboarding-shell")
-        .workbenchPageInlinePadding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     private func fileZeroFolderEmptyStateView(
