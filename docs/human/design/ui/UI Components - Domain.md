@@ -859,7 +859,7 @@
 - Interaction Surface
   - Radius：`--radius-library-media-card-hover`
   - 判定区域为整张卡片的矩形，四角在内；Radius 只作用于背景外观
-  - Pointer：Grab
+  - Pointer：Grab（封面右下角 `dots-three` 按钮除外）
 - Content Slot
 
 ##### Sizes
@@ -871,7 +871,7 @@
 - Default
 - Hover
   - Background：`--color-library-media-card-hover-bg`（Workbench 界面 Duration `--duration-library-cover-hover`，easeOut；Playback 界面不带动画）
-  - 随未隐藏指针的当前位置更新（滚动期间按 `300ms` 防抖，键盘/手柄移动 Selected 时立即清除并抑制 Hover 直至鼠标实际移动，菜单或对话框打开期间冻结在关联卡片上，关闭后立即按指针位置重算）；右键点击只触发 Hover，不改变 Selected
+  - 随所在窗口获焦且未隐藏指针的当前位置更新（滚动期间按 `300ms` 防抖，键盘/手柄移动 Selected 时立即清除并抑制 Hover 直至鼠标实际移动，窗口失焦时立即清除未冻结 Hover 并在重获焦点时重算，菜单或上层界面打开期间冻结，关闭解除冻结后无需移动鼠标立即按当前指针位置重算）；右键点击只触发 Hover，不改变 Selected
 - Selected
   - Background：`--color-library-media-card-selected-bg`（不带动画）
   - Playback 界面的卡片网格强制始终保持一张卡片处于 Selected（离开网格或退出无障碍后仍保留）；Workbench 界面的卡片网格无强制常驻 Selected，仅在无障碍光圈位于卡片网格内时联动使对应卡片处于 Selected，脱离网格或退出无障碍后立即取消 Selected
