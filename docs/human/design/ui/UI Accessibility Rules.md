@@ -233,18 +233,19 @@
 
 ### 3.1.2 各业务页面内容区内部顺序
 1. **`L-03.1 Recent`**：
-   - 按非空时间分组（`Last 7 Days` → `Last 30 Days` → `Earlier` → `Never Played`）从上到下、每组网格内从左到右依次遍历封面卡片（`Videos` 与 `Excerpt Lists` 标签页下均为每张卡片先选整体再选右下角 `dots-three` 按钮）。
+   - 展示无文件夹引导空状态时：居中 `Go to File` 按钮；有卡片时：按非空时间分组（`Last 7 Days` → `Last 30 Days` → `Earlier` → `Never Played`）从上到下、每组网格内从左到右依次遍历封面卡片（`Videos` 与 `Excerpt Lists` 标签页下均为每张卡片先选整体再选右下角 `dots-three` 按钮）。
 2. **`L-04.1 Library` 一级总览页**：
-   - 搜索框（及内部 `✕`） → 排序按钮 → 下方文件夹卡片网格（从上到下、从左到右，每张卡片先选整体再选右下角 `dots-three` 按钮）。
+   - 展示无文件夹引导空状态时：居中 `Go to File` 按钮；已有已入库文件夹时：搜索框（及内部 `✕`） → 排序按钮 → 下方文件夹卡片网格（从上到下、从左到右，每张卡片先选整体再选右下角 `dots-three` 按钮）。
 3. **`L-04.3 Library` 二级详情页**：
    - `Cover Summary` 底部按钮行（`Resume` / `Play` → `View in File` → `More`） → 下方剧集卡片网格（从上到下、从左到右，每张剧集卡片先选整体再选右下角 `dots-three` 按钮）。
 4. **`L-04.5 File` 一/二/三级页面**：
-   - 顶部操作行：`Add Folder` 按钮 → `Index All` 按钮 → `Status Indicator` 状态文字；
-   - 面包屑行（仅二/三级页面）：从左到右依次选中未激活的上级链接节点；
-   - 列表区：一级根目录文件夹卡片 / 二级子文件夹卡片（从上到下，每张先选卡片整体再选右侧 `dots-three` 按钮） → 二/三级单集容器内各视频/字幕文件行右侧的 `dots-three` 按钮（从上到下）。
+   - 一级无根目录且处于分步引导时：底部右下角按钮栏（第 1 步为 `Next`；第 2、3 步依次为 `Back` → `Next` / `Done`）；
+   - 一级无根目录且处于空状态时：`View Tutorial` 按钮 → `Add Folder` 按钮（含 `Disabled` 态） → 下方独立行 `Status Indicator` 状态文字（仅正在索引或索引失败显示时）；
+   - 其余带顶部操作行的状态：顶部操作行（`Add Folder` 按钮 → `Index All` 按钮 → `Status Indicator` 状态文字） → 面包屑行（仅二/三级页面，从左到右依次选中未激活的上级链接节点） → 列表区（一级根目录文件夹卡片 / 二级子文件夹卡片从上到下每张先选卡片整体再选右侧 `dots-three` 按钮，其后为二/三级单集容器内各视频/字幕文件行右侧的 `dots-three` 按钮）。
 5. **`L-05.1 Excerpt` 一级总览页**：
-   - 有摘录集时：搜索框（及内部 `✕`） → 排序按钮 → 新建按钮（`+`） → 下方摘录集卡片网格（从上到下、从左到右，每张卡片先选整体再选右下角 `dots-three` 按钮）；无任何摘录集时：空状态居中的 `+ New List` 按钮。
+   - 有摘录集时：搜索框（及内部 `✕`） → 排序按钮 → 新建按钮（`+`） → 下方摘录集卡片网格（从上到下、从左到右，每张卡片先选整体再选右下角 `dots-three` 按钮）；无任何摘录集时：无已入库文件夹为空状态居中的 `Go to File` 按钮，已有已入库文件夹为空状态居中的 `+ New List` 按钮。
 6. **`Search` 一级页面与 `L-05.3 Excerpt` 二级详情页**：
+   - `Search` 一级页面展示无文件夹引导空状态时：仅居中 `Go to File` 按钮；
    - `Excerpt` 二级详情页先遍历顶部 `Cover Summary` 操作按钮（`Resume` / `Play` → `More`）；
    - **普通模式（`Normal Mode`）下工具栏与表格**：搜索框（及内部 `✕`） → `Filter` 按钮 → `Sort` 按钮 → 表格表头首列 `#` 全选框（存在有效行时） → 表格各数据行（从上到下：有效行依次走「首列勾选框 → 台词文字 → 右侧 `dots-three` 按钮」；`Unavailable` 行仅走「右侧 `dots-three` 按钮」）；
    - **批量选择模式（`Select Mode`）下工具栏与表格**：第一行右侧 `Exit Selection` 按钮 → 第二行批量操作按钮（按当前页面从左到右：`Export to Anki` → `Copy Deep Links` → `Copy Table` → Search 页 `Save to Excerpt List` / Excerpt 页 `Move to ...` → `Duplicate to ...` → `Remove Excerpt`） → 表格表头首列 `#` 全选框 → 表格各有效数据行的首列勾选框（从上到下；`Unavailable` 行跳过）。
@@ -311,6 +312,6 @@
    - 打开时默认聚焦顶部搜索框（无外圈光圈）；
    - 按 `Tab` 开启无障碍时从第 1 个组件（顶部搜索框整体）开始依次遍历：顶部搜索框（及有文字时的内部 `✕`） → 中间选项列表（`Search Action`［Filled Query 时］ → `Recent Videos` → `Recent Excerpt Lists`；无障碍位于该选项列表内时与 `Select` 双向跟随） → 底栏 `Open` 按钮。
 2. **二级视图 — `Recent Videos` / `Recent Excerpt Lists`（`L-09.2`）**：
-   - 顶部返回按钮 → 中间封面卡片网格（按分组从上到下、从左到右，在网格内与 `Select` 双向跟随；`Recent Videos` 与 `Recent Excerpt Lists` 均为每张卡片先选整体再选右下角 `dots-three` 按钮） → 底栏 `Open` 按钮。
+   - 顶部返回按钮 → 中间区域（展示无文件夹引导空状态时为居中 `Go to File` 按钮；有卡片时按分组从上到下、从左到右遍历封面卡片网格，在网格内与 `Select` 双向跟随，每张卡片先选整体再选右下角 `dots-three` 按钮） → 底栏 `Open` 按钮。
 3. **二级视图 — `Search Results`（`L-09.2` / `L-09.3`）**：
    - 顶部返回按钮 → `Filter` 按钮 → `Sort` 按钮 →（中间搜索结果字幕流 `Reel` 跳过） → 底栏各 `Shortcut Action Button`（从左到右）。

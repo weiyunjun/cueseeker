@@ -486,7 +486,7 @@
 - 繁体中文：任務或資料庫壓縮進行期間無法使用
 - 触发延迟：1秒
 - Scenario ID：disabled.file.add_folder
-- 所在位置：File 页面右上角 `Add Folder` 按钮
+- 所在位置：File 页面 `Add Folder` 按钮（顶部操作栏与一级空状态）
 
 ### 34. File 页面“索引全部”按钮禁用（Index All Disabled）
 - 原因分支 A（尚未添加任何文件夹）：

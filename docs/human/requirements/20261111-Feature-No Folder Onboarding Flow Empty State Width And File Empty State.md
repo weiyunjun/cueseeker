@@ -6,10 +6,12 @@ main
 
 - `docs/human/design/workbench/Library and File.md`
 - `docs/human/design/playback/Command Panel.md`
+- `docs/human/design/playback/Playback Edge Cases.md`
 - `docs/human/design/ui/UI Tokens.md`
 - `docs/human/design/ui/UI Components - Domain.md`
 - `docs/human/design/ui/UI Layouts - Workbench.md`
 - `docs/human/design/ui/UI Layouts - Playback.md`
+- `docs/human/design/ui/UI Accessibility Rules.md`
 - `docs/human/design/ui/Empty State Icon Registry.md`
 - `docs/human/design/ui/Icon Registry.md`
 - `docs/human/design/ui/Tooltip Usage Registry.md`
@@ -17,9 +19,8 @@ main
 # 需求描述
 
 1. **空状态组件宽度修正、去除标题与新增强调色文件夹图标**
-   - **Token 增删（`UI Tokens.md`）**：
+   - **Token 删减（`UI Tokens.md`）**：
      - 移除 `--font-size-empty-state-title`（`15px`）、`--gap-empty-state-title-to-message`（`4px`）与 `--max-width-empty-state-message`（`380px`）。
-     - 新增 `--max-width-file-onboarding`（`520px`）与 `--height-file-onboarding-content`（`280px`）。
    - **全界面空状态宽度与结构统一**：
      - 全应用空状态统一移除加粗标题（`Title`），仅保留双色调图标、说明文字与可选操作区。
      - 移除空状态说明文字的 `380px` 宽度上限及组件额外水平内边距；空状态容器宽度对齐所在工作台页面的默认内容区宽度（弹窗与浮层内跟随各自容器的内容区宽度），高度自适应并在可用区域内整体水平、垂直居中。
@@ -29,7 +30,7 @@ main
 2. **`File` 一级界面无文件夹时的分步引导壳层、新空状态界面与生命周期**
    - 当 `File` 中无任何已入库根文件夹时，保留主窗口顶栏（标题 `File`），隐藏原顶栏下方的操作状态栏（`Add Folder`、`Index All`、`Last Updated`），按状态展示以下两个界面之一：
    - **（1）3 步分步引导界面（内容区本单留空）**：
-     - 引导容器最大宽度 `--max-width-file-onboarding`（`520px`），在页面内容区水平、垂直居中：上方为高 `--height-file-onboarding-content`（`280px`）的完全空白内容区，下方间隔 `--spacing-6`（`24px`）为靠右对齐的底部按钮栏（高 `--height-control`: `36px`，按钮间距 `--spacing-4`: `16px`）：
+     - 复用工作台标准页面布局边距（顶部 `--spacing-1: 4px`、底部 `--spacing-6: 24px`、左侧 `--spacing-8: 32px`、右侧 `--spacing-8` + `--width-page-scrollbar-channel` = `48px`）：上方内容区占据底部按钮栏上方的页面剩余空间（本单完全空白），底部固定高 `--height-control`（`36px`）、靠右对齐的按钮栏（按钮间距 `--spacing-4: 16px`，右边缘与工作台标准内容区右边缘齐平）：
        - **第 1 步**：仅显示 `Next` / `下一步` / `下一步`（`Primary` 按钮）。
        - **第 2 步**：左侧 `Back` / `返回` / `返回`（`Neutral` 按钮）+ 右侧 `Next` / `下一步` / `下一步`（`Primary` 按钮）。
        - **第 3 步**：左侧 `Back` / `返回` / `返回`（`Neutral` 按钮）+ 右侧 `Done` / `完成` / `完成`（`Primary` 按钮）。
@@ -67,6 +68,6 @@ main
 # 验收标准
 
 1. **空状态宽度与结构统一**：`Excerpt` 二级界面等长句空状态提示在常规窗口宽度下单行完整居中显示，不再因 `380px` 限宽提前折行；全应用空状态无加粗标题，所有尺寸与间距严格对应 Token。
-2. **`File` 3 步引导壳层与持久化流转**：从未点击过 `Done` 且以 0 文件夹启动应用时，`File` 默认显示第 1 步（靠右 `Next`），第 2 步显示靠右 `Back` + `Next`，第 3 步显示靠右 `Back` + `Done`；在第 2 步切换到其它标签页再通过侧边栏或 `Go to File` 回到 `File` 仍保留在第 2 步；点击第 3 步 `Done` 后进入新空状态界面，重启应用后直接显示新空状态界面而不再默认弹出教程。
+2. **`File` 3 步引导壳层与持久化流转**：从未点击过 `Done` 且以 0 文件夹启动应用时，`File` 默认显示第 1 步（页面右下角 `Next`），第 2 步显示右下角 `Back` + `Next`，第 3 步显示右下角 `Back` + `Done`；在第 2 步切换到其它标签页再通过侧边栏或 `Go to File` 回到 `File` 仍保留在第 2 步；点击第 3 步 `Done` 后进入新空状态界面，重启应用后直接显示新空状态界面而不再默认弹出教程。
 3. **`File` 新空状态双按钮、防跳动状态行与教程并发**：新空状态居中展示强调色文件夹图标、说明文字及 `View Tutorial`（带 `info` 图标）与 `Add Folder` 按钮；开始添加文件夹索引后，`Add Folder` 禁用，按钮正下方另起一行居中显示可点击的索引状态文字，且上方图标、文字和按钮不发生任何水平或垂直位移跳动；索引期间点击 `View Tutorial` 可正常查看教程，阅读中途索引完成时页面保持在教程不自动跳走，点击第 3 步 `Done` 后直接显示根文件夹卡片列表。
 4. **其余界面无文件夹强引导与冻结衔接**：0 文件夹时，`Search`、`Library`、0 摘录集下的 `Excerpt`、以及无记录子页下的工作台 `Recent`（保留顶栏标签）与 `Command Panel -> Recent` 均显示强调色文件夹图标、提示文字与 `Go to File` 按钮（已有摘录集时 `Excerpt` 与 `Recent -> Excerpt Lists` 照常显示摘录集）；从 `Command Panel -> Recent` 点击 `Go to File` 可退出播放页并进入工作台 `File`；移除最后一个文件夹后，冻结页面在触发刷新操作或跨页切换时正确进入无文件夹强引导空状态。

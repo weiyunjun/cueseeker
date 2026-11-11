@@ -55,7 +55,7 @@
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `squares-four` | Regular | Library | Sidebar Item / Library |
-| `folder` | Regular | 文件夹 | Sidebar Item / File；File Page / Add Folder 菜单 / Local Folder；表格行菜单 / Open Subtitle Folder；Library 卡片菜单 / Open Folder；Library File Tree / Root Path、Object Folder；Export to Anki Dialog / Location |
+| `folder` | Regular | 文件夹 | Sidebar Item / File；Empty State / Go to File；File Page / Add Folder 菜单 / Local Folder；表格行菜单 / Open Subtitle Folder；Library 卡片菜单 / Open Folder；Library File Tree / Root Path、Object Folder；Export to Anki Dialog / Location |
 | `bookmark-simple` | Regular | Excerpt | Sidebar Item / Excerpt；Command Panel Root / Recent Excerpt Lists；表格行菜单、Search / Excerpt Toolbar / Remove Excerpt；Excerpt List 封面占位，57px |
 | `bookmark-simple` | Fill | 已存入 Excerpt | Toast（Save to Excerpt List / Move / Duplicate） |
 | `clock` | Regular | 最近、时长 | Sidebar Item / Recent；Filter Menu / Duration |
@@ -107,7 +107,7 @@
 | `copy` | Regular | 复制 | Search / Excerpt Toolbar / Copy Table；表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Playback Overlay 选中文字菜单 / Copy Selected Text；Toast（复制） |
 | `export` | Regular | 导出、更换封面 | Search / Excerpt Toolbar / Export to Anki；Library 卡片菜单 / Change Cover；Toast（导出长截图） |
 | `link-simple` | Regular | 链接 | Search / Excerpt Toolbar / Copy Deep Links；表格行菜单 / Copy Deep Link；Anki 卡片 / Deep Link，20px |
-| `info` | Regular | 简介、详情 | File Page 卡片菜单 / Get Info；Task Card 菜单 / Get Info |
+| `info` | Regular | 简介、详情、教程 | File Page 空状态 / View Tutorial；File Page 卡片菜单 / Get Info；Task Card 菜单 / Get Info |
 | `dots-three` | Regular | 更多 | 表格行 / More；File Page 卡片 / More；Task Card / More；Cover Summary / More |
 | `dots-three` | Fill | 更多 | Cover / More（21px 下圆点直径 3px） |
 | `anki-star` | 实心 | Anki | Task Card / Export to Anki |

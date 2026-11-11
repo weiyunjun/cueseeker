@@ -365,6 +365,7 @@
 - 按本地自然日凌晨 `00:00` 划分为 `Last 7 Days`、`Last 30 Days`、`Earlier`、`Never Played` 四个分组，仅展示非空分组；分组标题左边缘与未 Hover 时的卡片封面左边缘齐平。
 - `Excerpt Lists` 收录全部已存在的摘录集（仅在无任何摘录集时展示 Empty State），按历史实际播放时间归组，曾播放过的摘录集不因列表清空或摘录全部失效而改变分组；打开无有效摘录的摘录集时拦截并弹出右下角 `No Available Excerpts` Toast（持续 3 秒），不进入播放且不更新最近播放时间。
 - `Never Played`：Videos 收录无播放记录的文件夹（默认展示 `EP01`，按文件夹名称升序）；Excerpt Lists 收录从未实际播放过的摘录集（按创建时间正序，有有效摘录时从第 1 条有效字幕播放）。
+- 空状态（保留顶栏 `Videos` / `Excerpt Lists` 切换标签）：当前子标签无可显示记录时，若 `File` 无任何已入库文件夹则居中显示带 `Go to File` 按钮的 Empty State（图标 `folder-hint`，文案 `Add a folder to get started.`）；若已有已入库文件夹则分别居中显示图标 `video` 或 `excerpt` 的 Empty State。
 
 #### Sizes
 
@@ -431,7 +432,7 @@
 - 搜索框宽度与换行规则：搜索框常规宽度固定为 `--width-overview-search-field`，最小宽度为 `--min-width-overview-search-field`。当单行可用宽度不足以在保持搜索框 `--width-overview-search-field` 的前提下容纳右侧统计文本时，统计文本自动换至第二行靠左显示（行间距 `--spacing-2`）；仅在统计文本已换行后第一行仍放不下搜索框与按钮时，搜索框才向 `--min-width-overview-search-field` 收缩。
 - 排序菜单：Radio Menu，与排序按钮左边缘对齐，选项为默认排序、最晚入库、最早入库。
 - 排序规则：默认按文件夹名称升序；最晚入库/最早入库按首次入库时间（最早被索引文件的时间）排序，相同时间按文件夹名称升序。排序选择持久化保存。
-- 空状态：媒体库无文件夹时隐藏 Action Bar 并居中显示 Empty State（图标 `video`）；有文件夹但搜索无匹配结果时保留 Action Bar，下方居中显示 Empty State（图标 `search-no-results`）。
+- 空状态：`File` 无任何已入库文件夹时隐藏 Action Bar，居中显示带 `Go to File` 按钮的 Empty State（图标 `folder-hint`，文案 `Add a folder to get started.`）；已有已入库文件夹但媒体库无视频文件夹时隐藏 Action Bar 并居中显示 Empty State（图标 `video`）；有文件夹但搜索无匹配结果时保留 Action Bar，下方居中显示 Empty State（图标 `search-no-results`）。
 
 #### Sizes
 
@@ -548,6 +549,7 @@
 - Status Indicator
 - Spinner
 - Button / Neutral
+- Button / Primary
 - Button / Destructive
 - Empty State
 - Dropdown Menu
@@ -561,14 +563,17 @@
 - Page Layout：Workbench Titled Page Layout
 - 顶栏后退与前进按钮响应三级界面的下钻与返回，顶栏标题恒定为 `File`。
 - Status and Action Row、列表标题、面包屑、单集 `Display Title` 与各级容器/卡片均左边缘对齐。
-- Status and Action Row 在 Level 1、Level 2、Level 3 第一行常驻展示，高 36px（`--height-control`），左对齐：从左到右依次为 `Add Folder` 按钮、`Index All` 按钮、状态指示器。
-- 所有层级的第一行（Status and Action Row）与第二行（Level 1 的 `All Folder(s)` 标题行、Level 2 与 Level 3 的面包屑行）在顶部固定冻结，纵向滚动时仅下方列表区域滚动。
+- Status and Action Row 在已存在根目录的 Level 1 及 Level 2、Level 3 第一行常驻展示，高 36px（`--height-control`），左对齐：从左到右依次为 `Add Folder` 按钮、`Index All` 按钮、状态指示器。
+- Level 1 无任何已入库根目录时隐藏 Status and Action Row（仅保留主窗口顶栏 `File`），按状态展示分步引导或空状态：
+  - **3 步分步引导界面**：沿用 Workbench Titled Page Layout 标准四周边距，上方内容区占满底部按钮栏上方的剩余空间（当前阶段留空），底部固定高 `--height-control`、靠右对齐的按钮栏（按钮间距 `--spacing-4`：第 1 步仅显示 Primary `Next`；第 2 步为 Neutral `Back` + Primary `Next`；第 3 步为 Neutral `Back` + Primary `Done`）。
+  - **Level 1 空状态界面**：居中展示 Empty State（图标 `folder-hint`，文案 `Add a folder containing video and subtitle files.`，下方并排双 Neutral 按钮：`info` 图标 + `View Tutorial` 与 `folder-plus` 图标 + `Add Folder`，按钮间距 `--spacing-4`）；处于正在索引或索引失败状态时，在双按钮行正下方 `--spacing-3` 处另起一行居中展示可点击的 Status Indicator（出现或消失不改变上方主体位置）。
+- 所有带列表层级的第一行（Status and Action Row）与第二行（Level 1 的 `All Folder(s)` 标题行、Level 2 与 Level 3 的面包屑行）在顶部固定冻结，纵向滚动时仅下方列表区域滚动。
 - Level 1 统一按添加顺序展示全部根文件夹卡片，顶部标题为 `All Folder`（根目录数量为 1 时）或 `All Folders`（根目录数量大于 1 时），样式为 14px Semibold `--color-text-primary`；Level 2 子文件夹按文件夹名称升序排列。
 - 面包屑节点（Level 2 与 Level 3 第二行）：以 `All Folder` / `All Folders` 为起点（点击返回 Level 1）；未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
 - Episode File Group（单集文件分组）：视频与字幕按单集 `Display Title` 合一展示为单张圆角卡片容器（视频在上，下方配对字幕按 Data 中的字幕顺序排列；背景 `--color-table-bg`、边框 `--color-border-control`、宽度 `--border-width-control`、圆角 `--radius-settings-group`、内边距 `0`，占满内容区宽度并裁剪圆角）。卡片顶部为标题栏（最小高度 `--height-control`，水平内边距 `--spacing-4`，背景 `--color-file-group-header-bg`），左对齐展示 `Display Title`（14px Medium `--color-text-muted`）；标题栏底部及下方各文件行之间均以与卡片容器等宽的 `--color-border-divider`（宽度 `--border-width-control`）分隔。
-- 空状态与失效态均在顶部固定栏下方的剩余区域居中展示 Empty State：Level 1 无根目录时展示图标 `folder`（含 Title 与 Message）；Level 2 无内容时展示图标 `folder`；Level 3 子文件夹内容被清空或 Level 2 / Level 3 路径已不在索引中（`This page no longer exists.`）时展示图标 `folder-question`。异步加载期间展示居中 `Spinner`。
+- 二、三级空状态与失效态均在顶部固定栏下方的剩余区域居中展示 Empty State：Level 2 无内容时展示图标 `folder`；Level 3 子文件夹内容被清空或 Level 2 / Level 3 路径已不在索引中（`This page no longer exists.`）时展示图标 `folder-question`。异步加载期间展示居中 `Spinner`。
 - 移除根目录前弹出 Confirmation Dialog。
-- 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，全部操作按钮为 Disabled。
+- 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，文件夹与索引操作按钮为 Disabled（Level 1 空状态下的 `View Tutorial` 保持可用）。
 
 #### Spacing
 
@@ -643,7 +648,7 @@
 - Page Layout：Workbench Titled Page Layout
 - Action Bar 保持 `--spacing-8` 边距，左对齐，从左到右依次为搜索框（占位提示 `Search excerpt lists...`，进入页面不自动聚焦，输入内容在 App 运行期间保留、清除或重启后清空，仅实时匹配摘录集名称）、排序按钮（图标为 `funnel-simple`，文字为当前选中的排序方式）、新建按钮（Neutral，带 `plus` 图标）、统计文本（`xx lists  yy cues`，样式同 Workbench Status Indicator，随搜索结果实时变化并跨匹配摘录集去重，其中 `yy cues` 与卡片封面徽章仅统计有效字幕）；卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面左边缘与搜索框左边缘齐平。
 - 搜索框宽度与统计文本换行规则同 `L-04.1 Library Overview Layout`。
-- 空状态：没有任何摘录集时隐藏 Action Bar（并清空残留搜索词），正文居中显示带 `+ New List` 按钮的 Empty State（图标 `excerpt-hint`，文案 `Create an excerpt list to collect excerpts.`）；有摘录集但搜索无匹配结果时保留 Action Bar，下方居中显示 Empty State（图标 `search-no-results`）。
+- 空状态：没有任何摘录集时隐藏 Action Bar（并清空残留搜索词）——若 `File` 同时无任何已入库文件夹，正文居中显示带 `Go to File` 按钮的 Empty State（图标 `folder-hint`，文案 `Add a folder to get started.`）；若已有已入库文件夹，正文居中显示带 `+ New List` 按钮的 Empty State（图标 `excerpt-hint`，文案 `Create an excerpt list to collect excerpts.`）。有摘录集但搜索无匹配结果时保留 Action Bar，下方居中显示 Empty State（图标 `search-no-results`）。
 
 #### Ordering
 
@@ -836,7 +841,8 @@
 
 #### States
 
-- Empty Query：Search 未输入搜索词，表头隐藏，正文居中展示 Empty State（图标 `search-hint`）
+- No Folders（仅 Search）：`File` 无任何已入库文件夹时隐藏页内 Toolbar 与表头，整页居中展示带 `Go to File` 按钮的 Empty State（图标 `folder-hint`，文案 `Add a folder to get started.`）
+- Empty Query：Search 已有已入库文件夹但未输入搜索词，表头隐藏，正文居中展示 Empty State（图标 `search-hint`）
 - Calculating
 - Results：有数据，正常展示表头与数据行
 - Select Mode

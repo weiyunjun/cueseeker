@@ -266,7 +266,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-cover-summary-title`: `22px`
 - `--font-weight-cover-summary-title`: `700`
 - `--line-height-cover-summary-description`: `20px`
-- `--font-size-empty-state-title`: `15px`
 
 ### Text Decoration
 
@@ -346,7 +345,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--size-card-chevron`: `16px`
 - `--size-detail-file-icon-container`: `40px`
 - `--size-empty-state-icon`: `68px`
-- `--max-width-empty-state-message`: `380px`
 - `--min-width-detail-label`: `100px`
 - `--min-width-detail-index-label`: `40px`
 - `--width-task-detail-progress-bar`: `140px`
@@ -442,7 +440,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--gap-cover-summary-progress-actions`: `14px`
 - `--gap-cover-dialog-region`: `20px`
 - `--gap-empty-state-icon-to-text`: `14px`
-- `--gap-empty-state-title-to-message`: `4px`
 
 ### Padding
 
