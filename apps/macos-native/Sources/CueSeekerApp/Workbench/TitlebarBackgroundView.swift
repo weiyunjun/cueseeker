@@ -51,6 +51,10 @@ final class DraggableNSView: NSView, SubtitleTableTextSelectionInteractiveView {
         }
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         allowsHitTesting ? super.hitTest(point) : nil
     }

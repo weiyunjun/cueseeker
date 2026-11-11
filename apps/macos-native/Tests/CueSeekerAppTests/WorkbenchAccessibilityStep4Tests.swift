@@ -25,6 +25,7 @@ struct WorkbenchAccessibilityStep4Tests {
         var pointer = NSPoint(x: 400, y: 300)
         model.hasWindowFocus = { _ in true }
         model.pointerScreenLocation = { window.convertPoint(toScreen: pointer) }
+        model.isPointerOverPlayerWindow = { _, _ in true }
         AppCursorVisibility.resetForTesting()
         model.enterVideoPage()
         model.updatePlayerAreaView(view)

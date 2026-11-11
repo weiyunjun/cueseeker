@@ -1,3 +1,4 @@
+import AppKit
 import Testing
 @testable import CueSeekerApp
 
@@ -296,7 +297,7 @@ struct MenuHighlightModelTests {
     }
 
     @Test
-    func windowResignFocusClearsPointerHoverHighlight() {
+    func windowResignFocusPreservesPointerHoverHighlight() {
         AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         defer { model.close() }
@@ -304,7 +305,13 @@ struct MenuHighlightModelTests {
         model.noteHover(true, at: 2)
         #expect(model.hoveredPosition == 2)
 
-        model.noteWindowDidResignFocus()
+        NotificationCenter.default.post(
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
+        #expect(model.hoveredPosition == 2)
+
+        model.noteHover(false, at: 2)
         #expect(model.hoveredPosition == nil)
     }
 }

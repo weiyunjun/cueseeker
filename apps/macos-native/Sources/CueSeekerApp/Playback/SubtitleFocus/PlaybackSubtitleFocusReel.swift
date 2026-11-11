@@ -1335,9 +1335,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             guard output.shouldConsume else {
                 return event
             }
-            if NSApp.isActive && window.isKeyWindow {
-                PointerHoverScrollState.shared.noteScrolled()
-            }
+            PointerHoverScrollState.shared.noteScrolled()
             self.handleWheelOutput(output)
             return nil
         }

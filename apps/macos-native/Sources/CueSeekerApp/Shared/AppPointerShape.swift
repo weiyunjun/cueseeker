@@ -129,13 +129,6 @@ enum AppPointerShape {
         return candidate === window
     }
 
-    static var isManagedWindowFocused: Bool {
-        guard let window else {
-            return true
-        }
-        return NSApp.isActive && window.isKeyWindow
-    }
-
     /// The cursor a surface registers over its whole visible area, from
     /// `resetCursorRects`. AppKit applies a cursor rect synchronously in the
     /// same pass that would otherwise fall back to the arrow, so the rect is
@@ -185,12 +178,12 @@ enum AppPointerShape {
         restoreIfAppKitTookOver()
     }
 
-    /// Which window the pointer is really on, asked of the window server. The
-    /// main window's own geometry cannot answer it: the window fills the
-    /// screen and the Settings window sits inside that frame, so geometry says
-    /// yes for a pointer that is not on the main window at all.
+    /// Which window the pointer is really on, asked of the window server while
+    /// CueSeeker is active. Even when another CueSeeker window (such as Settings)
+    /// is key, exposed regions of the main window own their pointer shape, while
+    /// any region covered by Settings or another window yields ownership to it.
     private static func isPointerOverOwnWindow() -> Bool {
-        guard let window, NSApp.isActive, window.isKeyWindow else {
+        guard let window, NSApp.isActive else {
             return false
         }
         return NSWindow.windowNumber(
@@ -392,6 +385,10 @@ enum AppPointerShape {
 /// back to the arrow and flicker on every wheel notch — and again from the
 /// cursor update AppKit sends for that rect.
 class CueSeekerHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override func resetCursorRects() {
         if AppPointerShape.manages(window) {
             addCursorRect(visibleRect, cursor: AppPointerShape.rectCursor)

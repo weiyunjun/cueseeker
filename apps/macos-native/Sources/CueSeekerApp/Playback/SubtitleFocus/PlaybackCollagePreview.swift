@@ -86,11 +86,12 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
 
     private let scrollView = NSScrollView()
     private let imageDocumentView = PlaybackCollagePreviewImageDocumentView()
-    private let imageView = NSImageView()
+    private let imageView = PlaybackCollagePreviewImageView()
     // Enlarged strips live here, above the scroll view and below the
     // scrollbar: outside the clip, so a strip can grow past the image's edges.
     private let spillView = PlaybackCollagePreviewSpillView()
     private let scrollbarView = PlaybackCollagePreviewScrollbarView()
+    private var trackingArea: NSTrackingArea?
     private var image: CGImage?
     private var segments: [PlaybackCollagePreviewSegment] = []
     /// The strip under the pointer at its last real movement. Nothing else
@@ -109,6 +110,10 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
     var onJumpToCue: (Int) -> Void = { _ in }
 
     override var isFlipped: Bool {
+        true
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
     }
 
@@ -147,9 +152,7 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         )
         for name in [
             NSApplication.didBecomeActiveNotification,
-            NSApplication.didResignActiveNotification,
             NSWindow.didBecomeKeyNotification,
-            NSWindow.didResignKeyNotification,
             .cueSeekerScrollDebounceSettled,
         ] {
             NotificationCenter.default.addObserver(
@@ -171,6 +174,39 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         if let pointerMonitor {
             NSEvent.removeMonitor(pointerMonitor)
         }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        if let window,
+           window.windowNumber > 0,
+           NSWindow.windowNumber(
+               at: NSEvent.mouseLocation,
+               belowWindowWithWindowNumber: 0
+           ) != window.windowNumber {
+            if isInteractionEnabled {
+                setHoveredSegment(nil)
+            }
+            return
+        }
+        guard !PointerHoverScrollState.shared.isScrolling else {
+            return
+        }
+        pointerMoved(toWindowPoint: event.locationInWindow)
     }
 
     override func viewDidMoveToWindow() {
@@ -296,9 +332,7 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             MainActor.assumeIsolated {
                 guard let self,
                       let window = self.window,
-                      event.window === window,
-                      NSApp.isActive,
-                      window.isKeyWindow
+                      event.window === window
                 else {
                     return
                 }
@@ -319,23 +353,18 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
            notificationWindow !== window {
             return
         }
-        if NSApp.isActive && window.isKeyWindow {
-            let isPointerOverWindow = NSWindow.windowNumber(
-                at: NSEvent.mouseLocation,
-                belowWindowWithWindowNumber: 0
-            ) == window.windowNumber
-            guard isInteractionEnabled,
-                  !AppCursorVisibility.isCursorHidden,
-                  !PointerHoverScrollState.shared.isScrolling,
-                  isPointerOverWindow
-            else {
-                return
-            }
-            pointerMoved(toWindowPoint: window.mouseLocationOutsideOfEventStream)
-        } else if isInteractionEnabled {
-            pressedSegmentIndex = nil
-            setHoveredSegment(nil)
+        let isPointerOverWindow = NSWindow.windowNumber(
+            at: NSEvent.mouseLocation,
+            belowWindowWithWindowNumber: 0
+        ) == window.windowNumber
+        guard isInteractionEnabled,
+              !AppCursorVisibility.isCursorHidden,
+              !PointerHoverScrollState.shared.isScrolling,
+              isPointerOverWindow
+        else {
+            return
         }
+        pointerMoved(toWindowPoint: window.mouseLocationOutsideOfEventStream)
     }
 
     /// Returns whether the event was the preview's to keep.
@@ -346,12 +375,13 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         switch type {
         case .leftMouseDown:
             guard isInteractionEnabled,
+                  scrollbarView.hitTest(convert(point, from: nil)) == nil,
                   segmentIndex(atWindowPoint: point) != nil
             else {
                 return false
             }
             press(atWindowPoint: point)
-            return true
+            return NSApp.isActive && window?.isKeyWindow == true
         case .leftMouseUp:
             guard pressedSegmentIndex != nil else {
                 return false
@@ -672,8 +702,18 @@ private final class PlaybackCollagePreviewStrip {
     }
 }
 
+private final class PlaybackCollagePreviewImageView: NSImageView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+}
+
 private final class PlaybackCollagePreviewImageDocumentView: NSView {
     override var isFlipped: Bool {
+        true
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
     }
 }

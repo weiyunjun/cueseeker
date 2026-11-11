@@ -439,9 +439,7 @@ final class TooltipCenter: ObservableObject {
 
         let center = NotificationCenter.default
         let names: [Notification.Name] = [
-            NSWindow.didResignKeyNotification,
             NSWindow.willCloseNotification,
-            NSApplication.didResignActiveNotification,
         ]
         for name in names {
             let token = center.addObserver(
@@ -857,7 +855,7 @@ final class TooltipTrackingNSView: NSView {
             rect: bounds,
             options: [
                 .mouseEnteredAndExited,
-                .activeInKeyWindow,
+                .activeAlways,
                 .inVisibleRect,
             ],
             owner: self,

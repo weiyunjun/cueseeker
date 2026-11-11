@@ -192,7 +192,7 @@ struct CardHighlightModelTests {
     }
 
     @Test
-    func windowResignFocusClearsUnfrozenHoverWhilePreservingSelectAndFrozenHover() {
+    func windowResignFocusPreservesHoverAndSelectAndAllowsUnfocusedHoverUpdates() {
         AppCursorVisibility.resetForTesting()
         let activeModel = playback()
         activeModel.setSelected("a")
@@ -200,16 +200,26 @@ struct CardHighlightModelTests {
         #expect(activeModel.selectedID == "a")
         #expect(activeModel.hoveredID == "b")
 
-        activeModel.noteWindowDidResignFocus()
+        NotificationCenter.default.post(
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
         #expect(activeModel.selectedID == "a")
-        #expect(activeModel.hoveredID == nil)
+        #expect(activeModel.hoveredID == "b")
+
+        activeModel.noteHover(true, id: "d")
+        #expect(activeModel.hoveredID == "d")
 
         let frozenModel = workbench()
         frozenModel.notePress(id: "c")
         frozenModel.setFrozen(true)
-        frozenModel.noteWindowDidResignFocus()
+        NotificationCenter.default.post(
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
         #expect(frozenModel.hoveredID == "c")
 
+        frozenModel.noteHover(false, id: "c")
         frozenModel.setFrozen(false)
         #expect(frozenModel.hoveredID == nil)
     }

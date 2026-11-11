@@ -815,18 +815,35 @@ Replacement and simplicity rules:
   is how the owner learns of it. Editable and selectable text controls are
   recognised by the owner itself.
 - Hover that produces a visual effect must go through `onPointerHover`, not
-  through a bare `onHover` or a focus-only wrapper. A menu open over a layer, or
-  a higher layer covering it, stops every surface on that layer from answering
-  the pointer; asking each surface to remember that is what left buttons, cards
-  and the Scrollbar out of step with an open menu. `onPointerHover` answers
-  layer freeze/unfreeze, scroll debounce, and window focus once, from the layer
-  registry, including for cover cards reporting to `CardHighlightModel`. Only
-  two places remain outside `onPointerHover`: menu content, which belongs to the
-  layer it froze and reports to `MenuHighlightModel` via `onWindowFocusAwareHover`;
-  and Toast, which does not participate in the layer list at all.
+  through a bare `onHover`. A menu open over a layer, or a higher layer covering
+  it, stops every surface on that layer from answering the pointer; asking each
+  surface to remember that is what left buttons, cards and the Scrollbar out of
+  step with an open menu. `onPointerHover` answers layer freeze/unfreeze and
+  scroll debounce once, from the layer registry, including for cover cards
+  reporting to `CardHighlightModel`. Only two places remain outside
+  `onPointerHover`: menu content, which belongs to the layer it froze and
+  reports to `MenuHighlightModel` via `onWindowFocusAwareHover`; and Toast,
+  which does not participate in the layer list at all.
 - An AppKit surface that takes `mouseMoved` from its own tracking area is
   outside `onPointerHover` and must carry the freeze answer itself, the way the
   Scrollbar does. Reaching for a new one is a reason to check this rule.
+- Exposed areas of all CueSeeker windows (Main Window and Settings Window)
+  respond to pointer hover, `Tooltip`, and single-click execution
+  (`acceptsFirstMouse(for:) == true`) regardless of whether the window or
+  application currently holds focus. Custom AppKit tracking areas use
+  `.activeAlways` so WindowServer natively clips tracking to unoccluded window
+  regions, and stationary coordinate queries (`mouseLocationOutsideOfEventStream`)
+  additionally verify topmost window ownership
+  (`NSWindow.windowNumber(at:belowWindowWithWindowNumber:) == window.windowNumber`)
+  so covering windows never penetrate to wake or hover views underneath. On the
+  playback page, unfocused pointer movement in an exposed area wakes `Player UI`
+  and 3-second idle hides `Player UI`, while hiding the OS cursor remains
+  restricted to a focused playback window. `AppPointerShape` applies its decided
+  cursor over any exposed CueSeeker window while `NSApp.isActive` and yields
+  global cursor ownership to macOS when an external application is active. Never
+  spoof window focus or pointer coordinates, inject synthetic `NSEvent`s, or
+  manually activate windows inside `sendEvent` or event monitors during
+  mouse-down.
 - A layer that hosts its own interactive content must claim it with
   `interfaceLayer(_:)`. A subtree that does not claim one answers for the
   workbench page, so a dialog or the playback chrome would read the freeze it

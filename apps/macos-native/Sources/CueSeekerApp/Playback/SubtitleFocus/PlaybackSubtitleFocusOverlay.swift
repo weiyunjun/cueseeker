@@ -873,6 +873,10 @@ private final class PlaybackSubtitleFocusPointerShieldView: NSView {
         false
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override func mouseDown(with event: NSEvent) {
         // The complete overlay owns pointer clicks, including its content
         // insets. Cue navigation remains exclusively wheel/scrollbar driven.

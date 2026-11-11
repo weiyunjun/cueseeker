@@ -344,6 +344,10 @@ class TableScrollbarOverlayView: NSView {
         true
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         isHidden = true
@@ -363,7 +367,7 @@ class TableScrollbarOverlayView: NSView {
         }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -389,9 +393,7 @@ class TableScrollbarOverlayView: NSView {
         let center = NotificationCenter.default
         for name in [
             NSApplication.didBecomeActiveNotification,
-            NSApplication.didResignActiveNotification,
             NSWindow.didBecomeKeyNotification,
-            NSWindow.didResignKeyNotification,
             .cueSeekerScrollDebounceSettled,
         ] {
             let token = center.addObserver(
@@ -425,22 +427,18 @@ class TableScrollbarOverlayView: NSView {
         guard draggingAxis == nil, !isInteractionFrozen else {
             return
         }
-        if NSApp.isActive && window.isKeyWindow {
-            let isPointerOverWindow = NSWindow.windowNumber(
-                at: NSEvent.mouseLocation,
-                belowWindowWithWindowNumber: 0
-            ) == window.windowNumber
-            guard !AppCursorVisibility.isCursorHidden,
-                  !PointerHoverScrollState.shared.isScrolling,
-                  isPointerOverWindow
-            else {
-                hoveredAxis = nil
-                return
-            }
-            hoveredAxis = axis(at: convert(window.mouseLocationOutsideOfEventStream, from: nil))
-        } else {
+        let isPointerOverWindow = NSWindow.windowNumber(
+            at: NSEvent.mouseLocation,
+            belowWindowWithWindowNumber: 0
+        ) == window.windowNumber
+        guard !AppCursorVisibility.isCursorHidden,
+              !PointerHoverScrollState.shared.isScrolling,
+              isPointerOverWindow
+        else {
             hoveredAxis = nil
+            return
         }
+        hoveredAxis = axis(at: convert(window.mouseLocationOutsideOfEventStream, from: nil))
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -484,9 +482,7 @@ class TableScrollbarOverlayView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        guard let window,
-              NSApp.isActive,
-              window.isKeyWindow,
+        guard window != nil,
               !isInteractionFrozen,
               !PointerHoverScrollState.shared.isScrolling
         else {

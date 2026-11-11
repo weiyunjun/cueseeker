@@ -29,6 +29,12 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         NSApp.isActive && $0.isKeyWindow
     }
     var pointerScreenLocation: () -> NSPoint = { NSEvent.mouseLocation }
+    var isPointerOverPlayerWindow: (NSWindow, NSPoint) -> Bool = { window, screenPoint in
+        NSWindow.windowNumber(
+            at: screenPoint,
+            belowWindowWithWindowNumber: 0
+        ) == window.windowNumber
+    }
 
     private static let windowControlButtons: [NSWindow.ButtonType] = [
         .closeButton, .miniaturizeButton, .zoomButton
@@ -187,7 +193,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     // MARK: - Decision
 
     private func pointerMoved() {
-        guard hasFocus, isPointerInPlayerArea else {
+        guard isPointerInPlayerArea else {
             return
         }
         setPointerVisible(true)
@@ -213,9 +219,9 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             applyCursorOwnership()
             return
         }
-        if !hasFocus || !isPointerInPlayerArea {
-            // Outside the window or without focus the Player UI is hidden and
-            // the pointer is shown.
+        if !isPointerInPlayerArea {
+            // Outside the unoccluded player area (including under a covering
+            // window) the Player UI is hidden and the pointer is shown.
             cancelIdleCountdown()
             if !isLayerOpen && !isMenuOpen {
                 setPlayerUIVisible(false)
@@ -223,6 +229,9 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             setPointerVisible(true)
             applyCursorOwnership()
             return
+        }
+        if !hasFocus {
+            setPointerVisible(true)
         }
         guard !isLayerOpen && !isMenuOpen else {
             cancelIdleCountdown()
@@ -250,15 +259,15 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         return hasWindowFocus(playerWindow)
     }
 
-    private var isGoverned: Bool {
-        !isLayerOpen && !isMenuOpen && !isAccessibilityFocused && hasFocus && isPointerInPlayerArea
+    private var canRunIdleCountdown: Bool {
+        !isLayerOpen && !isMenuOpen && !isAccessibilityFocused && isPointerInPlayerArea
     }
 
     private var isIdleCountdownDue: Bool {
-        isGoverned
+        canRunIdleCountdown
             && !isDragging
             && !isPointerOnInteractiveControl
-            && (isPlayerUIVisible || isPointerVisible)
+            && (isPlayerUIVisible || (hasFocus && isPointerVisible))
     }
 
     private var pointerLocationInPlayerArea: CGPoint? {
@@ -270,7 +279,11 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     }
 
     private var isPointerInPlayerArea: Bool {
-        guard let view = playerAreaView, let point = pointerLocationInPlayerArea else {
+        guard let view = playerAreaView,
+              let window = playerWindow,
+              isPointerOverPlayerWindow(window, pointerScreenLocation()),
+              let point = pointerLocationInPlayerArea
+        else {
             return false
         }
         return view.bounds.contains(point)
@@ -325,13 +338,12 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         guard isIdleCountdownDue else {
             return
         }
-        hideBoth()
-    }
-
-    private func hideBoth() {
-        cancelIdleCountdown()
         setPlayerUIVisible(false)
-        setPointerVisible(false)
+        if hasFocus {
+            setPointerVisible(false)
+        } else {
+            setPointerVisible(true)
+        }
         applyCursorOwnership()
     }
 

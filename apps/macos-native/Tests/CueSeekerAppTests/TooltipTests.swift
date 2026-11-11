@@ -627,6 +627,31 @@ struct TooltipTests {
         )
     }
 
+    @MainActor
+    @Test
+    func tooltipRemainsVisibleAcrossWindowFocusLossAndDismissesOnWindowClose() {
+        let center = TooltipCenter()
+        let target = UUID()
+        center.hoverBegan(
+            targetID: target,
+            surface: .main,
+            scenarioID: "topbar.entry.tasks",
+            anchorRect: CGRect(x: 120, y: 20, width: 28, height: 28),
+            content: .standard(label: "Tasks", shortcut: .none, wrapsText: false)
+        )
+        center.revealPendingNowForTesting()
+        #expect(center.activeItem?.targetID == target)
+
+        NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: nil)
+        NotificationCenter.default.post(name: NSApplication.didResignActiveNotification, object: nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        #expect(center.activeItem?.targetID == target)
+
+        NotificationCenter.default.post(name: NSWindow.willCloseNotification, object: nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        #expect(center.activeItem == nil)
+    }
+
     private func localized(_ key: String, language: AppLanguage) -> String {
         AppLocalization._bundleForTesting(language).localizedString(
             forKey: key,

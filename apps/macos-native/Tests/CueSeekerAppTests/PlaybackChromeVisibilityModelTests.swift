@@ -12,6 +12,7 @@ private final class PlayerArea {
     let window: NSWindow
     let view: NSView
     private var isFocused = true
+    private var isOccludedByCoveringWindow = false
     /// In window coordinates; the player area fills the window's content.
     var pointer = NSPoint(x: 400, y: 300)
 
@@ -29,6 +30,9 @@ private final class PlayerArea {
         model.pointerScreenLocation = { [unowned self] in
             self.window.convertPoint(toScreen: self.pointer)
         }
+        model.isPointerOverPlayerWindow = { [unowned self] _, _ in
+            !self.isOccludedByCoveringWindow
+        }
         AppCursorVisibility.resetForTesting()
         model.enterVideoPage()
         model.updatePlayerAreaView(view)
@@ -42,6 +46,11 @@ private final class PlayerArea {
     func setFocused(_ isFocused: Bool) {
         self.isFocused = isFocused
         model.focusChanged()
+    }
+
+    func setOccludedByCoveringWindow(_ isOccluded: Bool) {
+        self.isOccludedByCoveringWindow = isOccluded
+        model.pointerExitedPlayerArea(view: view)
     }
 
     /// A control's frame around the pointer, in the area's top-left
@@ -153,21 +162,61 @@ func sameWindowLayerPreservesPointerVisibilityAndFreezesThePlayerUI() {
 
 @MainActor
 @Test
-func losingFocusOrLeavingTheWindowHidesThePlayerUIAndShowsThePointer() {
+func unfocusedPlayerAreaWakesAndHidesPlayerUIWithoutHidingSystemCursorWhileCoveringWindowBlocksWake() {
     let area = PlayerArea()
     defer { area.finish() }
 
+    // 1. Losing focus while cursor was hidden immediately restores the system cursor
+    // while keeping Player UI hidden until the pointer moves.
     area.model.idleElapsed()
+    #expect(!area.model.isPlayerUIVisible)
+    #expect(!area.model.isPointerVisible)
+    #expect(AppCursorVisibility.isCursorHidden)
+
     area.setFocused(false)
     #expect(!area.model.isPlayerUIVisible)
     #expect(area.model.isPointerVisible)
     #expect(!AppCursorVisibility.isCursorHidden)
     #expect(!area.model.isIdleCountdownRunning)
-    area.setFocused(true)
+
+    // 2. Moving the pointer inside the unoccluded unfocused player area wakes Player UI
+    // and starts the 3s idle countdown; when idle elapses while unfocused, Player UI hides
+    // while the system cursor stays visible.
+    area.movePointer(to: NSPoint(x: 410, y: 300))
+    #expect(area.model.isPlayerUIVisible)
+    #expect(area.model.isPointerVisible)
+    #expect(!AppCursorVisibility.isCursorHidden)
+    #expect(area.model.isIdleCountdownRunning)
+
+    area.model.idleElapsed()
     #expect(!area.model.isPlayerUIVisible)
+    #expect(area.model.isPointerVisible)
+    #expect(!AppCursorVisibility.isCursorHidden)
+    #expect(!area.model.isIdleCountdownRunning)
+
+    // 3. Losing focus while Player UI is shown in an unoccluded player area keeps Player UI visible.
+    area.setFocused(true)
+    area.movePointer(to: NSPoint(x: 400, y: 300))
+    #expect(area.model.isPlayerUIVisible)
+    area.setFocused(false)
+    #expect(area.model.isPlayerUIVisible)
     #expect(area.model.isPointerVisible)
     #expect(area.model.isIdleCountdownRunning)
 
+    // 4. Moving onto a covering window (e.g. Finder or Settings) immediately hides Player UI,
+    // and moving inside the covering window never penetrates to wake Player UI underneath.
+    area.setOccludedByCoveringWindow(true)
+    #expect(!area.model.isPlayerUIVisible)
+    #expect(area.model.isPointerVisible)
+    #expect(!area.model.isIdleCountdownRunning)
+
+    area.movePointer(to: NSPoint(x: 420, y: 310))
+    #expect(!area.model.isPlayerUIVisible)
+    #expect(!area.model.isIdleCountdownRunning)
+
+    // 5. Moving back onto the unoccluded player area wakes Player UI again, and leaving the
+    // window bounds hides Player UI and keeps the pointer shown.
+    area.setOccludedByCoveringWindow(false)
     area.movePointer(to: NSPoint(x: 400, y: 300))
     #expect(area.model.isPlayerUIVisible)
     area.pointer = NSPoint(x: -10, y: 300)

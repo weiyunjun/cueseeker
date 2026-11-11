@@ -412,8 +412,6 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
         guard let scrollView,
               let documentView = scrollView.documentView,
               let window = scrollView.window,
-              NSApp.isActive,
-              window.isKeyWindow,
               NSWindow.windowNumber(
                   at: NSEvent.mouseLocation,
                   belowWindowWithWindowNumber: 0

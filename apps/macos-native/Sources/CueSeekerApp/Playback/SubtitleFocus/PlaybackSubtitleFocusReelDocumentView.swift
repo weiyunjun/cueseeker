@@ -226,6 +226,10 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         false
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window == nil {

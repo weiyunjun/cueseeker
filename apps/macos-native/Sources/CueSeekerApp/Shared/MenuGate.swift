@@ -404,9 +404,7 @@ final class MenuGate {
                event.type == .mouseMoved
                 || event.type == .leftMouseDragged
                 || event.type == .rightMouseDragged {
-                if NSApp.isActive && menuWindow?.isKeyWindow == true {
-                    PointerHoverScrollState.shared.notePointerMoved()
-                }
+                PointerHoverScrollState.shared.notePointerMoved()
             }
             let isPointerOnMenu = client.isPointerOnMenu(event)
             if !isFromAnotherWindow, event.type != .mouseEntered,

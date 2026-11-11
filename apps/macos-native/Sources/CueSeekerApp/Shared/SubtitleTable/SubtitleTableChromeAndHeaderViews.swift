@@ -14,6 +14,10 @@ final class SubtitleTableContainerView: NSView {
     /// speaks one direction.
     override var isFlipped: Bool { true }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
@@ -49,6 +53,10 @@ final class SubtitleTablePageChromeViewportView: NSView {
     weak var coordinator: SubtitleTableView.Coordinator?
 
     override var isFlipped: Bool { true }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -311,6 +319,10 @@ final class SubtitleTableHeaderTextOverlayView: NSView {
     override var acceptsFirstResponder: Bool { true }
     override var isOpaque: Bool { false }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override func resignFirstResponder() -> Bool {
         coordinator?.cancelPendingTextInteraction()
         return super.resignFirstResponder()
@@ -390,6 +402,10 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     override var isFlipped: Bool { true }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         // Columns shift left with the table's horizontal offset; without this
@@ -408,7 +424,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -456,9 +472,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
-        guard let window,
-              NSApp.isActive,
-              window.isKeyWindow,
+        guard window != nil,
               !PointerHoverScrollState.shared.isScrolling
         else {
             return
@@ -471,14 +485,21 @@ final class SubtitleVirtualTableHeaderView: NSView {
         guard !PointerHoverScrollState.shared.isScrolling else {
             return
         }
+        if let window,
+           window.windowNumber > 0,
+           NSWindow.windowNumber(
+               at: NSEvent.mouseLocation,
+               belowWindowWithWindowNumber: 0
+           ) != window.windowNumber {
+            clearHoverState()
+            return
+        }
         updateHoverState(windowLocation: event.locationInWindow)
     }
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        guard let window,
-              NSApp.isActive,
-              window.isKeyWindow,
+        guard window != nil,
               !PointerHoverScrollState.shared.isScrolling
         else {
             return
@@ -498,8 +519,6 @@ final class SubtitleVirtualTableHeaderView: NSView {
         guard !AppCursorVisibility.isCursorHidden,
               !PointerHoverScrollState.shared.isScrolling,
               let window,
-              NSApp.isActive,
-              window.isKeyWindow,
               NSWindow.windowNumber(
                   at: NSEvent.mouseLocation,
                   belowWindowWithWindowNumber: 0
@@ -531,7 +550,12 @@ final class SubtitleVirtualTableHeaderView: NSView {
             guard !PointerHoverScrollState.shared.isScrolling else {
                 return
             }
-            guard let window, NSApp.isActive, window.isKeyWindow else {
+            guard let window,
+                  NSWindow.windowNumber(
+                      at: NSEvent.mouseLocation,
+                      belowWindowWithWindowNumber: 0
+                  ) == window.windowNumber
+            else {
                 isHeaderHovered = false
                 isIndexHeaderHovered = false
                 return
@@ -854,7 +878,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             host.isHidden = false
         } else {
             hostVar?.removeFromSuperview()
-            let host = NSHostingView(rootView: anyView)
+            let host = CueSeekerHostingView(rootView: anyView)
             host.wantsLayer = true
             host.layer?.masksToBounds = false
             addSubview(host)
@@ -912,6 +936,10 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override func resignFirstResponder() -> Bool {
         coordinator?.clearFocusedCheckbox()
         coordinator?.cancelPendingTextInteraction()
@@ -925,7 +953,7 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
         }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -941,9 +969,7 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        guard let window,
-              NSApp.isActive,
-              window.isKeyWindow,
+        guard window != nil,
               !PointerHoverScrollState.shared.isScrolling
         else {
             return

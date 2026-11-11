@@ -25,26 +25,6 @@ final class PointerHoverScrollState: ObservableObject {
     init() {
         let center = NotificationCenter.default
         for name in [
-            NSApplication.didResignActiveNotification,
-            NSWindow.didResignKeyNotification,
-        ] {
-            let token = center.addObserver(
-                forName: name,
-                object: nil,
-                queue: .main
-            ) { [weak self] notification in
-                MainActor.assumeIsolated {
-                    let window = notification.object as? NSWindow
-                    self?.cancelScrollDebounceForWindowResign()
-                    CardHighlightModel.broadcastWindowDidResignFocus(in: window)
-                    MenuHighlightModel.broadcastWindowDidResignFocus(in: window)
-                    WindowFocusHoverSession.syncWindowDidResignFocus(in: window)
-                    PointerHoverSession.syncWindowFocusChanged(in: window)
-                }
-            }
-            focusObserverTokens.append(token)
-        }
-        for name in [
             NSApplication.didBecomeActiveNotification,
             NSWindow.didBecomeKeyNotification,
         ] {
@@ -55,12 +35,9 @@ final class PointerHoverScrollState: ObservableObject {
             ) { notification in
                 MainActor.assumeIsolated {
                     let window = notification.object as? NSWindow
-                    CardHighlightModel.broadcastWindowDidBecomeKey(in: window)
-                    MenuHighlightModel.broadcastWindowDidBecomeKey(in: window)
                     WindowFocusHoverSession.syncWindowDidBecomeKey(in: window)
                     PointerHoverSession.syncWindowFocusChanged(in: window)
-                    if let keyWindow = window ?? NSApp?.keyWindow,
-                       AppPointerShape.manages(keyWindow) {
+                    if NSApp?.isActive == true {
                         AppPointerShape.reevaluate()
                     }
                 }
@@ -146,15 +123,6 @@ final class PointerHoverScrollState: ObservableObject {
         MenuHighlightModel.broadcastPointerMoved()
     }
 
-    func cancelScrollDebounceForWindowResign() {
-        debounceTask?.cancel()
-        debounceTask = nil
-        if isScrolling {
-            isScrolling = false
-            notifyActiveHoverListeners()
-        }
-    }
-
     func settleScroll() {
         debounceTask?.cancel()
         debounceTask = nil
@@ -221,16 +189,14 @@ struct PointerHoverLocationGate: Equatable {
         isFrozen: Bool,
         isScrolling: Bool = false,
         isCursorHidden: Bool = false,
-        isSuppressedByKeyboard: Bool = false,
-        isWindowFocused: Bool = true
+        isSuppressedByKeyboard: Bool = false
     ) -> CGPoint?? {
         reportedLocation = location
         return delivery(
             isFrozen: isFrozen,
             isScrolling: isScrolling,
             isCursorHidden: isCursorHidden,
-            isSuppressedByKeyboard: isSuppressedByKeyboard,
-            isWindowFocused: isWindowFocused
+            isSuppressedByKeyboard: isSuppressedByKeyboard
         )
     }
 
@@ -238,15 +204,13 @@ struct PointerHoverLocationGate: Equatable {
         isFrozen: Bool,
         isScrolling: Bool = false,
         isCursorHidden: Bool = false,
-        isSuppressedByKeyboard: Bool = false,
-        isWindowFocused: Bool = true
+        isSuppressedByKeyboard: Bool = false
     ) -> CGPoint?? {
         delivery(
             isFrozen: isFrozen,
             isScrolling: isScrolling,
             isCursorHidden: isCursorHidden,
-            isSuppressedByKeyboard: isSuppressedByKeyboard,
-            isWindowFocused: isWindowFocused
+            isSuppressedByKeyboard: isSuppressedByKeyboard
         )
     }
 
@@ -254,18 +218,10 @@ struct PointerHoverLocationGate: Equatable {
         isFrozen: Bool,
         isScrolling: Bool,
         isCursorHidden: Bool,
-        isSuppressedByKeyboard: Bool,
-        isWindowFocused: Bool
+        isSuppressedByKeyboard: Bool
     ) -> CGPoint?? {
         if isCursorHidden {
             guard deliveredLocation != nil else {
-                return nil
-            }
-            deliveredLocation = nil
-            return .some(nil)
-        }
-        if !isWindowFocused {
-            guard !isFrozen, deliveredLocation != nil else {
                 return nil
             }
             deliveredLocation = nil
@@ -308,34 +264,30 @@ struct PointerHoverGate: Equatable {
         isFrozen: Bool,
         isScrolling: Bool = false,
         isCursorHidden: Bool = false,
-        isSuppressedByKeyboard: Bool = false,
-        isWindowFocused: Bool = true
+        isSuppressedByKeyboard: Bool = false
     ) -> Bool? {
         reportedIsHovered = isHovered
         return delivery(
             isFrozen: isFrozen,
             isScrolling: isScrolling,
             isCursorHidden: isCursorHidden,
-            isSuppressedByKeyboard: isSuppressedByKeyboard,
-            isWindowFocused: isWindowFocused
+            isSuppressedByKeyboard: isSuppressedByKeyboard
         )
     }
 
     /// Returns what the surface should be told now that the freeze, scroll,
-    /// cursor visibility, keyboard suppression, or window focus state changed.
+    /// cursor visibility, or keyboard suppression state changed.
     mutating func freezeChanged(
         isFrozen: Bool,
         isScrolling: Bool = false,
         isCursorHidden: Bool = false,
-        isSuppressedByKeyboard: Bool = false,
-        isWindowFocused: Bool = true
+        isSuppressedByKeyboard: Bool = false
     ) -> Bool? {
         delivery(
             isFrozen: isFrozen,
             isScrolling: isScrolling,
             isCursorHidden: isCursorHidden,
-            isSuppressedByKeyboard: isSuppressedByKeyboard,
-            isWindowFocused: isWindowFocused
+            isSuppressedByKeyboard: isSuppressedByKeyboard
         )
     }
 
@@ -343,18 +295,10 @@ struct PointerHoverGate: Equatable {
         isFrozen: Bool,
         isScrolling: Bool,
         isCursorHidden: Bool,
-        isSuppressedByKeyboard: Bool,
-        isWindowFocused: Bool
+        isSuppressedByKeyboard: Bool
     ) -> Bool? {
         if isCursorHidden {
             guard deliveredIsHovered else {
-                return nil
-            }
-            deliveredIsHovered = false
-            return false
-        }
-        if !isWindowFocused {
-            guard !isFrozen, deliveredIsHovered else {
                 return nil
             }
             deliveredIsHovered = false
@@ -473,13 +417,6 @@ final class PointerHoverSession: ObservableObject {
     private var hasInitializedFreeze = false
     private var isListeningToScrollState = false
 
-    var isWindowFocused: Bool {
-        guard let window = probeView?.window else {
-            return true
-        }
-        return NSApp?.isActive == true && window.isKeyWindow
-    }
-
     init() {
         Self.registeredSessions[ObjectIdentifier(self)] = WeakBox(value: self)
     }
@@ -568,7 +505,6 @@ final class PointerHoverSession: ObservableObject {
                 let hadActiveHover = locationGate.hasActiveHover
                 let scrollState = PointerHoverScrollState.shared
                 let isCursorHidden = AppCursorVisibility.isCursorHidden
-                let windowFocused = isWindowFocused
                 switch currentPointerSampleInView() {
                 case .inside(let localPoint):
                     let delivered = locationGate.report(
@@ -576,14 +512,12 @@ final class PointerHoverSession: ObservableObject {
                         isFrozen: false,
                         isScrolling: scrollState.isScrolling,
                         isCursorHidden: isCursorHidden,
-                        isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController,
-                        isWindowFocused: windowFocused
+                        isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
                     )
                     syncScrollListener()
                     if let delivered {
                         locationAction?(delivered)
                     } else if wasFrozen,
-                              windowFocused,
                               !scrollState.isScrolling,
                               !isCursorHidden,
                               !scrollState.isSuppressedByKeyboardOrController {
@@ -596,8 +530,7 @@ final class PointerHoverSession: ObservableObject {
                         isFrozen: false,
                         isScrolling: scrollState.isScrolling,
                         isCursorHidden: isCursorHidden,
-                        isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController,
-                        isWindowFocused: windowFocused
+                        isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
                     )
                     syncScrollListener()
                     if let delivered {
@@ -620,16 +553,14 @@ final class PointerHoverSession: ObservableObject {
             let hadActiveHover = gate.hasActiveHover
             let scrollState = PointerHoverScrollState.shared
             let isCursorHidden = AppCursorVisibility.isCursorHidden
-            let windowFocused = isWindowFocused
             if let probe = probeView as? PointerHoverProbeView {
-                probe.setAssumesMouseInside(windowFocused && pointerInside)
-                probe.setTracksReenter(windowFocused && hadActiveHover && !pointerInside)
+                probe.setAssumesMouseInside(pointerInside)
+                probe.setTracksReenter(hadActiveHover && !pointerInside)
             }
-            let canFollowPointer = windowFocused
-                && !scrollState.isScrolling
+            let canFollowPointer = !scrollState.isScrolling
                 && !scrollState.isSuppressedByKeyboardOrController
                 && !isCursorHidden
-            if windowFocused, !scrollState.isSuppressedByKeyboardOrController {
+            if !scrollState.isSuppressedByKeyboardOrController {
                 syncPointerHandShape(pointerInside, followsPointer: canFollowPointer)
             }
             let delivered = gate.report(
@@ -637,8 +568,7 @@ final class PointerHoverSession: ObservableObject {
                 isFrozen: false,
                 isScrolling: scrollState.isScrolling,
                 isCursorHidden: isCursorHidden,
-                isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController,
-                isWindowFocused: windowFocused
+                isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
             )
             syncScrollListener()
             if let delivered {
@@ -665,13 +595,11 @@ final class PointerHoverSession: ObservableObject {
         }
         let scrollState = PointerHoverScrollState.shared
         let isCursorHidden = AppCursorVisibility.isCursorHidden
-        let windowFocused = isWindowFocused
-        let followsPointer = windowFocused
-            && !isFrozen
+        let followsPointer = !isFrozen
             && !scrollState.isScrolling
             && !scrollState.isSuppressedByKeyboardOrController
             && !isCursorHidden
-        if windowFocused, !isFrozen, !scrollState.isSuppressedByKeyboardOrController {
+        if !isFrozen, !scrollState.isSuppressedByKeyboardOrController {
             syncPointerHandShape(isHovered, followsPointer: followsPointer)
         }
         let delivered = gate.report(
@@ -679,8 +607,7 @@ final class PointerHoverSession: ObservableObject {
             isFrozen: isFrozen,
             isScrolling: scrollState.isScrolling,
             isCursorHidden: isCursorHidden,
-            isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController,
-            isWindowFocused: windowFocused
+            isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
         )
         syncScrollListener()
         if let delivered {
@@ -695,8 +622,7 @@ final class PointerHoverSession: ObservableObject {
             isFrozen: isFrozen,
             isScrolling: scrollState.isScrolling,
             isCursorHidden: AppCursorVisibility.isCursorHidden,
-            isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController,
-            isWindowFocused: isWindowFocused
+            isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
         )
         syncScrollListener()
         if let delivered {
@@ -706,12 +632,10 @@ final class PointerHoverSession: ObservableObject {
 
     func handleWindowMouseMoved(locationInWindow: CGPoint) {
         guard let probeView,
-              let window = probeView.window,
+              probeView.window != nil,
               !probeView.isHiddenOrHasHiddenAncestor,
               probeView.bounds.width > 0,
-              probeView.bounds.height > 0,
-              NSApp.isActive,
-              window.isKeyWindow
+              probeView.bounds.height > 0
         else {
             return
         }
@@ -727,10 +651,8 @@ final class PointerHoverSession: ObservableObject {
     func handleStateChanged() {
         let scrollState = PointerHoverScrollState.shared
         let isCursorHidden = AppCursorVisibility.isCursorHidden
-        let windowFocused = isWindowFocused
         if tracksLocation {
-            if windowFocused,
-               !isFrozen,
+            if !isFrozen,
                !scrollState.isScrolling,
                !isCursorHidden,
                !scrollState.isSuppressedByKeyboardOrController {
@@ -741,8 +663,7 @@ final class PointerHoverSession: ObservableObject {
                         isFrozen: false,
                         isScrolling: false,
                         isCursorHidden: false,
-                        isSuppressedByKeyboard: false,
-                        isWindowFocused: true
+                        isSuppressedByKeyboard: false
                     )
                     syncScrollListener()
                     if let delivered {
@@ -756,8 +677,7 @@ final class PointerHoverSession: ObservableObject {
                             isFrozen: false,
                             isScrolling: false,
                             isCursorHidden: false,
-                            isSuppressedByKeyboard: false,
-                            isWindowFocused: true
+                            isSuppressedByKeyboard: false
                         )
                         syncScrollListener()
                         if let delivered {
@@ -773,8 +693,7 @@ final class PointerHoverSession: ObservableObject {
                 isFrozen: isFrozen,
                 isScrolling: scrollState.isScrolling,
                 isCursorHidden: isCursorHidden,
-                isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController,
-                isWindowFocused: windowFocused
+                isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
             )
             syncScrollListener()
             if let delivered {
@@ -782,8 +701,7 @@ final class PointerHoverSession: ObservableObject {
             }
             return
         }
-        if windowFocused,
-           !isFrozen,
+        if !isFrozen,
            !scrollState.isScrolling,
            !isCursorHidden,
            !scrollState.isSuppressedByKeyboardOrController,
@@ -799,8 +717,7 @@ final class PointerHoverSession: ObservableObject {
                 isFrozen: false,
                 isScrolling: false,
                 isCursorHidden: false,
-                isSuppressedByKeyboard: false,
-                isWindowFocused: true
+                isSuppressedByKeyboard: false
             )
             syncScrollListener()
             if let delivered {
@@ -808,19 +725,14 @@ final class PointerHoverSession: ObservableObject {
             }
             return
         }
-        if !windowFocused, let probe = probeView as? PointerHoverProbeView {
-            probe.setAssumesMouseInside(false)
-            probe.setTracksReenter(false)
-        }
         let delivered = gate.freezeChanged(
             isFrozen: isFrozen,
             isScrolling: scrollState.isScrolling,
             isCursorHidden: isCursorHidden,
-            isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController,
-            isWindowFocused: windowFocused
+            isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
         )
-        if !windowFocused || isFrozen || scrollState.isSuppressedByKeyboardOrController || isCursorHidden {
-            syncPointerHandShape(false, followsPointer: windowFocused && !isFrozen && !isCursorHidden)
+        if isFrozen || scrollState.isSuppressedByKeyboardOrController || isCursorHidden {
+            syncPointerHandShape(false, followsPointer: !isFrozen && !isCursorHidden)
         } else if let delivered, !scrollState.isScrolling {
             syncPointerHandShape(delivered, followsPointer: true)
         }
@@ -874,13 +786,10 @@ final class PointerHoverSession: ObservableObject {
         else {
             return .unavailable
         }
-        guard NSApp.isActive,
-              window.isKeyWindow,
-              NSWindow.windowNumber(
-                  at: NSEvent.mouseLocation,
-                  belowWindowWithWindowNumber: 0
-              ) == window.windowNumber
-        else {
+        guard NSWindow.windowNumber(
+            at: NSEvent.mouseLocation,
+            belowWindowWithWindowNumber: 0
+        ) == window.windowNumber else {
             return .outside
         }
         let locationInWindow = window.mouseLocationOutsideOfEventStream
@@ -948,7 +857,7 @@ final class PointerHoverProbeView: NSView {
             addTrackingArea(
                 NSTrackingArea(
                     rect: .zero,
-                    options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
+                    options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
                     owner: self,
                     userInfo: nil
                 )
@@ -957,7 +866,7 @@ final class PointerHoverProbeView: NSView {
             addTrackingArea(
                 NSTrackingArea(
                     rect: .zero,
-                    options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect, .assumeInside],
+                    options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect, .assumeInside],
                     owner: self,
                     userInfo: nil
                 )
@@ -966,7 +875,7 @@ final class PointerHoverProbeView: NSView {
             addTrackingArea(
                 NSTrackingArea(
                     rect: .zero,
-                    options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                    options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
                     owner: self,
                     userInfo: nil
                 )
@@ -1142,21 +1051,6 @@ final class WindowFocusHoverSession: ObservableObject {
 
     private static var registeredSessions: [ObjectIdentifier: WeakBox] = [:]
 
-    static func syncWindowDidResignFocus(in window: NSWindow? = nil) {
-        registeredSessions = registeredSessions.filter { $0.value.value != nil }
-        for box in registeredSessions.values {
-            guard let session = box.value else {
-                continue
-            }
-            if let window,
-               let sessionWindow = session.probeView?.window,
-               sessionWindow !== window {
-                continue
-            }
-            session.handleWindowDidResignFocus()
-        }
-    }
-
     static func syncWindowDidBecomeKey(in window: NSWindow? = nil) {
         registeredSessions = registeredSessions.filter { $0.value.value != nil }
         for box in registeredSessions.values {
@@ -1183,7 +1077,7 @@ final class WindowFocusHoverSession: ObservableObject {
         let key = ObjectIdentifier(self)
         if Thread.isMainThread {
             MainActor.assumeIsolated {
-                Self.registeredSessions.removeValue(forKey: key)
+                _ = Self.registeredSessions.removeValue(forKey: key)
             }
         } else {
             Task { @MainActor in
@@ -1199,7 +1093,7 @@ final class WindowFocusHoverSession: ObservableObject {
         action?(isHovered)
     }
 
-    func handleWindowDidResignFocus() {
+    func clearAssumesMouseInside() {
         probeView?.setAssumesMouseInside(false)
     }
 
@@ -1222,13 +1116,10 @@ final class WindowFocusHoverSession: ObservableObject {
         else {
             return nil
         }
-        guard NSApp.isActive,
-              window.isKeyWindow,
-              NSWindow.windowNumber(
-                  at: NSEvent.mouseLocation,
-                  belowWindowWithWindowNumber: 0
-              ) == window.windowNumber
-        else {
+        guard NSWindow.windowNumber(
+            at: NSEvent.mouseLocation,
+            belowWindowWithWindowNumber: 0
+        ) == window.windowNumber else {
             return false
         }
         let locationInWindow = window.mouseLocationOutsideOfEventStream
@@ -1267,7 +1158,7 @@ final class WindowFocusHoverProbeView: NSView {
         addTrackingArea(
             NSTrackingArea(
                 rect: .zero,
-                options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect, .assumeInside],
+                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect, .assumeInside],
                 owner: self,
                 userInfo: nil
             )
@@ -1315,7 +1206,7 @@ private struct WindowFocusAwareHoverModifier: ViewModifier {
                 session.report(isHovered)
             }
             .onDisappear {
-                session.handleWindowDidResignFocus()
+                session.clearAssumesMouseInside()
             }
     }
 }

@@ -60,45 +60,54 @@ struct PointerHoverGateTests {
         #expect(gate.freezeChanged(isFrozen: false) == nil)
     }
 
+    @MainActor
     @Test
-    func windowFocusLossImmediatelyClearsHoverAndSuppressesUntilFocusReturns() {
-        var gate = PointerHoverGate()
-        var locationGate = PointerHoverLocationGate()
+    func trackingProbesAndFirstMouseViewsRemainActiveWhenUnfocused() {
+        let probe = PointerHoverProbeView(frame: NSRect(x: 0, y: 0, width: 120, height: 40))
+        probe.tracksLocation = true
+        probe.updateTrackingAreas()
+        #expect(probe.trackingAreas.first?.options.contains(.activeAlways) == true)
 
-        #expect(gate.report(true, isFrozen: false, isWindowFocused: true) == true)
-        #expect(
-            locationGate.report(
-                CGPoint(x: 40, y: 10),
-                isFrozen: false,
-                isWindowFocused: true
-            ) == .some(CGPoint(x: 40, y: 10))
-        )
+        probe.tracksLocation = false
+        probe.setAssumesMouseInside(true)
+        #expect(probe.trackingAreas.first?.options.contains(.activeAlways) == true)
 
-        // Losing window focus immediately clears delivered Hover and location.
-        #expect(gate.freezeChanged(isFrozen: false, isWindowFocused: false) == false)
-        #expect(locationGate.freezeChanged(isFrozen: false, isWindowFocused: false) == .some(nil))
+        probe.setAssumesMouseInside(false)
+        probe.setTracksReenter(true)
+        #expect(probe.trackingAreas.first?.options.contains(.activeAlways) == true)
 
-        // Hover reports while unfocused are suppressed.
-        #expect(gate.report(true, isFrozen: false, isWindowFocused: false) == nil)
-        #expect(
-            locationGate.report(
-                CGPoint(x: 90, y: 10),
-                isFrozen: false,
-                isWindowFocused: false
-            ) == nil
-        )
+        let focusProbe = WindowFocusHoverProbeView(frame: NSRect(x: 0, y: 0, width: 120, height: 40))
+        focusProbe.setAssumesMouseInside(true)
+        #expect(focusProbe.trackingAreas.first?.options.contains(.activeAlways) == true)
 
-        // Regaining window focus restores Hover for the target currently under the pointer.
-        #expect(gate.freezeChanged(isFrozen: false, isWindowFocused: true) == true)
-        #expect(
-            locationGate.freezeChanged(isFrozen: false, isWindowFocused: true)
-                == .some(CGPoint(x: 90, y: 10))
-        )
+        let hostingView = CueSeekerHostingView(rootView: EmptyView())
+        let scrollbarView = TableScrollbarOverlayView(frame: NSRect(x: 0, y: 0, width: 20, height: 100))
+        scrollbarView.updateTrackingAreas()
+        let headerView = SubtitleVirtualTableHeaderView(frame: NSRect(x: 0, y: 0, width: 200, height: 32))
+        headerView.updateTrackingAreas()
+        let documentView = SubtitleVirtualTableDocumentView(frame: NSRect(x: 0, y: 0, width: 200, height: 200))
+        documentView.updateTrackingAreas()
+        let reelDocumentView = PlaybackSubtitleFocusReelDocumentView(frame: NSRect(x: 0, y: 0, width: 200, height: 200))
+        let collagePreviewView = PlaybackCollagePreviewScrollContainerView(frame: NSRect(x: 0, y: 0, width: 200, height: 200))
+        collagePreviewView.updateTrackingAreas()
+        let draggableTitlebar = DraggableNSView(frame: NSRect(x: 0, y: 0, width: 200, height: 54))
+
+        #expect(hostingView.acceptsFirstMouse(for: nil))
+        #expect(scrollbarView.acceptsFirstMouse(for: nil))
+        #expect(scrollbarView.trackingAreas.first?.options.contains(.activeAlways) == true)
+        #expect(headerView.acceptsFirstMouse(for: nil))
+        #expect(headerView.trackingAreas.first?.options.contains(.activeAlways) == true)
+        #expect(documentView.acceptsFirstMouse(for: nil))
+        #expect(documentView.trackingAreas.first?.options.contains(.activeAlways) == true)
+        #expect(reelDocumentView.acceptsFirstMouse(for: nil))
+        #expect(collagePreviewView.acceptsFirstMouse(for: nil))
+        #expect(collagePreviewView.trackingAreas.first?.options.contains(.activeAlways) == true)
+        #expect(draggableTitlebar.acceptsFirstMouse(for: nil))
     }
 
     @MainActor
     @Test
-    func cardAndMenuHighlightModelsClearAndSuppressHoverWhenWindowResignsFocus() {
+    func cardAndMenuHighlightModelsPreserveAndRespondToHoverWhenWindowResignsFocus() {
         AppCursorVisibility.resetForTesting()
         PointerHoverScrollState.shared.resetForTesting()
         defer {
@@ -118,35 +127,17 @@ struct PointerHoverGateTests {
         menuHighlight.noteHover(true, at: 1)
         #expect(menuHighlight.hoveredPosition == 1)
 
-        // Resigning window focus clears card and menu Hover while preserving card Select.
+        // Resigning window focus preserves both card and menu Hover as well as card Select.
         NotificationCenter.default.post(
             name: NSApplication.didResignActiveNotification,
             object: nil
         )
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
-        #expect(!cardHighlight.isWindowFocused)
-        #expect(cardHighlight.hoveredID == nil)
-        #expect(cardHighlight.selectedID == "card-0")
-        #expect(!menuHighlight.isWindowFocused)
-        #expect(menuHighlight.hoveredPosition == nil)
-
-        // Background hover callbacks while unfocused are ignored.
-        cardHighlight.noteHover(true, id: "card-2", showsHand: true)
-        menuHighlight.noteHover(true, at: 2)
-        #expect(cardHighlight.hoveredID == nil)
-        #expect(menuHighlight.hoveredPosition == nil)
-
-        // Regaining window focus immediately restores stationary Hover and re-enables hover tracking.
-        NotificationCenter.default.post(
-            name: NSApplication.didBecomeActiveNotification,
-            object: nil
-        )
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
-        #expect(cardHighlight.isWindowFocused)
-        #expect(menuHighlight.isWindowFocused)
         #expect(cardHighlight.hoveredID == "card-1")
-        #expect(AppPointerShape.model.shape == .grab)
+        #expect(cardHighlight.selectedID == "card-0")
         #expect(menuHighlight.hoveredPosition == 1)
+
+        // Hover callbacks from an unoccluded unfocused window continue to update normally.
         cardHighlight.noteHover(true, id: "card-2", showsHand: true)
         menuHighlight.noteHover(true, at: 2)
         #expect(cardHighlight.hoveredID == "card-2")
@@ -155,7 +146,7 @@ struct PointerHoverGateTests {
 
     @MainActor
     @Test
-    func openingSecondWindowKeepsUnfocusedMainWindowCardAndMenuHoverSuppressed() {
+    func openingSecondWindowAllowsUnoccludedMainWindowCardAndMenuHover() {
         AppCursorVisibility.resetForTesting()
         PointerHoverScrollState.shared.resetForTesting()
         AppPointerShape.resetForTesting()
@@ -171,25 +162,19 @@ struct PointerHoverGateTests {
             defer: false
         )
         let settingsWindow = NSWindow(
-            contentRect: NSRect(x: 40, y: 40, width: 280, height: 200),
+            contentRect: NSRect(x: 400, y: 40, width: 280, height: 200),
             styleMask: [.titled],
             backing: .buffered,
             defer: false
         )
-        let mainHostView = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 240))
-        mainWindow.contentView = mainHostView
 
         let cardHighlight = CardHighlightModel(keepsCurrentWhenPointerLeaves: true)
-        cardHighlight.hostView = mainHostView
         cardHighlight.setSelected("card-0")
 
         let menuHighlight = MenuHighlightModel()
-        menuHighlight.hostView = mainHostView
         menuHighlight.open(selectablePositions: [0, 1, 2], defaultPosition: 0)
         defer { menuHighlight.close() }
 
-        // Simulate opening Settings window over the Main Window:
-        // mainWindow resigns key, settingsWindow becomes key, and the pointer moves.
         NotificationCenter.default.post(
             name: NSWindow.didResignKeyNotification,
             object: mainWindow
@@ -201,15 +186,13 @@ struct PointerHoverGateTests {
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
         PointerHoverScrollState.shared.notePointerMoved()
 
-        #expect(!cardHighlight.isHostingWindowFocused)
-        #expect(!menuHighlight.isHostingWindowFocused)
-
-        // Hover callbacks from the unfocused Main Window remain suppressed and do not show a grab cursor.
         cardHighlight.noteHover(true, id: "card-1", showsHand: true)
-        cardHighlight.noteActionButtonHover(true, id: "card-1")
         menuHighlight.noteHover(true, at: 2)
-        #expect(cardHighlight.hoveredID == nil)
-        #expect(menuHighlight.hoveredPosition == nil)
+        #expect(cardHighlight.hoveredID == "card-1")
+        #expect(menuHighlight.hoveredPosition == 2)
+        #expect(AppPointerShape.model.shape == .grab)
+
+        cardHighlight.noteActionButtonHover(true, id: "card-1")
         #expect(AppPointerShape.model.shape == .arrow)
     }
 

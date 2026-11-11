@@ -708,20 +708,8 @@ struct SubtitleTableView: NSViewRepresentable {
             )
             NotificationCenter.default.addObserver(
                 self,
-                selector: #selector(appDidResignActive),
-                name: NSApplication.didResignActiveNotification,
-                object: nil
-            )
-            NotificationCenter.default.addObserver(
-                self,
                 selector: #selector(windowDidBecomeKey),
                 name: NSWindow.didBecomeKeyNotification,
-                object: nil
-            )
-            NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(windowDidResignKey),
-                name: NSWindow.didResignKeyNotification,
                 object: nil
             )
             NotificationCenter.default.addObserver(

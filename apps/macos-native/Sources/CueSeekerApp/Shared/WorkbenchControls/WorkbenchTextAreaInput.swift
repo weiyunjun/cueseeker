@@ -359,6 +359,10 @@ final class WorkbenchTextAreaNativeTextView: NSTextView {
         needsDisplay = true
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override func mouseDown(with event: NSEvent) {
         if event.clickCount == 1,
            !event.modifierFlags.contains(.shift),
@@ -457,6 +461,10 @@ private final class WorkbenchTextAreaScrollbarView: TableScrollbarOverlayView {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
     }
 
     override func mouseDown(with event: NSEvent) {

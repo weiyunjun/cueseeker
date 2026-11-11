@@ -107,15 +107,13 @@ class CueSeekerWindow: NSWindow {
     }
 
     override func sendEvent(_ event: NSEvent) {
-        if NSApp.isActive && isKeyWindow {
-            switch event.type {
-            case .scrollWheel:
-                PointerHoverScrollState.shared.noteScrolled()
-            case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
-                PointerHoverScrollState.shared.notePointerMoved()
-            default:
-                break
-            }
+        switch event.type {
+        case .scrollWheel:
+            PointerHoverScrollState.shared.noteScrolled()
+        case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
+            PointerHoverScrollState.shared.notePointerMoved()
+        default:
+            break
         }
         switch event.type {
         case .leftMouseDown:

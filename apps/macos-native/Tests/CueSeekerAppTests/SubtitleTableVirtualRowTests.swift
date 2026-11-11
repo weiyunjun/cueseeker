@@ -1582,7 +1582,7 @@ func subtitleTableViewUnselectedHeaderHoverShowsCheckbox() {
 
 @MainActor
 @Test
-func subtitleTableViewHeaderHoverClearsOnWindowFocusLoss() {
+func subtitleTableViewHeaderHoverRemainsActiveOnWindowFocusLoss() {
     let fixture = makeAttachedVirtualTableCoordinator(
         isSelectionMode: false,
         isRowSelected: { _ in false }
@@ -1604,6 +1604,13 @@ func subtitleTableViewHeaderHoverClearsOnWindowFocusLoss() {
         name: NSApplication.didResignActiveNotification,
         object: nil
     )
+    #expect(fixture.header.selectionHeaderIsVisibleForTesting())
+    #expect(
+        fixture.header.headerBackgroundColorForTesting()
+            === WorkbenchRedesignColors.NS.tableRowHover
+    )
+
+    fixture.header.clearHoverState()
     #expect(fixture.header.selectionHeaderIsVisibleForTesting() == false)
     #expect(fixture.header.sequenceHeaderIsVisibleForTesting())
     #expect(

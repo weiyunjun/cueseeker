@@ -205,12 +205,6 @@ extension SubtitleTableView.Coordinator {
         headerView?.refreshHeaderHosts()
     }
 
-    @objc func appDidResignActive(_ notification: Notification) {
-        clearHover()
-        headerView?.clearHoverState()
-        headerView?.refreshHeaderHosts()
-    }
-
     @objc func windowDidBecomeKey(_ notification: Notification) {
         guard let window = documentView?.window,
               notification.object as? NSWindow === window
@@ -219,17 +213,6 @@ extension SubtitleTableView.Coordinator {
         }
         reevaluateHoverFromCurrentPointer()
         headerView?.refreshHoverFromWindow()
-        headerView?.refreshHeaderHosts()
-    }
-
-    @objc func windowDidResignKey(_ notification: Notification) {
-        guard let window = documentView?.window,
-              notification.object as? NSWindow === window
-        else {
-            return
-        }
-        clearHover()
-        headerView?.clearHoverState()
         headerView?.refreshHeaderHosts()
     }
 
@@ -248,11 +231,6 @@ extension SubtitleTableView.Coordinator {
               !PointerHoverScrollState.shared.isScrolling,
               let window = documentView?.window
         else {
-            return
-        }
-        guard NSApp.isActive && window.isKeyWindow else {
-            clearHover()
-            headerView?.clearHoverState()
             return
         }
         let screenPoint = NSEvent.mouseLocation
@@ -1639,14 +1617,25 @@ extension SubtitleTableView.Coordinator {
     }
 
     /// An exit AppKit reported. Only a pointer that really left the
-    /// table body drops the hover; one that is still over it was not
-    /// moved, the table was, and the hover stays on its row.
+    /// table body (or became covered by another window) drops the hover;
+    /// one that is still over the unoccluded table was not moved, the table
+    /// was, and the hover stays on its row.
     func clearHoverUnlessPointerInside(windowPoint: CGPoint) {
-        if let documentView,
-           currentTableBodyVisibleRect.contains(
-               documentView.convert(windowPoint, from: nil)
-           ) {
-            return
+        if let documentView {
+            if let window = documentView.window,
+               window.windowNumber > 0,
+               NSWindow.windowNumber(
+                   at: NSEvent.mouseLocation,
+                   belowWindowWithWindowNumber: 0
+               ) != window.windowNumber {
+                clearHover()
+                return
+            }
+            if currentTableBodyVisibleRect.contains(
+                documentView.convert(windowPoint, from: nil)
+            ) {
+                return
+            }
         }
         clearHover()
     }
