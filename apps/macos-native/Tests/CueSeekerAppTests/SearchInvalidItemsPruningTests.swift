@@ -146,6 +146,7 @@ struct SearchInvalidItemsPruningTests {
     @Test
     func searchRerunsQueryUponReappearingAfterIndexOrAddFolder() async throws {
         try await withPruningTestApp { app, database in
+            app.navigateWorkbench(to: .search)
             let mediaRoot = URL(fileURLWithPath: "/Media").standardizedFileURL
             _ = try database.addSearchPath(mediaRoot)
             app.indexing.selectedFolders = [mediaRoot]
@@ -240,6 +241,7 @@ struct SearchInvalidItemsPruningTests {
     @Test
     func searchDoesNotRerunUponReappearingWhenIndexOrAddFolderHasNoContentChanges() async throws {
         try await withPruningTestApp { app, database in
+            app.navigateWorkbench(to: .search)
             let mediaRoot = URL(fileURLWithPath: "/Media").standardizedFileURL
             _ = try database.addSearchPath(mediaRoot)
             app.indexing.selectedFolders = [mediaRoot]

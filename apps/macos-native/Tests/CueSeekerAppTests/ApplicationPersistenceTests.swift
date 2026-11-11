@@ -49,7 +49,8 @@ func obsoleteFeatureStateCleanupRemovesDefaultsAndDeletesCredential() {
         "aiChunkingPromptTemplate",
         "aiChunkingPromptDefaultVersion",
         "aiChunkingPromptAwareCacheCleared",
-        "playbackSpeakerDisplayEnabled"
+        "playbackSpeakerDisplayEnabled",
+        "hasCompletedFileOnboarding"
     ]
     keys.forEach { userDefaults.set("legacy", forKey: $0) }
     var credentialWasDeleted = false

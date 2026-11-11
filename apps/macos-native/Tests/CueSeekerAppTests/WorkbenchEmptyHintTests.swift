@@ -233,11 +233,7 @@ func emptyStateLocalizationMatchesRequirements() {
             "excerpt.table.no_results": "No matching excerpts found.",
             "excerpt.overview.empty_hint": "Create an excerpt list to collect excerpts.",
             "playback.hud.no_available_excerpts": "No Available Excerpts",
-            "file.onboarding.back": "Back",
-            "file.onboarding.next": "Next",
-            "file.onboarding.done": "Done",
             "file.empty.message": "Add a folder containing video and subtitle files.",
-            "file.empty.view_tutorial": "View Tutorial",
             "onboarding.no_folder.message": "Add a folder to get started.",
             "onboarding.no_folder.go_to_file": "Go to File"
         ]),
@@ -248,11 +244,7 @@ func emptyStateLocalizationMatchesRequirements() {
             "excerpt.table.no_results": "未找到匹配的摘录。",
             "excerpt.overview.empty_hint": "创建摘录集以收集摘录。",
             "playback.hud.no_available_excerpts": "没有可用的摘录",
-            "file.onboarding.back": "返回",
-            "file.onboarding.next": "下一步",
-            "file.onboarding.done": "完成",
             "file.empty.message": "添加包含视频与字幕文件的文件夹。",
-            "file.empty.view_tutorial": "查看教程",
             "onboarding.no_folder.message": "添加文件夹以开始使用。",
             "onboarding.no_folder.go_to_file": "前往文件"
         ]),
@@ -263,11 +255,7 @@ func emptyStateLocalizationMatchesRequirements() {
             "excerpt.table.no_results": "未找到相符的摘錄。",
             "excerpt.overview.empty_hint": "建立摘錄集以收集摘錄。",
             "playback.hud.no_available_excerpts": "沒有可用的摘錄",
-            "file.onboarding.back": "返回",
-            "file.onboarding.next": "下一步",
-            "file.onboarding.done": "完成",
             "file.empty.message": "加入包含影片與字幕檔案的資料夾。",
-            "file.empty.view_tutorial": "檢視教學",
             "onboarding.no_folder.message": "加入資料夾以開始使用。",
             "onboarding.no_folder.go_to_file": "前往檔案"
         ])
@@ -283,6 +271,10 @@ func emptyStateLocalizationMatchesRequirements() {
         }
         #expect(entries["settings.library.empty_title"] == nil)
         #expect(entries["settings.library.empty_message"] == nil)
+        #expect(entries["file.onboarding.back"] == nil)
+        #expect(entries["file.onboarding.next"] == nil)
+        #expect(entries["file.onboarding.done"] == nil)
+        #expect(entries["file.empty.view_tutorial"] == nil)
         for (key, expectedValue) in expected {
             #expect(entries[key] == expectedValue, "Key \(key) does not match in \(language)")
         }

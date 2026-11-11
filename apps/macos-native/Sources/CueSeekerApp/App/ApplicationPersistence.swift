@@ -14,7 +14,8 @@ enum ApplicationPersistence {
         "aiChunkingPromptTemplate",
         "aiChunkingPromptDefaultVersion",
         "aiChunkingPromptAwareCacheCleared",
-        "playbackSpeakerDisplayEnabled"
+        "playbackSpeakerDisplayEnabled",
+        "hasCompletedFileOnboarding"
     ]
 
     static func sharedUserDefaults() -> UserDefaults {

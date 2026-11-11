@@ -11,12 +11,22 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
     }
 }
 
+public struct DatabaseBootstrapResult: Equatable, Sendable {
+    public let didCreateSchema: Bool
+
+    public init(didCreateSchema: Bool) {
+        self.didCreateSchema = didCreateSchema
+    }
+}
+
 public enum DatabaseBootstrap {
     public static let currentSchemaVersion = 66
 
-    public static func prepare(at path: URL) throws {
+    @discardableResult
+    public static func prepare(at path: URL) throws -> DatabaseBootstrapResult {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
-        try prepareSchema(on: database)
+        let didCreateSchema = try prepareSchema(on: database)
+        return DatabaseBootstrapResult(didCreateSchema: didCreateSchema)
     }
 
     private static func schemaVersion(in database: SQLiteDatabase) throws -> Int {
@@ -41,7 +51,7 @@ extension DatabaseBootstrap {
         return names
     }
 
-    static func prepareSchema(on database: SQLiteDatabase) throws {
+    static func prepareSchema(on database: SQLiteDatabase) throws -> Bool {
         let previousVersion = try schemaVersion(in: database)
 
         guard previousVersion == 0
@@ -234,10 +244,10 @@ extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 65 {
             try migrateSchema65To66(on: database)
-            return
+            return false
         }
         guard previousVersion == 0 else {
-            return
+            return false
         }
 
         try database.withImmediateTransaction {
@@ -726,6 +736,7 @@ extension DatabaseBootstrap {
                 details: "schema_version=\(previousVersion)"
             )
         }
+        return previousVersion == 0
     }
 
     /// The task queue's history. Written by `TaskRecordDatabase`; see its

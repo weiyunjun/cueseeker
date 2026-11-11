@@ -264,17 +264,8 @@ extension AppCoordinator {
     }
 
     private func appendFileRootAccessibilityTargets(to targets: inout [WorkbenchAccessibilityTarget]) {
-        if isFileOnboardingPresented {
-            if fileOnboardingStep > 1 {
-                targets.append(.fileOnboardingBackButton)
-            }
-            targets.append(.fileOnboardingPrimaryButton)
-            return
-        }
-
         let folders = FileFolderGroupingResolver.rootFolders(for: indexing.selectedFolders)
         if folders.isEmpty {
-            targets.append(.fileViewTutorialButton)
             targets.append(.fileAddFolderButton)
             if showsFileZeroFolderStatusIndicator {
                 targets.append(.fileStatusIndicatorText)
@@ -769,26 +760,6 @@ extension AppCoordinator {
             performUserInitiatedAppCommand {
                 goToFileFromNoFolderOnboarding()
             }
-            return true
-
-        case .fileOnboardingBackButton:
-            guard isFileOnboardingPresented,
-                  fileOnboardingStep > 1
-            else {
-                return false
-            }
-            goBackFileOnboardingStep()
-            return true
-
-        case .fileOnboardingPrimaryButton:
-            guard isFileOnboardingPresented else {
-                return false
-            }
-            advanceFileOnboardingStep()
-            return true
-
-        case .fileViewTutorialButton:
-            openFileOnboarding()
             return true
 
         case .fileAddFolderButton:

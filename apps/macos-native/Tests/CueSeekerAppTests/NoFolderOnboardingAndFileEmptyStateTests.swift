@@ -19,115 +19,72 @@ struct NoFolderOnboardingAndFileEmptyStateTests {
         return (suiteName, userDefaults, rootDir, databaseURL)
     }
 
-    private func findAccessibilityView(in root: NSView, identifier: String) -> NSView? {
-        if root.accessibilityIdentifier() == identifier {
-            return root
-        }
-        for subview in root.subviews {
-            if let match = findAccessibilityView(in: subview, identifier: identifier) {
-                return match
-            }
-        }
-        return nil
-    }
-
     @Test
-    func fileOnboardingThreeStepFlowRetainsStepAcrossPagesAndPersistsCompletionAcrossRelaunch() throws {
+    func firstLaunchOpensFilePagePersistsItAndSubsequentLaunchesRestoreLastPrimaryPageUnlessDatabaseIsRecreated() throws {
         let env = try makeTestEnvironment()
         defer {
             env.userDefaults.removePersistentDomainAndPlist(forName: env.suiteName)
             try? FileManager.default.removeItem(at: env.rootDir)
         }
 
+        // Verify DatabaseBootstrap reports fresh schema creation vs existing database accurately.
+        let bootstrapProbeURL = env.rootDir.appendingPathComponent("BootstrapProbe.sqlite")
+        #expect(try DatabaseBootstrap.prepare(at: bootstrapProbeURL).didCreateSchema)
+        #expect(try !DatabaseBootstrap.prepare(at: bootstrapProbeURL).didCreateSchema)
+
         _ = NSApplication.shared
-        let app = AppCoordinator(userDefaults: env.userDefaults, databaseURL: env.databaseURL)
-        #expect(!app.settings.hasCompletedFileOnboarding)
-        #expect(app.indexing.selectedFolders.isEmpty)
 
-        // Navigating to File with 0 folders and never clicked Done opens Step 1 (Next only).
-        app.activateWorkbenchPanelMode(.file)
-        #expect(app.workbenchLayout.currentRoute == .file)
-        #expect(app.isFileOnboardingPresented)
-        #expect(app.fileOnboardingStep == 1)
-        let step1Targets = app.currentWorkbenchAccessibilityTargets()
-        #expect(!step1Targets.contains(.fileOnboardingBackButton))
-        #expect(step1Targets.contains(.fileOnboardingPrimaryButton))
-        #expect(!step1Targets.contains(.fileAddFolderButton))
+        // 1. Brand-new launch (no saved primary page record + newly created SQLite database)
+        // opens directly on File Level 1 and persists "file".
+        #expect(env.userDefaults.string(forKey: "workbenchPanelMode") == nil)
+        let firstApp = AppCoordinator(userDefaults: env.userDefaults, databaseURL: env.databaseURL)
+        #expect(firstApp.indexing.selectedFolders.isEmpty)
+        #expect(firstApp.workbenchLayout.panelMode == .file)
+        #expect(firstApp.workbenchLayout.currentRoute == .file)
+        #expect(firstApp.workbenchLayout.route.history == [.file])
+        #expect(!firstApp.workbenchLayout.route.canGoBack)
+        #expect(!firstApp.workbenchLayout.route.canGoForward)
+        #expect(env.userDefaults.string(forKey: "workbenchPanelMode") == WorkbenchPanelMode.file.rawValue)
 
-        // Step 1 -> Step 2 exposes Back + Next.
-        #expect(app.activateWorkbenchAccessibilityTarget(.fileOnboardingPrimaryButton))
-        #expect(app.fileOnboardingStep == 2)
-        let step2Targets = app.currentWorkbenchAccessibilityTargets()
-        #expect(step2Targets.contains(.fileOnboardingBackButton))
-        #expect(step2Targets.contains(.fileOnboardingPrimaryButton))
-
-        // Switching to Search and jumping back via Go to File retains Step 2.
-        app.activateWorkbenchPanelMode(.search)
-        #expect(app.workbenchLayout.currentRoute == .search)
-        app.goToFileFromNoFolderOnboarding()
-        #expect(app.workbenchLayout.currentRoute == .file)
-        #expect(app.isFileOnboardingPresented)
-        #expect(app.fileOnboardingStep == 2)
-
-        // Back -> Step 1, Next -> Step 2, Next -> Step 3, Done -> New File Empty State.
-        #expect(app.activateWorkbenchAccessibilityTarget(.fileOnboardingBackButton))
-        #expect(app.fileOnboardingStep == 1)
-        app.advanceFileOnboardingStep()
-        app.advanceFileOnboardingStep()
-        #expect(app.fileOnboardingStep == 3)
-        app.advanceFileOnboardingStep()
-
-        #expect(app.settings.hasCompletedFileOnboarding)
-        #expect(!app.isFileOnboardingPresented)
-        let emptyTargets = app.currentWorkbenchAccessibilityTargets()
-        #expect(emptyTargets.contains(.fileViewTutorialButton))
+        let emptyTargets = firstApp.currentWorkbenchAccessibilityTargets()
         #expect(emptyTargets.contains(.fileAddFolderButton))
         #expect(!emptyTargets.contains(.fileIndexNowButton))
         #expect(!emptyTargets.contains(.fileStatusIndicatorText))
 
-        // Relaunching with the same UserDefaults and 0 folders goes straight to New File Empty State.
-        let relaunched = AppCoordinator(userDefaults: env.userDefaults, databaseURL: env.databaseURL)
-        relaunched.activateWorkbenchPanelMode(.file)
-        #expect(relaunched.settings.hasCompletedFileOnboarding)
-        #expect(!relaunched.isFileOnboardingPresented)
-        #expect(relaunched.currentWorkbenchAccessibilityTargets().contains(.fileViewTutorialButton))
+        // 2. Subsequent launch without switching pages keeps opening on File.
+        let secondApp = AppCoordinator(userDefaults: env.userDefaults, databaseURL: env.databaseURL)
+        #expect(secondApp.workbenchLayout.panelMode == .file)
+        #expect(secondApp.workbenchLayout.currentRoute == .file)
 
-        // Clicking View Tutorial opens Step 1.
-        WorkbenchFileView.lastOnboardingFooterFrameForTesting = nil
-        #expect(relaunched.activateWorkbenchAccessibilityTarget(.fileViewTutorialButton))
-        #expect(relaunched.isFileOnboardingPresented)
-        #expect(relaunched.fileOnboardingStep == 1)
+        // 3. Switching to Search or Excerpt and relaunching restores the last visited primary page.
+        secondApp.activateWorkbenchPanelMode(.search)
+        #expect(secondApp.workbenchLayout.currentRoute == .search)
+        #expect(env.userDefaults.string(forKey: "workbenchPanelMode") == WorkbenchPanelMode.search.rawValue)
 
-        let onboardingHost = NSHostingView(
-            rootView: WorkbenchFileView(tasks: relaunched.tasks)
-                .environmentObject(relaunched)
-                .environmentObject(relaunched.indexing)
-                .environmentObject(relaunched.workbenchLayout.route)
-                .environmentObject(relaunched.library)
-                .environmentObject(relaunched.settings.localization)
-                .environment(\.workbenchAccessibility, relaunched.workbenchAccessibility)
-        )
-        onboardingHost.frame = NSRect(x: 0, y: 0, width: 880, height: 640)
-        let onboardingWindow = NSWindow(
-            contentRect: onboardingHost.frame,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        onboardingWindow.contentView = onboardingHost
-        onboardingHost.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
-        onboardingHost.layoutSubtreeIfNeeded()
+        let thirdApp = AppCoordinator(userDefaults: env.userDefaults, databaseURL: env.databaseURL)
+        #expect(thirdApp.workbenchLayout.panelMode == .search)
+        #expect(thirdApp.workbenchLayout.currentRoute == .search)
 
-        let footerFrame = try #require(WorkbenchFileView.lastOnboardingFooterFrameForTesting)
-        #expect(abs(footerFrame.minX - WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding) < 0.5)
-        #expect(abs(footerFrame.maxX - (880 - WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding)) < 0.5)
-        #expect(abs(footerFrame.maxY - (640 - WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)) < 0.5)
-        #expect(abs(footerFrame.height - WorkbenchControlMetrics.redesignHeight) < 0.5)
+        thirdApp.activateWorkbenchPanelMode(.excerpt)
+        let fourthApp = AppCoordinator(userDefaults: env.userDefaults, databaseURL: env.databaseURL)
+        #expect(fourthApp.workbenchLayout.panelMode == .excerpt)
+        #expect(fourthApp.workbenchLayout.currentRoute == .excerpt)
+
+        // 4. Deleting the local SQLite database while UserDefaults still holds "search"
+        // triggers fresh schema initialization on launch and resets initial page & persistence to File.
+        fourthApp.activateWorkbenchPanelMode(.search)
+        #expect(env.userDefaults.string(forKey: "workbenchPanelMode") == WorkbenchPanelMode.search.rawValue)
+        let reinitializedDBURL = env.rootDir.appendingPathComponent("ReinitializedCueSeeker.sqlite")
+        let fifthApp = AppCoordinator(userDefaults: env.userDefaults, databaseURL: reinitializedDBURL)
+        #expect(fifthApp.workbenchLayout.panelMode == .file)
+        #expect(fifthApp.workbenchLayout.currentRoute == .file)
+        #expect(fifthApp.workbenchLayout.route.history == [.file])
+        #expect(!fifthApp.workbenchLayout.route.canGoBack)
+        #expect(env.userDefaults.string(forKey: "workbenchPanelMode") == WorkbenchPanelMode.file.rawValue)
     }
 
     @Test
-    func fileZeroFolderEmptyStateKeepsMainBodyZeroJumpAcrossStatusChangesAndTutorialDoesNotAutoRefreshMidRead() throws {
+    func fileZeroFolderEmptyStateKeepsMainBodyZeroJumpAcrossStatusChangesAndTransitionsImmediatelyOnFirstFolder() throws {
         let env = try makeTestEnvironment()
         defer {
             env.userDefaults.removePersistentDomainAndPlist(forName: env.suiteName)
@@ -137,8 +94,7 @@ struct NoFolderOnboardingAndFileEmptyStateTests {
         _ = NSApplication.shared
         WorkbenchFileView.lastZeroFolderMainBodyFrameForTesting = nil
         let app = AppCoordinator(userDefaults: env.userDefaults, databaseURL: env.databaseURL)
-        app.completeFileOnboarding()
-        app.activateWorkbenchPanelMode(.file)
+        #expect(app.workbenchLayout.currentRoute == .file)
 
         let fileView = WorkbenchFileView(tasks: app.tasks)
             .environmentObject(app)
@@ -150,13 +106,6 @@ struct NoFolderOnboardingAndFileEmptyStateTests {
 
         let host = NSHostingView(rootView: fileView)
         host.frame = NSRect(x: 0, y: 0, width: 880, height: 640)
-        let window = NSWindow(
-            contentRect: host.frame,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = host
         host.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
         host.layoutSubtreeIfNeeded()
@@ -164,6 +113,7 @@ struct NoFolderOnboardingAndFileEmptyStateTests {
         let idleFrame = try #require(WorkbenchFileView.lastZeroFolderMainBodyFrameForTesting)
         #expect(idleFrame.width > 0 && idleFrame.height > 0)
         #expect(!app.showsFileZeroFolderStatusIndicator)
+        #expect(app.currentWorkbenchAccessibilityTargets().contains(.fileAddFolderButton))
 
         // Transition 1: Indexing in progress -> separate-line status appears, main body moves 0.0pt.
         let sampleFolder = env.rootDir.appendingPathComponent("Anime", isDirectory: true)
@@ -189,26 +139,17 @@ struct NoFolderOnboardingAndFileEmptyStateTests {
         #expect(abs(failedFrame.origin.x - idleFrame.origin.x) < 0.01)
         #expect(abs(failedFrame.origin.y - idleFrame.origin.y) < 0.01)
 
-        // Mid-tutorial non-auto-refresh: open tutorial while indexing, complete folder addition mid-read,
-        // verify page stays on Step 2 until Step 3 Done is clicked, then shows root folder cards.
+        // Transition 3: First folder finishes indexing -> immediately switches to root folder list.
         app.indexing.clearTransientNotice()
-        app.indexing.indexingStatus = .indexing(sampleFolder)
-        app.openFileOnboarding()
-        app.advanceFileOnboardingStep()
-        #expect(app.isFileOnboardingPresented)
-        #expect(app.fileOnboardingStep == 2)
-
         app.indexing.appendFolder(sampleFolder)
         app.indexing.indexingStatus = .idle
-        #expect(app.isFileOnboardingPresented)
-        #expect(app.fileOnboardingStep == 2)
-        #expect(!app.currentWorkbenchAccessibilityTargets().contains(.fileCard(sampleFolder.mediaPath)))
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        host.layoutSubtreeIfNeeded()
 
-        app.advanceFileOnboardingStep()
-        #expect(app.fileOnboardingStep == 3)
-        app.advanceFileOnboardingStep()
-        #expect(!app.isFileOnboardingPresented)
-        #expect(app.currentWorkbenchAccessibilityTargets().contains(.fileCard(sampleFolder.mediaPath)))
+        let populatedTargets = app.currentWorkbenchAccessibilityTargets()
+        #expect(populatedTargets.contains(.fileAddFolderButton))
+        #expect(populatedTargets.contains(.fileIndexNowButton))
+        #expect(populatedTargets.contains(.fileCard(sampleFolder.mediaPath)))
     }
 
     @Test
@@ -314,14 +255,14 @@ struct NoFolderOnboardingAndFileEmptyStateTests {
             .commandPanelFooterAction("open"),
         ])
 
-        // Activating Go to File from Command Panel exits Playback and enters File with back history.
+        // Activating Go to File from Command Panel exits Playback and enters File empty state with back history.
         #expect(app.activatePlaybackAccessibilityTarget(.commandPanelGoToFileButton))
         #expect(app.playback.commandPanelPresentation == nil)
         #expect(!app.isPlaybackPageVisible)
         #expect(app.workbenchLayout.currentRoute == .file)
         #expect(app.workbenchLayout.route.canGoBack)
-        #expect(app.isFileOnboardingPresented)
-        #expect(app.fileOnboardingStep == 1)
+        #expect(app.currentWorkbenchAccessibilityTargets().contains(.fileAddFolderButton))
+        #expect(!app.currentWorkbenchAccessibilityTargets().contains(.fileIndexNowButton))
     }
 
     @Test
@@ -371,10 +312,10 @@ struct NoFolderOnboardingAndFileEmptyStateTests {
         #expect(app.showsNoFolderSearchOnboarding)
         #expect(app.currentWorkbenchAccessibilityTargets().contains(.noFolderGoToFileButton))
 
-        // Mandatory File onboarding was disarmed after removing the last folder -> File shows New Empty State!
+        // Navigating to File shows the simplified File zero-folder empty state!
         app.activateWorkbenchPanelMode(.file)
-        #expect(!app.isFileOnboardingPresented)
-        #expect(app.currentWorkbenchAccessibilityTargets().contains(.fileViewTutorialButton))
+        #expect(app.currentWorkbenchAccessibilityTargets().contains(.fileAddFolderButton))
+        #expect(!app.currentWorkbenchAccessibilityTargets().contains(.fileIndexNowButton))
 
         // Re-add folder and test Recent freeze -> topbar segment switch unfreezes!
         app.addFolder(mediaFolder)

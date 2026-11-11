@@ -819,10 +819,6 @@
 "tooltip.disabled.edit_cover.save" = "請先選擇一張圖片";
 
 /* No-folder onboarding and File empty state */
-"file.onboarding.back" = "返回";
-"file.onboarding.next" = "下一步";
-"file.onboarding.done" = "完成";
 "file.empty.message" = "加入包含影片與字幕檔案的資料夾。";
-"file.empty.view_tutorial" = "檢視教學";
 "onboarding.no_folder.message" = "加入資料夾以開始使用。";
 "onboarding.no_folder.go_to_file" = "前往檔案";

@@ -154,7 +154,7 @@ func urlSchemeDirectPlayConsumesOnlyMatchingFirstPageGeneration() throws {
         firstPageResult: result
     ))
     #expect(fixture.app.pendingURLSchemeDirectPlayIntent == nil)
-    #expect(fixture.app.workbenchLayout.panelMode == .search)
+    #expect(fixture.app.workbenchLayout.panelMode == .file)
     #expect(fixture.app.search.selectedSearchResult == result)
     #expect(fixture.app.playback.isPlaybackSurfaceExpanded)
 }

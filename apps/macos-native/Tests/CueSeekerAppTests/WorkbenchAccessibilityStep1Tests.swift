@@ -56,8 +56,8 @@ struct WorkbenchAccessibilityStep1Tests {
         #expect(app.workbenchAccessibility.focusedTarget == .sidebarItem(.file))
 
         // Collapsing the sidebar removes sidebar items from the accessibility sequence:
-        // with 0 folders before completing onboarding, File exposes Step 1's primary button;
-        // once a folder is present (and onboarding dismissed), File exposes top buttons and status indicator.
+        // with 0 folders, File exposes its centered Add Folder button;
+        // once a folder is present, File exposes top buttons and status indicator.
         app.workbenchLayout.isSidebarVisible = false
         let zeroFolderCollapsedTargets = app.currentWorkbenchAccessibilityTargets()
         #expect(!zeroFolderCollapsedTargets.contains(.sidebarItem(.search)))
@@ -67,10 +67,9 @@ struct WorkbenchAccessibilityStep1Tests {
             .topbarForwardButton,
             .topbarTaskButton,
             .topbarSettingsButton,
-            .fileOnboardingPrimaryButton,
+            .fileAddFolderButton,
         ])
 
-        app.completeFileOnboarding()
         app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media/Anime", isDirectory: true)]
         let collapsedTargets = app.currentWorkbenchAccessibilityTargets()
         #expect(!collapsedTargets.contains(.sidebarItem(.search)))

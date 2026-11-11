@@ -275,9 +275,6 @@ enum WorkbenchAccessibilityTarget: Hashable {
 
     // No-Folder Onboarding & File Page (Level 1 / 2 / 3)
     case noFolderGoToFileButton
-    case fileOnboardingBackButton
-    case fileOnboardingPrimaryButton
-    case fileViewTutorialButton
     case fileAddFolderButton
     case fileIndexNowButton
     case fileStatusIndicatorText

@@ -487,7 +487,6 @@ final class AppCoordinator: ObservableObject {
         )
 
         userDefaults.register(defaults: [
-            "workbenchPanelMode": WorkbenchPanelMode.search.rawValue,
             "workbenchSidebarVisible": true,
             Self.playbackVolumeKey: 100.0,
             Self.playbackLastNonzeroVolumeKey: 100.0,
@@ -523,7 +522,10 @@ final class AppCoordinator: ObservableObject {
         var initialError: Error?
         do {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
-            try DatabaseBootstrap.prepare(at: self.databaseURL)
+            let bootstrapResult = try DatabaseBootstrap.prepare(at: self.databaseURL)
+            if bootstrapResult.didCreateSchema {
+                workbenchLayout.resetInitialRouteToFile()
+            }
             let database = try IndexingDatabase(path: self.databaseURL)
             openedDatabase = database
             openedSearchDatabase = try SearchDatabase(path: self.databaseURL)
@@ -632,10 +634,6 @@ final class AppCoordinator: ObservableObject {
             self.refreshExcerptOnReappearanceIfNeeded()
             self.refreshRecentOnReappearanceIfNeeded()
         }
-        workbenchLayout.route.configureInitialFileOnboarding(
-            hasIndexedFolders: !indexing.selectedFolders.isEmpty,
-            hasCompletedFileOnboarding: settings.hasCompletedFileOnboarding
-        )
 
         if let initialError {
             let errorText = Self.errorMessage(for: initialError)
@@ -664,10 +662,6 @@ final class AppCoordinator: ObservableObject {
         }
         excerpt.setRecentSaveListID(settings.recentExcerptSaveListID)
         discardUnfinishedFolderAdditions(tasks.loadPersistedRecords())
-        workbenchLayout.route.configureInitialFileOnboarding(
-            hasIndexedFolders: !indexing.selectedFolders.isEmpty,
-            hasCompletedFileOnboarding: settings.hasCompletedFileOnboarding
-        )
         if indexing.lastUpdatedDate != nil,
            !indexing.hasPersistedLastUpdatedTaskID,
            let latestCompletedTaskID = tasks.lastCompletedFileStatusTaskID {
@@ -1086,12 +1080,7 @@ final class AppCoordinator: ObservableObject {
             refreshRecentOnReappearanceIfNeeded()
         case .library:
             refreshLibraryOnReappearanceIfNeeded()
-        case .file:
-            workbenchLayout.route.lockMandatoryFileOnboardingIfNeeded(
-                hasIndexedFolders: !indexing.selectedFolders.isEmpty
-            )
-            refreshFileOnReappearanceIfNeeded()
-        case .fileFolder, .fileFiles:
+        case .file, .fileFolder, .fileFiles:
             refreshFileOnReappearanceIfNeeded()
         case .search:
             refreshSearchOnReappearanceIfNeeded()
@@ -1255,41 +1244,6 @@ final class AppCoordinator: ObservableObject {
     }
 
     // MARK: - No-Folder Onboarding & File Empty State
-
-    var isFileOnboardingPresented: Bool {
-        workbenchLayout.route.isFileOnboardingPresented(
-            hasIndexedFolders: !indexing.selectedFolders.isEmpty
-        )
-    }
-
-    var fileOnboardingStep: Int {
-        workbenchLayout.route.displayedFileOnboardingStep
-    }
-
-    func openFileOnboarding() {
-        workbenchLayout.route.openFileOnboarding()
-        reconcileWorkbenchAccessibilityFocus()
-    }
-
-    func goBackFileOnboardingStep() {
-        workbenchLayout.route.goBackFileOnboardingStep()
-        reconcileWorkbenchAccessibilityFocus()
-    }
-
-    func advanceFileOnboardingStep() {
-        if fileOnboardingStep >= 3 {
-            completeFileOnboarding()
-            return
-        }
-        workbenchLayout.route.advanceFileOnboardingStep()
-        reconcileWorkbenchAccessibilityFocus()
-    }
-
-    func completeFileOnboarding() {
-        settings.markFileOnboardingCompleted()
-        workbenchLayout.route.completeFileOnboarding()
-        reconcileWorkbenchAccessibilityFocus()
-    }
 
     func goToFileFromNoFolderOnboarding() {
         navigateWorkbench(to: .file, trigger: "no_folder_go_to_file")

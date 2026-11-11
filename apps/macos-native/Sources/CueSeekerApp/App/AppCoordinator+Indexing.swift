@@ -614,7 +614,6 @@ extension AppCoordinator {
             if remainingRoots.isEmpty {
                 holdActiveNoFolderWorkbenchSurfaceBeforeLastFolderRemoval()
             }
-            workbenchLayout.route.disarmMandatoryFileOnboarding()
             holdActiveFileRouteIfRemovingRoot(folder)
             try? indexingDatabase?.removeRootFolderMetadata(folder)
             indexing.removeFolder(folder)
@@ -646,7 +645,6 @@ extension AppCoordinator {
         if remainingRoots.isEmpty {
             holdActiveNoFolderWorkbenchSurfaceBeforeLastFolderRemoval()
         }
-        workbenchLayout.route.disarmMandatoryFileOnboarding()
         holdActiveWorkbenchRouteBeforeContentMutation()
         indexing.removeFolder(folder)
         if folder.isWebDAVURL {

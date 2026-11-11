@@ -8,11 +8,13 @@ import Testing
 
 @MainActor
 @Test
-func workbenchLayoutStateDefaultsToSearchWithExpandedSidebar() {
+func workbenchLayoutStateDefaultsToFileAndPersistsInitialPanelModeWithExpandedSidebar() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
 
-        #expect(layoutState.panelMode == .search)
+        #expect(layoutState.panelMode == .file)
+        #expect(layoutState.currentRoute == .file)
+        #expect(userDefaults.string(forKey: "workbenchPanelMode") == WorkbenchPanelMode.file.rawValue)
         #expect(layoutState.isSidebarVisible)
     }
 }
@@ -93,7 +95,7 @@ func sidebarVisibilityDoesNotInvalidateRouteState() {
 
         #expect(routeInvalidations == 0)
         #expect(layoutInvalidations == 1)
-        #expect(layoutState.panelMode == .search)
+        #expect(layoutState.panelMode == .file)
 
         withExtendedLifetime(routeCancellable) {}
         withExtendedLifetime(layoutCancellable) {}
@@ -190,7 +192,7 @@ func workbenchLayoutStateTracksRecentSectionWithoutPersistingIt() {
 func workbenchHistoryStepsThroughPagesAndDropsForwardOnNewNavigation() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
-        #expect(layoutState.currentRoute == .search)
+        #expect(layoutState.currentRoute == .file)
         #expect(!layoutState.route.canGoBack)
         #expect(!layoutState.route.canGoForward)
 
@@ -209,10 +211,10 @@ func workbenchHistoryStepsThroughPagesAndDropsForwardOnNewNavigation() {
         layoutState.goBack()
         #expect(layoutState.currentRoute == .recent)
         layoutState.goBack()
-        #expect(layoutState.currentRoute == .search)
+        #expect(layoutState.currentRoute == .file)
         #expect(!layoutState.route.canGoBack)
         layoutState.goBack()
-        #expect(layoutState.currentRoute == .search)
+        #expect(layoutState.currentRoute == .file)
 
         layoutState.goForward()
         layoutState.goForward()
@@ -226,7 +228,7 @@ func workbenchHistoryStepsThroughPagesAndDropsForwardOnNewNavigation() {
         layoutState.navigate(to: .excerpt)
         #expect(layoutState.currentRoute == .excerpt)
         #expect(!layoutState.route.canGoForward)
-        #expect(layoutState.route.history == [.search, .recent, .library, .excerpt])
+        #expect(layoutState.route.history == [.file, .recent, .library, .excerpt])
 
         layoutState.navigate(to: .excerpt)
         #expect(layoutState.route.history.count == 4)

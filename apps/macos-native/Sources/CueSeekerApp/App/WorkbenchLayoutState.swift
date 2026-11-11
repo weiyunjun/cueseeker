@@ -242,11 +242,6 @@ final class WorkbenchRouteState: ObservableObject {
     /// as long as the App runs; the launch page is its first entry.
     @Published fileprivate(set) var history: [WorkbenchRoute]
     @Published fileprivate(set) var historyIndex: Int
-    /// Active 3-step File onboarding step (`1...3`) when the tutorial is open.
-    @Published private(set) var activeFileOnboardingStep: Int?
-    /// Armed on App launch when 0 folders exist and the user has never clicked
-    /// `Done`. Entering `File` while still at 0 folders starts Step 1.
-    @Published private(set) var isMandatoryFileOnboardingArmedForZeroFolders = false
     /// Holds a Level 1 Workbench surface after the last folder is removed so
     /// the active page stays frozen until a refresh action or page/tab switch.
     @Published private(set) var heldNoFolderSurface: WorkbenchNoFolderHoldSurface?
@@ -272,64 +267,10 @@ final class WorkbenchRouteState: ObservableObject {
         historyIndex < history.count - 1
     }
 
-    var displayedFileOnboardingStep: Int {
-        activeFileOnboardingStep ?? 1
-    }
-
-    func isFileOnboardingPresented(hasIndexedFolders: Bool) -> Bool {
-        if activeFileOnboardingStep != nil {
-            return true
-        }
-        return isMandatoryFileOnboardingArmedForZeroFolders && !hasIndexedFolders
-    }
-
-    func configureInitialFileOnboarding(
-        hasIndexedFolders: Bool,
-        hasCompletedFileOnboarding: Bool
-    ) {
-        let shouldArm = !hasIndexedFolders && !hasCompletedFileOnboarding
-        isMandatoryFileOnboardingArmedForZeroFolders = shouldArm
-        if shouldArm && currentRoute == .file {
-            activeFileOnboardingStep = 1
-        } else {
-            activeFileOnboardingStep = nil
-        }
-    }
-
-    func lockMandatoryFileOnboardingIfNeeded(hasIndexedFolders: Bool) {
-        guard activeFileOnboardingStep == nil else {
-            return
-        }
-        if isMandatoryFileOnboardingArmedForZeroFolders && !hasIndexedFolders {
-            activeFileOnboardingStep = 1
-        } else if hasIndexedFolders {
-            isMandatoryFileOnboardingArmedForZeroFolders = false
-        }
-    }
-
-    func disarmMandatoryFileOnboarding() {
-        if isMandatoryFileOnboardingArmedForZeroFolders {
-            isMandatoryFileOnboardingArmedForZeroFolders = false
-        }
-    }
-
-    func openFileOnboarding() {
-        activeFileOnboardingStep = 1
-    }
-
-    func goBackFileOnboardingStep() {
-        let current = activeFileOnboardingStep ?? 1
-        activeFileOnboardingStep = max(1, current - 1)
-    }
-
-    func advanceFileOnboardingStep() {
-        let current = activeFileOnboardingStep ?? 1
-        activeFileOnboardingStep = min(3, current + 1)
-    }
-
-    func completeFileOnboarding() {
-        isMandatoryFileOnboardingArmedForZeroFolders = false
-        activeFileOnboardingStep = nil
+    fileprivate func resetInitialRoute(to target: WorkbenchRoute) {
+        history = [target]
+        historyIndex = 0
+        show(target)
     }
 
     func holdNoFolderSurface(_ surface: WorkbenchNoFolderHoldSurface?) {
@@ -410,13 +351,21 @@ final class WorkbenchLayoutState: ObservableObject {
 
     init(userDefaults: UserDefaults) {
         self.userDefaults = userDefaults
-        // A mode this build no longer has, such as the retired `library`,
-        // opens on Search.
-        let savedMode = WorkbenchPanelMode(
-            rawValue: userDefaults.string(forKey: Self.panelModeKey) ?? ""
-        ) ?? .search
-        route = WorkbenchRouteState(panelMode: savedMode)
+        if let rawSavedMode = userDefaults.string(forKey: Self.panelModeKey) {
+            // A mode this build no longer has, such as the retired `library`,
+            // opens on Search.
+            let savedMode = WorkbenchPanelMode(rawValue: rawSavedMode) ?? .search
+            route = WorkbenchRouteState(panelMode: savedMode)
+        } else {
+            route = WorkbenchRouteState(panelMode: .file)
+            userDefaults.set(WorkbenchPanelMode.file.rawValue, forKey: Self.panelModeKey)
+        }
         isSidebarVisible = userDefaults.object(forKey: Self.isSidebarVisibleKey) as? Bool ?? true
+    }
+
+    func resetInitialRouteToFile() {
+        route.resetInitialRoute(to: .file)
+        userDefaults.set(WorkbenchPanelMode.file.rawValue, forKey: Self.panelModeKey)
     }
 
     var panelMode: WorkbenchPanelMode {

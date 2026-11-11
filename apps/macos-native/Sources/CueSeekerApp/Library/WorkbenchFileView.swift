@@ -11,10 +11,8 @@ struct WorkbenchFileView: View {
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
-    /// Observed because any library task disables the folder controls and the
     static let fileCardCoordinateSpaceName = "WorkbenchFileViewCoordinateSpace"
     static var lastZeroFolderMainBodyFrameForTesting: CGRect?
-    static var lastOnboardingFooterFrameForTesting: CGRect?
     private static let addFolderMenuID = "__add_folder_menu__"
 
     /// Observed because any library task disables the folder controls and the
@@ -300,16 +298,7 @@ struct WorkbenchFileView: View {
         accessibility: WorkbenchAccessibilityCoordinator?
     ) -> some View {
         let folders = FileFolderGroupingResolver.rootFolders(for: indexing.selectedFolders)
-        if appState.isFileOnboardingPresented {
-            fileOnboardingShellView(accessibility: accessibility)
-                .onAppear {
-                    dismissMenu()
-                    accessibility?.onToggleFileAddFolderMenu = nil
-                    appState.workbenchLayout.route.lockMandatoryFileOnboardingIfNeeded(
-                        hasIndexedFolders: !indexing.selectedFolders.isEmpty
-                    )
-                }
-        } else if folders.isEmpty {
+        if folders.isEmpty {
             fileZeroFolderEmptyStateView(accessibility: accessibility)
         } else {
             fileScrollSurface(id: "root", accessibility: accessibility) { emptyMinHeight in
@@ -319,62 +308,6 @@ struct WorkbenchFileView: View {
                 )
             }
         }
-    }
-
-    private func fileOnboardingShellView(
-        accessibility: WorkbenchAccessibilityCoordinator?
-    ) -> some View {
-        let step = appState.fileOnboardingStep
-
-        return VStack(spacing: 0) {
-            Color.clear
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(false)
-
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                Spacer(minLength: 0)
-
-                if step > 1 {
-                    WorkbenchButton(
-                        title: L("file.onboarding.back"),
-                        isFocused: accessibility?.isFocused(.fileOnboardingBackButton) == true
-                    ) {
-                        appState.goBackFileOnboardingStep()
-                    }
-                }
-
-                WorkbenchPrimaryButton(
-                    title: step == 3 ? L("file.onboarding.done") : L("file.onboarding.next"),
-                    isFocused: accessibility?.isFocused(.fileOnboardingPrimaryButton) == true
-                ) {
-                    appState.advanceFileOnboardingStep()
-                }
-            }
-            .frame(
-                maxWidth: .infinity,
-                minHeight: WorkbenchControlMetrics.redesignHeight,
-                maxHeight: WorkbenchControlMetrics.redesignHeight,
-                alignment: .trailing
-            )
-            .background(
-                GeometryReader { geo in
-                    let frame = geo.frame(in: .named(Self.fileCardCoordinateSpaceName))
-                    Color.clear
-                        .onAppear {
-                            Self.lastOnboardingFooterFrameForTesting = frame
-                        }
-                        .onChange(of: frame) { newFrame in
-                            Self.lastOnboardingFooterFrameForTesting = newFrame
-                        }
-                }
-            )
-        }
-        .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
-        .padding(.bottom, WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)
-        .workbenchPageInlinePadding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("file-onboarding-shell")
     }
 
     private func fileZeroFolderEmptyStateView(
@@ -399,18 +332,7 @@ struct WorkbenchFileView: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                    WorkbenchButton(
-                        title: L("file.empty.view_tutorial"),
-                        icon: .info,
-                        isFocused: accessibility?.isFocused(.fileViewTutorialButton) == true
-                    ) {
-                        dismissMenu()
-                        appState.openFileOnboarding()
-                    }
-
-                    addFolderButton(accessibility: accessibility)
-                }
+                addFolderButton(accessibility: accessibility)
             }
             .background(
                 GeometryReader { geo in
