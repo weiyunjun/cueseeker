@@ -451,6 +451,66 @@ struct PointerHoverGateTests {
         #expect(AppPointerShape.model.shape == .arrow)
     }
 
+    @MainActor
+    @Test
+    func pointerHoverProbeViewRecoversReentryWhenExitedWhileMenuSwallowedMotion() throws {
+        let session = PointerHoverSession()
+        var deliveredStates: [Bool] = []
+        session.action = { deliveredStates.append($0) }
+
+        let probe = PointerHoverProbeView(frame: NSRect(x: 0, y: 0, width: 120, height: 80))
+        probe.session = session
+        session.probeView = probe
+
+        session.report(true)
+        #expect(deliveredStates == [true])
+        #expect(!probe.tracksReenter)
+
+        // Simulate unfreeze clearing hover when pointer walked off while frozen:
+        // `tracksReenter` arms a crossing tracking area so an immediate re-entry
+        // delivers `true` even if SwiftUI `.onHover` never saw `mouseExited`.
+        probe.setTracksReenter(true)
+        #expect(probe.tracksReenter)
+        #expect(probe.trackingAreas.count == 1)
+
+        session.isFrozen = true
+        session.report(false)
+        session.setFrozen(false)
+        #expect(deliveredStates == [true, false])
+
+        probe.setTracksReenter(true)
+        let dummyEnter = try #require(NSEvent.enterExitEvent(
+            with: .mouseEntered,
+            location: NSPoint(x: 20, y: 20),
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 1,
+            trackingNumber: 1,
+            userData: nil
+        ))
+        probe.mouseEntered(with: dummyEnter)
+        #expect(!probe.tracksReenter)
+        #expect(probe.assumesMouseInside)
+        #expect(deliveredStates == [true, false, true])
+
+        let dummyExit = try #require(NSEvent.enterExitEvent(
+            with: .mouseExited,
+            location: NSPoint(x: -10, y: -10),
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime + 0.01,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 2,
+            trackingNumber: 1,
+            userData: nil
+        ))
+        probe.mouseExited(with: dummyExit)
+        #expect(!probe.assumesMouseInside)
+        #expect(deliveredStates == [true, false, true, false])
+    }
+
     @Test
     @MainActor
     func dialogTextFieldClickShowsAccentColorInsertionPointEvenWithoutSystemWindowActivation() throws {

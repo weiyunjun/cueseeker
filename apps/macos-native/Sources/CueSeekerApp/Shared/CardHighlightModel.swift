@@ -282,10 +282,12 @@ final class CardHighlightModel: ObservableObject {
                 )
             }
         } else {
-            let canFollowPointer = !isScrolling
+            let windowFocused = isHostingWindowFocused
+            let canFollowPointer = windowFocused
+                && !isScrolling
                 && !isSuppressedByKeyboard
                 && !AppCursorVisibility.isCursorHidden
-            if let rawHoveredID, !isSuppressedByKeyboard {
+            if let rawHoveredID, windowFocused, !isSuppressedByKeyboard {
                 AppPointerShape.noteCardHover(
                     true,
                     id: rawHoveredID,
@@ -480,7 +482,7 @@ final class CardHighlightModel: ObservableObject {
     }
 
     private func syncHoveredID() {
-        let next = AppCursorVisibility.isCursorHidden ? nil : rawHoveredID
+        let next = (!isHostingWindowFocused || AppCursorVisibility.isCursorHidden) ? nil : rawHoveredID
         if hoveredID != next {
             hoveredID = next
         }

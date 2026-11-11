@@ -1,3 +1,6 @@
+import AppKit
+import CueSeekerCore
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -221,5 +224,171 @@ struct CardHighlightModelTests {
         #expect(WorkbenchControlMetrics.redesignLibraryCoverActionHoverBackgroundDarkOpacity == 0.56)
         #expect(WorkbenchControlMetrics.redesignLibraryCoverActionPressedBackgroundLightOpacity == 0.40)
         #expect(WorkbenchControlMetrics.redesignLibraryCoverActionPressedBackgroundDarkOpacity == 0.40)
+    }
+
+    @Test
+    func coverCardsUseUnifiedPointerHoverAndReevaluateHoverAndCursorOnMenuAndDialogUnfreeze() throws {
+        AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+        AppPointerShape.resetForTesting()
+        defer {
+            PointerHoverScrollState.shared.resetForTesting()
+            AppPointerShape.resetForTesting()
+        }
+
+        let layers = InterfaceLayerRegistry()
+        let highlight = CardHighlightModel(keepsCurrentWhenPointerLeaves: false)
+        let actions = LibraryCardActionHandlers(
+            revealFile: { _ in },
+            openFolder: { _ in },
+            changeCover: { _, _, _ in },
+            markVideo: { _, _ in },
+            markFolder: { _, _ in }
+        )
+        let folderA = CompleteLibraryFolderSummaryPresentation(
+            folderPath: "/library/folder-a",
+            folderTitle: "Folder A",
+            coverPath: nil,
+            coverRevision: nil,
+            episodeCount: 12
+        )
+        let folderB = CompleteLibraryFolderSummaryPresentation(
+            folderPath: "/library/folder-b",
+            folderTitle: "Folder B",
+            coverPath: nil,
+            coverRevision: nil,
+            episodeCount: 12
+        )
+
+        let cardsView = HStack(spacing: 16) {
+            LibraryFolderCard(
+                folder: folderA,
+                highlight: highlight,
+                isSelected: highlight.isSelected(folderA.id),
+                isHovered: highlight.isHovered(folderA.id),
+                actions: actions,
+                openContextMenu: { _, _, _ in },
+                onOpen: {}
+            )
+            .frame(width: 180, height: 150)
+
+            LibraryFolderCard(
+                folder: folderB,
+                highlight: highlight,
+                isSelected: highlight.isSelected(folderB.id),
+                isHovered: highlight.isHovered(folderB.id),
+                actions: actions,
+                openContextMenu: { _, _, _ in },
+                onOpen: {}
+            )
+            .frame(width: 180, height: 150)
+        }
+        .frame(width: 420, height: 180)
+        .cardHighlightFreeze(highlight)
+        .modifier(InterfaceLayerCoverageBridge(layers: layers))
+        .environmentObject(makeTestAppLocalizationStore())
+
+        let host = NSHostingView(rootView: cardsView)
+        host.frame = NSRect(x: 0, y: 0, width: 420, height: 180)
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+
+        func collectCardProbes(in view: NSView) -> [PointerHoverProbeView] {
+            var result: [PointerHoverProbeView] = []
+            if let probe = view as? PointerHoverProbeView,
+               probe.bounds.width >= 150 {
+                result.append(probe)
+            }
+            for subview in view.subviews {
+                result.append(contentsOf: collectCardProbes(in: subview))
+            }
+            return result
+        }
+        func hasLegacyFocusOnlyProbe(in view: NSView) -> Bool {
+            if view is WindowFocusHoverProbeView {
+                return true
+            }
+            return view.subviews.contains(where: hasLegacyFocusOnlyProbe)
+        }
+
+        #expect(!hasLegacyFocusOnlyProbe(in: host))
+        let cardProbes = collectCardProbes(in: host).sorted {
+            $0.convert(NSPoint.zero, to: host).x < $1.convert(NSPoint.zero, to: host).x
+        }
+        #expect(cardProbes.count == 2)
+
+        // 1. Right-click Card A to open its context menu, move pointer to a non-card
+        // blank area while the menu is open, then dismiss the menu:
+        // Card A's Hover and `...` button must clear and cursor must stay `.arrow`.
+        cardProbes[0].session?.report(true)
+        highlight.notePress(id: folderA.id)
+        #expect(highlight.hoveredID == folderA.id)
+        #expect(AppPointerShape.model.shape == .grab)
+
+        var menuToken: InterfaceLayerRegistry.OpenMenuToken? =
+            layers.registerOpenMenu(ownedBy: .workbenchPage)
+        AppPointerShape.reset()
+        #expect(layers.isFrozen(.workbenchPage))
+        #expect(AppPointerShape.model.shape == .arrow)
+
+        cardProbes[0].session?.report(false)
+        #expect(highlight.hoveredID == folderA.id)
+
+        menuToken = nil
+        _ = menuToken
+        #expect(highlight.hoveredID == nil)
+        #expect(!highlight.isPointerHovered(folderA.id))
+        #expect(AppPointerShape.model.shape == .arrow)
+
+        // 2. Right-click Card A to open its menu, move pointer onto Card B while
+        // frozen, then dismiss the menu: Card A clears, Card B lights up, cursor is `.grab`.
+        cardProbes[0].session?.report(true)
+        highlight.notePress(id: folderA.id)
+        menuToken = layers.registerOpenMenu(ownedBy: .workbenchPage)
+        AppPointerShape.reset()
+
+        cardProbes[0].session?.report(false)
+        cardProbes[1].session?.report(true)
+        #expect(highlight.hoveredID == folderA.id)
+        #expect(AppPointerShape.model.shape == .arrow)
+
+        menuToken = nil
+        _ = menuToken
+        #expect(highlight.hoveredID == folderB.id)
+        #expect(AppPointerShape.model.shape == .grab)
+
+        // 3. Open menu from Card B's `...` action button (cursor is `.arrow`), move
+        // pointer to blank space, then dismiss: Card B clears and cursor stays `.arrow`.
+        highlight.noteActionButtonHover(true, id: folderB.id)
+        #expect(AppPointerShape.model.shape == .arrow)
+        menuToken = layers.registerOpenMenu(ownedBy: .workbenchPage)
+        AppPointerShape.reset()
+
+        highlight.noteActionButtonHover(false, id: folderB.id)
+        cardProbes[1].session?.report(false)
+        menuToken = nil
+        _ = menuToken
+        #expect(highlight.hoveredID == nil)
+        #expect(AppPointerShape.model.shape == .arrow)
+
+        // 4. Open a dialog from Card B's menu, close the menu while the dialog keeps
+        // `.workbenchPage` frozen, leave Card B, then close the dialog:
+        // Card B clears and cursor stays `.arrow`.
+        cardProbes[1].session?.report(true)
+        highlight.notePress(id: folderB.id)
+        menuToken = layers.registerOpenMenu(ownedBy: .workbenchPage)
+        AppPointerShape.reset()
+
+        layers.setOpen(.dialog, true)
+        menuToken = nil
+        _ = menuToken
+        #expect(layers.isFrozen(.workbenchPage))
+        #expect(highlight.hoveredID == folderB.id)
+
+        cardProbes[1].session?.report(false)
+        layers.setOpen(.dialog, false)
+        #expect(!layers.isFrozen(.workbenchPage))
+        #expect(highlight.hoveredID == nil)
+        #expect(AppPointerShape.model.shape == .arrow)
     }
 }

@@ -215,6 +215,7 @@ private struct LibraryVideoCardContent {
 
 private struct LibraryVideoCard: View {
     @EnvironmentObject private var localization: AppLocalizationStore
+    @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
     @Environment(\.libraryCardContextMenuAnchorOwner) private var anchorMenuOwnerID
@@ -262,6 +263,10 @@ private struct LibraryVideoCard: View {
                 isFocused: isCardFocused,
                 animatesHover: highlight.animatesHoverBackground,
                 action: {
+                    PointerHoverSession.resyncHoverForMenuRelay(
+                        on: layerContext.layer,
+                        in: interfaceLayers
+                    )
                     highlight.notePress(id: cardID)
                     onOpen()
                 }
@@ -287,7 +292,7 @@ private struct LibraryVideoCard: View {
                     .allowsHitTesting(false)
                 }
             }
-            .onWindowFocusAwareHover { highlight.noteHover($0, id: cardID, showsHand: true) }
+            .onPointerHover { highlight.noteHover($0, id: cardID, showsHand: true) }
             .libraryCardContextMenuTrigger(
                 isEnabled: true,
                 ownerID: cardID,
@@ -421,6 +426,8 @@ struct CompleteLibraryFolderGrid: View {
 
 struct LibraryFolderCard: View {
     @EnvironmentObject private var localization: AppLocalizationStore
+    @Environment(\.interfaceLayers) private var interfaceLayers
+    @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
     @Environment(\.libraryCardContextMenuAnchorOwner) private var anchorMenuOwnerID
     let folder: CompleteLibraryFolderSummaryPresentation
@@ -468,6 +475,10 @@ struct LibraryFolderCard: View {
                     guard isAvailable else {
                         return
                     }
+                    PointerHoverSession.resyncHoverForMenuRelay(
+                        on: layerContext.layer,
+                        in: interfaceLayers
+                    )
                     highlight.notePress(id: cardID)
                     onOpen()
                 }
@@ -476,7 +487,7 @@ struct LibraryFolderCard: View {
                     cover(isActionFocused: isActionFocused)
                 }
             }
-            .onWindowFocusAwareHover { highlight.noteHover($0, id: cardID, showsHand: isAvailable) }
+            .onPointerHover { highlight.noteHover($0, id: cardID, showsHand: isAvailable) }
             .libraryCardContextMenuTrigger(
                 isEnabled: isAvailable,
                 ownerID: cardID,

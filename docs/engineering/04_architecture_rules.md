@@ -815,13 +815,14 @@ Replacement and simplicity rules:
   is how the owner learns of it. Editable and selectable text controls are
   recognised by the owner itself.
 - Hover that produces a visual effect must go through `onPointerHover`, not
-  through a bare `onHover`. A menu open over a layer, or a higher layer covering
-  it, stops every surface on that layer from answering the pointer; asking each
-  surface to remember that is what left every button and the Scrollbar lighting
-  under an open menu. `onPointerHover` answers it once, from the layer registry.
-  A bare `onHover` is allowed in exactly three places, and a grep for it should
-  find nothing else: menu content, which belongs to the layer it froze and
-  reports to `MenuHighlightModel`; cards, which report to `CardHighlightModel`;
+  through a bare `onHover` or a focus-only wrapper. A menu open over a layer, or
+  a higher layer covering it, stops every surface on that layer from answering
+  the pointer; asking each surface to remember that is what left buttons, cards
+  and the Scrollbar out of step with an open menu. `onPointerHover` answers
+  layer freeze/unfreeze, scroll debounce, and window focus once, from the layer
+  registry, including for cover cards reporting to `CardHighlightModel`. Only
+  two places remain outside `onPointerHover`: menu content, which belongs to the
+  layer it froze and reports to `MenuHighlightModel` via `onWindowFocusAwareHover`;
   and Toast, which does not participate in the layer list at all.
 - An AppKit surface that takes `mouseMoved` from its own tracking area is
   outside `onPointerHover` and must carry the freeze answer itself, the way the

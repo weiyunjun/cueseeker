@@ -89,13 +89,20 @@ final class InterfaceLayerRegistry: ObservableObject {
             }
         }
         AppPointerShape.reevaluateAfterInterfaceChange()
-        CardHighlightModel.broadcastLayerFrozenChanged(isOpen, in: self) { candidate in
-            self.isFrozen(candidate) == isOpen
-        }
-        PointerHoverSession.broadcastLayerFrozenChanged(isOpen, in: self) { candidate in
-            self.isFrozen(candidate) == isOpen
-        }
-        if !isOpen {
+        if isOpen {
+            CardHighlightModel.broadcastLayerFrozenChanged(true, in: self) { candidate in
+                self.isFrozen(candidate)
+            }
+            PointerHoverSession.broadcastLayerFrozenChanged(true, in: self) { candidate in
+                self.isFrozen(candidate)
+            }
+        } else {
+            PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { candidate in
+                !self.isFrozen(candidate)
+            }
+            CardHighlightModel.broadcastLayerFrozenChanged(false, in: self) { candidate in
+                !self.isFrozen(candidate)
+            }
             NotificationCenter.default.post(name: .cueSeekerScrollDebounceSettled, object: nil)
             AppPointerShape.reevaluate()
         }
@@ -177,14 +184,15 @@ final class InterfaceLayerRegistry: ObservableObject {
         } else {
             openMenuCounts[owner] = count - 1
         }
-        CardHighlightModel.broadcastLayerFrozenChanged(false, in: self) { layer in
+        PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { layer in
             !self.isFrozen(layer)
         }
-        PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { layer in
+        CardHighlightModel.broadcastLayerFrozenChanged(false, in: self) { layer in
             !self.isFrozen(layer)
         }
         if !isFrozen(owner) {
             NotificationCenter.default.post(name: .cueSeekerScrollDebounceSettled, object: nil)
+            AppPointerShape.reevaluate()
         }
     }
 

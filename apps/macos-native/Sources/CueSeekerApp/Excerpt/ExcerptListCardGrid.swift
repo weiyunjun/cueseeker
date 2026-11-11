@@ -124,6 +124,7 @@ struct ExcerptListCardGrid: View {
 
 private struct ExcerptListCard: View {
     @EnvironmentObject private var localization: AppLocalizationStore
+    @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleAnchorMenu
     @Environment(\.libraryCardContextMenuAnchorOwner) private var anchorMenuOwnerID
@@ -169,6 +170,10 @@ private struct ExcerptListCard: View {
                 isFocused: isCardFocused,
                 animatesHover: highlight.animatesHoverBackground,
                 action: {
+                    PointerHoverSession.resyncHoverForMenuRelay(
+                        on: layerContext.layer,
+                        in: interfaceLayers
+                    )
                     highlight.notePress(id: cardID)
                     onOpen()
                 }
@@ -180,7 +185,7 @@ private struct ExcerptListCard: View {
                     cover(isActionFocused: isActionFocused)
                 }
             }
-            .onWindowFocusAwareHover { highlight.noteHover($0, id: cardID) }
+            .onPointerHover { highlight.noteHover($0, id: cardID) }
             .libraryCardContextMenuTrigger(
                 isEnabled: true,
                 ownerID: cardID,

@@ -346,6 +346,10 @@ struct LibraryCardContextMenuHost<Content: View>: View {
             startedAt: startedAt,
             measureMs: measureMs
         )
+        PointerHoverSession.resyncHoverForMenuRelay(
+            on: layerContext.layer,
+            in: interfaceLayers
+        )
         activeMenu = LibraryCardContextMenuState(
             ownerID: ownerID,
             anchorPoint: anchor.origin,

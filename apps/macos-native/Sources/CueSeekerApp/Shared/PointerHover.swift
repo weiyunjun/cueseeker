@@ -169,6 +169,7 @@ final class PointerHoverScrollState: ObservableObject {
             name: .cueSeekerScrollDebounceSettled,
             object: nil
         )
+        PointerHoverSession.syncScrollSettled()
         CardHighlightModel.broadcastScrollSettled()
         MenuHighlightModel.broadcastScrollSettled()
         AppPointerShape.noteScrollSettled()
@@ -421,10 +422,25 @@ final class PointerHoverSession: ObservableObject {
                 continue
             }
             let remainedFrozen = session.isFrozen
-            session.setFrozen(false)
             if remainedFrozen {
+                session.setFrozen(false)
                 session.setFrozen(true)
+            } else {
+                session.handleStateChanged()
             }
+        }
+    }
+
+    static func syncScrollSettled() {
+        registeredSessions = registeredSessions.filter { $0.value.value != nil }
+        for box in registeredSessions.values {
+            guard let session = box.value,
+                  !session.isFrozen,
+                  session.probeView?.window != nil
+            else {
+                continue
+            }
+            session.handleStateChanged()
         }
     }
 
@@ -605,7 +621,10 @@ final class PointerHoverSession: ObservableObject {
             let scrollState = PointerHoverScrollState.shared
             let isCursorHidden = AppCursorVisibility.isCursorHidden
             let windowFocused = isWindowFocused
-            (probeView as? PointerHoverProbeView)?.setAssumesMouseInside(windowFocused && pointerInside)
+            if let probe = probeView as? PointerHoverProbeView {
+                probe.setAssumesMouseInside(windowFocused && pointerInside)
+                probe.setTracksReenter(windowFocused && hadActiveHover && !pointerInside)
+            }
             let canFollowPointer = windowFocused
                 && !scrollState.isScrolling
                 && !scrollState.isSuppressedByKeyboardOrController
@@ -636,8 +655,13 @@ final class PointerHoverSession: ObservableObject {
     }
 
     func report(_ isHovered: Bool) {
-        if !isHovered {
-            (probeView as? PointerHoverProbeView)?.setAssumesMouseInside(false)
+        if let probe = probeView as? PointerHoverProbeView {
+            if isHovered {
+                probe.setTracksReenter(false)
+            } else {
+                probe.setAssumesMouseInside(false)
+                probe.setTracksReenter(false)
+            }
         }
         let scrollState = PointerHoverScrollState.shared
         let isCursorHidden = AppCursorVisibility.isCursorHidden
@@ -764,7 +788,11 @@ final class PointerHoverSession: ObservableObject {
            !isCursorHidden,
            !scrollState.isSuppressedByKeyboardOrController,
            let pointerInside = currentPointerInsideView() {
-            (probeView as? PointerHoverProbeView)?.setAssumesMouseInside(pointerInside)
+            let hadActiveHover = gate.hasActiveHover
+            if let probe = probeView as? PointerHoverProbeView {
+                probe.setAssumesMouseInside(pointerInside)
+                probe.setTracksReenter(hadActiveHover && !pointerInside)
+            }
             syncPointerHandShape(pointerInside, followsPointer: true)
             let delivered = gate.report(
                 pointerInside,
@@ -780,8 +808,9 @@ final class PointerHoverSession: ObservableObject {
             }
             return
         }
-        if !windowFocused {
-            (probeView as? PointerHoverProbeView)?.setAssumesMouseInside(false)
+        if !windowFocused, let probe = probeView as? PointerHoverProbeView {
+            probe.setAssumesMouseInside(false)
+            probe.setTracksReenter(false)
         }
         let delivered = gate.freezeChanged(
             isFrozen: isFrozen,
@@ -867,6 +896,7 @@ final class PointerHoverSession: ObservableObject {
 final class PointerHoverProbeView: NSView {
     weak var session: PointerHoverSession?
     private(set) var assumesMouseInside = false
+    private(set) var tracksReenter = false
     var tracksLocation = false {
         didSet {
             if oldValue != tracksLocation {
@@ -876,10 +906,22 @@ final class PointerHoverProbeView: NSView {
     }
 
     func setAssumesMouseInside(_ value: Bool) {
+        if value {
+            tracksReenter = false
+        }
         guard assumesMouseInside != value else {
             return
         }
         assumesMouseInside = value
+        updateTrackingAreas()
+    }
+
+    func setTracksReenter(_ value: Bool) {
+        let effective = value && !assumesMouseInside
+        guard tracksReenter != effective else {
+            return
+        }
+        tracksReenter = effective
         updateTrackingAreas()
     }
 
@@ -920,10 +962,26 @@ final class PointerHoverProbeView: NSView {
                     userInfo: nil
                 )
             )
+        } else if tracksReenter {
+            addTrackingArea(
+                NSTrackingArea(
+                    rect: .zero,
+                    options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                    owner: self,
+                    userInfo: nil
+                )
+            )
         }
     }
 
     override func mouseEntered(with event: NSEvent) {
+        if tracksReenter, !tracksLocation {
+            tracksReenter = false
+            assumesMouseInside = true
+            updateTrackingAreas()
+            session?.report(true)
+            return
+        }
         guard tracksLocation else {
             return
         }
