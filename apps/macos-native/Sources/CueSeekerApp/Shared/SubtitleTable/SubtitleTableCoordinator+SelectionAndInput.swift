@@ -556,6 +556,15 @@ extension SubtitleTableView.Coordinator {
         }
     }
 
+    func headerSelectableTextTopY(fragments: [HeaderTextFragmentLayout]) -> CGFloat? {
+        guard !fragments.isEmpty else { return nil }
+        let nonEmptyTopY = fragments
+            .filter { $0.fragment.attributed.length > 0 }
+            .map { textBounds(for: $0.fragment).minY }
+            .min()
+        return nonEmptyTopY ?? fragments.map { textBounds(for: $0.fragment).minY }.min()
+    }
+
     func headerTextPosition(
         at point: CGPoint,
         requiresTextHit: Bool
@@ -572,12 +581,35 @@ extension SubtitleTableView.Coordinator {
                 return textLayout.containsText(at: point, origin: item.fragment.origin)
             }
         } else {
+            guard !fragments.isEmpty else { return nil }
+            if let topY = headerSelectableTextTopY(fragments: fragments),
+               point.y < topY
+            {
+                return SubtitleTableTextPosition(
+                    row: .header,
+                    columnIndex: 0,
+                    utf16Offset: 0
+                )
+            }
             candidate = fragments.min { lhs, rhs in
-                squaredDistance(from: point, to: textBounds(for: lhs.fragment)) <
-                    squaredDistance(from: point, to: textBounds(for: rhs.fragment))
+                squaredDistance(from: point, to: lhs.cellRect) <
+                    squaredDistance(from: point, to: rhs.cellRect)
             }
         }
         guard let candidate else { return nil }
+        let lookupPoint: CGPoint
+        if requiresTextHit {
+            lookupPoint = point
+        } else {
+            let bounds = textBounds(for: candidate.fragment)
+            lookupPoint = CGPoint(
+                x: point.x,
+                y: min(
+                    max(bounds.minY, point.y),
+                    max(bounds.minY, bounds.maxY.nextDown)
+                )
+            )
+        }
         textLayout.update(
             attributedString: candidate.fragment.attributed,
             width: candidate.fragment.width
@@ -586,7 +618,7 @@ extension SubtitleTableView.Coordinator {
             row: .header,
             columnIndex: candidate.columnIndex,
             utf16Offset: textLayout.utf16Offset(
-                at: point,
+                at: lookupPoint,
                 origin: candidate.fragment.origin
             )
         )
@@ -1050,12 +1082,57 @@ extension SubtitleTableView.Coordinator {
             }
         }
         guard let candidate else { return nil }
+        let lookupPoint: CGPoint
+        if requiresTextHit {
+            lookupPoint = point
+        } else {
+            let bounds = textBounds(for: candidate)
+            lookupPoint = CGPoint(
+                x: point.x,
+                y: min(
+                    max(bounds.minY, point.y),
+                    max(bounds.minY, bounds.maxY.nextDown)
+                )
+            )
+        }
         textLayout.update(attributedString: candidate.attributed, width: candidate.width)
-        let localOffset = textLayout.utf16Offset(at: point, origin: candidate.origin)
+        let localOffset = textLayout.utf16Offset(at: lookupPoint, origin: candidate.origin)
         return SubtitleTableTextPosition(
             row: .body(row),
             columnIndex: columnIndex,
             utf16Offset: candidate.logicalUTF16Range.location + localOffset
+        )
+    }
+
+    private var hasVisibleHeaderView: Bool {
+        guard showsHeader, let headerView, !headerView.isHidden else {
+            return false
+        }
+        return headerView.bounds.width > 0 && headerView.bounds.height > 0
+    }
+
+    func rowSelectableTextTopY(row: Int, rowRect: CGRect) -> CGFloat {
+        let topY = visibleTextColumnOrder().flatMap { columnID in
+            textFragments(row: row, columnID: columnID, rowRect: rowRect)
+                .filter { $0.attributed.length > 0 }
+                .map { textBounds(for: $0).minY }
+        }.min()
+        return topY ?? rowRect.minY
+    }
+
+    func endOfBodyRowTextPosition(row: Int) -> SubtitleTableTextPosition? {
+        let columnIDs = visibleTextColumnOrder()
+        guard let lastColumnID = columnIDs.last else { return nil }
+        let utf16Length: Int
+        if let model = rowProvider(row) {
+            utf16Length = (selectableText(for: lastColumnID, model: model) as NSString).length
+        } else {
+            utf16Length = 0
+        }
+        return SubtitleTableTextPosition(
+            row: .body(row),
+            columnIndex: columnIDs.count - 1,
+            utf16Offset: utf16Length
         )
     }
 
@@ -1066,31 +1143,74 @@ extension SubtitleTableView.Coordinator {
         guard let documentView else {
             return nil
         }
+        let columnIDs = visibleTextColumnOrder()
+        guard !columnIDs.isEmpty else {
+            return nil
+        }
+        let resolvedPoint: CGPoint
         let row: Int
         if requiresTextHit {
             guard let exactRow = rowAtDocumentPoint(point) else { return nil }
+            resolvedPoint = point
             row = exactRow
         } else {
             guard rowCount > 0 else {
-                return projectedHeaderTextPosition(forDocumentPoint: point)
+                return hasVisibleHeaderView
+                    ? projectedHeaderTextPosition(forDocumentPoint: point)
+                    : nil
+            }
+            let visibleRect = currentTableBodyVisibleRect
+            if !hasVisibleHeaderView {
+                let firstRow = (!visibleRect.isEmpty ? visibleRowRange(in: visibleRect)?.lowerBound : nil) ?? 0
+                let firstRowRect = rectForRow(firstRow, width: documentView.bounds.width)
+                let rawTopY = rowSelectableTextTopY(row: firstRow, rowRect: firstRowRect)
+                let topBoundaryY = visibleRect.isEmpty ? rawTopY : max(visibleRect.minY, rawTopY)
+                if point.y < topBoundaryY {
+                    return SubtitleTableTextPosition(
+                        row: .body(firstRow),
+                        columnIndex: 0,
+                        utf16Offset: 0
+                    )
+                }
+            }
+            let bottomRow = (!visibleRect.isEmpty ? visibleRowRange(in: visibleRect)?.upperBound : nil)
+                .map { max(0, $0 - 1) } ?? (rowCount - 1)
+            let bottomRowRect = rectForRow(bottomRow, width: documentView.bounds.width)
+            if visibleRect.isEmpty || bottomRowRect.minY < visibleRect.maxY {
+                let bottomBoundaryY = visibleRect.isEmpty
+                    ? bottomRowRect.maxY
+                    : min(visibleRect.maxY, bottomRowRect.maxY)
+                if point.y >= bottomBoundaryY {
+                    return endOfBodyRowTextPosition(row: bottomRow)
+                }
+            }
+            if visibleRect.isEmpty {
+                resolvedPoint = CGPoint(x: point.x, y: max(rowsOriginY, point.y))
+            } else {
+                resolvedPoint = CGPoint(
+                    x: min(max(visibleRect.minX, point.x), visibleRect.maxX.nextDown),
+                    y: min(
+                        max(max(rowsOriginY, visibleRect.minY), point.y),
+                        max(rowsOriginY, visibleRect.maxY.nextDown)
+                    )
+                )
             }
             row = rowHeightCache.rowIndex(
-                atY: max(0, point.y - rowsOriginY)
+                atY: max(0, resolvedPoint.y - rowsOriginY)
             )
         }
         let rowRect = rectForRow(row, width: documentView.bounds.width)
-        let columnIDs = visibleTextColumnOrder()
         let columnID: String?
         if requiresTextHit {
             columnID = columnIDs.first(where: {
-                dataCellRect(columnID: $0, rowRect: rowRect)?.contains(point) == true
+                dataCellRect(columnID: $0, rowRect: rowRect)?.contains(resolvedPoint) == true
             })
         } else {
             columnID = columnIDs.min { lhs, rhs in
                 let lhsRect = dataCellRect(columnID: lhs, rowRect: rowRect) ?? .zero
                 let rhsRect = dataCellRect(columnID: rhs, rowRect: rowRect) ?? .zero
-                return squaredDistance(from: point, to: lhsRect) <
-                    squaredDistance(from: point, to: rhsRect)
+                return squaredDistance(from: resolvedPoint, to: lhsRect) <
+                    squaredDistance(from: resolvedPoint, to: rhsRect)
             }
         }
         guard let columnID else {
@@ -1099,7 +1219,7 @@ extension SubtitleTableView.Coordinator {
         return textPosition(
             row: row,
             columnID: columnID,
-            point: point,
+            point: resolvedPoint,
             requiresTextHit: requiresTextHit
         )
     }
@@ -1122,30 +1242,21 @@ extension SubtitleTableView.Coordinator {
         atWindowPoint windowPoint: CGPoint,
         requiresTextHit: Bool
     ) -> SubtitleTableTextPosition? {
-        if showsHeader, let headerView, !headerView.isHidden {
-            let headerWindowRect = headerView.convert(headerView.bounds, to: nil)
-            let projectsToHeader = headerWindowRect.contains(windowPoint) ||
-                (!requiresTextHit && windowPointProjectsToHeader(
-                    windowPoint,
-                    headerWindowRect: headerWindowRect
-                ))
-            if projectsToHeader {
-                var point = headerView.convert(windowPoint, from: nil)
-                if !requiresTextHit {
-                    point.x = min(max(headerView.bounds.minX, point.x), headerView.bounds.maxX)
-                    point.y = min(max(headerView.bounds.minY, point.y), headerView.bounds.maxY)
+        if hasVisibleHeaderView, let headerView {
+            let headerPoint = headerView.convert(windowPoint, from: nil)
+            if requiresTextHit {
+                if headerView.bounds.contains(headerPoint) {
+                    return headerTextPosition(at: headerPoint, requiresTextHit: true)
                 }
-                return headerTextPosition(at: point, requiresTextHit: requiresTextHit)
+            } else if headerPointProjectsToHeader(headerPoint, in: headerView) {
+                return headerTextPosition(at: headerPoint, requiresTextHit: false)
             }
         }
 
         guard let documentView else { return nil }
-        var point = documentView.convert(windowPoint, from: nil)
-        if !requiresTextHit {
-            let visibleRect = currentTableBodyVisibleRect
-            guard !visibleRect.isEmpty else { return nil }
-            point.x = min(max(visibleRect.minX, point.x), visibleRect.maxX.nextDown)
-            point.y = min(max(visibleRect.minY, point.y), visibleRect.maxY.nextDown)
+        let point = documentView.convert(windowPoint, from: nil)
+        if !requiresTextHit, currentTableBodyVisibleRect.isEmpty {
+            return nil
         }
         return textPosition(
             atDocumentPoint: point,
@@ -1153,30 +1264,17 @@ extension SubtitleTableView.Coordinator {
         )
     }
 
-    func windowPointProjectsToHeader(
-        _ windowPoint: CGPoint,
-        headerWindowRect: CGRect
+    func headerPointProjectsToHeader(
+        _ headerPoint: CGPoint,
+        in headerView: NSView
     ) -> Bool {
-        if windowPoint.y >= headerWindowRect.minY,
-           windowPoint.y <= headerWindowRect.maxY {
+        if headerPoint.y < headerView.bounds.maxY {
             return true
         }
-        guard rowCount > 0 else {
+        guard rowCount > 0, documentView != nil else {
             return true
         }
-        guard let documentView else { return false }
-        let visibleBodyRect = currentTableBodyVisibleRect
-        guard !visibleBodyRect.isEmpty else {
-            return true
-        }
-        let bodyWindowRect = documentView.convert(visibleBodyRect, to: nil)
-        if bodyWindowRect.midY < headerWindowRect.midY {
-            return windowPoint.y > headerWindowRect.maxY
-        }
-        if bodyWindowRect.midY > headerWindowRect.midY {
-            return windowPoint.y < headerWindowRect.minY
-        }
-        return false
+        return currentTableBodyVisibleRect.isEmpty
     }
 
     func textBounds(for fragment: SubtitleTableTextFragmentLayout) -> CGRect {

@@ -480,10 +480,11 @@ struct SubtitleTableView: NSViewRepresentable {
             didSet {
                 guard isCoveredByHigherLayer != oldValue else { return }
                 if isCoveredByHigherLayer {
-                    // A surface above the table takes its input and leaves its
-                    // picture alone: the highlight stays where it was and an
-                    // open menu stays open. Only work already in flight stops.
-                    cancelPendingTextInteraction()
+                    // A surface above the table takes its input and leaves row
+                    // hover and any open menu alone, while clearing active text
+                    // selection and stopping in-flight interaction.
+                    externalTextSelectionSession?.cancel()
+                    clearTextSelection()
                     hideCueStateTip()
                 } else {
                     reevaluateHoverFromCurrentPointer()
@@ -507,6 +508,11 @@ struct SubtitleTableView: NSViewRepresentable {
                     return
                 }
                 updatePageChromeHosts()
+                if interfaceLayerContext.isCovered && !oldValue.isCovered {
+                    externalTextSelectionSession?.cancel()
+                    clearTextSelection()
+                    hideCueStateTip()
+                }
                 guard interfaceLayerContext.isFrozen != oldValue.isFrozen
                 else {
                     return

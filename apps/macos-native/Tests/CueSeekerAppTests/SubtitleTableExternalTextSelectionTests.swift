@@ -745,3 +745,120 @@ private func externalSelectionMouseEvent(
         pressure: 1
     )!
 }
+
+
+@Test
+@MainActor
+func sharedHitTestingControlCancellationAndOffscreenMouseEventHelpersResetPressedControls() {
+    let window = NSWindow(
+        contentRect: CGRect(x: 0, y: 0, width: 320, height: 200),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    let rootView = NSView(frame: CGRect(x: 0, y: 0, width: 320, height: 200))
+    let enabledButton = NSButton(title: "Enabled", target: nil, action: nil)
+    enabledButton.frame = CGRect(x: 16, y: 120, width: 96, height: 28)
+    let enabledInnerView = NSView(frame: enabledButton.bounds)
+    enabledButton.addSubview(enabledInnerView)
+
+    let disabledButton = NSButton(title: "Disabled", target: nil, action: nil)
+    disabledButton.frame = CGRect(x: 140, y: 120, width: 96, height: 28)
+    disabledButton.isEnabled = false
+    let disabledInnerView = NSView(frame: disabledButton.bounds)
+    disabledButton.addSubview(disabledInnerView)
+
+    final class CustomPressableView: NSView {
+        var isPressed = false
+        var clickCount = 0
+        var lastEventLocation: CGPoint?
+
+        override func mouseDown(with event: NSEvent) {
+            isPressed = bounds.contains(convert(event.locationInWindow, from: nil))
+            lastEventLocation = event.locationInWindow
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            isPressed = bounds.contains(convert(event.locationInWindow, from: nil))
+            lastEventLocation = event.locationInWindow
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            lastEventLocation = event.locationInWindow
+            if isPressed && bounds.contains(convert(event.locationInWindow, from: nil)) {
+                clickCount += 1
+            }
+            isPressed = false
+        }
+    }
+    let customView = CustomPressableView(frame: CGRect(x: 16, y: 40, width: 96, height: 28))
+
+    rootView.addSubview(enabledButton)
+    rootView.addSubview(disabledButton)
+    rootView.addSubview(customView)
+    window.contentView = rootView
+    rootView.layoutSubtreeIfNeeded()
+
+    #expect(SubtitleTableTextSelectionHitTesting.enclosingEnabledControl(of: enabledInnerView) === enabledButton)
+    #expect(SubtitleTableTextSelectionHitTesting.enclosingEnabledControl(of: disabledInnerView) == nil)
+
+    let sourceEvent = externalSelectionMouseEvent(
+        type: .leftMouseDragged,
+        localPoint: CGPoint(x: 12, y: 12),
+        in: customView,
+        window: window
+    )
+    let offscreenDrag = SubtitleTableTextSelectionHitTesting.offscreenMouseEvent(
+        from: sourceEvent,
+        type: .leftMouseDragged
+    )
+    let offscreenUp = SubtitleTableTextSelectionHitTesting.offscreenMouseEvent(
+        from: sourceEvent,
+        type: .leftMouseUp
+    )
+    #expect(offscreenDrag?.locationInWindow == SubtitleTableTextSelectionHitTesting.offscreenMouseLocation)
+    #expect(offscreenDrag?.pressure == 1)
+    #expect(offscreenUp?.locationInWindow == SubtitleTableTextSelectionHitTesting.offscreenMouseLocation)
+    #expect(offscreenUp?.pressure == 0)
+
+    var cancelNotificationWindows: [NSWindow?] = []
+    let token = NotificationCenter.default.addObserver(
+        forName: .cueSeekerCancelControlPress,
+        object: nil,
+        queue: nil
+    ) { notification in
+        cancelNotificationWindows.append(notification.object as? NSWindow)
+    }
+    defer { NotificationCenter.default.removeObserver(token) }
+
+    enabledButton.cell?.isHighlighted = true
+    SubtitleTableTextSelectionHitTesting.cancelOriginatingControlPress(
+        hitView: enabledInnerView,
+        control: enabledButton,
+        in: window,
+        triggerEvent: sourceEvent
+    )
+    #expect(enabledButton.cell?.isHighlighted == false)
+    #expect(cancelNotificationWindows.count == 1)
+    #expect(cancelNotificationWindows.last == window)
+
+    let downEvent = externalSelectionMouseEvent(
+        type: .leftMouseDown,
+        localPoint: CGPoint(x: 12, y: 12),
+        in: customView,
+        window: window
+    )
+    customView.mouseDown(with: downEvent)
+    #expect(customView.isPressed)
+
+    SubtitleTableTextSelectionHitTesting.cancelOriginatingControlPress(
+        hitView: customView,
+        control: nil,
+        in: window,
+        triggerEvent: sourceEvent
+    )
+    #expect(!customView.isPressed)
+    #expect(customView.clickCount == 0)
+    #expect(customView.lastEventLocation == SubtitleTableTextSelectionHitTesting.offscreenMouseLocation)
+    #expect(cancelNotificationWindows.count == 2)
+}

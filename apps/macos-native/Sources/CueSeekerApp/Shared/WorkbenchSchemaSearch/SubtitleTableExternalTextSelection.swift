@@ -133,10 +133,11 @@ final class SubtitleTableExternalTextSelectionSession: ObservableObject {
     }
 
     func cancel() {
-        if phase == .selecting {
+        let wasSelecting = phase == .selecting
+        reset()
+        if wasSelecting {
             target?.cancelExternalTextSelection()
         }
-        reset()
     }
 
     private var validTargetWindowRect: CGRect? {
@@ -298,12 +299,73 @@ private struct CueSeekerNativeDragRegion: NSViewRepresentable {
 
 @MainActor
 enum SubtitleTableTextSelectionHitTesting {
-    static func isInteractive(_ hitView: NSView?) -> Bool {
+    static let offscreenMouseLocation = CGPoint(x: -10_000, y: -10_000)
+
+    static func enclosingEnabledControl(of hitView: NSView?) -> NSControl? {
         var candidate = hitView
         while let view = candidate {
             if let control = view as? NSControl, control.isEnabled {
-                return true
+                return control
             }
+            candidate = view.superview
+        }
+        return nil
+    }
+
+    static func offscreenMouseEvent(
+        from event: NSEvent,
+        type: NSEvent.EventType,
+        locationInWindow: CGPoint = offscreenMouseLocation
+    ) -> NSEvent? {
+        NSEvent.mouseEvent(
+            with: type,
+            location: locationInWindow,
+            modifierFlags: event.modifierFlags,
+            timestamp: event.timestamp,
+            windowNumber: event.windowNumber,
+            context: nil,
+            eventNumber: event.eventNumber,
+            clickCount: 1,
+            pressure: type == .leftMouseUp ? 0 : 1
+        )
+    }
+
+    static func cancelOriginatingControlPress(
+        hitView: NSView?,
+        control: NSControl?,
+        in window: NSWindow?,
+        triggerEvent: NSEvent
+    ) {
+        NotificationCenter.default.post(
+            name: .cueSeekerCancelControlPress,
+            object: window ?? control?.window ?? hitView?.window
+        )
+        if let control {
+            control.cell?.isHighlighted = false
+            control.needsDisplay = true
+            return
+        }
+        guard let hitView else { return }
+        if let dragEvent = offscreenMouseEvent(
+            from: triggerEvent,
+            type: .leftMouseDragged
+        ) {
+            hitView.mouseDragged(with: dragEvent)
+        }
+        if let upEvent = offscreenMouseEvent(
+            from: triggerEvent,
+            type: .leftMouseUp
+        ) {
+            hitView.mouseUp(with: upEvent)
+        }
+    }
+
+    static func isInteractive(_ hitView: NSView?) -> Bool {
+        if enclosingEnabledControl(of: hitView) != nil {
+            return true
+        }
+        var candidate = hitView
+        while let view = candidate {
             if let textView = view as? NSTextView,
                textView.isEditable || textView.isSelectable
             {
@@ -606,43 +668,15 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
         }
 
         private func cancelArmedOriginatingControl(for triggerEvent: NSEvent) {
-            NotificationCenter.default.post(
-                name: .cueSeekerCancelControlPress,
-                object: window
+            SubtitleTableTextSelectionHitTesting.cancelOriginatingControlPress(
+                hitView: armedHitView,
+                control: armedControl,
+                in: window,
+                triggerEvent: triggerEvent
             )
-            if let control = armedControl {
-                control.cell?.isHighlighted = false
-                control.needsDisplay = true
-                return
+            if armedControl == nil {
+                armedHitView = nil
             }
-            guard let hitView = armedHitView else { return }
-            let offscreen = CGPoint(x: -10_000, y: -10_000)
-            if let dragEvent = Self.redirectedMouseEvent(
-                from: triggerEvent,
-                type: .leftMouseDragged,
-                locationInWindow: offscreen
-            ) {
-                hitView.mouseDragged(with: dragEvent)
-            }
-            if let upEvent = Self.redirectedMouseEvent(
-                from: triggerEvent,
-                type: .leftMouseUp,
-                locationInWindow: offscreen
-            ) {
-                hitView.mouseUp(with: upEvent)
-            }
-            armedHitView = nil
-        }
-
-        private static func enclosingControl(of hitView: NSView?) -> NSControl? {
-            var candidate = hitView
-            while let view = candidate {
-                if let control = view as? NSControl, control.isEnabled {
-                    return control
-                }
-                candidate = view.superview
-            }
-            return nil
         }
 
         private static func isHandledDirectlyByTableSurface(_ hitView: NSView?) -> Bool {
@@ -656,24 +690,6 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
                 candidate = view.superview
             }
             return false
-        }
-
-        private static func redirectedMouseEvent(
-            from event: NSEvent,
-            type: NSEvent.EventType,
-            locationInWindow: CGPoint
-        ) -> NSEvent? {
-            NSEvent.mouseEvent(
-                with: type,
-                location: locationInWindow,
-                modifierFlags: event.modifierFlags,
-                timestamp: event.timestamp,
-                windowNumber: event.windowNumber,
-                context: nil,
-                eventNumber: event.eventNumber,
-                clickCount: 1,
-                pressure: type == .leftMouseUp ? 0 : 1
-            )
         }
 
         private func route(_ event: NSEvent) -> NSEvent? {
@@ -695,7 +711,9 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
                 }
                 if session.arm(startWindowPoint: event.locationInWindow) {
                     armedHitView = resolved.hitView
-                    armedControl = Self.enclosingControl(of: resolved.hitView)
+                    armedControl = SubtitleTableTextSelectionHitTesting.enclosingEnabledControl(
+                        of: resolved.hitView
+                    )
                 }
                 return event
 
@@ -713,10 +731,9 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
                     AppPointerShape.pointerMoved(in: window, at: event.locationInWindow)
                 }
                 if armedControl != nil {
-                    return Self.redirectedMouseEvent(
+                    return SubtitleTableTextSelectionHitTesting.offscreenMouseEvent(
                         from: event,
-                        type: .leftMouseDragged,
-                        locationInWindow: CGPoint(x: -10_000, y: -10_000)
+                        type: .leftMouseDragged
                     ) ?? event
                 }
                 return nil
@@ -733,10 +750,9 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
                     AppPointerShape.pointerMoved(in: window, at: event.locationInWindow)
                 }
                 if hadArmedControl {
-                    return Self.redirectedMouseEvent(
+                    return SubtitleTableTextSelectionHitTesting.offscreenMouseEvent(
                         from: event,
-                        type: .leftMouseUp,
-                        locationInWindow: CGPoint(x: -10_000, y: -10_000)
+                        type: .leftMouseUp
                     )
                 }
                 return nil

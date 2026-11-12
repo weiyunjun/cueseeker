@@ -4159,6 +4159,8 @@ private func makeAttachedVirtualTableCoordinator(
     rowCount: Int = 100,
     row: SubtitleTableRow? = nil,
     rowProvider customRowProvider: ((Int) -> SubtitleTableRow?)? = nil,
+    columnOrder: [String] = [],
+    showsHeader: Bool = true,
     showsDateAddedColumn: Bool = false,
     showsTimeColumn: Bool = false,
     showsCueGroup: Bool = false,
@@ -4207,6 +4209,7 @@ private func makeAttachedVirtualTableCoordinator(
         rowProvider: rowProvider,
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
+        columnOrder: columnOrder,
         showsDateAddedColumn: showsDateAddedColumn,
         showsTimeColumn: showsTimeColumn,
         showsLanguageColumn: true,
@@ -4227,10 +4230,18 @@ private func makeAttachedVirtualTableCoordinator(
         onCreateExcerptList: onCreateExcerptList,
         onRemoveExcerpt: onRemoveExcerpt
     )
+    coordinator.showsHeader = showsHeader
 
     let container = SubtitleTableContainerView(frame: CGRect(x: 0, y: 0, width: width, height: 260))
-    let header = SubtitleVirtualTableHeaderView(frame: CGRect(x: 0, y: 0, width: width, height: 44))
-    let scrollView = NSScrollView(frame: CGRect(x: 0, y: 44, width: width, height: 200))
+    let header = SubtitleVirtualTableHeaderView(
+        frame: showsHeader ? CGRect(x: 0, y: 0, width: width, height: 44) : .zero
+    )
+    header.isHidden = !showsHeader
+    let scrollView = NSScrollView(
+        frame: showsHeader
+            ? CGRect(x: 0, y: 44, width: width, height: 200)
+            : CGRect(x: 0, y: 0, width: width, height: 244)
+    )
     let overlay = SubtitleTableScrollbarOverlayView(frame: scrollView.frame)
     let documentView = SubtitleVirtualTableDocumentView(frame: CGRect(x: 0, y: 0, width: width, height: 1))
 
@@ -4686,4 +4697,467 @@ func subtitleTableExcerptPageChromeExcludesCoverSummaryFromExternalRectAndProjec
     hostingView.layoutSubtreeIfNeeded()
     RunLoop.main.run(until: Date().addingTimeInterval(0.02))
     #expect(!coordinator.textSelection.hasSelection)
+}
+
+
+@MainActor
+@Test
+func subtitleTableDiagonalDragFromAboveTableMiddleSelectsFirstCuesColumnInFull() throws {
+    let rows = [
+        SubtitleTableRow(
+            id: 1,
+            primaryCueID: 1,
+            displayTitle: "Episode Alpha",
+            startTime: "00:01:00",
+            endTime: "00:01:03",
+            primaryCueText: "First Cue Sentence",
+            cueGroupTexts: ["First Cue Sentence"],
+            primaryGroupIndex: 0,
+            tags: [WorkbenchTag(key: "en", label: "EN", colorID: .gray)]
+        ),
+        SubtitleTableRow(
+            id: 2,
+            primaryCueID: 2,
+            displayTitle: "Episode Beta",
+            startTime: "00:02:00",
+            endTime: "00:02:04",
+            primaryCueText: "Second Cue Sentence",
+            cueGroupTexts: ["Second Cue Sentence"],
+            primaryGroupIndex: 0,
+            tags: [WorkbenchTag(key: "zh", label: "ZH", colorID: .gray)]
+        ),
+    ]
+    let searchColumnOrder = ["cues", "display", "time", "language"]
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_100,
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        columnOrder: searchColumnOrder,
+        showsTimeColumn: true
+    )
+    let window = NSWindow(
+        contentRect: CGRect(x: 0, y: 0, width: 1_100, height: 380),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    let rootView = NSView(frame: CGRect(x: 0, y: 0, width: 1_100, height: 380))
+    fixture.container.frame = CGRect(x: 0, y: 0, width: 1_100, height: 260)
+    rootView.addSubview(fixture.container)
+    window.contentView = rootView
+    rootView.layoutSubtreeIfNeeded()
+
+    let session = SubtitleTableExternalTextSelectionSession()
+    fixture.coordinator.bindExternalTextSelectionSession(session)
+    defer { fixture.coordinator.quiesceForTesting() }
+
+    let headerFragments = fixture.coordinator.headerTextFragmentInfoForTesting()
+    let cuesHeader = try #require(headerFragments.first(where: { $0.columnID == "cues" }))
+    let displayHeader = try #require(headerFragments.first(where: { $0.columnID == "display" }))
+    let timeHeader = try #require(headerFragments.first(where: { $0.columnID == "time" }))
+    let row0Display = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "display").first
+    )
+    let row0Language = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "language").first
+    )
+
+    // 1. Diagonal drag from Filter-button / middle of Cues column above the table into row 0 Display
+    let filterAboveMiddlePoint = CGPoint(x: cuesHeader.textBounds.midX, y: 320)
+    let row0DisplayEndPoint = fixture.documentView.convert(
+        CGPoint(x: row0Display.textBounds.maxX, y: row0Display.textBounds.midY),
+        to: nil as NSView?
+    )
+    #expect(session.arm(startWindowPoint: filterAboveMiddlePoint))
+    #expect(session.drag(windowPoint: row0DisplayEndPoint))
+    #expect(session.end(windowPoint: row0DisplayEndPoint))
+
+    let cuesHeaderLength = (fixture.coordinator.cuesHeader as NSString).length
+    let displayHeaderLength = (fixture.coordinator.displayTitleHeader as NSString).length
+    let timeHeaderLength = (fixture.coordinator.timeHeader as NSString).length
+    let languageHeaderLength = (fixture.coordinator.languageHeader as NSString).length
+    #expect(
+        fixture.coordinator.textSelection.selectedUTF16Range(
+            row: SubtitleTableTextRow.header,
+            columnIndex: 0,
+            utf16Length: cuesHeaderLength
+        ) == NSRange(location: 0, length: cuesHeaderLength)
+    )
+    #expect(
+        fixture.coordinator.textSelection.selectedUTF16Range(
+            row: SubtitleTableTextRow.header,
+            columnIndex: 1,
+            utf16Length: displayHeaderLength
+        ) == NSRange(location: 0, length: displayHeaderLength)
+    )
+    #expect(
+        fixture.coordinator.textSelection.selectedUTF16Range(
+            row: SubtitleTableTextRow.header,
+            columnIndex: 2,
+            utf16Length: timeHeaderLength
+        ) == NSRange(location: 0, length: timeHeaderLength)
+    )
+    #expect(
+        fixture.coordinator.textSelection.selectedUTF16Range(
+            row: SubtitleTableTextRow.header,
+            columnIndex: 3,
+            utf16Length: languageHeaderLength
+        ) == NSRange(location: 0, length: languageHeaderLength)
+    )
+    #expect(
+        fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues")
+            == NSRange(location: 0, length: ("First Cue Sentence" as NSString).length)
+    )
+    #expect(
+        fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "display")
+            == NSRange(location: 0, length: ("Episode Alpha" as NSString).length)
+    )
+
+    // 2. Diagonal drag from search-bar right blank above Time column into row 0 Language still starts at header column 0 Cues offset 0
+    fixture.coordinator.clearTextSelectionForTesting()
+    let toolbarRightBlankPoint = CGPoint(x: timeHeader.clipRect.midX, y: 320)
+    let row0LanguageEndPoint = fixture.documentView.convert(
+        CGPoint(x: row0Language.textBounds.maxX, y: row0Language.textBounds.midY),
+        to: nil as NSView?
+    )
+    #expect(session.arm(startWindowPoint: toolbarRightBlankPoint))
+    #expect(session.drag(windowPoint: row0LanguageEndPoint))
+    #expect(session.end(windowPoint: row0LanguageEndPoint))
+    #expect(
+        fixture.coordinator.textSelection.selectedUTF16Range(
+            row: SubtitleTableTextRow.header,
+            columnIndex: 0,
+            utf16Length: cuesHeaderLength
+        ) == NSRange(location: 0, length: cuesHeaderLength)
+    )
+
+    // 3. Intra-row check: starting inside header vertical text bounds at Display column still projects horizontally inside Display
+    fixture.coordinator.clearTextSelectionForTesting()
+    let insideDisplayHeaderPoint = fixture.header.convert(
+        CGPoint(x: displayHeader.textBounds.minX + 1, y: displayHeader.textBounds.midY),
+        to: nil as NSView?
+    )
+    #expect(fixture.coordinator.handleHeaderMouseDown(windowPoint: insideDisplayHeaderPoint))
+    #expect(fixture.coordinator.handleMouseDragged(windowPoint: row0DisplayEndPoint))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: row0DisplayEndPoint))
+    #expect(
+        fixture.coordinator.textSelection.selectedUTF16Range(
+            row: SubtitleTableTextRow.header,
+            columnIndex: 0,
+            utf16Length: cuesHeaderLength
+        ) == nil
+    )
+    #expect(
+        fixture.coordinator.textSelection.selectedUTF16Range(
+            row: SubtitleTableTextRow.header,
+            columnIndex: 1,
+            utf16Length: displayHeaderLength
+        ) == NSRange(location: 0, length: displayHeaderLength)
+    )
+
+    // 4. Hidden header: starting above row 0 selectable text top edge over Display column folds to row 0 column 0 Cues offset 0
+    let headlessFixture = makeAttachedVirtualTableCoordinator(
+        width: 1_100,
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        columnOrder: searchColumnOrder,
+        showsHeader: false,
+        showsTimeColumn: true
+    )
+    let headlessWindow = NSWindow(
+        contentRect: CGRect(x: 0, y: 0, width: 1_100, height: 380),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    let headlessRoot = NSView(frame: CGRect(x: 0, y: 0, width: 1_100, height: 380))
+    headlessFixture.container.frame = CGRect(x: 0, y: 0, width: 1_100, height: 260)
+    headlessRoot.addSubview(headlessFixture.container)
+    headlessWindow.contentView = headlessRoot
+    headlessRoot.layoutSubtreeIfNeeded()
+
+    let headlessSession = SubtitleTableExternalTextSelectionSession()
+    headlessFixture.coordinator.bindExternalTextSelectionSession(headlessSession)
+    defer { headlessFixture.coordinator.quiesceForTesting() }
+
+    let headlessRow0Display = try #require(
+        headlessFixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "display").first
+    )
+    let headlessRow1Display = try #require(
+        headlessFixture.coordinator.textFragmentInfoForTesting(row: 1, columnID: "display").first
+    )
+    let aboveHeadlessTableMiddle = CGPoint(x: headlessRow0Display.textBounds.midX, y: 310)
+    let headlessRow1DisplayEnd = headlessFixture.documentView.convert(
+        CGPoint(x: headlessRow1Display.textBounds.maxX, y: headlessRow1Display.textBounds.midY),
+        to: nil as NSView?
+    )
+    #expect(headlessSession.arm(startWindowPoint: aboveHeadlessTableMiddle))
+    #expect(headlessSession.drag(windowPoint: headlessRow1DisplayEnd))
+    #expect(headlessSession.end(windowPoint: headlessRow1DisplayEnd))
+    #expect(
+        headlessFixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues")
+            == NSRange(location: 0, length: ("First Cue Sentence" as NSString).length)
+    )
+    #expect(
+        headlessFixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "display")
+            == NSRange(location: 0, length: ("Episode Alpha" as NSString).length)
+    )
+}
+
+@MainActor
+@Test
+func subtitleTableDraggingBelowBottomRowSelectsAllColumnsOfLastRowInFull() async throws {
+    let searchColumnOrder = ["cues", "display", "time", "language"]
+    let shortRows = [
+        SubtitleTableRow(
+            id: 1,
+            primaryCueID: 1,
+            displayTitle: "Pilot Episode",
+            startTime: "00:00:10",
+            endTime: "00:00:13",
+            primaryCueText: "Opening Cue",
+            cueGroupTexts: ["Opening Cue"],
+            primaryGroupIndex: 0,
+            tags: [WorkbenchTag(key: "en", label: "EN", colorID: .gray)]
+        ),
+        SubtitleTableRow(
+            id: 2,
+            primaryCueID: 2,
+            displayTitle: "Finale Episode",
+            startTime: "00:42:00",
+            endTime: "00:42:05",
+            primaryCueText: "Closing Cue",
+            cueGroupTexts: ["Closing Cue"],
+            primaryGroupIndex: 0,
+            tags: [
+                WorkbenchTag(key: "en", label: "EN", colorID: .gray),
+                WorkbenchTag(key: "zh", label: "ZH", colorID: .gray),
+            ]
+        ),
+    ]
+    let shortFixture = makeAttachedVirtualTableCoordinator(
+        width: 1_100,
+        rowCount: shortRows.count,
+        rowProvider: { shortRows[$0] },
+        columnOrder: searchColumnOrder,
+        showsTimeColumn: true
+    )
+    defer { shortFixture.coordinator.quiesceForTesting() }
+
+    let row0Cue = try #require(
+        shortFixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "cues").first
+    )
+    let startPoint = shortFixture.documentView.convert(
+        CGPoint(x: row0Cue.textBounds.minX + 1, y: row0Cue.textBounds.midY),
+        to: nil as NSView?
+    )
+    let row1BottomY = shortFixture.coordinator.rowYOffsetForTesting(1)
+        + shortFixture.coordinator.rowHeightForTesting(1)
+    let belowTailRowPoint = shortFixture.documentView.convert(
+        CGPoint(x: row0Cue.textBounds.minX + 1, y: row1BottomY + 32),
+        to: nil as NSView?
+    )
+    #expect(shortFixture.coordinator.handleMouseDown(windowPoint: startPoint))
+    #expect(shortFixture.coordinator.handleMouseDragged(windowPoint: belowTailRowPoint))
+    #expect(shortFixture.coordinator.handleMouseUp(windowPoint: belowTailRowPoint))
+
+    #expect(
+        shortFixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues")
+            == NSRange(location: 0, length: ("Closing Cue" as NSString).length)
+    )
+    #expect(
+        shortFixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "display")
+            == NSRange(location: 0, length: ("Finale Episode" as NSString).length)
+    )
+    #expect(
+        shortFixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "time")
+            == NSRange(location: 0, length: ("00:42:00 - 00:42:05" as NSString).length)
+    )
+    #expect(
+        shortFixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "language")
+            == NSRange(location: 0, length: ("EN, ZH" as NSString).length)
+    )
+
+    let pasteboard = NSPasteboard.withUniqueName()
+    defer { pasteboard.releaseGlobally() }
+    shortFixture.coordinator.copyTableTextSelection(to: pasteboard)
+    await shortFixture.coordinator.waitForTextCopyForTesting()
+    let copiedString = try #require(pasteboard.string(forType: .string))
+    #expect(copiedString.contains("Closing Cue\tFinale Episode\t00:42:00 - 00:42:05\tEN, ZH"))
+
+    // Tall scrollable body: dragging below the scroll viewport bottom edge folds to the end of the bottom visible row's last column
+    let tallRows = (0..<20).map { index in
+        SubtitleTableRow(
+            id: index + 1,
+            primaryCueID: Int64(index + 1),
+            displayTitle: "Series Ep \(index)",
+            startTime: "00:01:00",
+            endTime: "00:01:02",
+            primaryCueText: "Cue Line \(index)",
+            cueGroupTexts: ["Cue Line \(index)"],
+            primaryGroupIndex: 0,
+            tags: [
+                WorkbenchTag(key: "ja", label: "JA", colorID: .gray),
+                WorkbenchTag(key: "en", label: "EN", colorID: .gray),
+            ]
+        )
+    }
+    let tallFixture = makeAttachedVirtualTableCoordinator(
+        width: 1_100,
+        rowCount: tallRows.count,
+        rowProvider: { tallRows[$0] },
+        columnOrder: searchColumnOrder,
+        showsTimeColumn: true
+    )
+    let window = NSWindow(
+        contentRect: CGRect(x: 0, y: 0, width: 1_100, height: 360),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    let rootView = NSView(frame: CGRect(x: 0, y: 0, width: 1_100, height: 360))
+    tallFixture.container.frame = CGRect(x: 0, y: 60, width: 1_100, height: 260)
+    rootView.addSubview(tallFixture.container)
+    window.contentView = rootView
+    rootView.layoutSubtreeIfNeeded()
+    tallFixture.coordinator.notifyVisibleRowsChanged(force: true)
+    defer { tallFixture.coordinator.quiesceForTesting() }
+
+    let visibleRange = try #require(
+        tallFixture.coordinator.drawingRowRangeForTesting(
+            dirtyRect: tallFixture.scrollView.contentView.bounds
+        )
+    )
+    let bottomVisibleRow = visibleRange.upperBound - 1
+    let tallRow0Cue = try #require(
+        tallFixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "cues").first
+    )
+    let tallStartWindowPoint = tallFixture.documentView.convert(
+        CGPoint(x: tallRow0Cue.textBounds.minX + 1, y: tallRow0Cue.textBounds.midY),
+        to: nil as NSView?
+    )
+    let belowViewportWindowPoint = CGPoint(x: tallStartWindowPoint.x, y: 20)
+    #expect(tallFixture.coordinator.handleMouseDown(windowPoint: tallStartWindowPoint))
+    #expect(tallFixture.coordinator.handleMouseDragged(windowPoint: belowViewportWindowPoint))
+    #expect(
+        tallFixture.coordinator.textSelectionRangeForTesting(row: bottomVisibleRow, columnID: "cues")
+            == NSRange(location: 0, length: ("Cue Line \(bottomVisibleRow)" as NSString).length)
+    )
+    #expect(
+        tallFixture.coordinator.textSelectionRangeForTesting(row: bottomVisibleRow, columnID: "display")
+            == NSRange(location: 0, length: ("Series Ep \(bottomVisibleRow)" as NSString).length)
+    )
+    #expect(
+        tallFixture.coordinator.textSelectionRangeForTesting(row: bottomVisibleRow, columnID: "time")
+            == NSRange(location: 0, length: ("00:01:00 - 00:01:02" as NSString).length)
+    )
+    #expect(
+        tallFixture.coordinator.textSelectionRangeForTesting(row: bottomVisibleRow, columnID: "language")
+            == NSRange(location: 0, length: ("JA, EN" as NSString).length)
+    )
+    #expect(tallFixture.coordinator.handleMouseUp(windowPoint: belowViewportWindowPoint))
+}
+
+@MainActor
+@Test
+func subtitleTableHigherLayerCoverageClearsExistingSelectionAndStopsActiveDrag() throws {
+    let rows = [
+        SubtitleTableRow(
+            id: 1,
+            primaryCueID: 1,
+            displayTitle: "Episode One",
+            startTime: "00:01:00",
+            endTime: "00:01:02",
+            primaryCueText: "Selected Cue Text",
+            cueGroupTexts: ["Selected Cue Text"],
+            primaryGroupIndex: 0
+        ),
+        SubtitleTableRow(
+            id: 2,
+            primaryCueID: 2,
+            displayTitle: "Episode Two",
+            startTime: "00:02:00",
+            endTime: "00:02:03",
+            primaryCueText: "Second Cue Text",
+            cueGroupTexts: ["Second Cue Text"],
+            primaryGroupIndex: 0
+        ),
+    ]
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_000,
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        columnOrder: ["cues", "display", "time"],
+        showsTimeColumn: true
+    )
+    let window = NSWindow(
+        contentRect: CGRect(x: 0, y: 0, width: 1_000, height: 340),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    let rootView = NSView(frame: CGRect(x: 0, y: 0, width: 1_000, height: 340))
+    fixture.container.frame = CGRect(x: 0, y: 0, width: 1_000, height: 260)
+    rootView.addSubview(fixture.container)
+    window.contentView = rootView
+    rootView.layoutSubtreeIfNeeded()
+
+    let session = SubtitleTableExternalTextSelectionSession()
+    fixture.coordinator.bindExternalTextSelectionSession(session)
+    defer { fixture.coordinator.quiesceForTesting() }
+
+    // 1. Existing finished selection clears immediately when covered by a higher layer (e.g., shortcut-opened dialog/Task Panel), while row hover picture stays preserved
+    let firstRowHoverRect = try #require(
+        fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues")
+    )
+    fixture.coordinator.handleMouseHover(
+        windowPoint: fixture.documentView.convert(
+            CGPoint(x: firstRowHoverRect.midX, y: firstRowHoverRect.midY),
+            to: nil as NSView?
+        )
+    )
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.tableRowHover
+    )
+
+    let displayFragment = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "display").first
+    )
+    let displayPoint = fixture.documentView.convert(
+        CGPoint(x: displayFragment.textBounds.minX + 4, y: displayFragment.textBounds.midY),
+        to: nil as NSView?
+    )
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: displayPoint, clickCount: 3))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: displayPoint))
+    #expect(fixture.coordinator.textSelection.hasSelection)
+    #expect(
+        fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "display")
+            == NSRange(location: 0, length: ("Episode One" as NSString).length)
+    )
+
+    fixture.coordinator.isCoveredByHigherLayer = true
+    #expect(!fixture.coordinator.textSelection.hasSelection)
+    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "display") == nil)
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.tableRowHover
+    )
+
+    // 2. Active external drag selection also cancels session & clears selection when interfaceLayerContext transitions to covered
+    fixture.coordinator.isCoveredByHigherLayer = false
+    let abovePoint = CGPoint(x: 240, y: 310)
+    #expect(session.arm(startWindowPoint: abovePoint))
+    #expect(session.drag(windowPoint: displayPoint))
+    #expect(session.phase == .selecting)
+    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting())
+    #expect(fixture.coordinator.textSelection.hasSelection)
+
+    fixture.coordinator.interfaceLayerContext = InterfaceLayerContext(
+        layer: .workbenchPage,
+        coveredLayers: [.workbenchPage]
+    )
+    #expect(session.phase == .idle)
+    #expect(!fixture.coordinator.pendingTextSelectionHasBegunForTesting())
+    #expect(!fixture.coordinator.textSelection.hasSelection)
 }
