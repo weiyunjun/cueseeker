@@ -288,6 +288,7 @@ struct LibraryCoverCropEditor: View {
                 }
             }
         }
+        .cueSeekerNativeDragRegion()
         .accessibilityElement(children: .contain)
         .accessibilityLabel(L("cover.crop_editor"))
     }

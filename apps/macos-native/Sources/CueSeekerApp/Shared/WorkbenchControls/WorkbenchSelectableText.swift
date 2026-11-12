@@ -1,12 +1,45 @@
 import AppKit
 import SwiftUI
 
-/// Global coordinator ensuring at most one static text selection exists across the App
-/// and coordinating mutual exclusion with `SubtitleTable`, `PlaybackSubtitleFocusReel`,
-/// focused text inputs, menus, and modal dialogs.
+enum WindowMouseEventDisposition {
+    case passthrough
+    case consume
+    case redirect(NSEvent)
+}
+
+enum StaticTextFlowScope: Hashable {
+    case menuModalPopover(windowNumber: Int)
+    case dialog(windowNumber: Int, dialogID: WorkbenchDialogAccessibilityID?)
+    case surface(windowNumber: Int, layer: InterfaceLayer)
+
+    var windowNumber: Int {
+        switch self {
+        case .menuModalPopover(let wn), .dialog(let wn, _), .surface(let wn, _):
+            return wn
+        }
+    }
+
+    var priorityRank: Int {
+        switch self {
+        case .menuModalPopover:
+            return 1_000
+        case .dialog:
+            return 500
+        case .surface(_, let layer):
+            return layer.rawValue
+        }
+    }
+}
+
+/// Global coordinator managing continuous static text flow selection within the active
+/// UI scope, cross-control/blank-area drag entry, viewport edge auto-scrolling, clipboard
+/// serialization (`\t` horizontal peers, `\n` vertical rows, full untruncated text on `...`),
+/// and global single-selection mutual exclusion across the App.
 @MainActor
-final class WorkbenchStaticTextSelectionCoordinator {
+final class WorkbenchStaticTextSelectionCoordinator: NSObject {
     static let shared = WorkbenchStaticTextSelectionCoordinator()
+    private static let externalDragThreshold: CGFloat = 3.0
+    private static let autoScrollInterval: TimeInterval = 1.0 / 30.0
 
     private final class WeakWindowRef {
         weak var window: CueSeekerWindow?
@@ -15,49 +48,166 @@ final class WorkbenchStaticTextSelectionCoordinator {
         }
     }
 
-    private enum ExternalDragState {
-        case idle
-        case armed(
-            window: WeakWindowRef,
-            startWindowPoint: CGPoint,
-            lastWindowPoint: CGPoint
-        )
-        case selecting(view: WorkbenchSelectableTextNSView)
+    private final class WeakViewRef {
+        weak var view: NSView?
+        init(_ view: NSView) {
+            self.view = view
+        }
     }
 
-    private(set) weak var activeView: WorkbenchSelectableTextNSView?
-    private var externalDragState: ExternalDragState = .idle
+    private final class WeakSelectableViewRef {
+        weak var view: WorkbenchSelectableTextNSView?
+        init(_ view: WorkbenchSelectableTextNSView) {
+            self.view = view
+        }
+    }
+
+    private final class WeakControlRef {
+        weak var control: NSControl?
+        init(_ control: NSControl) {
+            self.control = control
+        }
+    }
+
+    struct FlowCursor {
+        let view: WorkbenchSelectableTextNSView
+        let utf16Offset: Int
+    }
+
+    struct FlowAnchor {
+        let start: FlowCursor
+        let end: FlowCursor
+    }
+
+    private struct FlowNode {
+        let view: WorkbenchSelectableTextNSView
+        let scrollContainerID: ObjectIdentifier?
+        let containerTopY: CGFloat
+        let innerSortMinY: CGFloat
+        let innerSortMaxY: CGFloat
+        let innerSortMinX: CGFloat
+        let innerSortMaxX: CGFloat
+        let visualBounds: CGRect
+        let visibleVisualLineRects: [CGRect]
+
+        var visibleMinX: CGFloat {
+            visibleVisualLineRects.map(\.minX).min() ?? visualBounds.minX
+        }
+
+        var visibleMaxX: CGFloat {
+            visibleVisualLineRects.map(\.maxX).max() ?? visualBounds.maxX
+        }
+
+        var visibleMinY: CGFloat {
+            visibleVisualLineRects.map(\.minY).min() ?? visualBounds.minY
+        }
+
+        var visibleMaxY: CGFloat {
+            visibleVisualLineRects.map(\.maxY).max() ?? visualBounds.maxY
+        }
+    }
+
+    private struct FlowRowGroup {
+        var nodes: [FlowNode]
+        let scrollContainerID: ObjectIdentifier?
+        var firstBandMinY: CGFloat
+        var firstBandMaxY: CGFloat
+        var minX: CGFloat
+        var maxX: CGFloat
+    }
+
+    private struct VisibleFlowRow {
+        let nodes: [FlowNode]
+        let visibleMinY: CGFloat
+        let visibleMaxY: CGFloat
+    }
+
+    private struct FlowSnapshot {
+        let window: NSWindow
+        let scope: StaticTextFlowScope
+        let refHeight: CGFloat
+        let rowGroups: [FlowRowGroup]
+        let flatViews: [WorkbenchSelectableTextNSView]
+        let visibleRows: [VisibleFlowRow]
+    }
+
+    private struct ExternalArmedSession {
+        let window: WeakWindowRef
+        let startWindowPoint: CGPoint
+        var lastWindowPoint: CGPoint
+        var armedHitView: WeakViewRef?
+        var armedControl: WeakControlRef?
+    }
+
+    private struct ActiveFlowDragSession {
+        let isExternalEntry: Bool
+        let window: WeakWindowRef
+        let scope: StaticTextFlowScope
+        let startWindowPoint: CGPoint
+        var latestWindowPoint: CGPoint
+        let clickCount: Int
+        let anchor: FlowAnchor
+        var armedControl: WeakControlRef?
+    }
+
+    private var selectedViewRefs: [WeakSelectableViewRef] = []
+    private var activeScope: StaticTextFlowScope?
+    private weak var activeResponderView: WorkbenchSelectableTextNSView?
+    private var externalArmedSession: ExternalArmedSession?
+    private var activeDragSession: ActiveFlowDragSession?
+    private var autoScrollTimer: Timer?
+
+    var activeView: WorkbenchSelectableTextNSView? {
+        if let activeResponderView, activeResponderView.window != nil {
+            return activeResponderView
+        }
+        return liveSelectedViews.first
+    }
+
+    private var liveSelectedViews: [WorkbenchSelectableTextNSView] {
+        selectedViewRefs.compactMap { ref in
+            guard let view = ref.view, view.window != nil, view.hasSelection else {
+                return nil
+            }
+            return view
+        }
+    }
 
     var hasSelection: Bool {
-        activeView?.hasSelection == true
+        liveSelectedViews.contains { $0.canInteract }
     }
 
     var selectedText: String? {
-        activeView?.selectedText
+        let views = liveSelectedViews.filter(\.canInteract)
+        guard let first = views.first else {
+            return nil
+        }
+        return serializedSelectionText(in: first.window, fallbackViews: views)
     }
 
     var isDraggingSelection: Bool {
-        if case .selecting = externalDragState {
+        if let activeDragSession,
+           let window = activeDragSession.window.window,
+           window.contentView != nil
+        {
             return true
         }
-        return activeView?.isTrackingMouse == true
+        return false
     }
 
     var isDirectDragSelection: Bool {
-        if case .selecting = externalDragState {
+        guard let activeDragSession, !activeDragSession.isExternalEntry else {
             return false
         }
-        return activeView?.isTrackingMouse == true
+        return activeDragSession.window.window != nil
     }
 
     var activeDraggingPointerShape: PointerShape? {
-        guard isDraggingSelection, let activeView, activeView.canInteract else {
-            return nil
-        }
-        return activeView.preferredPointerShape
+        isDraggingSelection ? .iBeam : nil
     }
 
-    private init() {
+    private override init() {
+        super.init()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleClearTextSelectionNotification(_:)),
@@ -78,11 +228,24 @@ final class WorkbenchStaticTextSelectionCoordinator {
         )
     }
 
-    func beginInteraction(in view: WorkbenchSelectableTextNSView) {
-        if let activeView, activeView !== view {
-            activeView.clearSelection(notifyCoordinator: false)
+    func isResponderOwnedByActiveSelection(_ responder: NSResponder?) -> Bool {
+        guard let view = responder as? WorkbenchSelectableTextNSView else {
+            return false
         }
-        activeView = view
+        if view === activeResponderView {
+            return true
+        }
+        return selectedViewRefs.contains { $0.view === view }
+    }
+
+    func beginSingleNodeInteraction(in view: WorkbenchSelectableTextNSView) {
+        stopAutoScroll()
+        externalArmedSession = nil
+        activeDragSession = nil
+        clearSelectedViews(except: view)
+        activeResponderView = view
+        activeScope = view.flowScope
+        selectedViewRefs = [WeakSelectableViewRef(view)]
         NotificationCenter.default.post(
             name: .cueSeekerClearTextSelection,
             object: view
@@ -90,140 +253,1036 @@ final class WorkbenchStaticTextSelectionCoordinator {
     }
 
     func clearSelection() {
-        externalDragState = .idle
-        guard let view = activeView else {
-            return
+        stopAutoScroll()
+        externalArmedSession = nil
+        activeDragSession = nil
+        activeScope = nil
+        let previousResponder = activeResponderView
+        activeResponderView = nil
+        let refs = selectedViewRefs
+        selectedViewRefs.removeAll()
+        for ref in refs {
+            ref.view?.clearSelection(notifyCoordinator: false)
         }
-        activeView = nil
-        view.clearSelection(notifyCoordinator: false)
+        previousResponder?.clearSelection(notifyCoordinator: false)
     }
 
-    func clearSelectionIfOutside(window: NSWindow, windowPoint: CGPoint) {
-        guard let activeView else {
-            return
+    func unregister(_ view: WorkbenchSelectableTextNSView) {
+        selectedViewRefs.removeAll { $0.view == nil || $0.view === view }
+        if activeResponderView === view {
+            activeResponderView = liveSelectedViews.first
         }
-        guard activeView.window === window,
-              activeView.containsWindowPoint(windowPoint)
+        if selectedViewRefs.isEmpty, activeDragSession == nil {
+            activeScope = nil
+        }
+    }
+
+    // MARK: - Direct Node Mouse Tracking
+
+    func prepareDirectMouseDown(
+        in view: WorkbenchSelectableTextNSView,
+        startWindowPoint: CGPoint,
+        clickCount: Int,
+        initialAnchorRange: NSRange?
+    ) {
+        stopAutoScroll()
+        externalArmedSession = nil
+        activeDragSession = nil
+        clearSelectedViews(except: view)
+        activeResponderView = view
+        activeScope = view.flowScope
+        NotificationCenter.default.post(
+            name: .cueSeekerClearTextSelection,
+            object: view
+        )
+        _ = view.window?.makeFirstResponder(view)
+
+        if let initialAnchorRange, initialAnchorRange.length > 0 {
+            selectedViewRefs = [WeakSelectableViewRef(view)]
+            if clickCount >= 2,
+               let window = view.window as? CueSeekerWindow,
+               let scope = view.flowScope
+            {
+                let anchor = FlowAnchor(
+                    start: FlowCursor(view: view, utf16Offset: initialAnchorRange.location),
+                    end: FlowCursor(view: view, utf16Offset: NSMaxRange(initialAnchorRange))
+                )
+                activeDragSession = ActiveFlowDragSession(
+                    isExternalEntry: false,
+                    window: WeakWindowRef(window),
+                    scope: scope,
+                    startWindowPoint: startWindowPoint,
+                    latestWindowPoint: startWindowPoint,
+                    clickCount: clickCount,
+                    anchor: anchor,
+                    armedControl: nil
+                )
+            }
+        } else {
+            selectedViewRefs.removeAll()
+        }
+    }
+
+    func updateDirectDrag(
+        from originView: WorkbenchSelectableTextNSView,
+        startWindowPoint: CGPoint,
+        currentWindowPoint: CGPoint,
+        clickCount: Int,
+        initialAnchorRange: NSRange
+    ) {
+        guard let window = originView.window as? CueSeekerWindow,
+              let scope = originView.flowScope,
+              originView.canInteract
         else {
             clearSelection()
             return
         }
+
+        guard let snapshot = buildFlowSnapshot(in: window, preferredScope: scope) else {
+            clearSelection()
+            return
+        }
+
+        if activeDragSession == nil {
+            let anchor: FlowAnchor
+            if clickCount >= 2 && originView.onTap == nil {
+                anchor = FlowAnchor(
+                    start: FlowCursor(view: originView, utf16Offset: initialAnchorRange.location),
+                    end: FlowCursor(view: originView, utf16Offset: NSMaxRange(initialAnchorRange))
+                )
+            } else if let projectedStart = project(windowPoint: startWindowPoint, in: snapshot) {
+                anchor = FlowAnchor(start: projectedStart, end: projectedStart)
+            } else {
+                let fallbackOffset = originView.utf16Offset(
+                    at: originView.convert(startWindowPoint, from: nil)
+                )
+                let cursor = FlowCursor(view: originView, utf16Offset: fallbackOffset)
+                anchor = FlowAnchor(start: cursor, end: cursor)
+            }
+            activeDragSession = ActiveFlowDragSession(
+                isExternalEntry: false,
+                window: WeakWindowRef(window),
+                scope: scope,
+                startWindowPoint: startWindowPoint,
+                latestWindowPoint: currentWindowPoint,
+                clickCount: originView.onTap == nil ? clickCount : 1,
+                anchor: anchor,
+                armedControl: nil
+            )
+        } else {
+            activeDragSession?.latestWindowPoint = currentWindowPoint
+        }
+
+        guard let session = activeDragSession,
+              let focus = project(windowPoint: currentWindowPoint, in: snapshot)
+        else {
+            return
+        }
+
+        applyFlowSelection(
+            anchor: session.anchor,
+            focus: focus,
+            clickCount: session.clickCount,
+            in: snapshot
+        )
+        updateAutoScrollState()
+        AppPointerShape.pointerMoved(in: window, at: currentWindowPoint)
     }
 
-    func unregister(_ view: WorkbenchSelectableTextNSView) {
-        if case .selecting(let draggingView) = externalDragState, draggingView === view {
-            externalDragState = .idle
+    func endDirectDrag(
+        from originView: WorkbenchSelectableTextNSView,
+        currentWindowPoint: CGPoint
+    ) {
+        if let session = activeDragSession,
+           let window = session.window.window,
+           let snapshot = buildFlowSnapshot(in: window, preferredScope: session.scope),
+           let focus = project(windowPoint: currentWindowPoint, in: snapshot)
+        {
+            applyFlowSelection(
+                anchor: session.anchor,
+                focus: focus,
+                clickCount: session.clickCount,
+                in: snapshot
+            )
         }
-        if activeView === view {
-            activeView = nil
+        stopAutoScroll()
+        activeDragSession = nil
+        if let window = originView.window {
+            AppPointerShape.pointerMoved(in: window, at: currentWindowPoint)
+        }
+        if !hasSelection {
+            clearSelection()
         }
     }
+
+    // MARK: - Window External Drag Entry & Control Cancellation
 
     func handleWindowLeftMouseDown(window: CueSeekerWindow, event: NSEvent) {
         let windowPoint = event.locationInWindow
-        clearSelectionIfOutside(window: window, windowPoint: windowPoint)
-        externalDragState = .idle
+        stopAutoScroll()
+        externalArmedSession = nil
+        activeDragSession = nil
 
         guard let contentView = window.contentView else {
+            clearSelection()
             return
         }
+
+        let contentFrame = contentView.convert(contentView.bounds, to: nil).standardized
+        let hitView = contentView.superview?.hitTest(windowPoint)
+            ?? contentView.hitTest(contentView.convert(windowPoint, from: nil))
+
+        if let selectableHit = hitView as? WorkbenchSelectableTextNSView,
+           selectableHit.canInteract
+        {
+            return
+        }
+
+        clearSelection()
+
+        guard contentFrame.width > 0,
+              contentFrame.height > 0,
+              contentFrame.contains(windowPoint)
+        else {
+            return
+        }
+
         if let mainWindow = window as? CueSeekerMainWindow,
            mainWindow.isFocusLocked(),
            !Self.hasInteractiveMenuModalSelectableTextView(in: contentView)
         {
             return
         }
-        let hitView = contentView.superview?.hitTest(windowPoint)
-            ?? contentView.hitTest(contentView.convert(windowPoint, from: nil))
-        if hitView is WorkbenchSelectableTextNSView {
+
+        if Self.isInsideDedicatedTextSelectionSurface(hitView)
+            || SubtitleTableActiveTextDragState.isDraggingSelection
+        {
             return
         }
-        if Self.isInsideDedicatedTextSelectionSurface(hitView) {
-            return
-        }
-        if SubtitleTableTextSelectionHitTesting.isInteractive(
+
+        if SubtitleTableTextSelectionHitTesting.ownsDragOrTextInputGesture(
             hitView,
             atWindowPoint: windowPoint,
-            in: contentView
+            in: window
         ) {
             return
         }
-        if AppPointerShape.manages(window), AppPointerShape.model.shape == .grab {
-            return
-        }
 
-        externalDragState = .armed(
+        externalArmedSession = ExternalArmedSession(
             window: WeakWindowRef(window),
             startWindowPoint: windowPoint,
-            lastWindowPoint: windowPoint
+            lastWindowPoint: windowPoint,
+            armedHitView: hitView.map(WeakViewRef.init),
+            armedControl: Self.enclosingControl(of: hitView).map(WeakControlRef.init)
         )
     }
 
-    func handleWindowLeftMouseDragged(window: CueSeekerWindow, event: NSEvent) {
+    func handleWindowLeftMouseDragged(
+        window: CueSeekerWindow,
+        event: NSEvent
+    ) -> WindowMouseEventDisposition {
         let currentWindowPoint = event.locationInWindow
-        switch externalDragState {
-        case .idle:
-            return
 
-        case .armed(let weakWindow, let startWindowPoint, let lastWindowPoint):
-            guard weakWindow.window === window,
-                  let contentView = window.contentView
+        if var dragSession = activeDragSession, dragSession.isExternalEntry {
+            guard dragSession.window.window === window,
+                  let snapshot = buildFlowSnapshot(in: window, preferredScope: dragSession.scope)
             else {
-                externalDragState = .idle
-                return
-            }
-            externalDragState = .armed(
-                window: weakWindow,
-                startWindowPoint: startWindowPoint,
-                lastWindowPoint: currentWindowPoint
-            )
-            guard hypot(
-                currentWindowPoint.x - startWindowPoint.x,
-                currentWindowPoint.y - startWindowPoint.y
-            ) >= WorkbenchSelectableTextNSView.dragThreshold else {
-                return
-            }
-            guard let targetView = Self.findHitSelectableTextView(
-                in: contentView,
-                from: lastWindowPoint,
-                to: currentWindowPoint
-            ) ?? Self.findHitSelectableTextView(
-                in: contentView,
-                from: startWindowPoint,
-                to: currentWindowPoint
-            ) else {
-                return
-            }
-            externalDragState = .selecting(view: targetView)
-            targetView.beginExternalDragSelection(
-                startWindowPoint: startWindowPoint,
-                currentWindowPoint: currentWindowPoint
-            )
-
-        case .selecting(let view):
-            guard view.window === window, view.canInteract else {
                 clearSelection()
-                return
+                return .passthrough
             }
-            view.updateExternalDragSelection(currentWindowPoint: currentWindowPoint)
+            dragSession.latestWindowPoint = currentWindowPoint
+            activeDragSession = dragSession
+
+            if let focus = project(windowPoint: currentWindowPoint, in: snapshot) {
+                applyFlowSelection(
+                    anchor: dragSession.anchor,
+                    focus: focus,
+                    clickCount: 1,
+                    in: snapshot
+                )
+            }
+            updateAutoScrollState()
+            AppPointerShape.pointerMoved(in: window, at: currentWindowPoint)
+            if dragSession.armedControl?.control != nil,
+               let redirected = Self.redirectedMouseEvent(
+                   from: event,
+                   type: .leftMouseDragged,
+                   locationInWindow: CGPoint(x: -10_000, y: -10_000)
+               )
+            {
+                return .redirect(redirected)
+            }
+            return .consume
         }
+
+        guard var armed = externalArmedSession else {
+            return .passthrough
+        }
+        guard armed.window.window === window,
+              let contentView = window.contentView,
+              !SubtitleTableActiveTextDragState.isDraggingSelection
+        else {
+            externalArmedSession = nil
+            return .passthrough
+        }
+
+        let previousPoint = armed.lastWindowPoint
+        armed.lastWindowPoint = currentWindowPoint
+        externalArmedSession = armed
+
+        guard hypot(
+            currentWindowPoint.x - armed.startWindowPoint.x,
+            currentWindowPoint.y - armed.startWindowPoint.y
+        ) >= Self.externalDragThreshold else {
+            return .passthrough
+        }
+
+        guard let snapshot = buildFlowSnapshot(in: window, preferredScope: nil),
+              let hitView = Self.findHitSelectableTextView(
+                  in: contentView,
+                  allowedViews: Set(snapshot.flatViews.map(ObjectIdentifier.init)),
+                  from: previousPoint,
+                  to: currentWindowPoint
+              ) ?? Self.findHitSelectableTextView(
+                  in: contentView,
+                  allowedViews: Set(snapshot.flatViews.map(ObjectIdentifier.init)),
+                  from: armed.startWindowPoint,
+                  to: currentWindowPoint
+              ),
+              let anchorPos = project(windowPoint: armed.startWindowPoint, in: snapshot),
+              let focusPos = project(windowPoint: currentWindowPoint, in: snapshot),
+              hasNonEmptyFlowSelection(from: anchorPos, to: focusPos, in: snapshot)
+        else {
+            return .passthrough
+        }
+
+        externalArmedSession = nil
+        let anchor = FlowAnchor(start: anchorPos, end: anchorPos)
+        activeScope = snapshot.scope
+        activeResponderView = anchorPos.view
+        NotificationCenter.default.post(
+            name: .cueSeekerClearTextSelection,
+            object: anchorPos.view
+        )
+        _ = window.makeFirstResponder(hitView)
+
+        activeDragSession = ActiveFlowDragSession(
+            isExternalEntry: true,
+            window: armed.window,
+            scope: snapshot.scope,
+            startWindowPoint: armed.startWindowPoint,
+            latestWindowPoint: currentWindowPoint,
+            clickCount: 1,
+            anchor: anchor,
+            armedControl: armed.armedControl
+        )
+
+        applyFlowSelection(
+            anchor: anchor,
+            focus: focusPos,
+            clickCount: 1,
+            in: snapshot
+        )
+        cancelArmedOriginatingControl(armed: armed, window: window, triggerEvent: event)
+        updateAutoScrollState()
+        AppPointerShape.pointerMoved(in: window, at: currentWindowPoint)
+
+        if armed.armedControl?.control != nil,
+           let redirected = Self.redirectedMouseEvent(
+               from: event,
+               type: .leftMouseDragged,
+               locationInWindow: CGPoint(x: -10_000, y: -10_000)
+           )
+        {
+            return .redirect(redirected)
+        }
+        return .consume
     }
 
-    func handleWindowLeftMouseUp(window: CueSeekerWindow, event: NSEvent) {
-        switch externalDragState {
-        case .idle:
+    func handleWindowLeftMouseUp(
+        window: CueSeekerWindow,
+        event: NSEvent
+    ) -> WindowMouseEventDisposition {
+        externalArmedSession = nil
+        guard let dragSession = activeDragSession, dragSession.isExternalEntry else {
+            return .passthrough
+        }
+
+        let currentWindowPoint = event.locationInWindow
+        let hadArmedControl = dragSession.armedControl?.control != nil
+        if dragSession.window.window === window,
+           let snapshot = buildFlowSnapshot(in: window, preferredScope: dragSession.scope),
+           let focus = project(windowPoint: currentWindowPoint, in: snapshot)
+        {
+            applyFlowSelection(
+                anchor: dragSession.anchor,
+                focus: focus,
+                clickCount: 1,
+                in: snapshot
+            )
+        }
+        stopAutoScroll()
+        activeDragSession = nil
+        AppPointerShape.pointerMoved(in: window, at: currentWindowPoint)
+        if !hasSelection {
+            clearSelection()
+        }
+
+        if hadArmedControl,
+           let redirected = Self.redirectedMouseEvent(
+               from: event,
+               type: .leftMouseUp,
+               locationInWindow: CGPoint(x: -10_000, y: -10_000)
+           )
+        {
+            return .redirect(redirected)
+        }
+        return .consume
+    }
+
+    private func cancelArmedOriginatingControl(
+        armed: ExternalArmedSession,
+        window: NSWindow,
+        triggerEvent: NSEvent
+    ) {
+        NotificationCenter.default.post(
+            name: .cueSeekerCancelControlPress,
+            object: window
+        )
+        if let control = armed.armedControl?.control {
+            control.cell?.isHighlighted = false
+            control.needsDisplay = true
             return
-        case .armed:
-            externalDragState = .idle
-        case .selecting(let view):
-            externalDragState = .idle
-            guard view.window === window else {
-                clearSelection()
-                return
-            }
-            view.endExternalDragSelection(currentWindowPoint: event.locationInWindow)
+        }
+        guard let hitView = armed.armedHitView?.view else {
+            return
+        }
+        let offscreen = CGPoint(x: -10_000, y: -10_000)
+        if let dragEvent = Self.redirectedMouseEvent(
+            from: triggerEvent,
+            type: .leftMouseDragged,
+            locationInWindow: offscreen
+        ) {
+            hitView.mouseDragged(with: dragEvent)
+        }
+        if let upEvent = Self.redirectedMouseEvent(
+            from: triggerEvent,
+            type: .leftMouseUp,
+            locationInWindow: offscreen
+        ) {
+            hitView.mouseUp(with: upEvent)
         }
     }
+
+    private static func enclosingControl(of hitView: NSView?) -> NSControl? {
+        var candidate = hitView
+        while let view = candidate {
+            if let control = view as? NSControl, control.isEnabled {
+                return control
+            }
+            candidate = view.superview
+        }
+        return nil
+    }
+
+    private static func redirectedMouseEvent(
+        from event: NSEvent,
+        type: NSEvent.EventType,
+        locationInWindow: CGPoint
+    ) -> NSEvent? {
+        NSEvent.mouseEvent(
+            with: type,
+            location: locationInWindow,
+            modifierFlags: event.modifierFlags,
+            timestamp: event.timestamp,
+            windowNumber: event.windowNumber,
+            context: nil,
+            eventNumber: event.eventNumber,
+            clickCount: 1,
+            pressure: type == .leftMouseUp ? 0 : 1
+        )
+    }
+
+    // MARK: - Viewport Edge Auto-Scroll
+
+    private func updateAutoScrollState() {
+        guard resolveAutoScrollStep() != nil else {
+            stopAutoScroll()
+            return
+        }
+        guard autoScrollTimer == nil else {
+            return
+        }
+        let timer = Timer(
+            timeInterval: Self.autoScrollInterval,
+            target: self,
+            selector: #selector(handleAutoScrollTimerTick),
+            userInfo: nil,
+            repeats: true
+        )
+        autoScrollTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func stopAutoScroll() {
+        autoScrollTimer?.invalidate()
+        autoScrollTimer = nil
+    }
+
+    @objc private func handleAutoScrollTimerTick() {
+        if NSEvent.pressedMouseButtons & 1 == 0 {
+            stopAutoScroll()
+            return
+        }
+        _ = stepAutoScroll()
+    }
+
+    @discardableResult
+    func stepAutoScrollForTesting() -> Bool {
+        stepAutoScroll()
+    }
+
+    private func stepAutoScroll() -> Bool {
+        guard let session = activeDragSession,
+              let window = session.window.window,
+              let step = resolveAutoScrollStep()
+        else {
+            stopAutoScroll()
+            return false
+        }
+
+        let clipView = step.scrollView.contentView
+        clipView.scroll(to: step.nextClipOrigin)
+        step.scrollView.reflectScrolledClipView(clipView)
+        window.contentView?.layoutSubtreeIfNeeded()
+
+        if let snapshot = buildFlowSnapshot(in: window, preferredScope: session.scope),
+           let focus = project(windowPoint: session.latestWindowPoint, in: snapshot)
+        {
+            applyFlowSelection(
+                anchor: session.anchor,
+                focus: focus,
+                clickCount: session.clickCount,
+                in: snapshot
+            )
+        }
+        if resolveAutoScrollStep() == nil {
+            stopAutoScroll()
+        }
+        return true
+    }
+
+    private func resolveAutoScrollStep() -> (scrollView: NSScrollView, nextClipOrigin: CGPoint)? {
+        guard let session = activeDragSession,
+              let window = session.window.window,
+              let snapshot = buildFlowSnapshot(in: window, preferredScope: session.scope)
+        else {
+            return nil
+        }
+
+        var seen = Set<ObjectIdentifier>()
+        var candidates: [(scrollView: NSScrollView, viewportWindowRect: CGRect)] = []
+        let orderedViews = [session.anchor.start.view] + snapshot.flatViews
+        for view in orderedViews {
+            guard let resolved = Self.resolveScrollableViewport(for: view),
+                  seen.insert(ObjectIdentifier(resolved.scrollView)).inserted
+            else {
+                continue
+            }
+            candidates.append(resolved)
+        }
+
+        for candidate in candidates {
+            guard let documentView = candidate.scrollView.documentView else {
+                continue
+            }
+            let visibleRect = candidate.scrollView.documentVisibleRect
+            let contentSize = documentView.frame.size
+            guard contentSize.height > visibleRect.height + 0.5
+                || contentSize.width > visibleRect.width + 0.5
+            else {
+                continue
+            }
+            let currentTopDown = CGPoint(
+                x: visibleRect.minX - documentView.frame.minX,
+                y: documentView.isFlipped
+                    ? (visibleRect.minY - documentView.frame.minY)
+                    : (documentView.frame.maxY - visibleRect.maxY)
+            )
+            let nextTopDown = SubtitleTableTextDragAutoScrollGeometry.nextOrigin(
+                pointer: session.latestWindowPoint,
+                viewport: candidate.viewportWindowRect,
+                currentOrigin: currentTopDown,
+                contentSize: contentSize,
+                viewportSize: visibleRect.size,
+                allowsVerticalScrolling: true
+            )
+            let delta = hypot(nextTopDown.x - currentTopDown.x, nextTopDown.y - currentTopDown.y)
+            guard delta > 0.01 else {
+                continue
+            }
+            let nextClipOrigin = CGPoint(
+                x: documentView.frame.minX + nextTopDown.x,
+                y: documentView.isFlipped
+                    ? (documentView.frame.minY + nextTopDown.y)
+                    : (documentView.frame.maxY - visibleRect.height - nextTopDown.y)
+            )
+            return (candidate.scrollView, nextClipOrigin)
+        }
+        return nil
+    }
+
+    private static func resolveScrollableViewport(
+        for view: NSView
+    ) -> (scrollView: NSScrollView, viewportWindowRect: CGRect)? {
+        if let scrollView = view.enclosingScrollView {
+            let clipView = scrollView.contentView
+            let viewport = clipView.convert(clipView.bounds, to: nil).standardized
+            guard !viewport.isNull, !viewport.isEmpty else { return nil }
+            return (scrollView, viewport)
+        }
+        var current = view.superview
+        while let ancestor = current {
+            if let pageViewport = ancestor as? SubtitleTablePageChromeViewportView,
+               let scrollView = pageViewport.scrollView
+            {
+                let viewport = pageViewport.convert(pageViewport.bounds, to: nil).standardized
+                guard !viewport.isNull, !viewport.isEmpty else { return nil }
+                return (scrollView, viewport)
+            }
+            current = ancestor.superview
+        }
+        return nil
+    }
+
+    // MARK: - Continuous Flow Snapshot, Projection & Selection Application
+
+    private func buildFlowSnapshot(
+        in window: NSWindow,
+        preferredScope: StaticTextFlowScope?
+    ) -> FlowSnapshot? {
+        guard let contentView = window.contentView else {
+            return nil
+        }
+
+        var interactiveViews: [WorkbenchSelectableTextNSView] = []
+        func collect(_ view: NSView) {
+            guard view.window != nil, !view.isHidden, view.alphaValue > 0 else {
+                return
+            }
+            if let selectable = view as? WorkbenchSelectableTextNSView {
+                if selectable.canInteract {
+                    selectable.prepareLayoutForFlow()
+                    if selectable.textLengthUTF16 > 0, !selectable.lineUsedRects().isEmpty {
+                        interactiveViews.append(selectable)
+                    }
+                }
+                return
+            }
+            for subview in view.subviews {
+                collect(subview)
+            }
+        }
+        collect(contentView)
+
+        guard !interactiveViews.isEmpty else {
+            return nil
+        }
+
+        let resolvedScope: StaticTextFlowScope
+        if let preferredScope,
+           interactiveViews.contains(where: { $0.flowScope == preferredScope })
+        {
+            resolvedScope = preferredScope
+        } else {
+            guard let topScope = interactiveViews
+                .compactMap(\.flowScope)
+                .max(by: { $0.priorityRank < $1.priorityRank })
+            else {
+                return nil
+            }
+            resolvedScope = topScope
+        }
+
+        let scopedViews = interactiveViews.filter { $0.flowScope == resolvedScope }
+        guard !scopedViews.isEmpty else {
+            return nil
+        }
+
+        let refHeight = max(1, window.frame.height)
+        var rawNodes: [FlowNode] = []
+        rawNodes.reserveCapacity(scopedViews.count)
+
+        for view in scopedViews {
+            let localLineRects = view.lineUsedRects()
+            guard let firstLocalLine = localLineRects.first else { continue }
+
+            let windowBounds = view.convert(view.bounds, to: nil).standardized
+            let visualBounds = Self.toVisualRect(windowBounds, refHeight: refHeight)
+            let visualLines = localLineRects.map { rect in
+                Self.toVisualRect(view.convert(rect, to: nil).standardized, refHeight: refHeight)
+            }
+
+            let clipWindowRect = view.visibleWindowClipRect()
+            let clipVisualRect = clipWindowRect.map { Self.toVisualRect($0, refHeight: refHeight) }
+            let visibleVisualLines: [CGRect] = {
+                guard let clipVisualRect else { return [] }
+                return visualLines.compactMap { lineRect in
+                    let clipped = lineRect.intersection(clipVisualRect)
+                    guard !clipped.isNull, clipped.width > 0.5, clipped.height > 0.5 else {
+                        return nil
+                    }
+                    return clipped
+                }
+            }()
+
+            if let scrollView = view.enclosingScrollView,
+               let docView = scrollView.documentView
+            {
+                let scrollWindowRect = scrollView.contentView
+                    .convert(scrollView.contentView.bounds, to: nil)
+                    .standardized
+                let scrollVisualTopY = refHeight - scrollWindowRect.maxY
+                let rawInDoc = view.convert(firstLocalLine, to: docView)
+                let docLineRect = docView.isFlipped
+                    ? rawInDoc
+                    : CGRect(
+                        x: rawInDoc.minX,
+                        y: docView.bounds.maxY - rawInDoc.maxY,
+                        width: rawInDoc.width,
+                        height: rawInDoc.height
+                    )
+                let rawBoundsInDoc = view.convert(view.bounds, to: docView)
+                let docBounds = docView.isFlipped
+                    ? rawBoundsInDoc
+                    : CGRect(
+                        x: rawBoundsInDoc.minX,
+                        y: docView.bounds.maxY - rawBoundsInDoc.maxY,
+                        width: rawBoundsInDoc.width,
+                        height: rawBoundsInDoc.height
+                    )
+                rawNodes.append(
+                    FlowNode(
+                        view: view,
+                        scrollContainerID: ObjectIdentifier(scrollView),
+                        containerTopY: scrollVisualTopY,
+                        innerSortMinY: docLineRect.minY,
+                        innerSortMaxY: docLineRect.maxY,
+                        innerSortMinX: docBounds.minX,
+                        innerSortMaxX: docBounds.maxX,
+                        visualBounds: visualBounds,
+                        visibleVisualLineRects: visibleVisualLines
+                    )
+                )
+            } else {
+                let firstVisualLine = visualLines[0]
+                rawNodes.append(
+                    FlowNode(
+                        view: view,
+                        scrollContainerID: nil,
+                        containerTopY: firstVisualLine.minY,
+                        innerSortMinY: firstVisualLine.minY,
+                        innerSortMaxY: firstVisualLine.maxY,
+                        innerSortMinX: visualBounds.minX,
+                        innerSortMaxX: visualBounds.maxX,
+                        visualBounds: visualBounds,
+                        visibleVisualLineRects: visibleVisualLines
+                    )
+                )
+            }
+        }
+
+        guard !rawNodes.isEmpty else {
+            return nil
+        }
+
+        rawNodes.sort { lhs, rhs in
+            let lhsKey = (
+                lhs.containerTopY,
+                lhs.scrollContainerID == nil ? 0 : 1,
+                lhs.innerSortMinY,
+                lhs.innerSortMinX
+            )
+            let rhsKey = (
+                rhs.containerTopY,
+                rhs.scrollContainerID == nil ? 0 : 1,
+                rhs.innerSortMinY,
+                rhs.innerSortMinX
+            )
+            return lhsKey < rhsKey
+        }
+
+        var rowGroups: [FlowRowGroup] = []
+        for node in rawNodes {
+            if let lastIndex = rowGroups.indices.last,
+               rowGroups[lastIndex].scrollContainerID == node.scrollContainerID
+            {
+                let group = rowGroups[lastIndex]
+                let vOverlap = min(group.firstBandMaxY, node.innerSortMaxY)
+                    - max(group.firstBandMinY, node.innerSortMinY)
+                let minHeight = min(
+                    max(0, group.firstBandMaxY - group.firstBandMinY),
+                    max(0, node.innerSortMaxY - node.innerSortMinY)
+                )
+                let hOverlap = min(group.maxX, node.innerSortMaxX)
+                    - max(group.minX, node.innerSortMinX)
+                if minHeight > 0,
+                   vOverlap >= minHeight * 0.35,
+                   hOverlap < 4
+                {
+                    rowGroups[lastIndex].nodes.append(node)
+                    rowGroups[lastIndex].nodes.sort { $0.innerSortMinX < $1.innerSortMinX }
+                    rowGroups[lastIndex].firstBandMinY = min(group.firstBandMinY, node.innerSortMinY)
+                    rowGroups[lastIndex].firstBandMaxY = max(group.firstBandMaxY, node.innerSortMaxY)
+                    rowGroups[lastIndex].minX = min(group.minX, node.innerSortMinX)
+                    rowGroups[lastIndex].maxX = max(group.maxX, node.innerSortMaxX)
+                    continue
+                }
+            }
+            rowGroups.append(
+                FlowRowGroup(
+                    nodes: [node],
+                    scrollContainerID: node.scrollContainerID,
+                    firstBandMinY: node.innerSortMinY,
+                    firstBandMaxY: node.innerSortMaxY,
+                    minX: node.innerSortMinX,
+                    maxX: node.innerSortMaxX
+                )
+            )
+        }
+
+        let flatViews = rowGroups.flatMap { $0.nodes.map(\.view) }
+        var visibleRows: [VisibleFlowRow] = []
+        for group in rowGroups {
+            let visibleNodes = group.nodes.filter { !$0.visibleVisualLineRects.isEmpty }
+            guard !visibleNodes.isEmpty else { continue }
+            let minY = visibleNodes.map(\.visibleMinY).min() ?? 0
+            let maxY = visibleNodes.map(\.visibleMaxY).max() ?? 0
+            visibleRows.append(
+                VisibleFlowRow(
+                    nodes: visibleNodes,
+                    visibleMinY: minY,
+                    visibleMaxY: maxY
+                )
+            )
+        }
+        if visibleRows.isEmpty {
+            visibleRows = rowGroups.map { group in
+                let minY = group.nodes.map { $0.visualBounds.minY }.min() ?? 0
+                let maxY = group.nodes.map { $0.visualBounds.maxY }.max() ?? 0
+                return VisibleFlowRow(nodes: group.nodes, visibleMinY: minY, visibleMaxY: maxY)
+            }
+        }
+
+        return FlowSnapshot(
+            window: window,
+            scope: resolvedScope,
+            refHeight: refHeight,
+            rowGroups: rowGroups,
+            flatViews: flatViews,
+            visibleRows: visibleRows
+        )
+    }
+
+    private func project(
+        windowPoint: CGPoint,
+        in snapshot: FlowSnapshot
+    ) -> FlowCursor? {
+        let rows = snapshot.visibleRows
+        guard let firstRow = rows.first,
+              let firstNode = firstRow.nodes.first,
+              let lastRow = rows.last,
+              let lastNode = lastRow.nodes.last
+        else {
+            return nil
+        }
+
+        let p = CGPoint(
+            x: windowPoint.x,
+            y: snapshot.refHeight - windowPoint.y
+        )
+
+        // Strict top/bottom clamping: zero horizontal projection tolerance band outside [firstLine.minY, lastLine.maxY].
+        if p.y < firstRow.visibleMinY {
+            return FlowCursor(view: firstNode.view, utf16Offset: 0)
+        }
+        if p.y > lastRow.visibleMaxY {
+            return FlowCursor(view: lastNode.view, utf16Offset: lastNode.view.textLengthUTF16)
+        }
+
+        for row in rows {
+            if p.y < row.visibleMinY {
+                // Strictly inside vertical blank/control gap between previous row and `row`.
+                return FlowCursor(view: row.nodes[0].view, utf16Offset: 0)
+            }
+            if p.y <= row.visibleMaxY {
+                if row.nodes.count == 1 {
+                    let view = row.nodes[0].view
+                    let localPoint = view.convert(windowPoint, from: nil)
+                    return FlowCursor(view: view, utf16Offset: view.utf16Offset(at: localPoint))
+                }
+                let coveringPeers = row.nodes.filter { $0.visibleMaxY >= p.y - 2 }
+                let peers = coveringPeers.isEmpty ? row.nodes : coveringPeers
+                if p.x < peers[0].visibleMinX {
+                    let view = peers[0].view
+                    return FlowCursor(
+                        view: view,
+                        utf16Offset: view.utf16Offset(at: view.convert(windowPoint, from: nil))
+                    )
+                }
+                for index in peers.indices {
+                    let peer = peers[index]
+                    if p.x <= peer.visibleMaxX {
+                        let view = peer.view
+                        return FlowCursor(
+                            view: view,
+                            utf16Offset: view.utf16Offset(at: view.convert(windowPoint, from: nil))
+                        )
+                    }
+                    if index + 1 < peers.count, p.x < peers[index + 1].visibleMinX {
+                        return FlowCursor(view: peers[index + 1].view, utf16Offset: 0)
+                    }
+                }
+                let trailingView = peers[peers.count - 1].view
+                return FlowCursor(
+                    view: trailingView,
+                    utf16Offset: trailingView.utf16Offset(
+                        at: trailingView.convert(windowPoint, from: nil)
+                    )
+                )
+            }
+        }
+
+        return FlowCursor(view: lastNode.view, utf16Offset: lastNode.view.textLengthUTF16)
+    }
+
+    private func hasNonEmptyFlowSelection(
+        from anchor: FlowCursor,
+        to focus: FlowCursor,
+        in snapshot: FlowSnapshot
+    ) -> Bool {
+        let ranges = resolvedNodeSelectionRanges(
+            anchor: FlowAnchor(start: anchor, end: anchor),
+            focus: focus,
+            clickCount: 1,
+            in: snapshot
+        )
+        return ranges.contains { ($0?.length ?? 0) > 0 }
+    }
+
+    private func applyFlowSelection(
+        anchor: FlowAnchor,
+        focus: FlowCursor,
+        clickCount: Int,
+        in snapshot: FlowSnapshot
+    ) {
+        let ranges = resolvedNodeSelectionRanges(
+            anchor: anchor,
+            focus: focus,
+            clickCount: clickCount,
+            in: snapshot
+        )
+        let activeSet = Set(snapshot.flatViews.map(ObjectIdentifier.init))
+        for ref in selectedViewRefs {
+            if let existing = ref.view, !activeSet.contains(ObjectIdentifier(existing)) {
+                existing.setFlowSelectedRange(nil)
+            }
+        }
+
+        var nextSelected: [WeakSelectableViewRef] = []
+        for (index, view) in snapshot.flatViews.enumerated() {
+            let range = ranges[index]
+            view.setFlowSelectedRange(range)
+            if let range, range.length > 0 {
+                nextSelected.append(WeakSelectableViewRef(view))
+            }
+        }
+        selectedViewRefs = nextSelected
+        activeScope = nextSelected.isEmpty ? activeDragSession?.scope : snapshot.scope
+        if activeResponderView == nil || activeResponderView?.window == nil {
+            activeResponderView = nextSelected.first?.view
+        }
+    }
+
+    private func resolvedNodeSelectionRanges(
+        anchor: FlowAnchor,
+        focus: FlowCursor,
+        clickCount: Int,
+        in snapshot: FlowSnapshot
+    ) -> [NSRange?] {
+        let views = snapshot.flatViews
+        guard !views.isEmpty else { return [] }
+
+        func indexPosition(of cursor: FlowCursor) -> (nodeIndex: Int, offset: Int)? {
+            guard let idx = views.firstIndex(where: { $0 === cursor.view }) else {
+                return nil
+            }
+            let clamped = min(max(0, cursor.utf16Offset), views[idx].textLengthUTF16)
+            return (idx, clamped)
+        }
+
+        guard let anchorStart = indexPosition(of: anchor.start),
+              let anchorEnd = indexPosition(of: anchor.end),
+              let rawFocus = indexPosition(of: focus)
+        else {
+            return Array(repeating: nil, count: views.count)
+        }
+
+        let focusStart: (nodeIndex: Int, offset: Int)
+        let focusEnd: (nodeIndex: Int, offset: Int)
+        let focusView = views[rawFocus.nodeIndex]
+        if clickCount >= 3 {
+            focusStart = (rawFocus.nodeIndex, 0)
+            focusEnd = (rawFocus.nodeIndex, focusView.textLengthUTF16)
+        } else if clickCount == 2 {
+            let word = focusView.wordRange(at: rawFocus.offset)
+            focusStart = (rawFocus.nodeIndex, word.location)
+            focusEnd = (rawFocus.nodeIndex, NSMaxRange(word))
+        } else {
+            focusStart = rawFocus
+            focusEnd = rawFocus
+        }
+
+        let low = anchorStart < focusStart ? anchorStart : focusStart
+        let high = anchorEnd < focusEnd ? focusEnd : anchorEnd
+
+        return views.indices.map { idx in
+            let length = views[idx].textLengthUTF16
+            guard length > 0, idx >= low.nodeIndex, idx <= high.nodeIndex else {
+                return nil
+            }
+            if low.nodeIndex == high.nodeIndex {
+                let span = high.offset - low.offset
+                return span > 0 ? NSRange(location: low.offset, length: span) : nil
+            }
+            if idx == low.nodeIndex {
+                let span = length - low.offset
+                return span > 0 ? NSRange(location: low.offset, length: span) : nil
+            }
+            if idx == high.nodeIndex {
+                return high.offset > 0 ? NSRange(location: 0, length: high.offset) : nil
+            }
+            return NSRange(location: 0, length: length)
+        }
+    }
+
+    private func clearSelectedViews(except keptView: WorkbenchSelectableTextNSView?) {
+        for ref in selectedViewRefs {
+            guard let view = ref.view, view !== keptView else { continue }
+            view.clearSelection(notifyCoordinator: false)
+        }
+    }
+
+    private static func toVisualRect(_ windowRect: CGRect, refHeight: CGFloat) -> CGRect {
+        CGRect(
+            x: windowRect.minX,
+            y: refHeight - windowRect.maxY,
+            width: windowRect.width,
+            height: windowRect.height
+        )
+    }
+
+    // MARK: - Hit Testing & Clipboard Serialization
 
     private static func isInsideDedicatedTextSelectionSurface(_ hitView: NSView?) -> Bool {
         var current = hitView
@@ -256,6 +1315,7 @@ final class WorkbenchStaticTextSelectionCoordinator {
 
     private static func findHitSelectableTextView(
         in rootView: NSView,
+        allowedViews: Set<ObjectIdentifier>,
         from startPoint: CGPoint,
         to endPoint: CGPoint
     ) -> WorkbenchSelectableTextNSView? {
@@ -269,7 +1329,8 @@ final class WorkbenchStaticTextSelectionCoordinator {
                 return
             }
             if let selectable = view as? WorkbenchSelectableTextNSView {
-                guard selectable.canInteract,
+                guard allowedViews.contains(ObjectIdentifier(selectable)),
+                      selectable.canInteract,
                       let hitRect = selectable.windowSelectionHitRect(),
                       let entryT = segmentRectIntersectionParameter(
                           from: startPoint,
@@ -348,11 +1409,27 @@ final class WorkbenchStaticTextSelectionCoordinator {
         return dx * dx + dy * dy
     }
 
+    func canCopySelection(in window: NSWindow?) -> Bool {
+        guard let window else { return false }
+        let matchingViews = liveSelectedViews.filter { $0.window === window && $0.canInteract }
+        guard !matchingViews.isEmpty,
+              let text = serializedSelectionText(in: window, fallbackViews: matchingViews),
+              !text.isEmpty
+        else {
+            return false
+        }
+        return true
+    }
+
     @discardableResult
-    func copyActiveSelection(to pasteboard: NSPasteboard = .general) -> Bool {
-        guard let activeView,
-              activeView.canInteract,
-              let text = activeView.selectedText,
+    func copySelection(
+        in window: NSWindow?,
+        to pasteboard: NSPasteboard = .general
+    ) -> Bool {
+        guard let window else { return false }
+        let matchingViews = liveSelectedViews.filter { $0.window === window && $0.canInteract }
+        guard !matchingViews.isEmpty,
+              let text = serializedSelectionText(in: window, fallbackViews: matchingViews),
               !text.isEmpty
         else {
             return false
@@ -361,9 +1438,56 @@ final class WorkbenchStaticTextSelectionCoordinator {
         return pasteboard.setString(text, forType: .string)
     }
 
+    @discardableResult
+    func copyActiveSelection(to pasteboard: NSPasteboard = .general) -> Bool {
+        let matchingViews = liveSelectedViews.filter(\.canInteract)
+        guard let first = matchingViews.first,
+              let text = serializedSelectionText(in: first.window, fallbackViews: matchingViews),
+              !text.isEmpty
+        else {
+            return false
+        }
+        pasteboard.clearContents()
+        return pasteboard.setString(text, forType: .string)
+    }
+
+    private func serializedSelectionText(
+        in window: NSWindow?,
+        fallbackViews: [WorkbenchSelectableTextNSView]
+    ) -> String? {
+        if let window,
+           let snapshot = buildFlowSnapshot(in: window, preferredScope: activeScope)
+        {
+            var rowLines: [String] = []
+            for group in snapshot.rowGroups {
+                let peerPieces = group.nodes.compactMap { node -> String? in
+                    guard node.view.canInteract,
+                          let piece = node.view.selectedText,
+                          !piece.isEmpty
+                    else {
+                        return nil
+                    }
+                    return piece
+                }
+                if !peerPieces.isEmpty {
+                    rowLines.append(peerPieces.joined(separator: "\t"))
+                }
+            }
+            if !rowLines.isEmpty {
+                return rowLines.joined(separator: "\n")
+            }
+        }
+        let fallbackPieces = fallbackViews.compactMap(\.selectedText).filter { !$0.isEmpty }
+        guard !fallbackPieces.isEmpty else {
+            return nil
+        }
+        return fallbackPieces.joined(separator: "\n")
+    }
+
     @objc private func handleClearTextSelectionNotification(_ notification: Notification) {
         if let sender = notification.object as? WorkbenchSelectableTextNSView,
-           sender === activeView {
+           isResponderOwnedByActiveSelection(sender)
+        {
             return
         }
         clearSelection()
@@ -374,12 +1498,14 @@ final class WorkbenchStaticTextSelectionCoordinator {
     }
 
     @objc private func handleWindowDidResignKey(_ notification: Notification) {
-        guard let resignedWindow = notification.object as? NSWindow,
-              activeView?.window === resignedWindow
-        else {
+        guard let resignedWindow = notification.object as? NSWindow else {
             return
         }
-        clearSelection()
+        if activeResponderView?.window === resignedWindow
+            || liveSelectedViews.contains(where: { $0.window === resignedWindow })
+        {
+            clearSelection()
+        }
     }
 }
 
@@ -388,6 +1514,7 @@ final class WorkbenchStaticTextSelectionCoordinator {
 /// and optional single-click action disambiguated from drag selection.
 struct WorkbenchSelectableText: View {
     let text: String
+    var fullCopyText: String? = nil
     var fontSize: CGFloat = WorkbenchControlMetrics.redesignFontSizeBody
     var weight: Font.Weight = .regular
     var monospacedDigits: Bool = false
@@ -403,9 +1530,12 @@ struct WorkbenchSelectableText: View {
     var onTap: (() -> Void)? = nil
 
     @Environment(\.interfaceLayerContext) private var interfaceLayerContext
+    @Environment(\.workbenchDialogID) private var dialogID
+    @Environment(\.isWorkbenchDialogCovered) private var isDialogCovered
 
     init(
         _ text: String,
+        fullCopyText: String? = nil,
         fontSize: CGFloat = WorkbenchControlMetrics.redesignFontSizeBody,
         weight: Font.Weight = .regular,
         monospacedDigits: Bool = false,
@@ -421,6 +1551,7 @@ struct WorkbenchSelectableText: View {
         onTap: (() -> Void)? = nil
     ) {
         self.text = text
+        self.fullCopyText = fullCopyText
         self.fontSize = fontSize
         self.weight = weight
         self.monospacedDigits = monospacedDigits
@@ -485,6 +1616,7 @@ struct WorkbenchSelectableText: View {
             if isEffectivelySelectable {
                 WorkbenchSelectableTextRepresentable(
                     text: text,
+                    fullCopyText: fullCopyText,
                     font: nsFont,
                     textColor: NSColor(color),
                     alignment: nsAlignment,
@@ -496,7 +1628,9 @@ struct WorkbenchSelectableText: View {
                     showsUnderline: showsUnderline,
                     allowsMenuModalInteraction: allowsMenuModalInteraction,
                     onTap: onTap,
-                    interfaceLayerContext: interfaceLayerContext
+                    interfaceLayerContext: interfaceLayerContext,
+                    dialogID: dialogID,
+                    isDialogCovered: isDialogCovered
                 )
             }
         }
@@ -585,6 +1719,7 @@ private struct WorkbenchSelectableTextSizingLayout: Layout {
 
 private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
     let text: String
+    let fullCopyText: String?
     let font: NSFont
     let textColor: NSColor
     let alignment: NSTextAlignment
@@ -597,6 +1732,8 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
     let allowsMenuModalInteraction: Bool
     let onTap: (() -> Void)?
     let interfaceLayerContext: InterfaceLayerContext
+    let dialogID: WorkbenchDialogAccessibilityID?
+    let isDialogCovered: Bool
 
     func makeNSView(context _: Context) -> WorkbenchSelectableTextNSView {
         let view = WorkbenchSelectableTextNSView()
@@ -618,6 +1755,7 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
     private func update(_ view: WorkbenchSelectableTextNSView) {
         view.configure(
             text: text,
+            fullCopyText: fullCopyText,
             font: font,
             textColor: textColor,
             alignment: alignment,
@@ -629,20 +1767,35 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
             showsUnderline: showsUnderline,
             allowsMenuModalInteraction: allowsMenuModalInteraction,
             onTap: onTap,
-            interfaceLayerContext: interfaceLayerContext
+            interfaceLayerContext: interfaceLayerContext,
+            dialogID: dialogID,
+            isDialogCovered: isDialogCovered
         )
     }
 }
 
 @MainActor
-final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, SubtitleTableTextSelectionInteractiveView {
+final class WorkbenchSelectableTextNSView:
+    NSView,
+    PointerShapeProviding,
+    SubtitleTableTextSelectionInteractiveView,
+    NSMenuItemValidation
+{
     static let dragThreshold: CGFloat = 2.0
+
+    private struct LineFragmentLayout {
+        let usedRect: CGRect
+        let glyphRange: NSRange
+        let charRange: NSRange
+        let hasTruncatedTail: Bool
+    }
 
     private let textStorage = NSTextStorage()
     private let layoutManager = NSLayoutManager()
     private let textContainer = NSTextContainer()
 
     private(set) var text: String = ""
+    private(set) var fullCopyText: String? = nil
     private(set) var font: NSFont = .systemFont(
         ofSize: WorkbenchControlMetrics.redesignFontSizeBody,
         weight: .regular
@@ -658,6 +1811,8 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
     private(set) var allowsMenuModalInteraction: Bool = false
     var onTap: (() -> Void)?
     private(set) var interfaceLayerContext = InterfaceLayerContext()
+    private(set) var dialogID: WorkbenchDialogAccessibilityID? = nil
+    private(set) var isDialogCovered: Bool = false
 
     private(set) var selectedRange: NSRange?
     private(set) var isTrackingMouse = false
@@ -665,6 +1820,7 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
     private var startWindowPoint: CGPoint = .zero
     private var activeClickCount = 1
     private var didDrag = false
+    private var needsTextLayout = true
 
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { false }
@@ -675,6 +1831,22 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
+    }
+
+    var textLengthUTF16: Int {
+        (text as NSString).length
+    }
+
+    var flowScope: StaticTextFlowScope? {
+        guard let window else { return nil }
+        let wn = window.windowNumber
+        if allowsMenuModalInteraction {
+            return .menuModalPopover(windowNumber: wn)
+        }
+        if interfaceLayerContext.layer == .dialog {
+            return .dialog(windowNumber: wn, dialogID: dialogID)
+        }
+        return .surface(windowNumber: wn, layer: interfaceLayerContext.layer)
     }
 
     var hasSelection: Bool {
@@ -694,10 +1866,40 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         guard safeRange.length > 0 else {
             return nil
         }
+        if NSMaxRange(safeRange) >= nsText.length,
+           let fullCopyText,
+           !fullCopyText.isEmpty,
+           fullCopyText != text
+        {
+            if safeRange.location == 0 {
+                return fullCopyText
+            }
+            if text.hasSuffix("..."), nsText.length >= 3 {
+                let stemLength = nsText.length - 3
+                let stem = nsText.substring(to: stemLength)
+                if fullCopyText.hasPrefix(stem) {
+                    let start = min(safeRange.location, stemLength)
+                    return (fullCopyText as NSString).substring(from: start)
+                }
+            }
+            let normalizedFull = fullCopyText.replacingOccurrences(of: "\r\n", with: "\n")
+            let nsFull = normalizedFull as NSString
+            if nsFull.length == nsText.length, safeRange.location < nsFull.length {
+                return nsFull.substring(from: safeRange.location)
+            }
+            if safeRange.location < nsFull.length,
+               nsText.substring(to: safeRange.location) == nsFull.substring(to: safeRange.location)
+            {
+                return nsFull.substring(from: safeRange.location)
+            }
+        }
         return nsText.substring(with: safeRange)
     }
 
     var isFrozenOrCovered: Bool {
+        if isDialogCovered {
+            return true
+        }
         if allowsMenuModalInteraction {
             return interfaceLayerContext.isCovered
         }
@@ -741,6 +1943,7 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
 
     func configure(
         text: String,
+        fullCopyText: String? = nil,
         font: NSFont,
         textColor: NSColor,
         alignment: NSTextAlignment,
@@ -752,9 +1955,11 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         showsUnderline: Bool,
         allowsMenuModalInteraction: Bool = false,
         onTap: (() -> Void)?,
-        interfaceLayerContext: InterfaceLayerContext
+        interfaceLayerContext: InterfaceLayerContext,
+        dialogID: WorkbenchDialogAccessibilityID? = nil,
+        isDialogCovered: Bool = false
     ) {
-        let textChanged = self.text != text
+        let textChanged = self.text != text || self.fullCopyText != fullCopyText
         let styleChanged = self.font != font
             || self.textColor != textColor
             || self.alignment != alignment
@@ -768,8 +1973,11 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         let layerChanged = self.interfaceLayerContext.layer != interfaceLayerContext.layer
             || self.interfaceLayerContext.isCovered != interfaceLayerContext.isCovered
             || self.interfaceLayerContext.isFrozen != interfaceLayerContext.isFrozen
+            || self.dialogID != dialogID
+            || self.isDialogCovered != isDialogCovered
 
         self.text = text
+        self.fullCopyText = fullCopyText
         self.font = font
         self.textColor = textColor
         self.alignment = alignment
@@ -782,12 +1990,15 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         self.allowsMenuModalInteraction = allowsMenuModalInteraction
         self.onTap = onTap
         self.interfaceLayerContext = interfaceLayerContext
+        self.dialogID = dialogID
+        self.isDialogCovered = isDialogCovered
 
         if textChanged || !canInteract {
             clearSelection(notifyCoordinator: true)
         }
 
         if textChanged || styleChanged || layerChanged {
+            needsTextLayout = true
             updateTextLayout()
             window?.invalidateCursorRects(for: self)
             needsDisplay = true
@@ -798,9 +2009,16 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         let oldSize = frame.size
         super.setFrameSize(newSize)
         if oldSize != newSize {
+            needsTextLayout = true
             updateTextLayout()
             window?.invalidateCursorRects(for: self)
             needsDisplay = true
+        }
+    }
+
+    func prepareLayoutForFlow() {
+        if needsTextLayout || textStorage.length != textLengthUTF16 {
+            updateTextLayout()
         }
     }
 
@@ -870,74 +2088,71 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         return bounds.contains(point)
     }
 
-    func windowSelectionHitRect() -> CGRect? {
-        guard window != nil,
+    func visibleWindowClipRect() -> CGRect? {
+        guard let window,
               !isHiddenOrHasHiddenAncestor,
               bounds.width > 0,
               bounds.height > 0
         else {
             return nil
         }
-        var rect = convert(bounds.insetBy(dx: -4, dy: -2), to: nil).standardized
+        var rect = window.contentView.map {
+            $0.convert($0.bounds, to: nil).standardized
+        } ?? convert(bounds, to: nil).standardized
         var current = superview
         while !rect.isNull, !rect.isEmpty, let ancestor = current {
             guard !ancestor.isHidden, ancestor.alphaValue > 0 else {
                 return nil
             }
-            if ancestor is NSClipView || ancestor is NSScrollView {
+            if ancestor is NSClipView
+                || ancestor is NSScrollView
+                || ancestor is SubtitleTablePageChromeViewportView
+            {
                 let clipRect = ancestor.convert(ancestor.bounds, to: nil).standardized
                 rect = rect.intersection(clipRect)
+            }
+            if let pageHost = ancestor as? SubtitleTablePageChromeHostingView,
+               let pageViewport = pageHost.superview as? SubtitleTablePageChromeViewportView,
+               let myIndex = pageViewport.subviews.firstIndex(of: pageHost)
+            {
+                for sibling in pageViewport.subviews[(myIndex + 1)...] {
+                    guard sibling is SubtitleTablePageChromeHostingView,
+                          !sibling.isHidden,
+                          sibling.alphaValue > 0
+                    else {
+                        continue
+                    }
+                    let occluder = sibling.convert(sibling.bounds, to: nil).standardized
+                    if !occluder.isNull, !occluder.isEmpty, rect.intersects(occluder) {
+                        if occluder.minY <= rect.maxY, occluder.maxY >= rect.maxY {
+                            rect.size.height = max(0, occluder.minY - rect.minY)
+                        }
+                    }
+                }
             }
             current = ancestor.superview
         }
         return (rect.isNull || rect.isEmpty) ? nil : rect
     }
 
-    func beginExternalDragSelection(
-        startWindowPoint: CGPoint,
-        currentWindowPoint: CGPoint
-    ) {
-        guard canInteract else { return }
-        WorkbenchStaticTextSelectionCoordinator.shared.beginInteraction(in: self)
-        _ = window?.makeFirstResponder(self)
-
-        updateTextLayout()
-        let startPoint = convert(startWindowPoint, from: nil)
-        let currentPoint = convert(currentWindowPoint, from: nil)
-        let anchorOffset = utf16Offset(at: startPoint)
-
-        self.startWindowPoint = startWindowPoint
-        self.activeClickCount = 1
-        self.anchorRange = NSRange(location: anchorOffset, length: 0)
-        self.didDrag = true
-        self.isTrackingMouse = true
-        updateSelectionForDrag(at: currentPoint)
-        needsDisplay = true
+    func windowSelectionHitRect() -> CGRect? {
+        guard let clipRect = visibleWindowClipRect() else {
+            return nil
+        }
+        let raw = convert(bounds.insetBy(dx: -4, dy: -2), to: nil).standardized
+        let clipped = raw.intersection(clipRect)
+        return (clipped.isNull || clipped.isEmpty) ? nil : clipped
     }
 
-    func updateExternalDragSelection(currentWindowPoint: CGPoint) {
-        guard isTrackingMouse, canInteract else {
-            clearSelection(notifyCoordinator: true)
-            return
-        }
-        if let currentEvent = NSApp.currentEvent {
-            _ = autoscroll(with: currentEvent)
-        }
-        let point = convert(currentWindowPoint, from: nil)
-        updateSelectionForDrag(at: point)
-    }
-
-    func endExternalDragSelection(currentWindowPoint: CGPoint) {
-        guard isTrackingMouse else { return }
-        isTrackingMouse = false
-        guard canInteract else {
-            clearSelection(notifyCoordinator: true)
-            return
-        }
-        let point = convert(currentWindowPoint, from: nil)
-        updateSelectionForDrag(at: point)
-        if !hasSelection {
-            WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+    func setFlowSelectedRange(_ range: NSRange?) {
+        let normalized: NSRange? = {
+            guard let range, range.length > 0 else { return nil }
+            let safe = NSIntersectionRange(range, NSRange(location: 0, length: textLengthUTF16))
+            return safe.length > 0 ? safe : nil
+        }()
+        if selectedRange != normalized {
+            selectedRange = normalized
+            needsDisplay = true
         }
     }
 
@@ -948,10 +2163,7 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
             super.mouseDown(with: event)
             return
         }
-        WorkbenchStaticTextSelectionCoordinator.shared.beginInteraction(in: self)
-        _ = window?.makeFirstResponder(self)
-
-        updateTextLayout()
+        prepareLayoutForFlow()
         let point = convert(event.locationInWindow, from: nil)
         let offset = utf16Offset(at: point)
         let clickCount = max(1, event.clickCount)
@@ -960,25 +2172,34 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         activeClickCount = clickCount
         isTrackingMouse = true
 
+        let initialSelection: NSRange?
         if onTap != nil {
             anchorRange = NSRange(location: offset, length: 0)
-            selectedRange = nil
+            initialSelection = nil
             didDrag = false
         } else if clickCount >= 3 {
             let fullRange = NSRange(location: 0, length: textStorage.length)
             anchorRange = fullRange
-            selectedRange = fullRange.length > 0 ? fullRange : nil
+            initialSelection = fullRange.length > 0 ? fullRange : nil
             didDrag = true
         } else if clickCount == 2 {
             let word = wordRange(at: offset)
             anchorRange = word
-            selectedRange = word.length > 0 ? word : nil
+            initialSelection = word.length > 0 ? word : nil
             didDrag = true
         } else {
             anchorRange = NSRange(location: offset, length: 0)
-            selectedRange = nil
+            initialSelection = nil
             didDrag = false
         }
+
+        selectedRange = initialSelection
+        WorkbenchStaticTextSelectionCoordinator.shared.prepareDirectMouseDown(
+            in: self,
+            startWindowPoint: event.locationInWindow,
+            clickCount: clickCount,
+            initialAnchorRange: initialSelection
+        )
         needsDisplay = true
     }
 
@@ -1002,8 +2223,19 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
             }
             didDrag = true
         }
-        _ = autoscroll(with: event)
-        updateSelectionForDrag(at: convert(windowPoint, from: nil))
+
+        if window is CueSeekerWindow {
+            WorkbenchStaticTextSelectionCoordinator.shared.updateDirectDrag(
+                from: self,
+                startWindowPoint: startWindowPoint,
+                currentWindowPoint: windowPoint,
+                clickCount: activeClickCount,
+                initialAnchorRange: anchorRange
+            )
+        } else {
+            _ = autoscroll(with: event)
+            updateSelectionForDrag(at: convert(windowPoint, from: nil))
+        }
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -1025,16 +2257,32 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
             )
             if distance >= Self.dragThreshold {
                 didDrag = true
+                if window is CueSeekerWindow {
+                    WorkbenchStaticTextSelectionCoordinator.shared.updateDirectDrag(
+                        from: self,
+                        startWindowPoint: startWindowPoint,
+                        currentWindowPoint: windowPoint,
+                        clickCount: activeClickCount,
+                        initialAnchorRange: anchorRange
+                    )
+                }
             }
         }
 
         let point = convert(windowPoint, from: nil)
         if didDrag {
-            if activeClickCount == 1 || onTap != nil {
-                updateSelectionForDrag(at: point)
-            }
-            if !hasSelection {
-                WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            if window is CueSeekerWindow {
+                WorkbenchStaticTextSelectionCoordinator.shared.endDirectDrag(
+                    from: self,
+                    currentWindowPoint: windowPoint
+                )
+            } else {
+                if activeClickCount == 1 || onTap != nil {
+                    updateSelectionForDrag(at: point)
+                }
+                if !hasSelection {
+                    WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+                }
             }
             return
         }
@@ -1052,22 +2300,28 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
                 .subtracting([.numericPad, .function])
             if flags == .command,
                event.charactersIgnoringModifiers?.lowercased() == "c" || event.keyCode == 8,
-               hasSelection,
-               WorkbenchStaticTextSelectionCoordinator.shared.activeView === self
+               WorkbenchStaticTextSelectionCoordinator.shared.canCopySelection(in: window)
             {
-                return WorkbenchStaticTextSelectionCoordinator.shared.copyActiveSelection()
+                return WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: window)
             }
         }
         return super.performKeyEquivalent(with: event)
     }
 
     @IBAction func copy(_ sender: Any?) {
-        _ = WorkbenchStaticTextSelectionCoordinator.shared.copyActiveSelection()
+        _ = WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: window)
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(NSText.copy(_:)) {
+            return WorkbenchStaticTextSelectionCoordinator.shared.canCopySelection(in: window)
+        }
+        return true
     }
 
     func selectAllText() {
         guard canInteract else { return }
-        WorkbenchStaticTextSelectionCoordinator.shared.beginInteraction(in: self)
+        WorkbenchStaticTextSelectionCoordinator.shared.beginSingleNodeInteraction(in: self)
         _ = window?.makeFirstResponder(self)
         updateTextLayout()
         let fullRange = NSRange(location: 0, length: textStorage.length)
@@ -1078,7 +2332,7 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
 
     func selectRangeForTesting(_ range: NSRange) {
         guard canInteract else { return }
-        WorkbenchStaticTextSelectionCoordinator.shared.beginInteraction(in: self)
+        WorkbenchStaticTextSelectionCoordinator.shared.beginSingleNodeInteraction(in: self)
         _ = window?.makeFirstResponder(self)
         updateTextLayout()
         let safeRange = NSIntersectionRange(
@@ -1182,6 +2436,7 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         )
         textStorage.setAttributedString(attributed)
         layoutManager.ensureLayout(for: textContainer)
+        needsTextLayout = false
     }
 
     nonisolated static func resolvedBaselineOffset(
@@ -1298,32 +2553,50 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
     }
 
     func utf16Offset(at point: CGPoint) -> Int {
+        prepareLayoutForFlow()
         guard textStorage.length > 0 else { return 0 }
         let validGlyphRange = layoutManager.glyphRange(for: textContainer)
         guard validGlyphRange.length > 0 else { return 0 }
         let origin = textOrigin()
-        let lines = lineUsedRects(at: origin)
+        let lines = lineFragmentLayouts(at: origin)
         guard let firstLine = lines.first, let lastLine = lines.last else {
             return 0
         }
 
-        let topSnapThreshold = firstLine.minY - max(12, firstLine.height)
-        let bottomSnapThreshold = lastLine.maxY + max(12, lastLine.height)
-        if point.y < topSnapThreshold {
+        // Strict reading-flow vertical clamping: zero horizontal tolerance band outside [firstLine.minY, lastLine.maxY].
+        if point.y < firstLine.usedRect.minY {
             return 0
         }
-        if point.y > bottomSnapThreshold {
+        if point.y > lastLine.usedRect.maxY {
             return textStorage.length
         }
 
-        let targetLine = lines.min { lhs, rhs in
-            Self.verticalDistance(from: point.y, to: lhs)
-                < Self.verticalDistance(from: point.y, to: rhs)
-        } ?? firstLine
+        var targetIndex = 0
+        for index in lines.indices {
+            if point.y < lines[index].usedRect.minY {
+                return min(max(0, lines[index].charRange.location), textStorage.length)
+            }
+            if point.y <= lines[index].usedRect.maxY {
+                targetIndex = index
+                break
+            }
+            targetIndex = index
+        }
+
+        let targetLine = lines[targetIndex]
+        if point.x <= targetLine.usedRect.minX {
+            return min(max(0, targetLine.charRange.location), textStorage.length)
+        }
+        if point.x >= targetLine.usedRect.maxX {
+            if targetIndex == lines.count - 1 {
+                return textStorage.length
+            }
+            return lineSelectionEndOffset(for: targetLine)
+        }
 
         let localPoint = CGPoint(
             x: point.x - origin.x,
-            y: targetLine.midY - origin.y
+            y: targetLine.usedRect.midY - origin.y
         )
         var fraction: CGFloat = 0
         let rawGlyphIndex = layoutManager.glyphIndex(
@@ -1332,9 +2605,15 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
             fractionOfDistanceThroughGlyph: &fraction
         )
         let glyphIndex = min(
-            max(rawGlyphIndex, validGlyphRange.location),
-            NSMaxRange(validGlyphRange) - 1
+            max(rawGlyphIndex, targetLine.glyphRange.location),
+            NSMaxRange(targetLine.glyphRange) - 1
         )
+        if targetLine.hasTruncatedTail,
+           glyphIndex == NSMaxRange(targetLine.glyphRange) - 1,
+           fraction >= 0.5
+        {
+            return textStorage.length
+        }
         let characterRange = layoutManager.characterRange(
             forGlyphRange: NSRange(location: glyphIndex, length: 1),
             actualGlyphRange: nil
@@ -1345,17 +2624,22 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         return min(max(0, characterIndex), textStorage.length)
     }
 
-    private static func verticalDistance(from y: CGFloat, to rect: CGRect) -> CGFloat {
-        if y < rect.minY {
-            return rect.minY - y
+    private func lineSelectionEndOffset(for line: LineFragmentLayout) -> Int {
+        let nsText = textStorage.string as NSString
+        var end = min(NSMaxRange(line.charRange), nsText.length)
+        while end > line.charRange.location {
+            let scalar = nsText.character(at: end - 1)
+            if scalar == 0x0A || scalar == 0x0D {
+                end -= 1
+            } else {
+                break
+            }
         }
-        if y > rect.maxY {
-            return y - rect.maxY
-        }
-        return 0
+        return min(max(0, end), nsText.length)
     }
 
     func wordRange(at utf16Offset: Int) -> NSRange {
+        prepareLayoutForFlow()
         guard textStorage.length > 0 else {
             return NSRange(location: 0, length: 0)
         }
@@ -1371,16 +2655,36 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
     }
 
     func selectionRects(forUTF16Range range: NSRange, at origin: CGPoint? = nil) -> [CGRect] {
+        prepareLayoutForFlow()
         let resolvedOrigin = origin ?? textOrigin()
         let safeRange = NSIntersectionRange(
             range,
             NSRange(location: 0, length: textStorage.length)
         )
         guard safeRange.length > 0 else { return [] }
-        let glyphRange = layoutManager.glyphRange(
+        let validGlyphRange = layoutManager.glyphRange(for: textContainer)
+        guard validGlyphRange.length > 0 else { return [] }
+
+        var glyphRange = layoutManager.glyphRange(
             forCharacterRange: safeRange,
             actualCharacterRange: nil
         )
+        glyphRange = NSIntersectionRange(glyphRange, validGlyphRange)
+        if NSMaxRange(safeRange) >= textStorage.length {
+            let lastGlyph = NSMaxRange(validGlyphRange) - 1
+            let truncated = layoutManager.truncatedGlyphRange(inLineFragmentForGlyphAt: lastGlyph)
+            if truncated.location != NSNotFound {
+                let startGlyph = glyphRange.length > 0
+                    ? glyphRange.location
+                    : lastGlyph
+                glyphRange = NSRange(
+                    location: min(startGlyph, lastGlyph),
+                    length: NSMaxRange(validGlyphRange) - min(startGlyph, lastGlyph)
+                )
+            }
+        }
+        guard glyphRange.length > 0 else { return [] }
+
         var rects: [CGRect] = []
         layoutManager.enumerateEnclosingRects(
             forGlyphRange: glyphRange,
@@ -1392,11 +2696,12 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
         return rects
     }
 
-    func lineUsedRects(at origin: CGPoint? = nil) -> [CGRect] {
+    private func lineFragmentLayouts(at origin: CGPoint? = nil) -> [LineFragmentLayout] {
+        prepareLayoutForFlow()
         let resolvedOrigin = origin ?? textOrigin()
         let validGlyphRange = layoutManager.glyphRange(for: textContainer)
         guard validGlyphRange.length > 0 else { return [] }
-        var rects: [CGRect] = []
+        var fragments: [LineFragmentLayout] = []
         var glyphIndex = validGlyphRange.location
         while glyphIndex < NSMaxRange(validGlyphRange) {
             var lineRange = NSRange(location: 0, length: 0)
@@ -1404,13 +2709,32 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
                 forGlyphAt: glyphIndex,
                 effectiveRange: &lineRange
             )
-            if usedRect.width > 0, usedRect.height > 0 {
-                rects.append(usedRect.offsetBy(dx: resolvedOrigin.x, dy: resolvedOrigin.y))
+            let visibleLineGlyphs = NSIntersectionRange(lineRange, validGlyphRange)
+            if usedRect.width > 0, usedRect.height > 0, visibleLineGlyphs.length > 0 {
+                let charRange = layoutManager.characterRange(
+                    forGlyphRange: visibleLineGlyphs,
+                    actualGlyphRange: nil
+                )
+                let truncated = layoutManager.truncatedGlyphRange(
+                    inLineFragmentForGlyphAt: visibleLineGlyphs.location
+                )
+                fragments.append(
+                    LineFragmentLayout(
+                        usedRect: usedRect.offsetBy(dx: resolvedOrigin.x, dy: resolvedOrigin.y),
+                        glyphRange: visibleLineGlyphs,
+                        charRange: charRange,
+                        hasTruncatedTail: truncated.location != NSNotFound && truncated.length > 0
+                    )
+                )
             }
             guard lineRange.length > 0 else { break }
             glyphIndex = NSMaxRange(lineRange)
         }
-        return rects
+        return fragments
+    }
+
+    func lineUsedRects(at origin: CGPoint? = nil) -> [CGRect] {
+        lineFragmentLayouts(at: origin).map(\.usedRect)
     }
 
     func underlineRects(

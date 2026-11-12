@@ -144,6 +144,7 @@ private struct PlaybackVolumeSlider: View {
             }
             .frame(height: WorkbenchControlMetrics.redesignIconButtonSize, alignment: .center)
             .contentShape(Rectangle())
+            .cueSeekerNativeDragRegion()
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in

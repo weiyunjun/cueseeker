@@ -35,10 +35,12 @@ enum CoverSummarySupportingContent: Equatable {
 struct CoverSummaryProgress: Equatable {
     let labelText: String
     let fraction: Double
+    let fullCopyText: String?
 
-    init(labelText: String, fraction: Double) {
+    init(labelText: String, fraction: Double, fullCopyText: String? = nil) {
         self.labelText = labelText
         self.fraction = min(1, max(0, fraction))
+        self.fullCopyText = fullCopyText
     }
 }
 
@@ -488,6 +490,7 @@ struct CoverSummaryCard<Cover: View>: View {
         ) {
             WorkbenchSelectableText(
                 progress.labelText,
+                fullCopyText: progress.fullCopyText,
                 fontSize: WorkbenchControlMetrics.redesignFontSizeCaption,
                 weight: .medium,
                 monospacedDigits: true,
@@ -733,6 +736,7 @@ struct CoverSummaryCard<Cover: View>: View {
             if canExpand {
                 WorkbenchSelectableText(
                     text,
+                    fullCopyText: fullText,
                     fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
                     weight: .regular,
                     color: color,

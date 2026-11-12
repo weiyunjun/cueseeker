@@ -928,6 +928,7 @@ private struct AnkiCardBadgeRow: View {
                 )
         )
         .contentShape(Rectangle())
+        .cueSeekerNativeDragRegion()
         .onReceive(NotificationCenter.default.publisher(for: .cueSeekerAppLanguageChanged)) { _ in
             languageRevision &+= 1
         }

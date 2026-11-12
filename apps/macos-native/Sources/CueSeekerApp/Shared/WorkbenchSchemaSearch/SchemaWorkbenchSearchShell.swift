@@ -973,6 +973,7 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
         }
         .onChange(of: isSelectionMode) { inSelectionMode in
             if inSelectionMode {
+                WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
                 dismissSortMenu()
             } else {
                 dismissSelectionDestinationMenu()

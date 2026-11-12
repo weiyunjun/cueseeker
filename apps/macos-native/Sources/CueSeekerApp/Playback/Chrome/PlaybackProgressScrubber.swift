@@ -397,6 +397,7 @@ struct PlaybackProgressScrubber: View {
                         )
                     }
             )
+            .cueSeekerNativeDragRegion(isActive: hasDuration)
             .onChange(of: viewModel.duration) { _ in
                 let nextDuration = viewModel.duration.isFinite ? max(0, viewModel.duration) : 0
                 syncThumbnailPreview(width: width, duration: nextDuration)

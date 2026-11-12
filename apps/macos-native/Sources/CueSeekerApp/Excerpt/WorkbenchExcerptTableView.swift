@@ -297,11 +297,19 @@ private struct WorkbenchExcerptTableContent: View {
             appState.cueContent.content(for: $0)?.content
         } ?? resumeExcerpt.content
         let cuePreview = excerptCoverSummaryCuePreviewText(rawContent)
+        let fullCueText = excerptCoverSummaryCueFullText(rawContent)
         let labelText = cuePreview.isEmpty
             ? "#\(position) / \(summary.cueCount)"
             : "#\(position) / \(summary.cueCount)  \(cuePreview)"
+        let fullCopyText: String? = (!fullCueText.isEmpty && fullCueText != cuePreview)
+            ? "#\(position) / \(summary.cueCount)  \(fullCueText)"
+            : nil
         let fraction = Double(position) / Double(summary.cueCount)
-        return CoverSummaryProgress(labelText: labelText, fraction: fraction)
+        return CoverSummaryProgress(
+            labelText: labelText,
+            fraction: fraction,
+            fullCopyText: fullCopyText
+        )
     }
 
     private func coverSummaryContextMenuItems(
@@ -1193,11 +1201,7 @@ func excerptListCreatedDateDisplayText(
 }
 
 func excerptCoverSummaryCuePreviewText(_ content: String) -> String {
-    let lines = content
-        .replacingOccurrences(of: Excerpt.cueGroupContentSeparator, with: "\n")
-        .components(separatedBy: .newlines)
-        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        .filter { !$0.isEmpty }
+    let lines = excerptCoverSummaryNormalizedCueLines(content)
     guard let firstLine = lines.first else {
         return ""
     }
@@ -1205,4 +1209,16 @@ func excerptCoverSummaryCuePreviewText(_ content: String) -> String {
         return "\(firstLine)..."
     }
     return firstLine
+}
+
+func excerptCoverSummaryCueFullText(_ content: String) -> String {
+    excerptCoverSummaryNormalizedCueLines(content).joined(separator: "\n")
+}
+
+private func excerptCoverSummaryNormalizedCueLines(_ content: String) -> [String] {
+    content
+        .replacingOccurrences(of: Excerpt.cueGroupContentSeparator, with: "\n")
+        .components(separatedBy: .newlines)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
 }

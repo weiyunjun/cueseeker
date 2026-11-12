@@ -71,7 +71,7 @@ final class SubtitleTableExternalTextSelectionSession: ObservableObject {
 
     @discardableResult
     func drag(windowPoint: CGPoint) -> Bool {
-        if WorkbenchStaticTextSelectionCoordinator.shared.isDirectDragSelection {
+        if WorkbenchStaticTextSelectionCoordinator.shared.isDraggingSelection {
             reset()
             return false
         }
@@ -256,6 +256,44 @@ extension View {
             cornerRadius: cornerRadius
         )
     }
+
+    func cueSeekerNativeDragRegion(isActive: Bool = true) -> some View {
+        background(
+            CueSeekerNativeDragRegion(isActive: isActive)
+                .allowsHitTesting(false)
+        )
+    }
+}
+
+@MainActor
+final class CueSeekerNativeDragRegionView: NSView {
+    var isActive = true
+
+    func contains(windowPoint: CGPoint) -> Bool {
+        guard isActive, window != nil else {
+            return false
+        }
+        let localPoint = convert(windowPoint, from: nil)
+        return bounds.contains(localPoint)
+    }
+
+    override func hitTest(_: NSPoint) -> NSView? {
+        nil
+    }
+}
+
+private struct CueSeekerNativeDragRegion: NSViewRepresentable {
+    let isActive: Bool
+
+    func makeNSView(context _: Context) -> CueSeekerNativeDragRegionView {
+        let view = CueSeekerNativeDragRegionView()
+        view.isActive = isActive
+        return view
+    }
+
+    func updateNSView(_ nsView: CueSeekerNativeDragRegionView, context _: Context) {
+        nsView.isActive = isActive
+    }
 }
 
 @MainActor
@@ -332,6 +370,9 @@ enum SubtitleTableTextSelectionHitTesting {
             if let draggable = view as? DraggableNSView, draggable.allowsHitTesting {
                 return true
             }
+            if let nativeDrag = view as? CueSeekerNativeDragRegionView, nativeDrag.isActive {
+                return true
+            }
             if let selectable = view as? WorkbenchSelectableTextNSView, selectable.canInteract {
                 return true
             }
@@ -358,6 +399,36 @@ enum SubtitleTableTextSelectionHitTesting {
                 return true
             }
             candidate = view.superview
+        }
+
+        if let rootView = window?.contentView,
+           containsNativeDragRegion(atWindowPoint: point, in: rootView)
+        {
+            return true
+        }
+        return false
+    }
+
+    private static func containsNativeDragRegion(
+        atWindowPoint point: CGPoint,
+        in rootView: NSView
+    ) -> Bool {
+        guard rootView.window != nil,
+              !rootView.isHiddenOrHasHiddenAncestor,
+              rootView.alphaValue > 0,
+              windowBounds(of: rootView).contains(point)
+        else {
+            return false
+        }
+        if let region = rootView as? CueSeekerNativeDragRegionView,
+           region.contains(windowPoint: point)
+        {
+            return true
+        }
+        for subview in rootView.subviews.reversed() {
+            if containsNativeDragRegion(atWindowPoint: point, in: subview) {
+                return true
+            }
         }
         return false
     }

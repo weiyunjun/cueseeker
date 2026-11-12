@@ -61,7 +61,7 @@ class CueSeekerWindow: NSWindow {
             return super.makeFirstResponder(responder)
         }
         MainActor.assumeIsolated {
-            if responder !== WorkbenchStaticTextSelectionCoordinator.shared.activeView {
+            if !WorkbenchStaticTextSelectionCoordinator.shared.isResponderOwnedByActiveSelection(responder) {
                 WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
             }
         }
@@ -93,14 +93,8 @@ class CueSeekerWindow: NSWindow {
             if flags == .command,
                event.charactersIgnoringModifiers?.lowercased() == "c" || event.keyCode == 8
             {
-                let copied = MainActor.assumeIsolated { () -> Bool in
-                    guard let activeView = WorkbenchStaticTextSelectionCoordinator.shared.activeView,
-                          activeView.window === self,
-                          activeView.hasSelection
-                    else {
-                        return false
-                    }
-                    return WorkbenchStaticTextSelectionCoordinator.shared.copyActiveSelection()
+                let copied = MainActor.assumeIsolated {
+                    WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: self)
                 }
                 if copied {
                     return true
@@ -112,8 +106,17 @@ class CueSeekerWindow: NSWindow {
 
     @IBAction func copy(_ sender: Any?) {
         _ = MainActor.assumeIsolated {
-            WorkbenchStaticTextSelectionCoordinator.shared.copyActiveSelection()
+            WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: self)
         }
+    }
+
+    override func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(NSText.copy(_:)) {
+            return MainActor.assumeIsolated {
+                WorkbenchStaticTextSelectionCoordinator.shared.canCopySelection(in: self)
+            }
+        }
+        return super.validateMenuItem(menuItem)
     }
 
     override func sendEvent(_ event: NSEvent) {
@@ -136,18 +139,36 @@ class CueSeekerWindow: NSWindow {
             cancelFocusedTextInputIfOutside(at: event.locationInWindow)
             onMouseDownClearAccessibility?()
         case .leftMouseDragged:
-            MainActor.assumeIsolated {
+            let disposition = MainActor.assumeIsolated {
                 WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseDragged(
                     window: self,
                     event: event
                 )
             }
+            switch disposition {
+            case .passthrough:
+                break
+            case .consume:
+                return
+            case .redirect(let redirectedEvent):
+                super.sendEvent(redirectedEvent)
+                return
+            }
         case .leftMouseUp:
-            MainActor.assumeIsolated {
+            let disposition = MainActor.assumeIsolated {
                 WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseUp(
                     window: self,
                     event: event
                 )
+            }
+            switch disposition {
+            case .passthrough:
+                break
+            case .consume:
+                return
+            case .redirect(let redirectedEvent):
+                super.sendEvent(redirectedEvent)
+                return
             }
         case .rightMouseDown:
             MainActor.assumeIsolated {

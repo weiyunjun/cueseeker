@@ -98,6 +98,10 @@ private struct WorkbenchDialogAvailableSizeKey: EnvironmentKey {
     static let defaultValue = CGSize(width: CGFloat.infinity, height: .infinity)
 }
 
+private struct IsWorkbenchDialogCoveredKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 private extension EnvironmentValues {
     var workbenchDialogLayerSize: CGSize {
         get { self[WorkbenchDialogLayerSizeKey.self] }
@@ -110,6 +114,11 @@ extension EnvironmentValues {
     var workbenchDialogAvailableSize: CGSize {
         get { self[WorkbenchDialogAvailableSizeKey.self] }
         set { self[WorkbenchDialogAvailableSizeKey.self] = newValue }
+    }
+
+    var isWorkbenchDialogCovered: Bool {
+        get { self[IsWorkbenchDialogCoveredKey.self] }
+        set { self[IsWorkbenchDialogCoveredKey.self] = newValue }
     }
 }
 
@@ -247,6 +256,7 @@ private struct WorkbenchDialogChrome: ViewModifier {
                 // A dialog is the top layer; its own controls must not read
                 // the freeze the dialog itself put on the page below.
                 .interfaceLayer(.dialog)
+                .environment(\.isWorkbenchDialogCovered, isCovered)
         }
             // What shows of the sheet itself where its whole points outgrow
             // the dialog.
