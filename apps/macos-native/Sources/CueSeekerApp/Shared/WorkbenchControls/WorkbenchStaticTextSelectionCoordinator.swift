@@ -136,6 +136,7 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
     private weak var activeResponderView: WorkbenchSelectableTextNSView?
     private var externalArmedSession: ExternalArmedSession?
     private var activeDragSession: ActiveFlowDragSession?
+    private weak var cursorLockedWindow: NSWindow?
     private var autoScrollTimer: Timer?
 
     var activeView: WorkbenchSelectableTextNSView? {
@@ -180,6 +181,13 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
         isDraggingSelection ? .iBeam : nil
     }
 
+    func isDragCursorLocked(for window: NSWindow?) -> Bool {
+        guard let window else {
+            return false
+        }
+        return cursorLockedWindow === window
+    }
+
     private override init() {
         super.init()
         NotificationCenter.default.addObserver(
@@ -200,6 +208,12 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
             name: NSWindow.didResignKeyNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleWindowWillClose(_:)),
+            name: NSWindow.willCloseNotification,
+            object: nil
+        )
     }
 
     func isResponderOwnedByActiveSelection(_ responder: NSResponder?) -> Bool {
@@ -216,6 +230,7 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
         stopAutoScroll()
         externalArmedSession = nil
         activeDragSession = nil
+        unlockDragCursorIfNeeded()
         clearSelectedViews(except: view)
         activeResponderView = view
         activeScope = view.flowScope
@@ -227,9 +242,24 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
     }
 
     func clearSelection() {
+        clearSelection(reapplyCursorInActiveWindow: true)
+    }
+
+    private func clearSelection(reapplyCursorInActiveWindow: Bool) {
         stopAutoScroll()
         externalArmedSession = nil
         activeDragSession = nil
+        let reapplyPoint: CGPoint? = {
+            guard reapplyCursorInActiveWindow,
+                  let locked = cursorLockedWindow,
+                  NSApp.isActive,
+                  locked.isKeyWindow
+            else {
+                return nil
+            }
+            return locked.mouseLocationOutsideOfEventStream
+        }()
+        unlockDragCursorIfNeeded(reapplyingAt: reapplyPoint)
         activeScope = nil
         let previousResponder = activeResponderView
         activeResponderView = nil
@@ -243,6 +273,13 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
 
     func unregister(_ view: WorkbenchSelectableTextNSView) {
         selectedViewRefs.removeAll { $0.value == nil || $0.value === view }
+        if activeDragSession?.anchor.start.view === view
+            || activeDragSession?.anchor.end.view === view
+        {
+            stopAutoScroll()
+            activeDragSession = nil
+            unlockDragCursorIfNeeded()
+        }
         if activeResponderView === view {
             activeResponderView = liveSelectedViews.first
         }
@@ -262,6 +299,7 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
         stopAutoScroll()
         externalArmedSession = nil
         activeDragSession = nil
+        unlockDragCursorIfNeeded()
         clearSelectedViews(except: view)
         activeResponderView = view
         activeScope = view.flowScope
@@ -291,6 +329,9 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
                     anchor: anchor,
                     armedControl: nil
                 )
+                if !AppPointerShape.manages(window) {
+                    syncDragCursorLock(for: window)
+                }
             }
         } else {
             selectedViewRefs.removeAll()
@@ -309,7 +350,8 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
               originView.canInteract,
               let snapshot = buildFlowSnapshot(in: window, preferredScope: scope)
         else {
-            clearSelection()
+            unlockDragCursorIfNeeded(reapplyingAt: currentWindowPoint, in: originView.window)
+            clearSelection(reapplyCursorInActiveWindow: false)
             return
         }
 
@@ -356,7 +398,7 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
             in: snapshot
         )
         updateAutoScrollState()
-        AppPointerShape.pointerMoved(in: window, at: currentWindowPoint)
+        updateDragPointer(in: window, at: currentWindowPoint)
     }
 
     func endDirectDrag(
@@ -376,12 +418,15 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
             )
         }
         stopAutoScroll()
+        let sessionWindow = activeDragSession?.window ?? originView.window
         activeDragSession = nil
-        if let window = originView.window {
-            AppPointerShape.pointerMoved(in: window, at: currentWindowPoint)
+        if let window = sessionWindow {
+            finishDragPointer(in: window, at: currentWindowPoint)
+        } else {
+            unlockDragCursorIfNeeded()
         }
         if !hasSelection {
-            clearSelection()
+            clearSelection(reapplyCursorInActiveWindow: false)
         }
     }
 
@@ -392,6 +437,7 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
         stopAutoScroll()
         externalArmedSession = nil
         activeDragSession = nil
+        unlockDragCursorIfNeeded()
 
         guard let contentView = window.contentView else {
             clearSelection()
@@ -457,7 +503,8 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
             guard dragSession.window === window,
                   let snapshot = buildFlowSnapshot(in: window, preferredScope: dragSession.scope)
             else {
-                clearSelection()
+                unlockDragCursorIfNeeded(reapplyingAt: currentWindowPoint, in: window)
+                clearSelection(reapplyCursorInActiveWindow: false)
                 return .passthrough
             }
             dragSession.latestWindowPoint = currentWindowPoint
@@ -472,7 +519,7 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
                 )
             }
             updateAutoScrollState()
-            AppPointerShape.pointerMoved(in: window, at: currentWindowPoint)
+            updateDragPointer(in: window, at: currentWindowPoint)
             if dragSession.armedControl != nil,
                let redirected = SubtitleTableTextSelectionHitTesting.offscreenMouseEvent(
                    from: event,
@@ -555,7 +602,7 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
             triggerEvent: event
         )
         updateAutoScrollState()
-        AppPointerShape.pointerMoved(in: window, at: currentWindowPoint)
+        updateDragPointer(in: window, at: currentWindowPoint)
 
         if armed.armedControl != nil,
            let redirected = SubtitleTableTextSelectionHitTesting.offscreenMouseEvent(
@@ -592,9 +639,9 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
         }
         stopAutoScroll()
         activeDragSession = nil
-        AppPointerShape.pointerMoved(in: window, at: currentWindowPoint)
+        finishDragPointer(in: window, at: currentWindowPoint)
         if !hasSelection {
-            clearSelection()
+            clearSelection(reapplyCursorInActiveWindow: false)
         }
 
         if hadArmedControl,
@@ -637,6 +684,19 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
     @objc private func handleAutoScrollTimerTick() {
         if NSEvent.pressedMouseButtons & 1 == 0 {
             stopAutoScroll()
+            if let session = activeDragSession {
+                let window = session.window
+                let lastPoint = session.latestWindowPoint
+                activeDragSession = nil
+                if let window {
+                    finishDragPointer(in: window, at: lastPoint)
+                } else {
+                    unlockDragCursorIfNeeded()
+                }
+                if !hasSelection {
+                    clearSelection(reapplyCursorInActiveWindow: false)
+                }
+            }
             return
         }
         _ = stepAutoScroll()
@@ -653,6 +713,9 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
               let step = resolveAutoScrollStep()
         else {
             stopAutoScroll()
+            if activeDragSession == nil {
+                unlockDragCursorIfNeeded()
+            }
             return false
         }
 
@@ -670,6 +733,9 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
                 clickCount: session.clickCount,
                 in: snapshot
             )
+        }
+        if !AppPointerShape.manages(window) {
+            syncDragCursorLock(for: window)
         }
         if resolveAutoScrollStep() == nil {
             stopAutoScroll()
@@ -1382,6 +1448,88 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
         return fallbackPieces.joined(separator: "\n")
     }
 
+    // MARK: - Drag Cursor Lock (Non-AppPointerShape Windows)
+
+    private func updateDragPointer(in window: NSWindow, at windowPoint: CGPoint) {
+        if AppPointerShape.manages(window) {
+            AppPointerShape.pointerMoved(in: window, at: windowPoint)
+        } else {
+            syncDragCursorLock(for: window)
+        }
+    }
+
+    private func finishDragPointer(in window: NSWindow, at windowPoint: CGPoint) {
+        if AppPointerShape.manages(window) {
+            AppPointerShape.pointerMoved(in: window, at: windowPoint)
+        } else {
+            unlockDragCursorIfNeeded(reapplyingAt: windowPoint, in: window)
+        }
+    }
+
+    private func syncDragCursorLock(for window: NSWindow) {
+        guard !AppPointerShape.manages(window), window.contentView != nil else {
+            unlockDragCursorIfNeeded()
+            return
+        }
+        if cursorLockedWindow !== window {
+            unlockDragCursorIfNeeded()
+            window.disableCursorRects()
+            cursorLockedWindow = window
+        }
+        NSCursor.iBeam.set()
+    }
+
+    private func unlockDragCursorIfNeeded(
+        reapplyingAt windowPoint: CGPoint? = nil,
+        in expectedWindow: NSWindow? = nil
+    ) {
+        guard let locked = cursorLockedWindow else {
+            return
+        }
+        if let expectedWindow, expectedWindow !== locked {
+            return
+        }
+        cursorLockedWindow = nil
+        locked.enableCursorRects()
+        locked.resetCursorRects()
+
+        guard let windowPoint,
+              locked.contentView != nil,
+              !AppPointerShape.manages(locked)
+        else {
+            return
+        }
+        Self.nonManagedWindowPointerShape(in: locked, atWindowPoint: windowPoint).cursor.set()
+    }
+
+    private static func nonManagedWindowPointerShape(
+        in window: NSWindow,
+        atWindowPoint windowPoint: CGPoint
+    ) -> PointerShape {
+        guard let contentView = window.contentView else {
+            return .arrow
+        }
+        let contentFrame = contentView.convert(contentView.bounds, to: nil).standardized
+        guard contentFrame.contains(windowPoint) else {
+            return .arrow
+        }
+        let hitPoint = contentView.superview?.convert(windowPoint, from: nil) ?? windowPoint
+        var current = contentView.hitTest(hitPoint)
+        while let view = current {
+            if let surface = view as? PointerShapeProviding {
+                return surface.pointerShape(atWindowPoint: windowPoint)
+            }
+            if let textView = view as? NSTextView {
+                return textView.isSelectable ? .iBeam : .arrow
+            }
+            if let textField = view as? NSTextField {
+                return (textField.isEditable || textField.isSelectable) ? .iBeam : .arrow
+            }
+            current = view.superview
+        }
+        return .arrow
+    }
+
     @objc private func handleClearTextSelectionNotification(_ notification: Notification) {
         if let sender = notification.object as? WorkbenchSelectableTextNSView,
            isResponderOwnedByActiveSelection(sender)
@@ -1392,7 +1540,7 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
     }
 
     @objc private func handleAppDidResignActive(_ notification: Notification) {
-        clearSelection()
+        clearSelection(reapplyCursorInActiveWindow: false)
     }
 
     @objc private func handleWindowDidResignKey(_ notification: Notification) {
@@ -1401,8 +1549,25 @@ final class WorkbenchStaticTextSelectionCoordinator: NSObject {
         }
         if activeResponderView?.window === resignedWindow
             || liveSelectedViews.contains(where: { $0.window === resignedWindow })
+            || activeDragSession?.window === resignedWindow
+            || externalArmedSession?.window === resignedWindow
+            || cursorLockedWindow === resignedWindow
         {
-            clearSelection()
+            clearSelection(reapplyCursorInActiveWindow: false)
+        }
+    }
+
+    @objc private func handleWindowWillClose(_ notification: Notification) {
+        guard let closingWindow = notification.object as? NSWindow else {
+            return
+        }
+        if activeResponderView?.window === closingWindow
+            || liveSelectedViews.contains(where: { $0.window === closingWindow })
+            || activeDragSession?.window === closingWindow
+            || externalArmedSession?.window === closingWindow
+            || cursorLockedWindow === closingWindow
+        {
+            clearSelection(reapplyCursorInActiveWindow: false)
         }
     }
 }

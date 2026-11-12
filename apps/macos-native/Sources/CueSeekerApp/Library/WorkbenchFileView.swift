@@ -322,15 +322,17 @@ struct WorkbenchFileView: View {
 
             VStack(spacing: WorkbenchControlMetrics.redesignEmptyStateIconToTextGap) {
                 AppEmptyStateIconView(icon: .folderHint)
+                    .allowsHitTesting(false)
 
-                Text(L("file.empty.message"))
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                WorkbenchSelectableText(
+                    L("file.empty.message"),
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .regular,
+                    color: WorkbenchRedesignColors.textMuted,
+                    lineLimit: nil,
+                    alignment: .center
+                )
+                .fixedSize(horizontal: false, vertical: true)
 
                 addFolderButton(accessibility: accessibility)
             }

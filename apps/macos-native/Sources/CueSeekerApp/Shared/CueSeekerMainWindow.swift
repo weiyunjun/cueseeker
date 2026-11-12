@@ -139,6 +139,13 @@ class CueSeekerWindow: NSWindow {
             break
         }
         switch event.type {
+        case .cursorUpdate:
+            if MainActor.assumeIsolated({
+                WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: self)
+            }) {
+                NSCursor.iBeam.set()
+                return
+            }
         case .leftMouseDown:
             MainActor.assumeIsolated {
                 WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseDown(
@@ -214,6 +221,13 @@ class CueSeekerWindow: NSWindow {
             }
         }
         super.sendEvent(event)
+        if event.type == .leftMouseDragged,
+           MainActor.assumeIsolated({
+               WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: self)
+           })
+        {
+            NSCursor.iBeam.set()
+        }
         if event.type == .leftMouseDown || event.type == .rightMouseDown {
             hasUserFocusedTextInput = hasFocusedTextInput
             if hasFocusedTextInput {

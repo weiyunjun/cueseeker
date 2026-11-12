@@ -303,7 +303,13 @@ final class TaskQueueStore: ObservableObject {
     @Published private(set) var incomplete: [TaskRecord] = []
     @Published private(set) var isPanelOpen = false
     /// Which tab the panel shows. Not persisted, and reset by every open.
-    @Published var selectedTab: TaskQueueTab = .current
+    @Published var selectedTab: TaskQueueTab = .current {
+        didSet {
+            if selectedTab != oldValue {
+                WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            }
+        }
+    }
     /// The task record currently shown in the Task Info dialog, if any.
     @Published private(set) var detailTaskID: Int64?
     /// The open Export to Anki dialog, whose Export queues its task here.

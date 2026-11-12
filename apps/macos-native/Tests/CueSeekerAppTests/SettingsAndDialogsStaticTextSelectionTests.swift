@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import CueSeekerCore
 import CueSeekerPlayback
 import SwiftUI
@@ -982,6 +983,505 @@ extension WorkbenchSelectableTextTests {
         #expect(!taskPanelTexts.contains(TaskQueueTab.current.label))
         #expect(!taskPanelTexts.contains(TaskQueueTab.completed.label))
         #expect(!taskPanelTexts.contains(TaskQueueTab.incomplete.label))
+    }
+
+    @Test
+    func fileZeroFolderEmptyStateMessageIsSelectableWhileAddFolderButtonStaysExcluded() throws {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        AppLocalization.apply(.english)
+        WorkbenchFileView.lastZeroFolderMainBodyFrameForTesting = nil
+        defer {
+            WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            AppLocalization.apply(.english)
+            WorkbenchFileView.lastZeroFolderMainBodyFrameForTesting = nil
+        }
+
+        let suiteName = "CueSeekerTests.FileZeroFolderEmptyState.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FileZeroFolderEmptyState-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer {
+            userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+            try? FileManager.default.removeItem(at: tempRoot)
+        }
+
+        let appState = AppCoordinator(
+            userDefaults: userDefaults,
+            databaseURL: tempRoot.appendingPathComponent("CueSeeker.sqlite")
+        )
+        #expect(appState.indexing.selectedFolders.isEmpty)
+        #expect(appState.workbenchLayout.currentRoute == .file)
+
+        let root = WorkbenchFileView(tasks: appState.tasks)
+            .environmentObject(appState)
+            .environmentObject(appState.indexing)
+            .environmentObject(appState.workbenchLayout.route)
+            .environmentObject(appState.library)
+            .environmentObject(appState.settings.localization)
+            .environment(\.workbenchAccessibility, appState.workbenchAccessibility)
+
+        let (window, hostingView) = makeOffscreenHostingWindow(
+            rootView: root,
+            size: CGSize(width: 820, height: 620)
+        )
+        defer { tearDownOffscreenWindow(window) }
+
+        let mainBodyFrame = try #require(WorkbenchFileView.lastZeroFolderMainBodyFrameForTesting)
+        #expect(mainBodyFrame.width > 0 && mainBodyFrame.height > 0)
+
+        let fileViews = collectInteractiveSelectableViews(in: hostingView)
+        let fileTexts = Set(fileViews.map(\.text))
+        #expect(fileTexts.contains(L("file.empty.message")))
+        #expect(!fileTexts.contains(L("settings.library.add_folder")))
+
+        let messageView = try #require(fileViews.first { $0.text == L("file.empty.message") })
+        let point = messageView.convert(
+            CGPoint(x: messageView.bounds.midX, y: messageView.bounds.midY),
+            to: nil
+        )
+        #expect(messageView.pointerShape(atWindowPoint: point) == .iBeam)
+
+        messageView.mouseDown(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDown,
+                locationInWindow: point,
+                clickCount: 3,
+                windowNumber: window.windowNumber
+            )
+        )
+        messageView.mouseUp(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseUp,
+                locationInWindow: point,
+                clickCount: 3,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText == L("file.empty.message"))
+    }
+
+    @Test
+    func nonManagedSettingsWindowLocksIBeamCursorDuringDragAndRestoresBalancedCursorRects() throws {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        AppPointerShape.resetForTesting()
+        AppLocalization.apply(.english)
+        defer {
+            WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            AppPointerShape.resetForTesting()
+            AppLocalization.apply(.english)
+        }
+
+        let suiteName = "CueSeekerTests.SettingsDragCursorLock.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SettingsDragCursorLock-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer {
+            userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+            try? FileManager.default.removeItem(at: tempRoot)
+        }
+
+        let appState = AppCoordinator(
+            userDefaults: userDefaults,
+            databaseURL: tempRoot.appendingPathComponent("CueSeeker.sqlite")
+        )
+        let settingsStore = appState.settings
+        let accessibility = appState.workbenchAccessibility
+        let settingsLayers = appState.settingsInterfaceLayers
+        accessibility.selectedSettingsCategory = .general
+
+        let root = SettingsView()
+            .modifier(InterfaceLayerCoverageBridge(layers: settingsLayers))
+            .environment(\.workbenchAccessibility, accessibility)
+            .environmentObject(appState)
+            .environmentObject(appState.workbenchLayout)
+            .environmentObject(appState.workbenchLayout.route)
+            .environmentObject(settingsStore)
+            .environmentObject(settingsStore.cueGroupPresentation)
+            .environmentObject(settingsStore.localization)
+            .environmentObject(settingsStore.playbackShortcuts)
+            .environmentObject(appState.indexing)
+            .environmentObject(appState.excerpt)
+            .environmentObject(appState.library)
+            .environmentObject(appState.search)
+            .environmentObject(appState.playback)
+            .environmentObject(accessibility)
+
+        let (window, hostingView) = makeOffscreenHostingWindow(
+            rootView: root,
+            size: CGSize(width: 780, height: 680),
+            isMainWindow: false
+        )
+        defer { tearDownOffscreenWindow(window) }
+
+        #expect(!AppPointerShape.manages(window))
+        #expect(window.areCursorRectsEnabled)
+        #expect(!WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: window))
+
+        let generalViews = collectInteractiveSelectableViews(in: hostingView)
+        let appearanceTitleView = try #require(
+            generalViews.first { $0.text == L("settings.category.appearance") }
+        )
+        let hdrLabelView = try #require(
+            generalViews.first { $0.text == L("settings.appearance.hdr_screenshot") }
+        )
+        let showCueGroupView = try #require(
+            generalViews.first { $0.text == L("settings.search.show_cue_group") }
+        )
+        let hdrLabelWindowMidY = hdrLabelView.convert(
+            CGPoint(x: 4, y: hdrLabelView.bounds.midY),
+            to: nil
+        ).y
+        let hdrSwitch = try #require(
+            collectSwitches(in: hostingView).min { lhs, rhs in
+                let lhsMidY = lhs.convert(CGPoint(x: lhs.bounds.midX, y: lhs.bounds.midY), to: nil).y
+                let rhsMidY = rhs.convert(CGPoint(x: rhs.bounds.midX, y: rhs.bounds.midY), to: nil).y
+                return abs(lhsMidY - hdrLabelWindowMidY) < abs(rhsMidY - hdrLabelWindowMidY)
+            }
+        )
+
+        let startPoint = appearanceTitleView.convert(CGPoint(x: 2, y: 8), to: nil)
+        let hdrTextPoint = hdrLabelView.convert(CGPoint(x: 4, y: hdrLabelView.bounds.midY), to: nil)
+        let switchCenter = hdrSwitch.convert(CGPoint(x: hdrSwitch.bounds.midX, y: hdrSwitch.bounds.midY), to: nil)
+        let gapBetweenGroups = CGPoint(
+            x: startPoint.x,
+            y: (hdrTextPoint.y + showCueGroupView.convert(CGPoint(x: 4, y: showCueGroupView.bounds.midY), to: nil).y) * 0.5
+        )
+
+        // 1. Direct drag across blank gap and right-side switch keeps cursor locked to I-beam
+        //    without duplicate unbalanced disableCursorRects calls, then restores on mouseUp.
+        appearanceTitleView.mouseDown(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDown,
+                locationInWindow: startPoint,
+                windowNumber: window.windowNumber
+            )
+        )
+        appearanceTitleView.mouseDragged(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDragged,
+                locationInWindow: gapBetweenGroups,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.isDraggingSelection)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: window))
+        #expect(!window.areCursorRectsEnabled)
+        #expect(NSCursor.current == NSCursor.iBeam)
+
+        // Second drag move over switch must NOT unbalance disableCursorRects.
+        appearanceTitleView.mouseDragged(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDragged,
+                locationInWindow: switchCenter,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: window))
+        #expect(!window.areCursorRectsEnabled)
+        #expect(NSCursor.current == NSCursor.iBeam)
+
+        // Mouse up over switch immediately restores cursor rects and switches cursor back to arrow.
+        appearanceTitleView.mouseUp(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseUp,
+                locationInWindow: switchCenter,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(!WorkbenchStaticTextSelectionCoordinator.shared.isDraggingSelection)
+        #expect(!WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: window))
+        #expect(window.areCursorRectsEnabled)
+        #expect(NSCursor.current == NSCursor.arrow)
+
+        // 2. Releasing directly over selectable text restores cursor rects while keeping I-beam.
+        appearanceTitleView.mouseDown(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDown,
+                locationInWindow: startPoint,
+                windowNumber: window.windowNumber
+            )
+        )
+        appearanceTitleView.mouseDragged(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDragged,
+                locationInWindow: hdrTextPoint,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(!window.areCursorRectsEnabled)
+        appearanceTitleView.mouseUp(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseUp,
+                locationInWindow: hdrTextPoint,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(window.areCursorRectsEnabled)
+        #expect(!WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: window))
+        #expect(NSCursor.current == NSCursor.iBeam)
+
+        // 3. External drag entry from NSSwitch locks I-beam and restores cursor rects on mouseUp.
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        let extDown = makeQueuedMouseEvent(
+            type: .leftMouseDown,
+            locationInWindow: switchCenter,
+            eventNumber: 51,
+            windowNumber: window.windowNumber
+        )
+        let extDrag1 = makeQueuedMouseEvent(
+            type: .leftMouseDragged,
+            locationInWindow: hdrTextPoint,
+            eventNumber: 51,
+            windowNumber: window.windowNumber
+        )
+        let extDrag2 = makeQueuedMouseEvent(
+            type: .leftMouseDragged,
+            locationInWindow: switchCenter,
+            eventNumber: 51,
+            windowNumber: window.windowNumber
+        )
+        let extUp = makeQueuedMouseEvent(
+            type: .leftMouseUp,
+            locationInWindow: switchCenter,
+            eventNumber: 51,
+            windowNumber: window.windowNumber
+        )
+        WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseDown(window: window, event: extDown)
+        _ = WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseDragged(window: window, event: extDrag1)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: window))
+        #expect(!window.areCursorRectsEnabled)
+        #expect(NSCursor.current == NSCursor.iBeam)
+
+        _ = WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseDragged(window: window, event: extDrag2)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: window))
+        #expect(!window.areCursorRectsEnabled)
+        #expect(NSCursor.current == NSCursor.iBeam)
+
+        _ = WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseUp(window: window, event: extUp)
+        #expect(!WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: window))
+        #expect(window.areCursorRectsEnabled)
+        #expect(NSCursor.current == NSCursor.arrow)
+
+        // 4. clearSelection() and window willClose mid-drag both restore balanced cursor rects.
+        appearanceTitleView.mouseDown(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDown,
+                locationInWindow: startPoint,
+                windowNumber: window.windowNumber
+            )
+        )
+        appearanceTitleView.mouseDragged(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDragged,
+                locationInWindow: gapBetweenGroups,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(!window.areCursorRectsEnabled)
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        #expect(window.areCursorRectsEnabled)
+        #expect(!WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: window))
+
+        appearanceTitleView.mouseDown(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDown,
+                locationInWindow: startPoint,
+                windowNumber: window.windowNumber
+            )
+        )
+        appearanceTitleView.mouseDragged(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDragged,
+                locationInWindow: gapBetweenGroups,
+                windowNumber: window.windowNumber
+            )
+        )
+        #expect(!window.areCursorRectsEnabled)
+        NotificationCenter.default.post(name: NSWindow.willCloseNotification, object: window)
+        #expect(window.areCursorRectsEnabled)
+        #expect(!WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: window))
+
+        // 5. AppPointerShape-managed main window does not disable cursor rects during drag.
+        let (mainWindow, mainHost) = makeOffscreenHostingWindow(
+            rootView: WorkbenchSelectableText("Managed Main Text"),
+            size: CGSize(width: 400, height: 240),
+            isMainWindow: true
+        )
+        defer { tearDownOffscreenWindow(mainWindow) }
+        AppPointerShape.attach(to: mainWindow, isMenuOpen: { false })
+        let mainTextView = try #require(collectInteractiveSelectableViews(in: mainHost).first)
+        let mStart = mainTextView.convert(CGPoint(x: 2, y: 8), to: nil)
+        let mEnd = mainTextView.convert(CGPoint(x: mainTextView.bounds.maxX - 2, y: 8), to: nil)
+        mainTextView.mouseDown(with: makeQueuedMouseEvent(type: .leftMouseDown, locationInWindow: mStart, windowNumber: mainWindow.windowNumber))
+        mainTextView.mouseDragged(with: makeQueuedMouseEvent(type: .leftMouseDragged, locationInWindow: mEnd, windowNumber: mainWindow.windowNumber))
+        #expect(mainWindow.areCursorRectsEnabled)
+        #expect(!WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: mainWindow))
+        mainTextView.mouseUp(with: makeQueuedMouseEvent(type: .leftMouseUp, locationInWindow: mEnd, windowNumber: mainWindow.windowNumber))
+    }
+
+    @Test
+    func taskTabSwitchAndShortcutRecordingStartClearStaticTextSelectionAndAllowCmdCRecording() throws {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        AppLocalization.apply(.english)
+        defer {
+            WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            AppLocalization.apply(.english)
+        }
+
+        // 1. TaskQueueStore.selectedTab actual switch clears active static text selection; same-tab write preserves it.
+        let taskSuiteName = "CueSeekerTests.TaskTabClearSelection.\(UUID().uuidString)"
+        let taskDefaults = try #require(UserDefaults.temporary(suiteName: taskSuiteName))
+        let taskTempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TaskTabClearSelection-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: taskTempRoot, withIntermediateDirectories: true)
+        defer {
+            taskDefaults.removePersistentDomainAndPlist(forName: taskSuiteName)
+            try? FileManager.default.removeItem(at: taskTempRoot)
+        }
+        let taskLocalization = AppLocalizationStore(
+            language: .english,
+            userDefaults: taskDefaults,
+            userDefaultsKey: "test.taskTabClear.appLanguage"
+        )
+        let taskCoordinator = AppCoordinator(
+            userDefaults: taskDefaults,
+            databaseURL: taskTempRoot.appendingPathComponent("CueSeeker.sqlite")
+        )
+        let (taskWindow, taskHost) = makeOffscreenHostingWindow(
+            rootView: TaskPanel(tasks: taskCoordinator.tasks, confirmation: taskCoordinator.confirmation)
+                .environmentObject(taskCoordinator)
+                .environmentObject(taskLocalization)
+                .environment(\.interfaceLayerContext, InterfaceLayerContext(layer: .dialog))
+                .environment(\.workbenchDialogAvailableSize, CGSize(width: 720, height: 560)),
+            size: CGSize(width: 720, height: 560)
+        )
+        defer { tearDownOffscreenWindow(taskWindow) }
+
+        let currentViews = collectInteractiveSelectableViews(in: taskHost)
+        let currentEmptyView = try #require(currentViews.first { $0.text == L("task.empty.current") })
+        let currentPoint = currentEmptyView.convert(CGPoint(x: 12, y: 8), to: nil)
+        currentEmptyView.mouseDown(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDown,
+                locationInWindow: currentPoint,
+                clickCount: 3,
+                windowNumber: taskWindow.windowNumber
+            )
+        )
+        currentEmptyView.mouseUp(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseUp,
+                locationInWindow: currentPoint,
+                clickCount: 3,
+                windowNumber: taskWindow.windowNumber
+            )
+        )
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText == L("task.empty.current"))
+
+        // Simulated keyboard switch (.current -> .completed) clears static text selection.
+        taskCoordinator.tasks.selectedTab = .completed
+        #expect(!WorkbenchStaticTextSelectionCoordinator.shared.hasSelection)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText == nil)
+
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        taskHost.layoutSubtreeIfNeeded()
+        let completedViews = collectInteractiveSelectableViews(in: taskHost)
+        let completedEmptyView = try #require(completedViews.first { $0.text == L("task.empty.completed") })
+        let completedPoint = completedEmptyView.convert(CGPoint(x: 12, y: 8), to: nil)
+        completedEmptyView.mouseDown(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDown,
+                locationInWindow: completedPoint,
+                clickCount: 3,
+                windowNumber: taskWindow.windowNumber
+            )
+        )
+        completedEmptyView.mouseUp(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseUp,
+                locationInWindow: completedPoint,
+                clickCount: 3,
+                windowNumber: taskWindow.windowNumber
+            )
+        )
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText == L("task.empty.completed"))
+
+        // Assigning the same tab must NOT clear selection.
+        taskCoordinator.tasks.selectedTab = .completed
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText == L("task.empty.completed"))
+
+        taskCoordinator.tasks.selectedTab = .incomplete
+        #expect(!WorkbenchStaticTextSelectionCoordinator.shared.hasSelection)
+
+        // 2. PlaybackShortcutRecorder.start(...) clears selection and lets Cmd + C record instead of copy.
+        let recorder = PlaybackShortcutRecorder()
+        let anchor = MenuAnchorHandle()
+        let (shortcutWindow, shortcutHost) = makeOffscreenHostingWindow(
+            rootView: VStack {
+                WorkbenchSelectableText(PlaybackShortcutAction.playPause.title)
+                Color.clear
+                    .frame(width: 144, height: 32)
+                    .background(MenuAnchorProbe(handle: anchor))
+            }
+            .background(PlaybackShortcutKeyEquivalentCatcher { recorder.handleKey($0) }),
+            size: CGSize(width: 420, height: 220),
+            isMainWindow: false
+        )
+        defer {
+            recorder.stop()
+            tearDownOffscreenWindow(shortcutWindow)
+        }
+
+        let labelView = try #require(
+            collectInteractiveSelectableViews(in: shortcutHost).first {
+                $0.text == PlaybackShortcutAction.playPause.title
+            }
+        )
+        let labelPoint = labelView.convert(CGPoint(x: 8, y: 8), to: nil)
+        labelView.mouseDown(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseDown,
+                locationInWindow: labelPoint,
+                clickCount: 3,
+                windowNumber: shortcutWindow.windowNumber
+            )
+        )
+        labelView.mouseUp(
+            with: makeQueuedMouseEvent(
+                type: .leftMouseUp,
+                locationInWindow: labelPoint,
+                clickCount: 3,
+                windowNumber: shortcutWindow.windowNumber
+            )
+        )
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText == PlaybackShortcutAction.playPause.title)
+        #expect(shortcutWindow.firstResponder === labelView)
+
+        var recordedKey: PlaybackShortcutKey?
+        recorder.start(.playPause, anchor: anchor) { recordedKey = $0 }
+        #expect(!WorkbenchStaticTextSelectionCoordinator.shared.hasSelection)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText == nil)
+
+        let cmdCEvent = try #require(
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [.command],
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: shortcutWindow.windowNumber,
+                context: nil,
+                characters: "c",
+                charactersIgnoringModifiers: "c",
+                isARepeat: false,
+                keyCode: UInt16(kVK_ANSI_C)
+            )
+        )
+        let handled = shortcutWindow.performKeyEquivalent(with: cmdCEvent)
+        #expect(handled)
+        #expect(recordedKey == PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_C), command: true))
+        #expect(recorder.recordingAction == nil)
     }
 
     private func descendantsForTesting(in root: NSView) -> [NSView] {

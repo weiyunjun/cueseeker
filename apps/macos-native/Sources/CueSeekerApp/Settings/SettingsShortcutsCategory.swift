@@ -314,6 +314,7 @@ final class PlaybackShortcutRecorder: ObservableObject {
         record: @escaping (PlaybackShortcutKey) -> Void
     ) {
         stop()
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
         recordingAction = action
         self.anchor = anchor
         self.record = record
@@ -395,7 +396,7 @@ final class PlaybackShortcutRecorder: ObservableObject {
 
 /// Offers the window's key equivalents to `handle` before the App menu gets
 /// them. A key it does not spend goes on as usual.
-private struct PlaybackShortcutKeyEquivalentCatcher: NSViewRepresentable {
+struct PlaybackShortcutKeyEquivalentCatcher: NSViewRepresentable {
     let handle: (NSEvent) -> Bool
 
     func makeNSView(context _: Context) -> CatcherView {
