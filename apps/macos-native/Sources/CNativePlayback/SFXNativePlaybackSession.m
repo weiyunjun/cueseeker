@@ -42,6 +42,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     atomic_init(&_didPauseAfterFirstFrame, false);
 	    _allowAutomaticSoftwareRecycle = allowAutomaticSoftwareRecycle;
 	    _seekSeconds = MAX(0, (double)startMilliseconds / 1000.0);
+	    _alignPreTargetSeekFrames = (_seekSeconds > 0);
 	    NSInteger safeEndMilliseconds = SFXSanitizedSegmentEndMilliseconds(startMilliseconds, endMilliseconds);
 	    _segmentEndSeconds = safeEndMilliseconds >= 0 ? (double)safeEndMilliseconds / 1000.0 : -1;
 	    _pausesAtSegmentEnd = pausesAtSegmentEnd && safeEndMilliseconds >= 0;
@@ -1633,6 +1634,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         [_packetQueueCondition unlock];
         @synchronized (self) {
             _seekSeconds = seekSeconds;
+            _alignPreTargetSeekFrames = (seekSeconds > 0);
             _segmentEndSeconds = segmentEndSeconds;
             _pausesAtSegmentEnd = pausesAtSegmentEnd && segmentEndSeconds >= 0;
             _autoPauseAuthorizationResolved = NO;
@@ -2547,6 +2549,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     @synchronized (self) {
         if (!supersededByNewerSeek) {
             _seekSeconds = seekSeconds;
+            _alignPreTargetSeekFrames = (seekSeconds > 0);
             _segmentEndSeconds = segmentEndSeconds;
             _pausesAtSegmentEnd = pausesAtSegmentEnd && segmentEndSeconds >= 0;
             _autoPauseAuthorizationResolved = NO;

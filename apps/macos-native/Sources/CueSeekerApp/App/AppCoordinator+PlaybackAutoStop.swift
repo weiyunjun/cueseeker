@@ -160,8 +160,8 @@ extension AppCoordinator {
             return nil
         }
 
-        let timestampMilliseconds = Int(
-            max(0, currentTime * 1_000).rounded(.down)
+        let timestampMilliseconds = PlaybackSeekTimestampAlignment.playbackMilliseconds(
+            atSeconds: currentTime
         )
         if let subtitleFileID = currentPlaybackSubtitleFileID,
            let timing = try? playbackSubtitleDatabase.subtitleFocusDefaultCueTiming(

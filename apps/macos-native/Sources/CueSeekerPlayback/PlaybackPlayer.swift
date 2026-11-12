@@ -840,7 +840,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     private func currentNativePlaybackMilliseconds() -> Int {
-        max(0, Int((nativePlayer.currentTime * 1_000).rounded(.down)))
+        PlaybackSeekTimestampAlignment.playbackMilliseconds(atSeconds: nativePlayer.currentTime)
     }
 
     private func effectiveASSSubtitleMilliseconds(_ milliseconds: Int) -> Int {
@@ -959,7 +959,10 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
 
         let commitStart = CACurrentMediaTime()
-        let safeMilliseconds = max(0, milliseconds)
+        let safeMilliseconds = PlaybackSeekTimestampAlignment.alignedPlaybackMilliseconds(
+            presentedMilliseconds: milliseconds,
+            targetMilliseconds: pendingPresentation.targetMilliseconds
+        )
         self.pendingPresentation = nil
         committedPresentationGeneration = generation
         heldSubtitlePresentationMilliseconds = nil
@@ -1109,7 +1112,7 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         if activeSubtitleSource != nil,
            subtitlesVisible,
            (!playing || subtitleRenderTickTask == nil || assSubtitleRenderTimeGate != nil) {
-            let milliseconds = max(0, Int((time * 1_000).rounded(.down)))
+            let milliseconds = PlaybackSeekTimestampAlignment.playbackMilliseconds(atSeconds: time)
             updateASSSubtitleTimeFromNative(milliseconds: milliseconds)
         }
     }

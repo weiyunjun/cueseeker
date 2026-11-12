@@ -1,4 +1,5 @@
 import CNativePlayback
+import CueSeekerPlayback
 import Foundation
 import Testing
 
@@ -194,6 +195,132 @@ func nativeRapidSeeksCommitOnlyLatestPresentationGeneration() async throws {
     #expect(player.nativeDisplayImageRemovalCount == removalCountBeforeSeeks)
 }
 
+@Test
+func playbackSeekTimestampAlignmentAlignsPreTargetFramesWithin2msAndPreservesIEEE754Roundtrips() {
+    // Pre-target frame within 2ms tolerance aligns to target.
+    #expect(PlaybackSeekTimestampAlignment.alignedPlaybackMilliseconds(
+        presentedMilliseconds: 1_099_348,
+        targetMilliseconds: 1_099_350
+    ) == 1_099_350)
+    #expect(PlaybackSeekTimestampAlignment.alignedPlaybackMilliseconds(
+        presentedMilliseconds: 1_099_349,
+        targetMilliseconds: 1_099_350
+    ) == 1_099_350)
+    #expect(PlaybackSeekTimestampAlignment.alignedPlaybackMilliseconds(
+        presentedMilliseconds: 1_099_350,
+        targetMilliseconds: 1_099_350
+    ) == 1_099_350)
+
+    // Pre-target frame earlier by > 2ms (e.g. seeking past EOF) keeps actual frame timestamp.
+    #expect(PlaybackSeekTimestampAlignment.alignedPlaybackMilliseconds(
+        presentedMilliseconds: 1_099_347,
+        targetMilliseconds: 1_099_350
+    ) == 1_099_347)
+    #expect(PlaybackSeekTimestampAlignment.alignedPlaybackMilliseconds(
+        presentedMilliseconds: 5_950,
+        targetMilliseconds: 6_000
+    ) == 5_950)
+
+    // Post-target frame keeps actual frame timestamp.
+    #expect(PlaybackSeekTimestampAlignment.alignedPlaybackMilliseconds(
+        presentedMilliseconds: 1_126,
+        targetMilliseconds: 1_100
+    ) == 1_126)
+    #expect(PlaybackSeekTimestampAlignment.alignedPlaybackMilliseconds(
+        presentedMilliseconds: 0,
+        targetMilliseconds: 0
+    ) == 0)
+
+    // IEEE-754 decimal roundtrip values do not lose 1ms on floor conversion.
+    for exactMs in [0, 1_000, 2_010, 4_020, 16_080, 1_096_080, 1_099_350] {
+        let seconds = Double(exactMs) / 1_000
+        #expect(PlaybackSeekTimestampAlignment.playbackMilliseconds(atSeconds: seconds) == exactMs)
+    }
+    #expect(PlaybackSeekTimestampAlignment.playbackMilliseconds(atSeconds: 1_099.3499) == 1_099_349)
+}
+
+@Test
+@MainActor
+func nativeOpenAndSeekAlignPreTarget2msFrameProgressWhilePreservingPostTargetFrameTimestamp() async throws {
+    guard let ffmpegURL = presentationTransitionFFmpegURL() else {
+        print("Skipping native 23.976fps pre-target seek alignment test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryPresentationTransitionDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    // At 24000/1001 fps in Matroska (1ms timebase):
+    // - Frame 26 is at 1_084ms (2ms before 1_086ms)
+    // - Frame 27 is at 1_126ms (post-target for 1_100ms)
+    // - Frame 50 is at 2_085ms (1ms before 2_086ms)
+    let mediaURL = directory.appendingPathComponent("ntsc-23976-seek-alignment.mkv")
+    try makePresentationTransitionMedia(
+        at: mediaURL,
+        audioFrequency: 520,
+        frameRate: "24000/1001",
+        ffmpegURL: ffmpegURL
+    )
+
+    let player = SFXNativePlaybackPlayer()
+    player.volume = 0
+    let delegate = NativePresentationTransitionDelegate()
+    player.delegate = delegate
+    player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 1)!
+    defer {
+        player.stop()
+    }
+
+    // 1. Open at 1_086ms -> Frame 26 (1_084ms) is 2ms before target; progress aligns to 1_086ms.
+    try player.openPath(mediaURL.path, startMilliseconds: 1_086)
+    let openGen = player.nativePresentationGeneration
+    let presentedOpen = await waitForPresentationGeneration(openGen, delegate: delegate)
+    #expect(presentedOpen)
+    let openCommit = try #require(delegate.commit(for: openGen))
+    #expect(openCommit.milliseconds == 1_086)
+    #expect(player.nativeLastSubmittedVideoFrameMilliseconds >= 1_086)
+    #expect(PlaybackSeekTimestampAlignment.playbackMilliseconds(atSeconds: player.currentTime) >= 1_086)
+    for reportedTime in delegate.reportedTimes(for: openGen) {
+        #expect(PlaybackSeekTimestampAlignment.playbackMilliseconds(atSeconds: reportedTime) >= 1_086)
+    }
+
+    // 2. In-session seek to 2_086ms (paused after first frame) -> Frame 50 (2_085ms, 1ms early) aligns to 2_086ms.
+    try player.seek(toMilliseconds: 2_086, pauseAfterFirstFrame: true)
+    let seek2086Gen = player.nativePresentationGeneration
+    #expect(await waitForPresentationGeneration(seek2086Gen, delegate: delegate))
+    #expect(delegate.commit(for: seek2086Gen)?.milliseconds == 2_086)
+    #expect(player.nativeLastSubmittedVideoFrameMilliseconds == 2_086)
+    #expect(PlaybackSeekTimestampAlignment.playbackMilliseconds(atSeconds: player.currentTime) == 2_086)
+    for reportedTime in delegate.reportedTimes(for: seek2086Gen) {
+        #expect(PlaybackSeekTimestampAlignment.playbackMilliseconds(atSeconds: reportedTime) == 2_086)
+    }
+
+    // 3. Repeated in-session seeks back to 1_086ms never roll back to 1_084ms.
+    for _ in 0..<3 {
+        try player.seek(toMilliseconds: 1_086, pauseAfterFirstFrame: true)
+        let seekGen = player.nativePresentationGeneration
+        #expect(await waitForPresentationGeneration(seekGen, delegate: delegate))
+        #expect(delegate.commit(for: seekGen)?.milliseconds == 1_086)
+        #expect(player.nativeLastSubmittedVideoFrameMilliseconds == 1_086)
+        #expect(PlaybackSeekTimestampAlignment.playbackMilliseconds(atSeconds: player.currentTime) == 1_086)
+        for reportedTime in delegate.reportedTimes(for: seekGen) {
+            #expect(PlaybackSeekTimestampAlignment.playbackMilliseconds(atSeconds: reportedTime) == 1_086)
+        }
+    }
+
+    // 4. Normal post-target seek to 1_100ms -> Frame 26 (~1084ms) is skipped and Frame 27 (~1126ms) reports actual frame timestamp.
+    try player.seek(toMilliseconds: 1_100, pauseAfterFirstFrame: true)
+    let postTargetGen = player.nativePresentationGeneration
+    #expect(await waitForPresentationGeneration(postTargetGen, delegate: delegate))
+    let postTargetCommit = try #require(delegate.commit(for: postTargetGen))
+    #expect(postTargetCommit.milliseconds >= 1_125)
+    #expect(player.nativeLastSubmittedVideoFrameMilliseconds >= 1_125)
+    #expect(PlaybackSeekTimestampAlignment.playbackMilliseconds(atSeconds: player.currentTime) >= 1_125)
+}
+
 private struct NativePresentationCommit: Equatable {
     let generation: UInt
     let milliseconds: Int
@@ -202,6 +329,7 @@ private struct NativePresentationCommit: Equatable {
 private final class NativePresentationTransitionDelegate: NSObject, SFXNativePlaybackPlayerDelegate {
     private let lock = NSLock()
     private var commits: [NativePresentationCommit] = []
+    private var reportedTimesByGen: [UInt: [Double]] = [:]
     private var failures: [String] = []
 
     func nativePlaybackPlayer(
@@ -210,6 +338,18 @@ private final class NativePresentationTransitionDelegate: NSObject, SFXNativePla
         duration: Double,
         playing: Bool
     ) {}
+
+    func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        didUpdateTime time: Double,
+        duration: Double,
+        playing: Bool,
+        presentationGeneration: UInt
+    ) {
+        lock.lock()
+        reportedTimesByGen[presentationGeneration, default: []].append(time)
+        lock.unlock()
+    }
 
     func nativePlaybackPlayer(
         _ player: SFXNativePlaybackPlayer,
@@ -239,6 +379,12 @@ private final class NativePresentationTransitionDelegate: NSObject, SFXNativePla
         lock.lock()
         defer { lock.unlock() }
         return commits.first { $0.generation == generation }
+    }
+
+    func reportedTimes(for generation: UInt) -> [Double] {
+        lock.lock()
+        defer { lock.unlock() }
+        return reportedTimesByGen[generation] ?? []
     }
 
     var hasFailures: Bool {
@@ -271,6 +417,7 @@ private func makePresentationTransitionMedia(
     at mediaURL: URL,
     audioFrequency: Int,
     videoSize: String = "160x90",
+    frameRate: String = "24",
     ffmpegURL: URL
 ) throws {
     try runPresentationTransitionProcess(
@@ -282,7 +429,7 @@ private func makePresentationTransitionMedia(
             "-f",
             "lavfi",
             "-i",
-            "testsrc2=duration=5:size=\(videoSize):rate=24",
+            "testsrc2=duration=5:size=\(videoSize):rate=\(frameRate)",
             "-f",
             "lavfi",
             "-i",

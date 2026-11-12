@@ -252,3 +252,28 @@ public enum PlaybackError: Error, Equatable, CustomStringConvertible {
         }
     }
 }
+
+public enum PlaybackSeekTimestampAlignment {
+    public static let preTargetToleranceMilliseconds = 2
+
+    public static func alignedPlaybackMilliseconds(
+        presentedMilliseconds: Int,
+        targetMilliseconds: Int
+    ) -> Int {
+        let safePresented = max(0, presentedMilliseconds)
+        let safeTarget = max(0, targetMilliseconds)
+        guard safePresented < safeTarget,
+              safeTarget - safePresented <= preTargetToleranceMilliseconds
+        else {
+            return safePresented
+        }
+        return safeTarget
+    }
+
+    public static func playbackMilliseconds(atSeconds seconds: Double) -> Int {
+        guard seconds.isFinite, seconds > 0 else {
+            return 0
+        }
+        return max(0, Int((seconds * 1_000 + 1e-6).rounded(.down)))
+    }
+}

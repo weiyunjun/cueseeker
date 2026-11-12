@@ -372,17 +372,18 @@ public final class PlaybackViewModel: ObservableObject {
         accumulatedForwardSeconds = 0
         accumulatedRewindSeconds = 0
 
+        let targetMilliseconds = max(0, Int((targetTime * 1_000).rounded()))
         do {
             let generation: UInt
             if let autoPauseBoundary {
                 generation = try player.seek(to: autoPauseBoundary)
             } else {
                 generation = try player.seek(
-                    toMilliseconds: Int(targetTime * 1_000),
+                    toMilliseconds: targetMilliseconds,
                     pauseAfterFirstFrame: false
                 )
             }
-            onSeekCommitted(Int(targetTime * 1_000))
+            onSeekCommitted(targetMilliseconds)
             bindPendingPresentation(to: generation)
             return true
         } catch {
@@ -446,12 +447,13 @@ public final class PlaybackViewModel: ObservableObject {
         accumulatedForwardSeconds = 0
         accumulatedRewindSeconds = 0
 
+        let targetMilliseconds = max(0, Int((targetTime * 1_000).rounded()))
         do {
             let generation = try player.seek(
-                toMilliseconds: Int(targetTime * 1000),
+                toMilliseconds: targetMilliseconds,
                 pauseAfterFirstFrame: !shouldResumePlayback
             )
-            onSeekCommitted(Int(targetTime * 1_000))
+            onSeekCommitted(targetMilliseconds)
             bindPendingPresentation(to: generation)
             if shouldResumePlayback {
                 try player.setPaused(false)
@@ -503,12 +505,13 @@ public final class PlaybackViewModel: ObservableObject {
             accumulatedRewindSeconds = 0
         }
 
+        let targetMilliseconds = max(0, Int((targetTime * 1_000).rounded()))
         do {
             let generation = try player.seek(
-                toMilliseconds: Int(targetTime * 1000),
+                toMilliseconds: targetMilliseconds,
                 pauseAfterFirstFrame: !shouldResumePlayback
             )
-            onSeekCommitted(Int(targetTime * 1_000))
+            onSeekCommitted(targetMilliseconds)
             bindPendingPresentation(to: generation)
             if shouldResumePlayback {
                 try player.setPaused(false)
@@ -1092,8 +1095,13 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
         needsTimelineThumbnailRefreshAfterReset = false
         timelineThumbnailContextRevision &+= 1
         refreshActiveTimelineThumbnailPreviewIfNeeded()
+        let targetMilliseconds = max(0, Int((pendingPresentation.targetTime * 1_000).rounded()))
+        let committedMilliseconds = PlaybackSeekTimestampAlignment.alignedPlaybackMilliseconds(
+            presentedMilliseconds: milliseconds,
+            targetMilliseconds: targetMilliseconds
+        )
         updatePlaybackTime(
-            Double(max(0, milliseconds)) / 1_000,
+            Double(committedMilliseconds) / 1_000,
             publishesControlsImmediately: true
         )
         onPresentationCommitted(playing)

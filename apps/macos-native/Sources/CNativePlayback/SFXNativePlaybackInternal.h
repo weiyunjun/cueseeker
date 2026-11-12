@@ -49,6 +49,7 @@ extern const size_t SFXReadAheadLowWaterBytes;
 extern const size_t SFXReadAheadMaxBytes;
 extern const NSInteger SFXNoSegmentEndMilliseconds;
 extern const double SFXSegmentBoundaryEpsilonSeconds;
+extern const double SFXSeekFrameAlignmentToleranceSeconds;
 
 typedef NS_ENUM(NSInteger, SFXAudioScheduleResult) {
     SFXAudioScheduleResultNotScheduled = 0,
@@ -134,6 +135,10 @@ BOOL SFXFrameBeforeSeekTarget(
     AVStream *stream,
     double seekSeconds,
     double timelineOriginSeconds
+);
+double SFXResolvedPlaybackSecondsForSeekTarget(
+    double mediaSeconds,
+    double seekSeconds
 );
 CMTime SFXFramePresentationTime(const AVFrame *frame, AVStream *stream, double timelineOriginSeconds);
 CMSampleBufferRef _Nullable SFXSampleBufferForPixelBuffer(
@@ -480,6 +485,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     NSUInteger _skippedNonKeyframePacketsSinceFlush;
     BOOL _firstVideoFrameDecodedForSeek;
     BOOL _firstAudioFrameDecodedForSeek;
+    BOOL _alignPreTargetSeekFrames;
     BOOL _isRebuffering;
     BOOL _isPausedInsideLoop;
 	    BOOL _seekRequestPending;

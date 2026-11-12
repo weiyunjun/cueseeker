@@ -198,6 +198,145 @@ func cueRepeatEligibilityUsesOverlayDefaultCueSelectionAcrossAllSourcesAndAutoSw
 
 @MainActor
 @Test
+func preTarget2msFrameCommitAndIEEE754RoundtripNeverRollbackRepeatOrOverlaySelectionToPreviousCue() async throws {
+    try await withTemporarySegmentCompletionApp { app, database in
+        app.ensurePlayerInitialized()
+        let subtitleURL = URL(fileURLWithPath: "/Media/Violet-Ep05.ass")
+        let videoURL = URL(fileURLWithPath: "/Media/Violet-Ep05.mkv")
+        try database.replaceEntries(
+            subtitleFile: subtitleURL,
+            videoFile: videoURL,
+            entries: [
+                SubtitleEntry(
+                    sequenceNumber: 1,
+                    startTimecode: "0:00:02.01",
+                    endTimecode: "0:00:03.50",
+                    startMilliseconds: 2_010,
+                    endMilliseconds: 3_500,
+                    text: "early cue"
+                ),
+                SubtitleEntry(
+                    sequenceNumber: 2,
+                    startTimecode: "0:00:16.08",
+                    endTimecode: "0:00:17.50",
+                    startMilliseconds: 16_080,
+                    endMilliseconds: 17_500,
+                    text: "ieee-754 boundary cue"
+                ),
+                SubtitleEntry(
+                    sequenceNumber: 3,
+                    startTimecode: "0:18:16.08",
+                    endTimecode: "0:18:17.48",
+                    startMilliseconds: 1_096_080,
+                    endMilliseconds: 1_097_480,
+                    text: "お返事は何と。"
+                ),
+                SubtitleEntry(
+                    sequenceNumber: 4,
+                    startTimecode: "0:18:19.35",
+                    endTimecode: "0:18:22.97",
+                    startMilliseconds: 1_099_350,
+                    endMilliseconds: 1_102_970,
+                    text: "「今宵月下の庭園で待つ」と。"
+                )
+            ]
+        )
+
+        let searchResults = try #require(app.search.database)
+            .search("今宵月下の庭園")
+        let targetResult = try #require(searchResults.first)
+        #expect(targetResult.startMilliseconds == 1_099_350)
+
+        app.playback.isPlaybackSurfaceExpanded = true
+        app.activePlaybackSource = .search
+        app.search.selectResult(targetResult)
+        app.playback.playbackStatus = .playing
+
+        let player = try #require(app.player)
+        let viewModel = try #require(app.playback.playbackViewModel)
+        viewModel.duration = 1_500
+        let playbackCues = [
+            PlaybackSubtitleCue(
+                startMilliseconds: 2_010,
+                endMilliseconds: 3_500,
+                text: "early cue"
+            ),
+            PlaybackSubtitleCue(
+                startMilliseconds: 16_080,
+                endMilliseconds: 17_500,
+                text: "ieee-754 boundary cue"
+            ),
+            PlaybackSubtitleCue(
+                startMilliseconds: 1_096_080,
+                endMilliseconds: 1_097_480,
+                text: "お返事は何と。"
+            ),
+            PlaybackSubtitleCue(
+                startMilliseconds: 1_099_350,
+                endMilliseconds: 1_102_970,
+                text: "「今宵月下の庭園で待つ」と。"
+            )
+        ]
+
+        // Simulate repeated Repeat cycles on 0:18:19.35 where the covering 23.976fps frame
+        // commits 2ms early at 1_099_348ms: every Repeat resolves to 1_099_350ms, never 1_096_080ms.
+        for generation in UInt(101)...UInt(104) {
+            let repeatStartMs = try #require(app.cueRepeatStartMilliseconds(
+                at: generation == 101 ? 1_100.20 : viewModel.currentTime
+            ))
+            #expect(repeatStartMs == 1_099_350)
+
+            viewModel.preparePresentationTransition(
+                to: Double(repeatStartMs) / 1_000,
+                subtitleCues: playbackCues
+            )
+            viewModel.bindPendingPresentation(to: generation)
+            viewModel.player(
+                player,
+                didCommitPresentationAtMilliseconds: 1_099_348,
+                generation: generation,
+                playing: true,
+                videoSize: CGSize(width: 1_920, height: 1_080)
+            )
+            await Task.yield()
+
+            #expect(viewModel.currentTime == 1_099.35)
+            #expect(viewModel.activeSubtitleText == "「今宵月下の庭園で待つ」と。")
+            #expect(app.cueRepeatStartMilliseconds(at: viewModel.currentTime) == 1_099_350)
+        }
+
+        // Opening Playback Overlay immediately upon first-frame presentation anchors Current on Cue 4.
+        #expect(app.openPlaybackSubtitleFocusFromUser())
+        let session = try #require(app.playback.subtitleFocusSession)
+        #expect(session.openSnapshot.timestampMilliseconds == 1_099_350)
+        let deadline = Date().addingTimeInterval(2.0)
+        while session.currentSnapshot?.selectedCue == nil && Date() < deadline {
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        #expect(session.currentSnapshot?.selectedCue?.startMilliseconds == 1_099_350)
+        #expect(session.currentSnapshot?.selectedCue?.content == "「今宵月下の庭園で待つ」と。")
+        app.invalidatePlaybackSubtitleFocusForSourceReplacement()
+
+        // IEEE-754 decimal roundtrip timestamp (Double(16_080) / 1_000) also never rolls back 1ms to Cue 1.
+        viewModel.preparePresentationTransition(
+            to: Double(16_080) / 1_000,
+            subtitleCues: playbackCues
+        )
+        viewModel.bindPendingPresentation(to: 201)
+        viewModel.player(
+            player,
+            didCommitPresentationAtMilliseconds: 16_078,
+            generation: 201,
+            playing: true,
+            videoSize: CGSize(width: 1_920, height: 1_080)
+        )
+        await Task.yield()
+        #expect(app.cueRepeatStartMilliseconds(at: viewModel.currentTime) == 16_080)
+    }
+}
+
+@MainActor
+@Test
 func appCoordinatorConsumesCueAutoPauseBoundaryOnlyOncePerArming() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.playback.playbackStatus = .playing

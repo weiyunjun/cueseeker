@@ -598,12 +598,14 @@
         }
 
         double mediaSeconds = SFXFramePlaybackSeconds(_videoFrame, videoStream, _timelineOriginSeconds);
+        double progressSeconds = mediaSeconds;
         if (!_firstVideoFrameDecodedForSeek) {
             @synchronized (self) {
                 if (isfinite(mediaSeconds)
                     && mediaSeconds > _seekSeconds + 0.25
                     && (![self hasActiveSegmentEnd] || mediaSeconds < _segmentEndSeconds)) {
                     _seekSeconds = mediaSeconds;
+                    _alignPreTargetSeekFrames = NO;
                 }
             }
             [_packetQueueCondition lock];
@@ -611,6 +613,16 @@
             [_packetQueueCondition broadcast];
             [_packetQueueCondition unlock];
             [self requestAudioDrain];
+        }
+        @synchronized (self) {
+            if (_alignPreTargetSeekFrames && isfinite(mediaSeconds) && mediaSeconds >= 0) {
+                double alignedSeconds = SFXResolvedPlaybackSecondsForSeekTarget(mediaSeconds, _seekSeconds);
+                if (alignedSeconds > mediaSeconds) {
+                    progressSeconds = alignedSeconds;
+                } else {
+                    _alignPreTargetSeekFrames = NO;
+                }
+            }
         }
         if ([self mediaSecondsReachedSegmentEnd:mediaSeconds]) {
             if ([self resolveAutoPauseAuthorizationIfNeeded]) {
@@ -623,8 +635,8 @@
         }
 
         CMTime presentationTime = SFXFramePresentationTime(_videoFrame, videoStream, _timelineOriginSeconds);
-        NSInteger frameMilliseconds = mediaSeconds >= 0
-            ? (NSInteger)llround(mediaSeconds * 1000.0)
+        NSInteger frameMilliseconds = progressSeconds >= 0
+            ? (NSInteger)llround(progressSeconds * 1000.0)
             : -1;
         AVRational frameSAR = SFXVideoSampleAspectRatio(_formatContext, videoStream, _videoCodecContext, _videoFrame);
         SFXVideoOrientation frameOrientation = SFXResolveVideoOrientation(videoStream, _videoFrame);
@@ -706,7 +718,7 @@
                 _lastFrameDecodeDurationMs = frameDecodeMs;
             }
 
-            automaticRecycleMilliseconds = [self markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:mediaSeconds];
+            automaticRecycleMilliseconds = [self markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:progressSeconds];
             submittedVideoFrame = [self enqueuePixelBuffer:pixelBuffer
                                           presentationTime:presentationTime
                                          sampleAspectRatio:frameSAR
@@ -715,7 +727,7 @@
             CVPixelBufferRelease(pixelBuffer);
         }
 
-        if (submittedVideoFrame && mediaSeconds >= 0) {
+        if (submittedVideoFrame && progressSeconds >= 0) {
             [_packetQueueCondition lock];
             BOOL canAdvanceCurrentTime = !_seekRequestPending
                 && !_seekRequestInProgress
@@ -723,8 +735,8 @@
             [_packetQueueCondition unlock];
             if (canAdvanceCurrentTime) {
                 @synchronized (self) {
-                    _currentTime = mediaSeconds;
-                    _lastSubmittedVideoFrameMilliseconds = (NSInteger)floor(mediaSeconds * 1000.0);
+                    _currentTime = progressSeconds;
+                    _lastSubmittedVideoFrameMilliseconds = (NSInteger)floor(progressSeconds * 1000.0 + 1e-6);
                 }
                 [self notifyTimeIfNeeded:NO];
             }
@@ -1216,8 +1228,11 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
             _presentedVideoFrameCount += 1;
             if (presentationIsStillCurrent) {
                 if (isfinite(presentedSeconds) && presentedSeconds >= 0) {
-                    _currentTime = presentedSeconds;
-                    _lastSubmittedVideoFrameMilliseconds = (NSInteger)floor(presentedSeconds * 1000.0);
+                    double resolvedPresentedSeconds = _alignPreTargetSeekFrames
+                        ? SFXResolvedPlaybackSecondsForSeekTarget(presentedSeconds, _seekSeconds)
+                        : presentedSeconds;
+                    _currentTime = resolvedPresentedSeconds;
+                    _lastSubmittedVideoFrameMilliseconds = (NSInteger)floor(resolvedPresentedSeconds * 1000.0 + 1e-6);
                 } else if (frameMilliseconds >= 0) {
                     _lastSubmittedVideoFrameMilliseconds = frameMilliseconds;
                 }

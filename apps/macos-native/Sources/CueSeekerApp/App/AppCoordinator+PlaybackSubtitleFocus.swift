@@ -1,5 +1,6 @@
 import AppKit
 import CueSeekerCore
+import CueSeekerPlayback
 import Foundation
 
 typealias PlaybackSubtitleFocusInitialSnapshotLoader = @MainActor @Sendable (
@@ -48,8 +49,8 @@ extension AppCoordinator {
             subtitlePath: URL.fromMediaPath(subtitlePath).mediaPath,
             subtitleFormat: subtitleFormat
         )
-        let timestampMilliseconds = Int(
-            max(0, playbackViewModel.currentTime * 1_000).rounded(.down)
+        let timestampMilliseconds = PlaybackSeekTimestampAlignment.playbackMilliseconds(
+            atSeconds: playbackViewModel.currentTime
         )
         let folderPath = URL.fromMediaPath(videoPath)
             .deletingLastPathComponent()

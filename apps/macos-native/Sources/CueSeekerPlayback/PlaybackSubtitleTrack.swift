@@ -69,7 +69,7 @@ public struct PlaybackSubtitleTrack: Equatable, Sendable {
             return nil
         }
 
-        let milliseconds = max(0, Int((seconds * 1_000).rounded(.down)))
+        let milliseconds = PlaybackSeekTimestampAlignment.playbackMilliseconds(atSeconds: seconds)
         let activeTexts = activeCues(atMilliseconds: milliseconds).map(\.text)
         return activeTexts.isEmpty ? nil : activeTexts.joined(separator: "\n")
     }

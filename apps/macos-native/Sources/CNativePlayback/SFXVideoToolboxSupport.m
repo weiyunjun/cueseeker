@@ -19,6 +19,7 @@ const size_t SFXReadAheadLowWaterBytes = 48 * 1024 * 1024;
 const size_t SFXReadAheadMaxBytes = 64 * 1024 * 1024;
 const NSInteger SFXNoSegmentEndMilliseconds = -1;
 const double SFXSegmentBoundaryEpsilonSeconds = 0.000001;
+const double SFXSeekFrameAlignmentToleranceSeconds = 0.002;
 
 
 os_log_t SFXPerformanceLog(void) {
@@ -929,7 +930,21 @@ BOOL SFXFrameBeforeSeekTarget(
     if (frameSeconds < 0) {
         return NO;
     }
-    return frameSeconds + 0.002 < seekSeconds;
+    return frameSeconds + SFXSeekFrameAlignmentToleranceSeconds < seekSeconds;
+}
+
+double SFXResolvedPlaybackSecondsForSeekTarget(
+    double mediaSeconds,
+    double seekSeconds
+) {
+    if (!isfinite(mediaSeconds) || mediaSeconds < 0 || !isfinite(seekSeconds) || seekSeconds <= 0) {
+        return mediaSeconds;
+    }
+    if (mediaSeconds < seekSeconds
+        && mediaSeconds + SFXSeekFrameAlignmentToleranceSeconds + 1e-5 >= seekSeconds) {
+        return seekSeconds;
+    }
+    return mediaSeconds;
 }
 
 CMTime SFXFramePresentationTime(const AVFrame *frame, AVStream *stream, double timelineOriginSeconds) {
