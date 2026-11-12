@@ -862,3 +862,59 @@ func sharedHitTestingControlCancellationAndOffscreenMouseEventHelpersResetPresse
     #expect(customView.lastEventLocation == SubtitleTableTextSelectionHitTesting.offscreenMouseLocation)
     #expect(cancelNotificationWindows.count == 2)
 }
+
+@Test
+@MainActor
+func cueSeekerNativeDragRegionModifierSharesUnifiedSemanticRegionAndTraversesOnce() throws {
+    let host = NSHostingView(
+        rootView: VStack(spacing: 12) {
+            Color.clear
+                .frame(width: 120, height: 32)
+                .cueSeekerNativeDragRegion(isActive: true)
+            Color.clear
+                .frame(width: 120, height: 32)
+                .cueSeekerNativeDragRegion(isActive: false)
+        }
+        .padding(16)
+        .frame(width: 200, height: 120)
+    )
+    host.frame = CGRect(x: 0, y: 0, width: 200, height: 120)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+    host.layoutSubtreeIfNeeded()
+
+    let regions = descendants(in: host).compactMap {
+        $0 as? SubtitleTableTextSelectionInteractiveRegionView
+    }
+    #expect(regions.count == 2)
+    let activeRegion = try #require(regions.first(where: { $0.interaction == .nativeDrag }))
+    let inactiveRegion = try #require(regions.first(where: { $0.interaction == nil }))
+
+    let activePoint = activeRegion.convert(
+        CGPoint(x: activeRegion.bounds.midX, y: activeRegion.bounds.midY),
+        to: nil
+    )
+    let inactivePoint = inactiveRegion.convert(
+        CGPoint(x: inactiveRegion.bounds.midX, y: inactiveRegion.bounds.midY),
+        to: nil
+    )
+
+    #expect(isInteractiveWindowPoint(activePoint, in: host))
+    #expect(SubtitleTableTextSelectionHitTesting.ownsDragOrTextInputGesture(
+        host.hitTest(host.convert(activePoint, from: nil)),
+        atWindowPoint: activePoint,
+        in: window
+    ))
+
+    #expect(!isInteractiveWindowPoint(inactivePoint, in: host))
+    #expect(!SubtitleTableTextSelectionHitTesting.ownsDragOrTextInputGesture(
+        host.hitTest(host.convert(inactivePoint, from: nil)),
+        atWindowPoint: inactivePoint,
+        in: window
+    ))
+}

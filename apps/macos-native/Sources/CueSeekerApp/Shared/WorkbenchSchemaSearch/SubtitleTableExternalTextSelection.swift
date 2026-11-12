@@ -174,9 +174,19 @@ protocol SubtitleTableTextSelectionInteractiveView: AnyObject {
     var subtitleTableTextSelectionInteraction: SubtitleTableTextSelectionInteraction { get }
 }
 
-enum SubtitleTableTextSelectionInteraction {
+enum SubtitleTableTextSelectionInteraction: Equatable {
     case interactive
     case nonInteractive
+    case nativeDrag
+
+    var blocksTableSelectionOrigin: Bool {
+        switch self {
+        case .interactive, .nativeDrag:
+            return true
+        case .nonInteractive:
+            return false
+        }
+    }
 }
 
 extension SubtitleTableTextSelectionInteractiveView {
@@ -189,14 +199,22 @@ extension SubtitleTableTextSelectionInteractiveView {
 final class SubtitleTableTextSelectionInteractiveRegionView: NSView,
     SubtitleTableTextSelectionInteractiveView
 {
-    var isActive = true
+    var interaction: SubtitleTableTextSelectionInteraction? = .interactive
     var cornerRadius: CGFloat = 0
 
+    var isActive: Bool {
+        get { interaction?.blocksTableSelectionOrigin == true }
+        set { interaction = newValue ? .interactive : .nonInteractive }
+    }
+
     var subtitleTableTextSelectionInteraction: SubtitleTableTextSelectionInteraction {
-        isActive ? .interactive : .nonInteractive
+        interaction ?? .nonInteractive
     }
 
     func contains(windowPoint: CGPoint) -> Bool {
+        guard window != nil else {
+            return false
+        }
         let localPoint = convert(windowPoint, from: nil)
         guard bounds.contains(localPoint) else {
             return false
@@ -216,12 +234,25 @@ final class SubtitleTableTextSelectionInteractiveRegionView: NSView,
 }
 
 struct SubtitleTableTextSelectionInteractiveRegion: NSViewRepresentable {
-    let isActive: Bool
+    let interaction: SubtitleTableTextSelectionInteraction?
     let cornerRadius: CGFloat
+
+    init(
+        interaction: SubtitleTableTextSelectionInteraction?,
+        cornerRadius: CGFloat = 0
+    ) {
+        self.interaction = interaction
+        self.cornerRadius = cornerRadius
+    }
+
+    init(isActive: Bool, cornerRadius: CGFloat = 0) {
+        self.interaction = isActive ? .interactive : .nonInteractive
+        self.cornerRadius = cornerRadius
+    }
 
     func makeNSView(context _: Context) -> SubtitleTableTextSelectionInteractiveRegionView {
         let view = SubtitleTableTextSelectionInteractiveRegionView()
-        view.isActive = isActive
+        view.interaction = interaction
         view.cornerRadius = cornerRadius
         return view
     }
@@ -230,7 +261,7 @@ struct SubtitleTableTextSelectionInteractiveRegion: NSViewRepresentable {
         _ nsView: SubtitleTableTextSelectionInteractiveRegionView,
         context _: Context
     ) {
-        nsView.isActive = isActive
+        nsView.interaction = interaction
         nsView.cornerRadius = cornerRadius
     }
 }
@@ -242,7 +273,7 @@ extension View {
     ) -> some View {
         background(
             SubtitleTableTextSelectionInteractiveRegion(
-                isActive: isActive,
+                interaction: isActive ? .interactive : .nonInteractive,
                 cornerRadius: cornerRadius
             )
                 .allowsHitTesting(false)
@@ -260,46 +291,18 @@ extension View {
 
     func cueSeekerNativeDragRegion(isActive: Bool = true) -> some View {
         background(
-            CueSeekerNativeDragRegion(isActive: isActive)
+            SubtitleTableTextSelectionInteractiveRegion(
+                interaction: isActive ? .nativeDrag : nil,
+                cornerRadius: 0
+            )
                 .allowsHitTesting(false)
         )
     }
 }
 
 @MainActor
-final class CueSeekerNativeDragRegionView: NSView {
-    var isActive = true
-
-    func contains(windowPoint: CGPoint) -> Bool {
-        guard isActive, window != nil else {
-            return false
-        }
-        let localPoint = convert(windowPoint, from: nil)
-        return bounds.contains(localPoint)
-    }
-
-    override func hitTest(_: NSPoint) -> NSView? {
-        nil
-    }
-}
-
-private struct CueSeekerNativeDragRegion: NSViewRepresentable {
-    let isActive: Bool
-
-    func makeNSView(context _: Context) -> CueSeekerNativeDragRegionView {
-        let view = CueSeekerNativeDragRegionView()
-        view.isActive = isActive
-        return view
-    }
-
-    func updateNSView(_ nsView: CueSeekerNativeDragRegionView, context _: Context) {
-        nsView.isActive = isActive
-    }
-}
-
-@MainActor
 enum SubtitleTableTextSelectionHitTesting {
-    static let offscreenMouseLocation = CGPoint(x: -10_000, y: -10_000)
+    nonisolated static let offscreenMouseLocation = CGPoint(x: -10_000, y: -10_000)
 
     static func enclosingEnabledControl(of hitView: NSView?) -> NSControl? {
         var candidate = hitView
@@ -372,7 +375,13 @@ enum SubtitleTableTextSelectionHitTesting {
                 return true
             }
             if let semanticView = view as? any SubtitleTableTextSelectionInteractiveView {
-                return semanticView.subtitleTableTextSelectionInteraction == .interactive
+                if let region = semanticView as? SubtitleTableTextSelectionInteractiveRegionView,
+                   region.interaction == nil
+                {
+                    candidate = view.superview
+                    continue
+                }
+                return semanticView.subtitleTableTextSelectionInteraction.blocksTableSelectionOrigin
             }
             if view is NSScroller {
                 return true
@@ -393,7 +402,7 @@ enum SubtitleTableTextSelectionHitTesting {
         return topmostSemanticInteraction(
             atWindowPoint: point,
             in: rootView
-        ) == .interactive
+        )?.blocksTableSelectionOrigin == true
     }
 
     static func containsInteractiveRegion(
@@ -403,7 +412,7 @@ enum SubtitleTableTextSelectionHitTesting {
         topmostSemanticInteraction(
             atWindowPoint: point,
             in: rootView
-        ) == .interactive
+        )?.blocksTableSelectionOrigin == true
     }
 
     static func ownsDragOrTextInputGesture(
@@ -432,7 +441,9 @@ enum SubtitleTableTextSelectionHitTesting {
             if let draggable = view as? DraggableNSView, draggable.allowsHitTesting {
                 return true
             }
-            if let nativeDrag = view as? CueSeekerNativeDragRegionView, nativeDrag.isActive {
+            if let region = view as? SubtitleTableTextSelectionInteractiveRegionView,
+               region.interaction == .nativeDrag
+            {
                 return true
             }
             if let selectable = view as? WorkbenchSelectableTextNSView, selectable.canInteract {
@@ -464,33 +475,9 @@ enum SubtitleTableTextSelectionHitTesting {
         }
 
         if let rootView = window?.contentView,
-           containsNativeDragRegion(atWindowPoint: point, in: rootView)
+           topmostSemanticInteraction(atWindowPoint: point, in: rootView) == .nativeDrag
         {
             return true
-        }
-        return false
-    }
-
-    private static func containsNativeDragRegion(
-        atWindowPoint point: CGPoint,
-        in rootView: NSView
-    ) -> Bool {
-        guard rootView.window != nil,
-              !rootView.isHiddenOrHasHiddenAncestor,
-              rootView.alphaValue > 0,
-              windowBounds(of: rootView).contains(point)
-        else {
-            return false
-        }
-        if let region = rootView as? CueSeekerNativeDragRegionView,
-           region.contains(windowPoint: point)
-        {
-            return true
-        }
-        for subview in rootView.subviews.reversed() {
-            if containsNativeDragRegion(atWindowPoint: point, in: subview) {
-                return true
-            }
         }
         return false
     }
@@ -519,10 +506,13 @@ enum SubtitleTableTextSelectionHitTesting {
         guard let semanticView = rootView as? any SubtitleTableTextSelectionInteractiveView else {
             return nil
         }
-        if let region = semanticView as? SubtitleTableTextSelectionInteractiveRegionView,
-           !region.contains(windowPoint: point)
-        {
-            return nil
+        if let region = semanticView as? SubtitleTableTextSelectionInteractiveRegionView {
+            guard let interaction = region.interaction,
+                  region.contains(windowPoint: point)
+            else {
+                return nil
+            }
+            return interaction
         }
         return semanticView.subtitleTableTextSelectionInteraction
     }

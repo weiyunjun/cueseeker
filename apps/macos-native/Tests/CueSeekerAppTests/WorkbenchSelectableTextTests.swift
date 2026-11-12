@@ -682,8 +682,12 @@ struct WorkbenchSelectableTextTests {
         pressableHost.frame = CGRect(x: 140, y: 90, width: 80, height: 28)
         rootView.addSubview(pressableHost)
 
-        let nativeDragRegion = CueSeekerNativeDragRegionView(frame: CGRect(x: 24, y: 40, width: 96, height: 28))
-        nativeDragRegion.isActive = true
+        let nativeDragRegion = CueSeekerHostingView(
+            rootView: Color.clear
+                .frame(width: 96, height: 28)
+                .cueSeekerNativeDragRegion(isActive: true)
+        )
+        nativeDragRegion.frame = CGRect(x: 24, y: 40, width: 96, height: 28)
         rootView.addSubview(nativeDragRegion)
 
         let titlebarDrag = DraggableNSView(frame: CGRect(x: 140, y: 40, width: 96, height: 28))
@@ -696,6 +700,7 @@ struct WorkbenchSelectableTextTests {
 
         rootView.layoutSubtreeIfNeeded()
         pressableHost.layoutSubtreeIfNeeded()
+        nativeDragRegion.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.02))
 
         func dispatchOffscreenMouseEvent(_ event: NSEvent, to target: NSView) {
@@ -900,10 +905,19 @@ struct WorkbenchSelectableTextTests {
         rootView.addSubview(cuePreviewView)
         rootView.layoutSubtreeIfNeeded()
 
-        // Single-line partial drag selects prefix; dragging past ellipsis restores full path.
-        let sStart = singleLineTruncated.convert(CGPoint(x: 1, y: 10), to: nil)
-        let sMid = singleLineTruncated.convert(CGPoint(x: 34, y: 10), to: nil)
-        let sEnd = singleLineTruncated.convert(CGPoint(x: 120, y: 10), to: nil)
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+
+        // Single-line partial drag selects prefix; releasing directly ON the internal `...` ellipsis restores full path.
+        let sLineRect = singleLineTruncated.lineUsedRects()[0]
+        let sLocalOnEllipsis = CGPoint(x: sLineRect.maxX - 1.5, y: sLineRect.midY)
+        #expect(singleLineTruncated.bounds.contains(sLocalOnEllipsis))
+        #expect(sLocalOnEllipsis.x < sLineRect.maxX)
+
+        let sStart = singleLineTruncated.convert(CGPoint(x: 1, y: sLineRect.midY), to: nil)
+        let sMid = singleLineTruncated.convert(CGPoint(x: 34, y: sLineRect.midY), to: nil)
+        let sOnEllipsis = singleLineTruncated.convert(sLocalOnEllipsis, to: nil)
+        let sEnd = singleLineTruncated.convert(CGPoint(x: 120, y: sLineRect.midY), to: nil)
         singleLineTruncated.mouseDown(with: makeMouseEvent(type: .leftMouseDown, locationInWindow: sStart, windowNumber: window.windowNumber))
         singleLineTruncated.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: sMid, windowNumber: window.windowNumber))
         singleLineTruncated.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: sMid, windowNumber: window.windowNumber))
@@ -911,22 +925,43 @@ struct WorkbenchSelectableTextTests {
         #expect(singleLineTruncated.selectedText?.hasPrefix("/Vol") == true)
 
         singleLineTruncated.mouseDown(with: makeMouseEvent(type: .leftMouseDown, locationInWindow: sStart, windowNumber: window.windowNumber))
+        singleLineTruncated.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: sOnEllipsis, windowNumber: window.windowNumber))
+        singleLineTruncated.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: sOnEllipsis, windowNumber: window.windowNumber))
+        #expect(singleLineTruncated.selectedText == fullPath)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: window, to: pasteboard))
+        #expect(pasteboard.string(forType: .string) == fullPath)
+
+        singleLineTruncated.mouseDown(with: makeMouseEvent(type: .leftMouseDown, locationInWindow: sStart, windowNumber: window.windowNumber))
         singleLineTruncated.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: sEnd, windowNumber: window.windowNumber))
         singleLineTruncated.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: sEnd, windowNumber: window.windowNumber))
         #expect(singleLineTruncated.selectedText == fullPath)
 
-        // Multi-line truncated drag to end of second visible line restores full untruncated string.
-        let mStart = multiLineTruncated.convert(CGPoint(x: 1, y: 6), to: nil)
-        let mEnd = multiLineTruncated.convert(CGPoint(x: 170, y: 34), to: nil)
-        multiLineTruncated.mouseDown(with: makeMouseEvent(type: .leftMouseDown, locationInWindow: mStart, windowNumber: window.windowNumber))
-        multiLineTruncated.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: mEnd, windowNumber: window.windowNumber))
-        multiLineTruncated.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: mEnd, windowNumber: window.windowNumber))
-        #expect(multiLineTruncated.selectedText == fullMultiline)
+        // Multi-line truncated drag releasing directly ON the second line's internal `...` ellipsis restores full untruncated string.
+        let mLineRects = multiLineTruncated.lineUsedRects()
+        #expect(mLineRects.count == 2)
+        let mLastLine = mLineRects[1]
+        let mLocalOnEllipsis = CGPoint(x: mLastLine.maxX - 1.5, y: mLastLine.midY)
+        #expect(multiLineTruncated.bounds.contains(mLocalOnEllipsis))
+        #expect(mLocalOnEllipsis.x < mLastLine.maxX)
 
-        // Pre-truncated fullCopyText: partial prefix vs full selection to visible end.
-        let cStart = cuePreviewView.convert(CGPoint(x: 1, y: 10), to: nil)
-        let cPrefix = cuePreviewView.convert(CGPoint(x: 38, y: 10), to: nil)
-        let cEnd = cuePreviewView.convert(CGPoint(x: 240, y: 10), to: nil)
+        let mStart = multiLineTruncated.convert(CGPoint(x: 1, y: mLineRects[0].midY), to: nil)
+        let mOnEllipsis = multiLineTruncated.convert(mLocalOnEllipsis, to: nil)
+        multiLineTruncated.mouseDown(with: makeMouseEvent(type: .leftMouseDown, locationInWindow: mStart, windowNumber: window.windowNumber))
+        multiLineTruncated.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: mOnEllipsis, windowNumber: window.windowNumber))
+        multiLineTruncated.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: mOnEllipsis, windowNumber: window.windowNumber))
+        #expect(multiLineTruncated.selectedText == fullMultiline)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: window, to: pasteboard))
+        #expect(pasteboard.string(forType: .string) == fullMultiline)
+
+        // Pre-truncated fullCopyText: partial prefix vs releasing directly ON the internal `...` suffix inside bounds.
+        let cLineRect = cuePreviewView.lineUsedRects()[0]
+        let cLocalOnEllipsis = CGPoint(x: cLineRect.maxX - 1.5, y: cLineRect.midY)
+        #expect(cuePreviewView.bounds.contains(cLocalOnEllipsis))
+        #expect(cLocalOnEllipsis.x < cLineRect.maxX)
+
+        let cStart = cuePreviewView.convert(CGPoint(x: 1, y: cLineRect.midY), to: nil)
+        let cPrefix = cuePreviewView.convert(CGPoint(x: 38, y: cLineRect.midY), to: nil)
+        let cOnEllipsis = cuePreviewView.convert(cLocalOnEllipsis, to: nil)
         cuePreviewView.mouseDown(with: makeMouseEvent(type: .leftMouseDown, locationInWindow: cStart, windowNumber: window.windowNumber))
         cuePreviewView.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: cPrefix, windowNumber: window.windowNumber))
         cuePreviewView.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: cPrefix, windowNumber: window.windowNumber))
@@ -934,9 +969,11 @@ struct WorkbenchSelectableTextTests {
         #expect(cuePreviewView.selectedText?.hasPrefix("#1") == true)
 
         cuePreviewView.mouseDown(with: makeMouseEvent(type: .leftMouseDown, locationInWindow: cStart, windowNumber: window.windowNumber))
-        cuePreviewView.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: cEnd, windowNumber: window.windowNumber))
-        cuePreviewView.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: cEnd, windowNumber: window.windowNumber))
+        cuePreviewView.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: cOnEllipsis, windowNumber: window.windowNumber))
+        cuePreviewView.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: cOnEllipsis, windowNumber: window.windowNumber))
         #expect(cuePreviewView.selectedText == fullCuePreview)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: window, to: pasteboard))
+        #expect(pasteboard.string(forType: .string) == fullCuePreview)
     }
 
     @Test
@@ -1115,5 +1152,303 @@ struct WorkbenchSelectableTextTests {
         // 3. Starting selection in another surface (.cueSeekerClearTextSelection) clears static text selection.
         NotificationCenter.default.post(name: .cueSeekerClearTextSelection, object: nil)
         #expect(!WorkbenchStaticTextSelectionCoordinator.shared.hasSelection)
+    }
+
+    @Test
+    func stickyToolbarAndFixedTableHeaderOccludeScrolledCoverSummaryUnder52ptWindowTopBar() {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        defer { WorkbenchStaticTextSelectionCoordinator.shared.clearSelection() }
+
+        func frameFromTop(
+            in parent: NSView,
+            x: CGFloat,
+            topY: CGFloat,
+            width: CGFloat,
+            height: CGFloat
+        ) -> CGRect {
+            parent.isFlipped
+                ? CGRect(x: x, y: topY, width: width, height: height)
+                : CGRect(x: x, y: parent.bounds.height - topY - height, width: width, height: height)
+        }
+
+        // Main window (460 x 360) with a 52pt top bar at visual top [0, 52] (window y: 308..<360)
+        // and SubtitleTablePageChromeViewportView below it at visual [52, 360] (window y: 0..<308).
+        let (window, rootView) = makeTestWindow(size: CGSize(width: 460, height: 360))
+        let topBarView = NSView(
+            frame: frameFromTop(in: rootView, x: 0, topY: 0, width: 460, height: 52)
+        )
+        let pageViewport = SubtitleTablePageChromeViewportView(
+            frame: frameFromTop(in: rootView, x: 0, topY: 52, width: 460, height: 308)
+        )
+        rootView.addSubview(topBarView)
+        rootView.addSubview(pageViewport)
+
+        let scrollableHost = SubtitleTablePageChromeHostingView(
+            rootView: AnyView(Color.clear.frame(width: 460, height: 160))
+        )
+        scrollableHost.frame = frameFromTop(
+            in: pageViewport,
+            x: 0,
+            topY: -12,
+            width: 460,
+            height: 160
+        )
+
+        let headerView = SubtitleVirtualTableHeaderView(
+            frame: frameFromTop(in: pageViewport, x: 0, topY: 44, width: 460, height: 32)
+        )
+
+        let pinnedHost = SubtitleTablePageChromeHostingView(
+            rootView: AnyView(Color.clear.frame(width: 460, height: 44))
+        )
+        pinnedHost.frame = frameFromTop(
+            in: pageViewport,
+            x: 0,
+            topY: 0,
+            width: 460,
+            height: 44
+        )
+
+        // Subview order in pageViewport: lower Cover Summary host -> fixed table header -> sticky toolbar host.
+        pageViewport.addSubview(scrollableHost)
+        pageViewport.addSubview(headerView)
+        pageViewport.addSubview(pinnedHost)
+        rootView.layoutSubtreeIfNeeded()
+        scrollableHost.layoutSubtreeIfNeeded()
+        pinnedHost.layoutSubtreeIfNeeded()
+
+        func makeSelectableNode(
+            in parent: NSView,
+            text: String,
+            x: CGFloat,
+            topY: CGFloat,
+            width: CGFloat,
+            height: CGFloat,
+            lineLimit: Int? = 1,
+            lineHeight: CGFloat? = nil
+        ) -> WorkbenchSelectableTextNSView {
+            let view = WorkbenchSelectableTextNSView(
+                frame: frameFromTop(in: parent, x: x, topY: topY, width: width, height: height)
+            )
+            view.configure(
+                text: text,
+                font: .systemFont(ofSize: 13, weight: .regular),
+                textColor: .labelColor,
+                alignment: .left,
+                lineLimit: lineLimit,
+                lineHeight: lineHeight,
+                truncatesTail: true,
+                isSelectable: true,
+                preferredPointerShape: .iBeam,
+                showsUnderline: false,
+                onTap: nil,
+                interfaceLayerContext: InterfaceLayerContext()
+            )
+            parent.addSubview(view)
+            view.prepareLayoutForFlow()
+            return view
+        }
+
+        // Cover Summary nodes inside scrollableHost (shifted -12pt upward in pageViewport):
+        // - titleView at viewport topY 8..<28 -> 100% occluded behind sticky toolbar (0..<44)
+        // - metaView at viewport topY 48..<68 -> 100% occluded behind fixed table header (44..<76)
+        // - synopsisView at viewport topY 56..<96 -> Line 0 (56..<76) occluded behind header, Line 1 (76..<96) visible
+        // - progressView at viewport topY 104..<124 -> 100% visible below fixed table header
+        let titleView = makeSelectableNode(
+            in: scrollableHost,
+            text: "Episode 01",
+            x: 132,
+            topY: 20,
+            width: 240,
+            height: 20
+        )
+        let metaView = makeSelectableNode(
+            in: scrollableHost,
+            text: "Japanese · 24m",
+            x: 132,
+            topY: 60,
+            width: 240,
+            height: 20
+        )
+        let synopsisView = makeSelectableNode(
+            in: scrollableHost,
+            text: "Hidden synopsis line\nVisible synopsis line",
+            x: 132,
+            topY: 68,
+            width: 260,
+            height: 40,
+            lineLimit: 2,
+            lineHeight: 20
+        )
+        let progressView = makeSelectableNode(
+            in: scrollableHost,
+            text: "52% · 12:30",
+            x: 132,
+            topY: 116,
+            width: 200,
+            height: 20
+        )
+
+        // Visible toolbar text in pinnedHost at the exact same vertical band (viewport topY 8..<28) as occluded titleView.
+        let cueCountView = makeSelectableNode(
+            in: pinnedHost,
+            text: "24 Cues",
+            x: 20,
+            topY: 8,
+            width: 80,
+            height: 20
+        )
+
+        // 1. Even with a 52pt main-window top bar (sticky bar maxY = 308 < window maxY = 360),
+        //    occluded nodes behind sticky toolbar and fixed table header clip to nil.
+        #expect(pinnedHost.convert(pinnedHost.bounds, to: nil).maxY == 308)
+        #expect(titleView.visibleWindowClipRect() == nil)
+        #expect(titleView.windowSelectionHitRect() == nil)
+        #expect(metaView.visibleWindowClipRect() == nil)
+        #expect(metaView.windowSelectionHitRect() == nil)
+
+        let synopsisClip = synopsisView.visibleWindowClipRect()
+        #expect(synopsisClip != nil)
+        if let synopsisClip {
+            #expect(abs(synopsisClip.height - 20) < 0.5)
+            #expect(abs(synopsisClip.maxY - 232) < 0.5)
+        }
+        #expect(progressView.visibleWindowClipRect() != nil)
+
+        let occludedTitlePoint = titleView.convert(CGPoint(x: 40, y: 10), to: nil)
+        let occludedMetaPoint = metaView.convert(CGPoint(x: 40, y: 10), to: nil)
+        #expect(titleView.pointerShape(atWindowPoint: occludedTitlePoint) == .arrow)
+        #expect(metaView.pointerShape(atWindowPoint: occludedMetaPoint) == .arrow)
+
+        // 2. Dragging horizontally across sticky bar / fixed header over Cover Summary X-range never activates occluded text.
+        for yInWindow: CGFloat in [290, 250] {
+            let sweepStart = CGPoint(x: 116, y: yInWindow)
+            let sweepEnd = CGPoint(x: 380, y: yInWindow)
+            window.sendEvent(makeMouseEvent(type: .leftMouseDown, locationInWindow: sweepStart, windowNumber: window.windowNumber))
+            window.sendEvent(makeMouseEvent(type: .leftMouseDragged, locationInWindow: sweepEnd, windowNumber: window.windowNumber))
+            window.sendEvent(makeMouseEvent(type: .leftMouseUp, locationInWindow: sweepEnd, windowNumber: window.windowNumber))
+            #expect(!WorkbenchStaticTextSelectionCoordinator.shared.hasSelection)
+            #expect(!titleView.hasSelection)
+            #expect(!metaView.hasSelection)
+        }
+
+        // 3. Dragging across visible "24 Cues" in sticky bar never merges (\t) with occluded titleView at the same Y.
+        let cueStart = cueCountView.convert(CGPoint(x: 1, y: 10), to: nil)
+        let stickyRight = CGPoint(x: 380, y: cueStart.y)
+        cueCountView.mouseDown(with: makeMouseEvent(type: .leftMouseDown, locationInWindow: cueStart, windowNumber: window.windowNumber))
+        cueCountView.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: stickyRight, windowNumber: window.windowNumber))
+        cueCountView.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: stickyRight, windowNumber: window.windowNumber))
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText == "24 Cues")
+        #expect(!titleView.hasSelection)
+
+        // 4a. Dragging from visible "24 Cues" in sticky bar down into visible progressView skips 100%-occluded Cover Summary rows.
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        let progressEnd = progressView.convert(CGPoint(x: 180, y: 10), to: nil)
+        cueCountView.mouseDown(with: makeMouseEvent(type: .leftMouseDown, locationInWindow: cueStart, windowNumber: window.windowNumber))
+        cueCountView.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: progressEnd, windowNumber: window.windowNumber))
+        cueCountView.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: progressEnd, windowNumber: window.windowNumber))
+        #expect(!titleView.hasSelection)
+        #expect(!metaView.hasSelection)
+        #expect(cueCountView.selectedText == "24 Cues")
+        #expect(progressView.selectedText == "52% · 12:30")
+
+        // 4b. With sticky bar holding controls only (Excerpt sticky bar), dragging from sticky bar down into progressView
+        //     starts strictly at the first visible line ("Visible synopsis line") and excludes all occluded lines.
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        cueCountView.isHidden = true
+        let stickyBlankStart = CGPoint(x: 160, y: 288)
+        window.sendEvent(makeMouseEvent(type: .leftMouseDown, locationInWindow: stickyBlankStart, windowNumber: window.windowNumber))
+        window.sendEvent(makeMouseEvent(type: .leftMouseDragged, locationInWindow: progressEnd, windowNumber: window.windowNumber))
+        window.sendEvent(makeMouseEvent(type: .leftMouseUp, locationInWindow: progressEnd, windowNumber: window.windowNumber))
+
+        #expect(!titleView.hasSelection)
+        #expect(!metaView.hasSelection)
+        #expect(synopsisView.selectedText == "Visible synopsis line")
+        #expect(progressView.selectedText == "52% · 12:30")
+        #expect(
+            WorkbenchStaticTextSelectionCoordinator.shared.selectedText
+                == "Visible synopsis line\n52% · 12:30"
+        )
+    }
+
+    @Test
+    func externalDragEntrySetsAnchorOwnerAsFirstResponderBeforeFocusSwitchAndPreservesOwnershipOnRetract() {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        defer { WorkbenchStaticTextSelectionCoordinator.shared.clearSelection() }
+
+        final class InitialResponderView: NSView {
+            override var acceptsFirstResponder: Bool { true }
+        }
+
+        let (window, rootView) = makeTestWindow(size: CGSize(width: 400, height: 220))
+        let initialResponder = InitialResponderView(frame: CGRect(x: 16, y: 180, width: 60, height: 24))
+        rootView.addSubview(initialResponder)
+
+        let titleView = WorkbenchSelectableTextNSView(frame: CGRect(x: 80, y: 140, width: 220, height: 22))
+        titleView.configure(
+            text: "Episode 01",
+            font: .systemFont(ofSize: 13, weight: .semibold),
+            textColor: .labelColor,
+            alignment: .left,
+            lineLimit: 1,
+            truncatesTail: true,
+            isSelectable: true,
+            preferredPointerShape: .iBeam,
+            showsUnderline: false,
+            onTap: nil,
+            interfaceLayerContext: InterfaceLayerContext()
+        )
+        rootView.addSubview(titleView)
+
+        let pathView = WorkbenchSelectableTextNSView(frame: CGRect(x: 80, y: 104, width: 260, height: 22))
+        pathView.configure(
+            text: "/Media/Anime/Episode_01.mkv",
+            font: .systemFont(ofSize: 13, weight: .regular),
+            textColor: .labelColor,
+            alignment: .left,
+            lineLimit: 1,
+            truncatesTail: true,
+            isSelectable: true,
+            preferredPointerShape: .iBeam,
+            showsUnderline: false,
+            onTap: nil,
+            interfaceLayerContext: InterfaceLayerContext()
+        )
+        rootView.addSubview(pathView)
+        rootView.layoutSubtreeIfNeeded()
+
+        #expect(window.makeFirstResponder(initialResponder))
+        #expect(window.firstResponder === initialResponder)
+
+        // Start in top-left blank area above titleView and jump diagonally into pathView in one drag event:
+        // anchor is titleView (offset 0), while current hit node is pathView.
+        let blankAboveLeft = CGPoint(x: 24, y: 188)
+        let intoPathPoint = pathView.convert(CGPoint(x: 110, y: 10), to: nil)
+
+        window.sendEvent(makeMouseEvent(type: .leftMouseDown, locationInWindow: blankAboveLeft, windowNumber: window.windowNumber))
+        window.sendEvent(makeMouseEvent(type: .leftMouseDragged, locationInWindow: intoPathPoint, windowNumber: window.windowNumber))
+
+        // Focus must belong to anchor owner (titleView) and must NOT trigger outside-selection clear on switch.
+        #expect(window.firstResponder === titleView)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.activeView === titleView)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.isResponderOwnedByActiveSelection(window.firstResponder))
+        #expect(titleView.selectedText == "Episode 01")
+        #expect(pathView.hasSelection)
+
+        // Retract drag upward back into titleView so pathView loses selection while titleView prefix remains selected.
+        let retractIntoTitle = titleView.convert(CGPoint(x: 52, y: 10), to: nil)
+        window.sendEvent(makeMouseEvent(type: .leftMouseDragged, locationInWindow: retractIntoTitle, windowNumber: window.windowNumber))
+        window.sendEvent(makeMouseEvent(type: .leftMouseUp, locationInWindow: retractIntoTitle, windowNumber: window.windowNumber))
+
+        #expect(!pathView.hasSelection)
+        #expect(titleView.hasSelection)
+        #expect(window.firstResponder === titleView)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.isResponderOwnedByActiveSelection(window.firstResponder))
+
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: window, to: pasteboard))
+        #expect(pasteboard.string(forType: .string) == titleView.selectedText)
+        #expect(titleView.selectedText?.hasPrefix("Epi") == true)
     }
 }
