@@ -541,12 +541,15 @@ struct WorkbenchFormLabel: View {
     let text: String
 
     var body: some View {
-        Text(text)
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeControl,
-                weight: .medium
-            ))
-            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+        WorkbenchSelectableText(
+            text,
+            fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .medium,
+            color: WorkbenchRedesignColors.textPrimary,
+            lineLimit: nil,
+            alignment: .leading
+        )
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

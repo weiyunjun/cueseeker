@@ -366,13 +366,14 @@ struct CueFacetFilterDialog: View {
                 AppIconImage(section.icon, size: WorkbenchControlMetrics.redesignControlIconSize)
                     .foregroundStyle(WorkbenchRedesignColors.textSecondary)
 
-                Text(section.title)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeControl,
-                        weight: .medium
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                    .fixedSize(horizontal: true, vertical: false)
+                WorkbenchSelectableText(
+                    section.title,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                    weight: .medium,
+                    color: WorkbenchRedesignColors.textSecondary,
+                    lineLimit: 1
+                )
+                .fixedSize(horizontal: true, vertical: false)
 
                 if section.selectedCount > 0 {
                     TaskCountBadge(

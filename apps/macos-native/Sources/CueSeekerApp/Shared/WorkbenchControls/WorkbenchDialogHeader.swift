@@ -7,15 +7,16 @@ struct WorkbenchDialogHeader: View {
     let title: String
 
     var body: some View {
-        Text(title)
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignDialogTitleFontSize,
-                weight: .semibold
-            ))
-            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-            .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        WorkbenchSelectableText(
+            title,
+            fontSize: WorkbenchControlMetrics.redesignDialogTitleFontSize,
+            weight: .semibold,
+            color: WorkbenchRedesignColors.textPrimary,
+            lineLimit: nil,
+            alignment: .leading
+        )
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -135,19 +136,22 @@ struct WorkbenchDetailHeaderRow: View {
                 size: WorkbenchControlMetrics.redesignDetailFileIconContainerSize
             )
 
-            Text(title)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: WorkbenchControlMetrics.redesignFontWeightControl
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: 2 * WorkbenchControlMetrics.redesignDetailFileTitleLineHeight,
-                    alignment: .leading
-                )
+            WorkbenchSelectableText(
+                title,
+                fullCopyText: title,
+                fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                weight: WorkbenchControlMetrics.redesignFontWeightControl,
+                color: WorkbenchRedesignColors.textPrimary,
+                lineLimit: 2,
+                truncationMode: .tail,
+                alignment: .leading
+            )
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: 2 * WorkbenchControlMetrics.redesignDetailFileTitleLineHeight,
+                alignment: .leading
+            )
         }
     }
 }
@@ -173,15 +177,20 @@ struct WorkbenchDetailRow<Trailing: View>: View {
 
     var body: some View {
         HStack(alignment: alignment, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            Text(label)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                .frame(
-                    minWidth: isIndex
-                        ? WorkbenchControlMetrics.redesignDetailIndexLabelMinWidth
-                        : WorkbenchControlMetrics.redesignDetailLabelMinWidth,
-                    alignment: .leading
-                )
+            WorkbenchSelectableText(
+                label,
+                fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                color: WorkbenchRedesignColors.textSecondary,
+                lineLimit: nil,
+                alignment: .leading
+            )
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(
+                minWidth: isIndex
+                    ? WorkbenchControlMetrics.redesignDetailIndexLabelMinWidth
+                    : WorkbenchControlMetrics.redesignDetailLabelMinWidth,
+                alignment: .leading
+            )
 
             Spacer(minLength: WorkbenchControlMetrics.redesignSpacing4)
 

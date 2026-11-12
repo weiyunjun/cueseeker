@@ -55,13 +55,16 @@ struct SettingsGroup<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            Text(title)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: .semibold
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+            WorkbenchSelectableText(
+                title,
+                fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                weight: .semibold,
+                color: WorkbenchRedesignColors.textPrimary,
+                lineLimit: nil,
+                alignment: .leading
+            )
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
 
             VStack(spacing: 0) {
                 content
@@ -133,10 +136,14 @@ struct SettingsRowLabel: View {
     let title: String
 
     var body: some View {
-        Text(title)
-            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-            .fixedSize(horizontal: false, vertical: true)
+        WorkbenchSelectableText(
+            title,
+            fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+            color: WorkbenchRedesignColors.textPrimary,
+            lineLimit: nil,
+            alignment: .leading
+        )
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

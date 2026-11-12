@@ -396,13 +396,14 @@ struct AnkiExportDialog: View {
 
         return VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
             HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                Text(side == .front ? L("anki_export.side.front") : L("anki_export.side.back"))
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .semibold
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .padding(.leading, WorkbenchControlMetrics.redesignSpacing2)
+                WorkbenchSelectableText(
+                    side == .front ? L("anki_export.side.front") : L("anki_export.side.back"),
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .semibold,
+                    color: WorkbenchRedesignColors.textPrimary,
+                    lineLimit: 1
+                )
+                .padding(.leading, WorkbenchControlMetrics.redesignSpacing2)
 
                 GeometryReader { buttonProxy in
                     WorkbenchIconButton(

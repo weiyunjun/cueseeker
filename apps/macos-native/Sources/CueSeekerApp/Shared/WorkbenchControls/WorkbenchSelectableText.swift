@@ -207,6 +207,26 @@ private struct WorkbenchSelectableTextSizingLayout: Layout {
             )
         }
     }
+
+    func explicitAlignment(
+        of guide: VerticalAlignment,
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGFloat? {
+        guard lineHeight == nil, let subview = subviews.first else {
+            return nil
+        }
+        let dimensions = subview.dimensions(in: ProposedViewSize(bounds.size))
+        if let explicit = dimensions[explicit: guide] {
+            return bounds.minY + explicit
+        }
+        if guide == .firstTextBaseline || guide == .lastTextBaseline {
+            return bounds.minY + dimensions[guide]
+        }
+        return nil
+    }
 }
 
 private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
@@ -712,6 +732,7 @@ final class WorkbenchSelectableTextNSView:
             super.mouseDown(with: event)
             return
         }
+        (window as? CueSeekerWindow)?.cancelFocusedTextInputIfOutside(at: event.locationInWindow)
         prepareLayoutForFlow()
         let point = convert(event.locationInWindow, from: nil)
         let offset = utf16Offset(at: point)

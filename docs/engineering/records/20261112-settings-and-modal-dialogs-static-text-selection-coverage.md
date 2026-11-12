@@ -1,0 +1,29 @@
+# 2026-11-12: Settings and Modal Dialogs Static Text Selection Coverage
+
+## Requirement Source
+- `docs/human/requirements/20261112-UI-Settings And Modal Dialogs Static Text Selection Coverage.md`
+- `docs/human/design/ui/UI Index.md`
+- `docs/human/design/ui/UI Interaction Rules.md`
+- `docs/human/design/ui/UI Components - Foundations.md`
+- `docs/human/design/ui/UI Components - Domain.md`
+- `docs/human/design/ui/UI Layouts - Workbench.md`
+- `docs/human/design/ui/UI Layouts - Modals.md`
+
+## Summary of Changes
+1. **Shared Dialog Headers, Detail Rows, Form Labels, and Global Empty State (`WorkbenchDialogHeader.swift`, `WorkbenchFormControls.swift`, `WorkbenchEmptyHint.swift`, `WorkbenchSelectableText.swift`)**:
+   - Converted `WorkbenchDialogHeader` main title, `WorkbenchDetailHeaderRow` static object header (`Folder Info` folder name and `Task Info` task type name, preserving full untruncated copy text via `fullCopyText`), and `WorkbenchDetailRow` left-side property labels (including `#1`, `#2`... index labels) to `WorkbenchSelectableText`, forming a continuous static text flow with the already-selectable right-side values (`\t` for same-row key-value peers, `\n` across rows). Kept `File Info`'s clickable paired-file dropdown switcher trigger non-selectable.
+   - Converted `WorkbenchFormLabel` to `WorkbenchSelectableText` and forwarded `.firstTextBaseline` / `.lastTextBaseline` explicit alignment guides in `WorkbenchSelectableTextSizingLayout`, covering form field labels across `Excerpt List Editor` (`Name`, `Description`), `Rename` (`Current Name`, `New Name`, with `Current Name` + value copying as `\t`-separated horizontal peers), Remote Folder Step 1 (`Address`, `Port`, `Username`, `Password`), and `Export to Anki` (`File Name`, `Location`).
+   - Converted `WorkbenchEmptyHint` (`C-09.2 Empty State`) message copy to centered `WorkbenchSelectableText` while isolating `.allowsHitTesting(false)` to `AppEmptyStateIconView`, enabling `I-beam` hover and selection across all empty-state hints both with and without an optional action button.
+2. **Settings Right-Side Categories & Modal `NSSwitch` / `NSControl` Drag-Entry Cancellation (`SettingsLayout.swift`, `CueSeekerMainWindow.swift`)**:
+   - Converted `SettingsGroup` group titles and `SettingsRowLabel` setting/shortcut row names to `WorkbenchSelectableText`, covering all four `Settings` categories (`General`, `Play`, `Shortcuts`, `Subtitle`) as well as property group titles inside `Folder Info`, `File Info`, and `Task Info`, while keeping the Settings sidebar navigation, topbar chrome, switches, segmented controls, dropdown buttons, color swatches, `Shortcut Field` (`C-01.5`) / `Keycap` capsules, and restore-default buttons non-selectable.
+   - Intercepted AppKit `NSControl` (`NSSwitch` / `NSButton`) modal mouse-tracking events (`trackEvents`, `nextEvent`, and scoped local event monitor) in `CueSeekerWindow` when a press on a right-side control drags into static text: immediately enters `WorkbenchStaticTextSelectionCoordinator` external drag selection, detaches `control.action` for the cancelled gesture, terminates modal tracking cleanly via an offscreen mouse-up, and restores `NSSwitch.state` so dragging across switches selects setting text without toggling the switch.
+   - Allowed uncovered `.dialog`-layer `WorkbenchSelectableTextNSView` nodes to acquire `firstResponder` when `CueSeekerWindow.isFocusLocked()` is active on `SettingsWindow` so `Confirmation` dialogs inside `Settings` validate `Cmd + C` / `Edit -> Copy`.
+3. **Remaining Modal Dialog Headers & Support Copy (`TaskPanel.swift`, `AnkiExportDialog.swift`, `CueFacetFilterPanel.swift`, `LibraryEditCoverDialog.swift`, `ExcerptListEditor.swift`)**:
+   - Converted `TaskPanel`'s top-left `Task` title, `AnkiExportDialog`'s `Front` / `Back` column titles (`\t` horizontal peer copy), `CueFacetFilterDialog`'s section titles (excluding trailing count badges and `Filter Chip` capsules), and `LibraryCoverEditingCopy.hint` (`Support Text` in `Edit Cover` and `Excerpt List Editor`) to `WorkbenchSelectableText`.
+   - Preserved `.cueSeekerNativeDragRegion()` ownership on `AnkiCardBadgeRow` draggable field capsules and `LibraryCoverCropEditor` crop canvas, leaving `WorkbenchStaticTextSelectionCoordinator.swift` untouched.
+4. **Unit & Integration Tests (`SettingsAndDialogsStaticTextSelectionTests.swift`)**:
+   - Verified static text selection coverage, `\t` / `\n` clipboard serialization, `Settings` `NSSwitch` click vs drag-left cancellation (both `ON` and `OFF` initial states), `SettingsWindow` `Confirmation` focus-lock responder acquisition, `File Info` paired-file dropdown exclusion, and `.nativeDrag` gesture boundaries across `Settings`, `Folder / File / Task Info`, `Rename`, `Export to Anki`, `Filter`, `Edit Cover`, `Excerpt List Editor`, `WebDAV Folder`, `Task`, and `WorkbenchEmptyHint`.
+
+## Verification
+- Passed all 54 targeted unit and integration tests across `WorkbenchSelectableTextTests` (including `SettingsAndDialogsStaticTextSelectionTests`), `SubtitleTableExternalTextSelectionTests`, `FileDetailDialogTests`, `WebDAVFolderDialogTests`, `SMBFolderDialogTests`, `FTPNFSFolderDialogTests`, and `NoFolderOnboardingAndFileEmptyStateTests` (`swift test --package-path apps/macos-native --no-parallel`).
+- End-to-end visual and interactive verification is ready for user acceptance.

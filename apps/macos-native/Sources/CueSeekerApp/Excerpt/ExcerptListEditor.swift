@@ -240,13 +240,15 @@ struct ExcerptListEditorDialog: View {
                 }
             }
 
-            Text(LibraryCoverEditingCopy.hint)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: .regular
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                .fixedSize(horizontal: false, vertical: true)
+            WorkbenchSelectableText(
+                LibraryCoverEditingCopy.hint,
+                fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                weight: .regular,
+                color: WorkbenchRedesignColors.textMuted,
+                lineLimit: nil,
+                alignment: .leading
+            )
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 

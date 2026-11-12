@@ -5,11 +5,21 @@ import CueSeekerCore
 /// managing text input focus cancellation on outside clicks and accessibility
 /// focus clearing on mouse down.
 class CueSeekerWindow: NSWindow {
+    private struct TrackedControlMouseSession {
+        weak var control: NSControl?
+        let initialSwitchState: NSControl.StateValue?
+        let savedAction: Selector?
+        var didCancelIntoTextSelection = false
+    }
+
     private(set) var hasUserFocusedTextInput = false
     /// Set by the App once the interface layer registry exists.
     var isFocusLocked: () -> Bool = { false }
     /// Clears any active keyboard/controller accessibility focus when the user clicks with the mouse.
     var onMouseDownClearAccessibility: (() -> Void)?
+    private var trackedControlSession: TrackedControlMouseSession?
+    private var lastHandledModalTrackingEventIdentity: ObjectIdentifier?
+    private var modalTrackingEventMonitor: Any?
 
     static var activeKeyWindow: NSWindow? {
         NSApp.keyWindow ?? NSApp.mainWindow
@@ -65,7 +75,7 @@ class CueSeekerWindow: NSWindow {
                 WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
             }
         }
-        guard !isFocusLocked() || Self.allowsFirstResponderDuringMenuModality(responder) else {
+        guard !isFocusLocked() || Self.allowsFirstResponderWhenFocusLocked(responder, in: self) else {
             return false
         }
         let accepted = super.makeFirstResponder(responder)
@@ -193,6 +203,16 @@ class CueSeekerWindow: NSWindow {
         default:
             break
         }
+        let beganTrackedControlSession = event.type == .leftMouseDown
+            ? MainActor.assumeIsolated { beginTrackedControlMouseSessionIfNeeded(for: event) }
+            : false
+        defer {
+            if beganTrackedControlSession {
+                MainActor.assumeIsolated {
+                    endTrackedControlMouseSession()
+                }
+            }
+        }
         super.sendEvent(event)
         if event.type == .leftMouseDown || event.type == .rightMouseDown {
             hasUserFocusedTextInput = hasFocusedTextInput
@@ -200,6 +220,230 @@ class CueSeekerWindow: NSWindow {
                 refreshFocusedTextInputInsertionPoint()
             }
         }
+    }
+
+    override func trackEvents(
+        matching mask: NSEvent.EventTypeMask,
+        timeout: TimeInterval,
+        mode: RunLoop.Mode,
+        handler trackingHandler: (NSEvent?, UnsafeMutablePointer<ObjCBool>) -> Void
+    ) {
+        guard trackedControlSession != nil else {
+            super.trackEvents(matching: mask, timeout: timeout, mode: mode, handler: trackingHandler)
+            return
+        }
+        super.trackEvents(matching: mask, timeout: timeout, mode: mode) { event, stop in
+            guard let event else {
+                trackingHandler(nil, stop)
+                return
+            }
+            nonisolated(unsafe) var cancelledIntoSelection = false
+            nonisolated(unsafe) var replacementEvent: NSEvent?
+            MainActor.assumeIsolated {
+                let outcome = self.evaluateTrackedControlModalEvent(event)
+                cancelledIntoSelection = outcome.cancelledIntoSelection
+                replacementEvent = outcome.replacementEvent
+            }
+            trackingHandler(replacementEvent ?? event, stop)
+            if cancelledIntoSelection {
+                MainActor.assumeIsolated {
+                    self.restoreCancelledTrackedSwitchStateIfNeeded()
+                }
+            }
+        }
+    }
+
+    override func nextEvent(
+        matching mask: NSEvent.EventTypeMask,
+        until expiration: Date?,
+        inMode mode: RunLoop.Mode,
+        dequeue deqFlag: Bool
+    ) -> NSEvent? {
+        let event = super.nextEvent(matching: mask, until: expiration, inMode: mode, dequeue: deqFlag)
+        guard deqFlag, trackedControlSession != nil, let event else {
+            return event
+        }
+        nonisolated(unsafe) var cancelledIntoSelection = false
+        nonisolated(unsafe) var replacementEvent: NSEvent?
+        MainActor.assumeIsolated {
+            let outcome = self.evaluateTrackedControlModalEvent(event)
+            cancelledIntoSelection = outcome.cancelledIntoSelection
+            replacementEvent = outcome.replacementEvent
+        }
+        if cancelledIntoSelection {
+            return replacementEvent ?? event
+        }
+        return event
+    }
+
+    @MainActor
+    func beginTrackedControlMouseSessionIfNeeded(for event: NSEvent) -> Bool {
+        endTrackedControlMouseSession()
+        guard let root = contentView else {
+            return false
+        }
+        let windowPoint = event.locationInWindow
+        let hitView = root.superview?.hitTest(windowPoint)
+            ?? root.hitTest(root.convert(windowPoint, from: nil))
+        guard !SubtitleTableTextSelectionHitTesting.ownsDragOrTextInputGesture(
+            hitView,
+            atWindowPoint: windowPoint,
+            in: self
+        ),
+        let control = SubtitleTableTextSelectionHitTesting.enclosingEnabledControl(of: hitView)
+        else {
+            return false
+        }
+
+        trackedControlSession = TrackedControlMouseSession(
+            control: control,
+            initialSwitchState: (control as? NSSwitch)?.state,
+            savedAction: control.action
+        )
+        lastHandledModalTrackingEventIdentity = nil
+        modalTrackingEventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDragged, .leftMouseUp]
+        ) { [weak self] trackedEvent in
+            nonisolated(unsafe) let incomingEvent = trackedEvent
+            nonisolated(unsafe) var resultEvent: NSEvent? = trackedEvent
+            MainActor.assumeIsolated {
+                guard let self, self.trackedControlSession != nil else {
+                    return
+                }
+                let outcome = self.evaluateTrackedControlModalEvent(incomingEvent)
+                if outcome.cancelledIntoSelection {
+                    resultEvent = outcome.replacementEvent ?? incomingEvent
+                }
+            }
+            return resultEvent
+        }
+        return true
+    }
+
+    @MainActor
+    func endTrackedControlMouseSession() {
+        if let monitor = modalTrackingEventMonitor {
+            NSEvent.removeMonitor(monitor)
+            modalTrackingEventMonitor = nil
+        }
+        lastHandledModalTrackingEventIdentity = nil
+        guard let session = trackedControlSession else {
+            return
+        }
+        trackedControlSession = nil
+        if session.didCancelIntoTextSelection, let control = session.control {
+            if let nsSwitch = control as? NSSwitch,
+               let initial = session.initialSwitchState,
+               nsSwitch.state != initial
+            {
+                nsSwitch.state = initial
+            }
+            control.action = session.savedAction
+            control.isHighlighted = false
+            control.cell?.isHighlighted = false
+            control.needsDisplay = true
+        }
+    }
+
+    @MainActor
+    private func restoreCancelledTrackedSwitchStateIfNeeded() {
+        guard let session = trackedControlSession,
+              session.didCancelIntoTextSelection,
+              let nsSwitch = session.control as? NSSwitch,
+              let initial = session.initialSwitchState,
+              nsSwitch.state != initial
+        else {
+            return
+        }
+        nsSwitch.state = initial
+        nsSwitch.isHighlighted = false
+        nsSwitch.needsDisplay = true
+    }
+
+    @MainActor
+    private func evaluateTrackedControlModalEvent(
+        _ event: NSEvent
+    ) -> (cancelledIntoSelection: Bool, replacementEvent: NSEvent?) {
+        guard var session = trackedControlSession,
+              event.window === self || event.windowNumber == windowNumber
+        else {
+            return (false, event)
+        }
+        if event.locationInWindow == SubtitleTableTextSelectionHitTesting.offscreenMouseLocation {
+            return (session.didCancelIntoTextSelection, event)
+        }
+        let identity = ObjectIdentifier(event)
+        guard lastHandledModalTrackingEventIdentity != identity else {
+            return (session.didCancelIntoTextSelection, event)
+        }
+        lastHandledModalTrackingEventIdentity = identity
+
+        let disposition: WindowMouseEventDisposition
+        switch event.type {
+        case .leftMouseDragged:
+            PointerHoverScrollState.shared.notePointerMoved()
+            disposition = WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseDragged(
+                window: self,
+                event: event
+            )
+            if self is CueSeekerMainWindow {
+                AppPointerShape.pointerMoved(in: self, at: event.locationInWindow)
+            }
+        case .leftMouseUp:
+            disposition = WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseUp(
+                window: self,
+                event: event
+            )
+            if self is CueSeekerMainWindow {
+                AppPointerShape.pointerMoved(in: self, at: event.locationInWindow)
+            }
+        default:
+            return (false, event)
+        }
+
+        switch disposition {
+        case .passthrough:
+            if session.didCancelIntoTextSelection {
+                return (
+                    true,
+                    SubtitleTableTextSelectionHitTesting.offscreenMouseEvent(
+                        from: event,
+                        type: event.type
+                    )
+                )
+            }
+            return (false, event)
+        case .consume:
+            session.didCancelIntoTextSelection = true
+            cancelTrackedControlInSession(&session)
+            trackedControlSession = session
+            return (
+                true,
+                SubtitleTableTextSelectionHitTesting.offscreenMouseEvent(
+                    from: event,
+                    type: event.type
+                )
+            )
+        case .redirect(let redirectedEvent):
+            session.didCancelIntoTextSelection = true
+            cancelTrackedControlInSession(&session)
+            trackedControlSession = session
+            return (true, redirectedEvent)
+        }
+    }
+
+    @MainActor
+    private func cancelTrackedControlInSession(_ session: inout TrackedControlMouseSession) {
+        guard let control = session.control else { return }
+        control.action = nil
+        control.isHighlighted = false
+        control.cell?.isHighlighted = false
+        if let nsSwitch = control as? NSSwitch,
+           let initial = session.initialSwitchState
+        {
+            nsSwitch.state = initial
+        }
+        control.needsDisplay = true
     }
 
     func cancelFocusedTextInputIfOutside(at windowPoint: NSPoint) {
@@ -336,6 +580,23 @@ class CueSeekerWindow: NSWindow {
         }
         return MainActor.assumeIsolated {
             selectableText.allowsMenuModalInteraction && selectableText.canInteract
+        }
+    }
+
+    fileprivate static func allowsFirstResponderWhenFocusLocked(
+        _ responder: NSResponder?,
+        in window: CueSeekerWindow
+    ) -> Bool {
+        if allowsFirstResponderDuringMenuModality(responder) {
+            return true
+        }
+        guard !(window is CueSeekerMainWindow),
+              let selectableText = responder as? WorkbenchSelectableTextNSView
+        else {
+            return false
+        }
+        return MainActor.assumeIsolated {
+            selectableText.interfaceLayerContext.layer == .dialog && selectableText.canInteract
         }
     }
 }

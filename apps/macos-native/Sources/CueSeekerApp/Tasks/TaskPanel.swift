@@ -108,17 +108,21 @@ struct TaskPanel: View {
             trailingInset: WorkbenchControlMetrics.redesignDialogInset,
             minimumGap: WorkbenchControlMetrics.redesignSpacing3
         ) {
-            Text(titleText)
-                .font(titleFont)
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .workbenchTruncatedTextTooltip(
-                    scenarioID: "truncated.dialog.title",
-                    text: titleText,
-                    font: titleFont
-                )
-                .allowsHitTesting(false)
+            WorkbenchSelectableText(
+                titleText,
+                fullCopyText: titleText,
+                fontSize: WorkbenchControlMetrics.redesignDialogTitleFontSize,
+                weight: .semibold,
+                color: WorkbenchRedesignColors.textPrimary,
+                lineLimit: 1,
+                truncationMode: .tail,
+                alignment: .leading
+            )
+            .workbenchTruncatedTextTooltip(
+                scenarioID: "truncated.dialog.title",
+                text: titleText,
+                font: titleFont
+            )
         } center: {
             WorkbenchTabs(
                 items: TaskQueueTab.allCases.map {

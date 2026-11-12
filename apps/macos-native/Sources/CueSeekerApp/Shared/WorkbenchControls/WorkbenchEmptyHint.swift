@@ -25,23 +25,24 @@ struct WorkbenchEmptyHint: View {
     }
 
     var body: some View {
-        let hasAction = actionTitle != nil && action != nil
         VStack(spacing: WorkbenchControlMetrics.redesignEmptyStateIconToTextGap) {
             VStack(spacing: WorkbenchControlMetrics.redesignEmptyStateIconToTextGap) {
                 AppEmptyStateIconView(
                     icon: icon,
                     size: WorkbenchControlMetrics.redesignEmptyStateIconSize
                 )
+                .allowsHitTesting(false)
 
-                Text(message)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .multilineTextAlignment(.center)
+                WorkbenchSelectableText(
+                    message,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .regular,
+                    color: WorkbenchRedesignColors.textMuted,
+                    lineLimit: nil,
+                    alignment: .center
+                )
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .allowsHitTesting(false)
 
             if let actionTitle, let action {
                 WorkbenchButton(
@@ -53,6 +54,5 @@ struct WorkbenchEmptyHint: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        .allowsHitTesting(hasAction)
     }
 }
