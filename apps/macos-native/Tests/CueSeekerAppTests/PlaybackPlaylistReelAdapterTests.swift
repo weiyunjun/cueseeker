@@ -226,6 +226,211 @@ func playbackPlaylistReelAdapterCueGroupRevisionAndMeasurementsStayBounded() thr
 
 @MainActor
 @Test
+func playbackCueResultReelNonTextDragEntryFromMetadataAndMarginsCoexistsWithStaticText() throws {
+    _ = NSApplication.shared
+    WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+    defer { WorkbenchStaticTextSelectionCoordinator.shared.clearSelection() }
+
+    let source = playbackPlaylistReelSource(kind: .search, totalCount: 3)
+    let sessionWindow = try #require(source.makeSessionWindowStore())
+    let adapter = PlaybackCueResultReelAdapter(
+        windowStore: sessionWindow,
+        showsCueGroup: true
+    )
+
+    let window = CueSeekerMainWindow(
+        contentRect: CGRect(x: 0, y: 0, width: 640, height: 700),
+        styleMask: [.titled, .closable, .resizable],
+        backing: .buffered,
+        defer: false
+    )
+    window.isReleasedWhenClosed = false
+    let container = NSView(frame: CGRect(x: 0, y: 0, width: 640, height: 700))
+    window.contentView = container
+    defer { window.contentView = nil }
+
+    let reelView = PlaybackSubtitleFocusReelContainerView(
+        frame: CGRect(x: 0, y: 44, width: 640, height: 656)
+    )
+    var presentedTexts: [String] = []
+    var copiedTexts: [String] = []
+    reelView.onCopySelectedText = { copiedTexts.append($0) }
+    container.addSubview(reelView)
+
+    let footerStatusView = WorkbenchSelectableTextNSView(
+        frame: CGRect(x: 24, y: 8, width: 220, height: 24)
+    )
+    footerStatusView.configure(
+        text: "12 / 120 cues",
+        font: .systemFont(ofSize: 13, weight: .regular),
+        textColor: .secondaryLabelColor,
+        alignment: .left,
+        lineLimit: 1,
+        truncatesTail: true,
+        isSelectable: true,
+        preferredPointerShape: .iBeam,
+        showsUnderline: false,
+        onTap: nil,
+        interfaceLayerContext: InterfaceLayerContext()
+    )
+    container.addSubview(footerStatusView)
+    footerStatusView.prepareLayoutForFlow()
+
+    reelView.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 0,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    container.layoutSubtreeIfNeeded()
+
+    let documentView = reelView.documentViewForTesting
+    let originalPresent = documentView.onPresentSelectedTextActions
+    documentView.onPresentSelectedTextActions = { text, ordinal, pointInCue in
+        presentedTexts.append(text)
+        originalPresent(text, ordinal, pointInCue)
+    }
+    let placements = reelView.placementsForTesting
+    let firstPlacement = try #require(placements.first)
+    let lineRects = documentView.selectableTextRectsForTesting(at: firstPlacement.ordinal)
+    let primaryRect = try #require(lineRects.first)
+    let lastRect = try #require(lineRects.last)
+
+    // 1. Start in metadata/bottom area below selectable text rects -> drag up-left into cue group line.
+    let metadataStart = CGPoint(x: lastRect.maxX - 4, y: firstPlacement.rect.maxY - 6)
+    #expect(!lineRects.contains { $0.contains(metadataStart) })
+    let insideLastLine = CGPoint(x: lastRect.minX + 18, y: lastRect.midY)
+
+    documentView.mouseDown(with: NSEvent.mouseEvent(
+        with: .leftMouseDown,
+        location: documentView.convert(metadataStart, to: nil),
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 1,
+        pressure: 1
+    )!)
+    documentView.mouseDragged(with: NSEvent.mouseEvent(
+        with: .leftMouseDragged,
+        location: documentView.convert(insideLastLine, to: nil),
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 1,
+        pressure: 1
+    )!)
+    documentView.mouseUp(with: NSEvent.mouseEvent(
+        with: .leftMouseUp,
+        location: documentView.convert(insideLastLine, to: nil),
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 1,
+        pressure: 1
+    )!)
+    #expect(presentedTexts.count == 1)
+    #expect(presentedTexts[0].hasSuffix("-0"))
+    #expect(reelView.selectedTextMenuFrameForTesting != nil)
+
+    // 2. Select footer status text -> Cue Reel selection and action menu dismiss; then reel drag clears static text.
+    footerStatusView.prepareLayoutForFlow()
+    let footerStart = footerStatusView.convert(CGPoint(x: 2, y: footerStatusView.bounds.midY), to: nil)
+    let footerEnd = footerStatusView.convert(
+        CGPoint(x: max(12, min(110, footerStatusView.bounds.width - 2)), y: footerStatusView.bounds.midY),
+        to: nil
+    )
+    footerStatusView.mouseDown(with: NSEvent.mouseEvent(
+        with: .leftMouseDown,
+        location: footerStart,
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 1,
+        clickCount: 1,
+        pressure: 1
+    )!)
+    footerStatusView.mouseDragged(with: NSEvent.mouseEvent(
+        with: .leftMouseDragged,
+        location: footerEnd,
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 1,
+        clickCount: 1,
+        pressure: 1
+    )!)
+    footerStatusView.mouseUp(with: NSEvent.mouseEvent(
+        with: .leftMouseUp,
+        location: footerEnd,
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 1,
+        clickCount: 1,
+        pressure: 0
+    )!)
+    #expect(footerStatusView.hasSelection)
+    #expect(!documentView.hasTextSelectionForTesting)
+    #expect(reelView.selectedTextMenuFrameForTesting == nil)
+
+    let aboveFirst = CGPoint(x: primaryRect.minX + 8, y: max(1, firstPlacement.rect.minY - 8))
+    let intoPrimary = CGPoint(x: primaryRect.maxX - 4, y: primaryRect.midY)
+    documentView.mouseDown(with: NSEvent.mouseEvent(
+        with: .leftMouseDown,
+        location: documentView.convert(aboveFirst, to: nil),
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 1,
+        pressure: 1
+    )!)
+    documentView.mouseDragged(with: NSEvent.mouseEvent(
+        with: .leftMouseDragged,
+        location: documentView.convert(intoPrimary, to: nil),
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 1,
+        pressure: 1
+    )!)
+    documentView.mouseUp(with: NSEvent.mouseEvent(
+        with: .leftMouseUp,
+        location: documentView.convert(intoPrimary, to: nil),
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 1,
+        pressure: 1
+    )!)
+    #expect(!footerStatusView.hasSelection)
+    #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText == nil)
+    #expect(presentedTexts.count == 2)
+    #expect(presentedTexts[1].hasPrefix("primary"))
+
+    reelView.invalidate()
+    sessionWindow.invalidate()
+    source.invalidate()
+}
+
+@MainActor
+@Test
 func playbackPlaylistReelAdapterInvalidationPreservesItsSessionWindow() throws {
     let source = playbackPlaylistReelSource(totalCount: 2)
     let originalBoundary = source.boundary

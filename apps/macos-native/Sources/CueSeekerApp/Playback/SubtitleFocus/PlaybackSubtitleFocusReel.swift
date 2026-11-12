@@ -317,6 +317,9 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     /// A menu opening anywhere in the App takes every selection with it, so the
     /// reel drops its own — and the menu hanging off it — when one does.
     @objc private func appClearTextSelection(_ notification: Notification) {
+        if let sender = notification.object as? NSView, sender === documentView {
+            return
+        }
         dismissSelectedTextActions()
     }
 

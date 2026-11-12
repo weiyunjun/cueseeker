@@ -533,6 +533,21 @@ struct WorkbenchAccessibilityStep4Tests {
             overlayFooterHost.layoutSubtreeIfNeeded()
             RunLoop.main.run(until: Date().addingTimeInterval(0.02))
 
+            func collectSelectableTexts(in view: NSView) -> [WorkbenchSelectableTextNSView] {
+                var result: [WorkbenchSelectableTextNSView] = []
+                if let textView = view as? WorkbenchSelectableTextNSView {
+                    result.append(textView)
+                }
+                for subview in view.subviews {
+                    result.append(contentsOf: collectSelectableTexts(in: subview))
+                }
+                return result
+            }
+            let footerSelectableTexts = collectSelectableTexts(in: overlayFooterHost)
+            #expect(footerSelectableTexts.count == 1)
+            #expect(footerSelectableTexts.first?.text == "5 cues")
+            #expect(footerSelectableTexts.first?.canInteract == true)
+
             for expectedActionID in ["excerpt", "copy-cue-text", "copy-deep-link", "play"] {
                 PlaybackCueFooter.lastFocusedActionIDForTesting = nil
                 app.applyPlaybackAccessibilityFocus(

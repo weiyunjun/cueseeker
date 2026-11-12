@@ -3397,4 +3397,80 @@ func subtitleFocusCompleteBatchExpansionPreservesVisibleRowBitmapsWithoutRedunda
     view.invalidate()
 }
 
+@MainActor
+@Test
+func cueReelNonTextDragEntrySelectsFromClampedAnchorAndCollageStaysNonSelectable() throws {
+    let (view, window) = mountedSelectedTextMenuReel()
+    defer { window.contentView = nil }
+
+    let documentView = view.documentViewForTesting
+    let placements = view.placementsForTesting
+    let firstPlacement = try #require(placements.first)
+    let firstLineRect = try #require(
+        documentView.selectableTextRectsForTesting(at: firstPlacement.ordinal).first
+    )
+    var presentedTexts: [String] = []
+    let originalPresent = documentView.onPresentSelectedTextActions
+    documentView.onPresentSelectedTextActions = { text, ordinal, pointInCue in
+        presentedTexts.append(text)
+        originalPresent(text, ordinal, pointInCue)
+    }
+
+    // 1. Stationary click in non-text gap selects nothing and opens no menu.
+    let gapAboveFirst = CGPoint(x: firstLineRect.minX + 12, y: max(1, firstPlacement.rect.minY - 8))
+    documentView.mouseDown(with: selectedTextMouseEvent(.leftMouseDown, at: gapAboveFirst, in: documentView, window: window))
+    documentView.mouseUp(with: selectedTextMouseEvent(.leftMouseUp, at: gapAboveFirst, in: documentView, window: window))
+    #expect(!documentView.hasTextSelectionForTesting)
+    #expect(presentedTexts.isEmpty)
+    #expect(view.selectedTextMenuFrameForTesting == nil)
+
+    // 2. Drag from above the first line (top margin/padding) down-right into line -> starts at index 0.
+    let enterTopPoint = CGPoint(x: firstLineRect.minX + 36, y: firstLineRect.midY)
+    documentView.mouseDown(with: selectedTextMouseEvent(.leftMouseDown, at: gapAboveFirst, in: documentView, window: window))
+    documentView.mouseDragged(with: selectedTextMouseEvent(.leftMouseDragged, at: enterTopPoint, in: documentView, window: window))
+    #expect(documentView.hasTextSelectionForTesting)
+    #expect(documentView.pointerShape(atWindowPoint: documentView.convert(gapAboveFirst, to: nil)) == .iBeam)
+    documentView.mouseUp(with: selectedTextMouseEvent(.leftMouseUp, at: enterTopPoint, in: documentView, window: window))
+    #expect(presentedTexts.count == 1)
+    #expect(presentedTexts[0].hasPrefix("c"))
+    #expect(view.selectedTextMenuFrameForTesting != nil)
+
+    // 3. Drag from bottom gap/padding below a cue upward into its last line -> anchors at line end.
+    let midOrdinal = 20
+    let midPlacement = try #require(placements.first { $0.ordinal == midOrdinal })
+    let midLineRects = documentView.selectableTextRectsForTesting(at: midOrdinal)
+    let midLastLine = try #require(midLineRects.last)
+    let belowMidPadding = CGPoint(x: midLastLine.midX, y: midPlacement.rect.maxY + 8)
+    let midLeftPoint = CGPoint(x: midLastLine.midX - 18, y: midLastLine.midY)
+    documentView.mouseDown(with: selectedTextMouseEvent(.leftMouseDown, at: belowMidPadding, in: documentView, window: window))
+    documentView.mouseDragged(with: selectedTextMouseEvent(.leftMouseDragged, at: midLeftPoint, in: documentView, window: window))
+    #expect(documentView.hasTextSelectionForTesting)
+    documentView.mouseUp(with: selectedTextMouseEvent(.leftMouseUp, at: midLeftPoint, in: documentView, window: window))
+    #expect(presentedTexts.count == 2)
+    #expect(presentedTexts[1].hasSuffix("\(midOrdinal)"))
+
+    // 4. Collage editing stays completely non-selectable even when dragging from padding across text.
+    let cues = focusLayoutCues(0..<40)
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 20,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false,
+        collageSelectedCueIDs: [],
+        collageCanSelectAnotherCue: true
+    )
+    view.layoutSubtreeIfNeeded()
+    let collageMidLine = try #require(documentView.selectableTextRectsForTesting(at: 20).first)
+    documentView.mouseDown(with: selectedTextMouseEvent(.leftMouseDown, at: belowMidPadding, in: documentView, window: window))
+    documentView.mouseDragged(with: selectedTextMouseEvent(.leftMouseDragged, at: CGPoint(x: collageMidLine.midX, y: collageMidLine.midY), in: documentView, window: window))
+    #expect(!documentView.hasTextSelectionForTesting)
+    #expect(documentView.pointerShape(atWindowPoint: documentView.convert(CGPoint(x: collageMidLine.midX, y: collageMidLine.midY), to: nil)) == .arrow)
+    documentView.mouseUp(with: selectedTextMouseEvent(.leftMouseUp, at: CGPoint(x: collageMidLine.midX, y: collageMidLine.midY), in: documentView, window: window))
+    #expect(presentedTexts.count == 2)
+    view.invalidate()
+}
+
 

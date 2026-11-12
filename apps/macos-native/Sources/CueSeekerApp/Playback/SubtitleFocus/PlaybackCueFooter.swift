@@ -260,13 +260,14 @@ struct PlaybackCueFooter: View {
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
             if let status {
-                Text(status)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .regular
-                    ))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("playback-cue-footer-status")
+                WorkbenchSelectableText(
+                    status,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .regular,
+                    color: WorkbenchRedesignColors.textMuted
+                )
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("playback-cue-footer-status")
             }
 
             WorkbenchAccessibilityReader { accessibility in

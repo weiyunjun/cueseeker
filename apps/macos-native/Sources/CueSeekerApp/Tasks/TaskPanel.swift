@@ -584,11 +584,14 @@ private struct TaskCurrentQueuedContent: View {
     let entry: TaskQueueEntry
 
     var body: some View {
-        Text(queuedText)
-            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
-            .foregroundStyle(WorkbenchRedesignColors.textMuted)
-            .lineLimit(1)
-            .truncationMode(.middle)
+        WorkbenchSelectableText(
+            queuedText,
+            fontSize: WorkbenchControlMetrics.redesignFontSizeCaption,
+            weight: .regular,
+            color: WorkbenchRedesignColors.textMuted,
+            lineLimit: 1,
+            truncationMode: .middle
+        )
     }
 
     private var queuedText: String {
@@ -614,10 +617,14 @@ private struct TaskCurrentRunningContent: View {
         case .index, .addFolder:
             TaskRunningIndexContent(progress: entry.progress)
         case .removeFolder:
-            Text(L("task.progress.removing"))
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
-                .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                .lineLimit(1)
+            WorkbenchSelectableText(
+                L("task.progress.removing"),
+                fontSize: WorkbenchControlMetrics.redesignFontSizeCaption,
+                weight: .regular,
+                color: WorkbenchRedesignColors.textMuted,
+                lineLimit: 1,
+                truncationMode: .middle
+            )
         }
     }
 }
@@ -628,11 +635,14 @@ private struct TaskRunningAnkiContent: View {
     let itemCount: Int
 
     var body: some View {
-        Text(L("task.progress.exported", progress.exportedCount, itemCount, progress.failedCount))
-            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
-            .foregroundStyle(WorkbenchRedesignColors.textMuted)
-            .lineLimit(1)
-            .truncationMode(.middle)
+        WorkbenchSelectableText(
+            L("task.progress.exported", progress.exportedCount, itemCount, progress.failedCount),
+            fontSize: WorkbenchControlMetrics.redesignFontSizeCaption,
+            weight: .regular,
+            color: WorkbenchRedesignColors.textMuted,
+            lineLimit: 1,
+            truncationMode: .middle
+        )
 
         TaskProgressBarRow(fraction: fraction)
     }
@@ -648,11 +658,14 @@ private struct TaskRunningRenameContent: View {
     @ObservedObject var progress: TaskProgressModel
 
     var body: some View {
-        Text(progress.renameStage.label)
-            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
-            .foregroundStyle(WorkbenchRedesignColors.textMuted)
-            .lineLimit(1)
-            .truncationMode(.middle)
+        WorkbenchSelectableText(
+            progress.renameStage.label,
+            fontSize: WorkbenchControlMetrics.redesignFontSizeCaption,
+            weight: .regular,
+            color: WorkbenchRedesignColors.textMuted,
+            lineLimit: 1,
+            truncationMode: .middle
+        )
 
         TaskProgressBarRow(fraction: progress.renameStage.fraction)
     }
@@ -663,11 +676,14 @@ private struct TaskRunningIndexContent: View {
     @ObservedObject var progress: TaskProgressModel
 
     var body: some View {
-        Text(progress.indexProgress.label)
-            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
-            .foregroundStyle(WorkbenchRedesignColors.textMuted)
-            .lineLimit(1)
-            .truncationMode(.middle)
+        WorkbenchSelectableText(
+            progress.indexProgress.label,
+            fontSize: WorkbenchControlMetrics.redesignFontSizeCaption,
+            weight: .regular,
+            color: WorkbenchRedesignColors.textMuted,
+            lineLimit: 1,
+            truncationMode: .middle
+        )
 
         TaskProgressBarRow(fraction: progress.indexProgress.fraction)
     }
@@ -709,19 +725,25 @@ private struct TaskHistoryCard: View {
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
                 TaskCardTitleView(title: record.displayTitle)
  
-                 Text(subtitleText)
-                     .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
-                     .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                     .lineLimit(1)
-                     .truncationMode(.middle)
+                 WorkbenchSelectableText(
+                     subtitleText,
+                     fontSize: WorkbenchControlMetrics.redesignFontSizeCaption,
+                     weight: .regular,
+                     color: WorkbenchRedesignColors.textMuted,
+                     lineLimit: 1,
+                     truncationMode: .middle
+                 )
  
                  if record.state == .incomplete, let errorMessage = record.errorMessage {
-                     Text(errorMessage)
-                         .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
-                         .foregroundStyle(WorkbenchRedesignColors.dangerText)
-                         .lineLimit(1)
-                         .truncationMode(.tail)
-                         .frame(height: WorkbenchControlMetrics.redesignTaskCardLine3Height, alignment: .leading)
+                     WorkbenchSelectableText(
+                         errorMessage,
+                         fontSize: WorkbenchControlMetrics.redesignFontSizeCaption,
+                         weight: .regular,
+                         color: WorkbenchRedesignColors.dangerText,
+                         lineLimit: 1,
+                         truncationMode: .tail
+                     )
+                     .frame(height: WorkbenchControlMetrics.redesignTaskCardLine3Height, alignment: .leading)
                  }
              }
              .frame(maxWidth: .infinity, alignment: .leading)
@@ -780,14 +802,14 @@ private struct TaskHistoryCard: View {
      let title: String
  
      var body: some View {
-         Text(title)
-             .font(.system(
-                 size: WorkbenchControlMetrics.redesignFontSizeBody,
-                 weight: WorkbenchControlMetrics.redesignFontWeightControl
-             ))
-             .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-             .lineLimit(1)
-             .truncationMode(.middle)
+         WorkbenchSelectableText(
+             title,
+             fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+             weight: WorkbenchControlMetrics.redesignFontWeightControl,
+             color: WorkbenchRedesignColors.textPrimary,
+             lineLimit: 1,
+             truncationMode: .middle
+         )
      }
  }
 
@@ -851,7 +873,7 @@ private struct TaskCardContainer<Content: View>: View {
             cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
             style: .continuous
         ))
-        .onPointerHover { isHovered = $0 }
+        .onPointerHover(tracksHostedContent: true) { isHovered = $0 }
     }
 }
 

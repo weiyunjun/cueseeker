@@ -148,6 +148,12 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     }
 
     private static let sRGBColorSpace = CGColorSpace(name: CGColorSpace.sRGB)
+    private static let dragSelectionThreshold: CGFloat = 3.0
+
+    private struct ArmedNonTextSelectionDrag {
+        let startPoint: CGPoint
+        var lastPoint: CGPoint
+    }
 
     private struct RowBitmapCacheKey: Hashable {
         let itemID: AnyHashable
@@ -216,6 +222,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     private(set) var placements: [PlaybackSubtitleFocusCuePlacement] = []
     /// Set while a drag started in this view is choosing text.
     private var isSelectingText = false
+    private var armedNonTextSelectionDrag: ArmedNonTextSelectionDrag?
     private var pendingCollageCueOrdinal: Int?
 
     override var isFlipped: Bool {
@@ -957,23 +964,55 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         if let placement = collagePlacement(containing: point) {
             pendingCollageCueOrdinal = placement.ordinal
             isSelectingText = false
+            armedNonTextSelectionDrag = nil
             return
         }
         pendingCollageCueOrdinal = nil
+        NotificationCenter.default.post(
+            name: .cueSeekerClearTextSelection,
+            object: self
+        )
+        guard !isEditingCollage else {
+            isSelectingText = false
+            armedNonTextSelectionDrag = nil
+            return
+        }
         beginTextSelection(at: point)
         isSelectingText = textSelection != nil
+        if isSelectingText {
+            armedNonTextSelectionDrag = nil
+        } else {
+            armedNonTextSelectionDrag = ArmedNonTextSelectionDrag(
+                startPoint: point,
+                lastPoint: point
+            )
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if !isSelectingText, var armed = armedNonTextSelectionDrag {
+            let enteredSelection = beginNonTextEnteredSelectionIfNeeded(
+                armed: &armed,
+                currentPoint: point
+            )
+            if enteredSelection {
+                armedNonTextSelectionDrag = nil
+                isSelectingText = true
+                AppPointerShape.reevaluateAfterInterfaceChange()
+                return
+            }
+            armedNonTextSelectionDrag = armed
+            return
+        }
         guard isSelectingText else {
             return
         }
-        updateTextSelection(
-            focusPoint: convert(event.locationInWindow, from: nil)
-        )
+        updateTextSelection(focusPoint: point)
     }
 
     override func mouseUp(with event: NSEvent) {
+        armedNonTextSelectionDrag = nil
         if let pendingOrdinal = pendingCollageCueOrdinal {
             pendingCollageCueOrdinal = nil
             let point = convert(event.locationInWindow, from: nil)
@@ -993,6 +1032,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
             return
         }
         isSelectingText = false
+        AppPointerShape.reevaluateAfterInterfaceChange()
 
         let point = convert(event.locationInWindow, from: nil)
         updateTextSelection(focusPoint: point)
@@ -1032,6 +1072,9 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     func pointerShape(atWindowPoint windowPoint: CGPoint) -> PointerShape {
         guard !isEditingCollage, let contentAdapter else {
             return .arrow
+        }
+        if isSelectingText {
+            return .iBeam
         }
         let point = convert(windowPoint, from: nil)
         guard let placement = textPlacement(containing: point) else {
@@ -1098,11 +1141,21 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
 
     private func beginTextSelection(at point: CGPoint) {
         guard let placement = textPlacement(containing: point),
-              let itemID = contentAdapter?.itemID(at: placement.ordinal),
-              let hit = contentAdapter?.textSelectionHit(
+              let contentAdapter,
+              let itemID = contentAdapter.itemID(at: placement.ordinal)
+        else {
+            return
+        }
+        let cueRect = cueContentRect(for: placement.rect)
+        let isOverSelectableText = contentAdapter.selectableTextRects(
+            at: placement.ordinal,
+            in: cueRect
+        ).contains { $0.contains(point) }
+        guard isOverSelectableText,
+              let hit = contentAdapter.textSelectionHit(
                   at: placement.ordinal,
                   point: point,
-                  in: cueContentRect(for: placement.rect),
+                  in: cueRect,
                   constrainedToLine: nil
               )
         else {
@@ -1116,6 +1169,167 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
             anchorPoint: hit.boundaryPoint,
             focusUTF16Offset: hit.utf16Offset,
             focusPoint: hit.boundaryPoint
+        )
+    }
+
+    private func beginNonTextEnteredSelectionIfNeeded(
+        armed: inout ArmedNonTextSelectionDrag,
+        currentPoint: CGPoint
+    ) -> Bool {
+        let previousPoint = armed.lastPoint
+        armed.lastPoint = currentPoint
+        guard hypot(currentPoint.x - armed.startPoint.x, currentPoint.y - armed.startPoint.y)
+            >= Self.dragSelectionThreshold,
+              !isEditingCollage,
+              let contentAdapter
+        else {
+            return false
+        }
+        guard let entry = firstEnteredSelectableText(
+            from: previousPoint,
+            to: currentPoint,
+            using: contentAdapter
+        ) ?? firstEnteredSelectableText(
+            from: armed.startPoint,
+            to: currentPoint,
+            using: contentAdapter
+        ) else {
+            return false
+        }
+        let cueRect = cueContentRect(for: entry.placement.rect)
+        guard let itemID = contentAdapter.itemID(at: entry.placement.ordinal),
+              let entryHit = contentAdapter.textSelectionHit(
+                  at: entry.placement.ordinal,
+                  point: entry.clampedPoint,
+                  in: cueRect,
+                  constrainedToLine: nil
+              ),
+              let anchorHit = contentAdapter.textSelectionHit(
+                  at: entry.placement.ordinal,
+                  point: armed.startPoint,
+                  in: cueRect,
+                  constrainedToLine: entryHit.lineUTF16Range
+              ),
+              let focusHit = contentAdapter.textSelectionHit(
+                  at: entry.placement.ordinal,
+                  point: currentPoint,
+                  in: cueRect,
+                  constrainedToLine: entryHit.lineUTF16Range
+              )
+        else {
+            return false
+        }
+        NotificationCenter.default.post(
+            name: .cueSeekerClearTextSelection,
+            object: self
+        )
+        textSelection = TextSelection(
+            ordinal: entry.placement.ordinal,
+            itemID: itemID,
+            lineUTF16Range: entryHit.lineUTF16Range,
+            anchorUTF16Offset: anchorHit.utf16Offset,
+            anchorPoint: anchorHit.boundaryPoint,
+            focusUTF16Offset: focusHit.utf16Offset,
+            focusPoint: focusHit.boundaryPoint
+        )
+        invalidateRow(entry.placement.ordinal)
+        return true
+    }
+
+    private func firstEnteredSelectableText(
+        from startPoint: CGPoint,
+        to endPoint: CGPoint,
+        using contentAdapter: any PlaybackVirtualReelContentAdapter
+    ) -> (placement: PlaybackSubtitleFocusCuePlacement, clampedPoint: CGPoint)? {
+        var bestMatch: (
+            t: CGFloat,
+            placement: PlaybackSubtitleFocusCuePlacement,
+            clampedPoint: CGPoint
+        )?
+        for placement in placements {
+            let cueRect = cueContentRect(for: placement.rect)
+            let lineRects = contentAdapter.selectableTextRects(
+                at: placement.ordinal,
+                in: cueRect
+            )
+            for lineRect in lineRects {
+                guard let hit = Self.segmentEntryPoint(
+                    from: startPoint,
+                    to: endPoint,
+                    rect: lineRect
+                ) else {
+                    continue
+                }
+                let insetX = min(0.5, lineRect.width / 2)
+                let insetY = min(0.5, lineRect.height / 2)
+                let clampedPoint = CGPoint(
+                    x: min(
+                        max(hit.point.x, lineRect.minX + insetX),
+                        max(lineRect.minX, lineRect.maxX - insetX)
+                    ),
+                    y: min(
+                        max(hit.point.y, lineRect.minY + insetY),
+                        max(lineRect.minY, lineRect.maxY - insetY)
+                    )
+                )
+                if bestMatch == nil || hit.t < bestMatch!.t {
+                    bestMatch = (hit.t, placement, clampedPoint)
+                }
+            }
+        }
+        guard let bestMatch else {
+            return nil
+        }
+        return (bestMatch.placement, bestMatch.clampedPoint)
+    }
+
+    private static func segmentEntryPoint(
+        from startPoint: CGPoint,
+        to endPoint: CGPoint,
+        rect: CGRect
+    ) -> (t: CGFloat, point: CGPoint)? {
+        guard !rect.isEmpty else {
+            return nil
+        }
+        let dx = endPoint.x - startPoint.x
+        let dy = endPoint.y - startPoint.y
+        var tMin: CGFloat = 0
+        var tMax: CGFloat = 1
+
+        if dx == 0 {
+            if startPoint.x < rect.minX || startPoint.x > rect.maxX {
+                return nil
+            }
+        } else {
+            let inv = 1 / dx
+            let t0 = (rect.minX - startPoint.x) * inv
+            let t1 = (rect.maxX - startPoint.x) * inv
+            tMin = max(tMin, min(t0, t1))
+            tMax = min(tMax, max(t0, t1))
+        }
+
+        if dy == 0 {
+            if startPoint.y < rect.minY || startPoint.y > rect.maxY {
+                return nil
+            }
+        } else {
+            let inv = 1 / dy
+            let t0 = (rect.minY - startPoint.y) * inv
+            let t1 = (rect.maxY - startPoint.y) * inv
+            tMin = max(tMin, min(t0, t1))
+            tMax = min(tMax, max(t0, t1))
+        }
+
+        guard tMin <= tMax, tMin <= 1, tMax >= 0 else {
+            return nil
+        }
+        let clampedT = min(1, max(0, tMin))
+        return (
+            clampedT,
+            CGPoint(
+                x: startPoint.x + clampedT * dx,
+                y: startPoint.y + clampedT * dy
+            )
         )
     }
 
@@ -1142,6 +1356,8 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     }
 
     private func clearTextSelection() {
+        armedNonTextSelectionDrag = nil
+        isSelectingText = false
         guard let textSelection else {
             return
         }
@@ -1153,6 +1369,8 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     /// Drops the selection without reporting it, for the reel closing the menu
     /// that hangs off it.
     func discardTextSelection() {
+        armedNonTextSelectionDrag = nil
+        isSelectingText = false
         guard let textSelection else {
             return
         }

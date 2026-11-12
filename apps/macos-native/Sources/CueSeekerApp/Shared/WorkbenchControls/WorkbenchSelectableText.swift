@@ -115,6 +115,7 @@ struct WorkbenchSelectableText: View {
                     lineLimit: lineLimit,
                     lineHeight: resolvedLineHeight,
                     truncatesTail: truncationMode == .tail,
+                    truncationMode: truncationMode,
                     isSelectable: isEffectivelySelectable,
                     preferredPointerShape: preferredPointerShape,
                     showsUnderline: showsUnderline,
@@ -238,6 +239,7 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
     let lineLimit: Int?
     let lineHeight: CGFloat?
     let truncatesTail: Bool
+    let truncationMode: Text.TruncationMode?
     let isSelectable: Bool
     let preferredPointerShape: PointerShape
     let showsUnderline: Bool
@@ -274,6 +276,7 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
             lineLimit: lineLimit,
             lineHeight: lineHeight,
             truncatesTail: truncatesTail,
+            truncationMode: truncationMode,
             isSelectable: isSelectable,
             preferredPointerShape: preferredPointerShape,
             showsUnderline: showsUnderline,
@@ -317,6 +320,7 @@ final class WorkbenchSelectableTextNSView:
     private(set) var lineLimit: Int? = nil
     private(set) var lineHeight: CGFloat? = nil
     private(set) var truncatesTail: Bool = true
+    private(set) var truncationMode: Text.TruncationMode? = nil
     private(set) var isSelectable: Bool = true
     private(set) var preferredPointerShape: PointerShape = .iBeam
     private(set) var showsUnderline: Bool = false
@@ -469,6 +473,7 @@ final class WorkbenchSelectableTextNSView:
         lineLimit: Int?,
         lineHeight: CGFloat? = nil,
         truncatesTail: Bool,
+        truncationMode: Text.TruncationMode? = nil,
         isSelectable: Bool,
         preferredPointerShape: PointerShape,
         showsUnderline: Bool,
@@ -485,6 +490,7 @@ final class WorkbenchSelectableTextNSView:
             || self.lineLimit != lineLimit
             || self.lineHeight != lineHeight
             || self.truncatesTail != truncatesTail
+            || self.truncationMode != truncationMode
             || self.isSelectable != isSelectable
             || self.preferredPointerShape != preferredPointerShape
             || self.showsUnderline != showsUnderline
@@ -503,6 +509,7 @@ final class WorkbenchSelectableTextNSView:
         self.lineLimit = lineLimit
         self.lineHeight = lineHeight
         self.truncatesTail = truncatesTail
+        self.truncationMode = truncationMode
         self.isSelectable = isSelectable
         self.preferredPointerShape = preferredPointerShape
         self.showsUnderline = showsUnderline
@@ -727,6 +734,14 @@ final class WorkbenchSelectableTextNSView:
 
     // MARK: - Mouse & Keyboard Handling
 
+    override func rightMouseDown(with event: NSEvent) {
+        if canInteract {
+            clearSelection(notifyCoordinator: true)
+            WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        }
+        super.rightMouseDown(with: event)
+    }
+
     override func mouseDown(with event: NSEvent) {
         guard canInteract else {
             super.mouseDown(with: event)
@@ -932,9 +947,25 @@ final class WorkbenchSelectableTextNSView:
         let paragraphLineBreak: NSLineBreakMode
         if lineLimit == 1 {
             let naturalWidth = Self.measuredSingleLineWidth(for: text, font: font)
-            let isTruncated = truncatesTail && availableWidth > 0 && availableWidth < naturalWidth - 1.5
+            let wantsTruncation: Bool
+            let truncatingBreakMode: NSLineBreakMode
+            switch truncationMode {
+            case .middle:
+                wantsTruncation = true
+                truncatingBreakMode = .byTruncatingMiddle
+            case .head:
+                wantsTruncation = true
+                truncatingBreakMode = .byTruncatingHead
+            case .tail, .none:
+                wantsTruncation = truncatesTail
+                truncatingBreakMode = .byTruncatingTail
+            @unknown default:
+                wantsTruncation = truncatesTail
+                truncatingBreakMode = .byTruncatingTail
+            }
+            let isTruncated = wantsTruncation && availableWidth > 0 && availableWidth < naturalWidth - 1.5
             effectiveAlignment = isTruncated ? alignment : .left
-            paragraphLineBreak = isTruncated ? .byTruncatingTail : .byClipping
+            paragraphLineBreak = isTruncated ? truncatingBreakMode : .byClipping
             textContainer.maximumNumberOfLines = 1
             textContainer.lineBreakMode = paragraphLineBreak
             textContainer.size = CGSize(
@@ -1133,30 +1164,40 @@ final class WorkbenchSelectableTextNSView:
             NSMaxRange(targetLine.glyphRange) - 1
         )
         if let truncated = targetLine.truncatedGlyphRange {
-            let lastVisibleGlyph = truncated.location
-            if glyphIndex > lastVisibleGlyph
-                || (glyphIndex == lastVisibleGlyph && fraction >= 0.5)
-            {
-                return textStorage.length
-            }
-            let ellipsisMinX: CGFloat
-            if lastVisibleGlyph > targetLine.glyphRange.location {
-                let prefixRange = NSRange(
-                    location: targetLine.glyphRange.location,
-                    length: lastVisibleGlyph - targetLine.glyphRange.location
+            if NSMaxRange(truncated) >= NSMaxRange(targetLine.glyphRange) {
+                let lastVisibleGlyph = truncated.location
+                if glyphIndex > lastVisibleGlyph
+                    || (glyphIndex == lastVisibleGlyph && fraction >= 0.5)
+                {
+                    return textStorage.length
+                }
+                let ellipsisMinX: CGFloat
+                if lastVisibleGlyph > targetLine.glyphRange.location {
+                    let prefixRange = NSRange(
+                        location: targetLine.glyphRange.location,
+                        length: lastVisibleGlyph - targetLine.glyphRange.location
+                    )
+                    let prefixRect = layoutManager.boundingRect(
+                        forGlyphRange: prefixRange,
+                        in: textContainer
+                    )
+                    ellipsisMinX = max(targetLine.usedRect.minX, origin.x + prefixRect.maxX)
+                } else {
+                    ellipsisMinX = targetLine.usedRect.minX
+                }
+                if ellipsisMinX < targetLine.usedRect.maxX,
+                   point.x >= (ellipsisMinX + targetLine.usedRect.maxX) * 0.5
+                {
+                    return textStorage.length
+                }
+            } else if NSLocationInRange(glyphIndex, truncated) {
+                let truncatedCharRange = layoutManager.characterRange(
+                    forGlyphRange: truncated,
+                    actualGlyphRange: nil
                 )
-                let prefixRect = layoutManager.boundingRect(
-                    forGlyphRange: prefixRange,
-                    in: textContainer
-                )
-                ellipsisMinX = max(targetLine.usedRect.minX, origin.x + prefixRect.maxX)
-            } else {
-                ellipsisMinX = targetLine.usedRect.minX
-            }
-            if ellipsisMinX < targetLine.usedRect.maxX,
-               point.x >= (ellipsisMinX + targetLine.usedRect.maxX) * 0.5
-            {
-                return textStorage.length
+                return fraction >= 0.5
+                    ? NSMaxRange(truncatedCharRange)
+                    : truncatedCharRange.location
             }
         }
         let characterRange = layoutManager.characterRange(
@@ -1224,7 +1265,9 @@ final class WorkbenchSelectableTextNSView:
         if NSMaxRange(safeRange) >= textStorage.length {
             let lastGlyph = NSMaxRange(validGlyphRange) - 1
             let truncated = layoutManager.truncatedGlyphRange(inLineFragmentForGlyphAt: lastGlyph)
-            if truncated.location != NSNotFound {
+            if truncated.location != NSNotFound,
+               NSMaxRange(truncated) >= NSMaxRange(validGlyphRange)
+            {
                 let startGlyph = glyphRange.length > 0
                     ? glyphRange.location
                     : lastGlyph

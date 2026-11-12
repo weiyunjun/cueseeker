@@ -771,21 +771,21 @@ struct WorkbenchFileView: View {
         LazyVStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             ForEach(objects) { object in
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(object.displayTitle)
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizeBody,
-                            weight: WorkbenchControlMetrics.redesignFontWeightControl
-                        ))
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
-                        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
-                        .frame(
-                            maxWidth: .infinity,
-                            minHeight: WorkbenchControlMetrics.redesignHeight,
-                            alignment: .leading
-                        )
-                        .background(WorkbenchRedesignColors.fileGroupHeaderBg)
+                    WorkbenchSelectableText(
+                        object.displayTitle,
+                        fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl,
+                        color: WorkbenchRedesignColors.textMuted
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+                    .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: WorkbenchControlMetrics.redesignHeight,
+                        alignment: .leading
+                    )
+                    .background(WorkbenchRedesignColors.fileGroupHeaderBg)
 
                     Rectangle()
                         .fill(WorkbenchRedesignColors.borderDivider)
@@ -983,18 +983,16 @@ struct WorkbenchFileView: View {
     private var rootFoldersHeaderRow: some View {
         let folders = FileFolderGroupingResolver.rootFolders(for: indexing.selectedFolders)
 
-        return Text(
+        return WorkbenchSelectableText(
             FileBreadcrumbResolver.allFoldersTitle(
                 folderCount: folders.count,
                 singularTitle: L("file.all_folders.one"),
                 pluralTitle: L("file.all_folders.other")
-            )
+            ),
+            fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+            weight: .semibold,
+            color: WorkbenchRedesignColors.textPrimary
         )
-        .font(.system(
-            size: WorkbenchControlMetrics.redesignFontSizeBody,
-            weight: .semibold
-        ))
-        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -1178,30 +1176,34 @@ private struct WorkbenchFileCard: View {
     }
 
     var body: some View {
+        let isRowTextSelectable = (onTap == nil)
+
         HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchCardIcon(icon: icon)
                 .allowsHitTesting(false)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                Text(title)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: WorkbenchControlMetrics.redesignFontWeightControl
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                WorkbenchSelectableText(
+                    title,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: WorkbenchControlMetrics.redesignFontWeightControl,
+                    color: WorkbenchRedesignColors.textPrimary,
+                    isSelectable: isRowTextSelectable
+                )
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                Text(subtitle)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeCaption,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                WorkbenchSelectableText(
+                    subtitle,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeCaption,
+                    weight: .regular,
+                    color: WorkbenchRedesignColors.textMuted,
+                    isSelectable: isRowTextSelectable
+                )
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .allowsHitTesting(false)
+            .allowsHitTesting(isRowTextSelectable)
 
             Spacer(minLength: 0)
 
@@ -1324,7 +1326,7 @@ private struct WorkbenchFileCard: View {
             cornerRadius: rowCornerRadius,
             style: .continuous
         ))
-        .onPointerHover { isHovered = $0 }
+        .onPointerHover(tracksHostedContent: onTap == nil) { isHovered = $0 }
     }
 }
 

@@ -543,7 +543,10 @@ final class PlaybackCueResultLayout {
         }
         let visibleCueRect = plan.cueTextRect(in: resultRect)
             .intersection(resultRect)
-        guard visibleCueRect.contains(point) else {
+        guard !visibleCueRect.isEmpty else {
+            return nil
+        }
+        guard lineUTF16Range != nil || visibleCueRect.contains(point) else {
             return nil
         }
         return visualLineLayout.textSelectionHit(

@@ -1,4 +1,5 @@
 import AppKit
+import CueSeekerCore
 import SwiftUI
 import Testing
 @testable import CueSeekerApp
@@ -1450,5 +1451,311 @@ struct WorkbenchSelectableTextTests {
         #expect(WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: window, to: pasteboard))
         #expect(pasteboard.string(forType: .string) == titleView.selectedText)
         #expect(titleView.selectedText?.hasPrefix("Epi") == true)
+    }
+
+    @Test
+    func middleTruncatedSingleLineTextRestoresFullCopyAndHitTestsTrailingSuffix() {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        defer { WorkbenchStaticTextSelectionCoordinator.shared.clearSelection() }
+
+        let (window, rootView) = makeTestWindow(size: CGSize(width: 240, height: 100))
+        let fullTitle = "VeryLongEpisodeTitle_HiddenMiddleSection_TrailingSuffix.mkv"
+        let host = NSHostingView(
+            rootView: WorkbenchSelectableText(
+                fullTitle,
+                fontSize: 13,
+                weight: .regular,
+                lineLimit: 1,
+                truncationMode: .middle,
+                alignment: .leading,
+                isSelectable: true
+            )
+            .frame(width: 170, alignment: .leading)
+        )
+        host.frame = CGRect(x: 16, y: 30, width: 170, height: 24)
+        rootView.addSubview(host)
+        rootView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+
+        func findSelectableTextView(in view: NSView) -> WorkbenchSelectableTextNSView? {
+            if let match = view as? WorkbenchSelectableTextNSView {
+                return match
+            }
+            for subview in view.subviews {
+                if let found = findSelectableTextView(in: subview) {
+                    return found
+                }
+            }
+            return nil
+        }
+
+        guard let textView = findSelectableTextView(in: host) else {
+            Issue.record("Expected WorkbenchSelectableTextNSView for middle-truncated text")
+            return
+        }
+        textView.prepareLayoutForFlow()
+
+        // 1. Drag across prefix past ellipsis into trailing suffix -> restores complete untruncated string.
+        let dragStart = textView.convert(CGPoint(x: 2, y: textView.bounds.midY), to: nil)
+        let dragEnd = textView.convert(CGPoint(x: textView.bounds.width - 2, y: textView.bounds.midY), to: nil)
+        textView.mouseDown(with: makeMouseEvent(type: .leftMouseDown, locationInWindow: dragStart, windowNumber: window.windowNumber))
+        textView.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: dragEnd, windowNumber: window.windowNumber))
+        textView.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: dragEnd, windowNumber: window.windowNumber))
+
+        #expect(textView.selectedText == fullTitle)
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: window, to: pasteboard))
+        #expect(pasteboard.string(forType: .string) == fullTitle)
+
+        // 2. Drag strictly within trailing suffix maps offsets into trailing end rather than prefix.
+        let suffixStart = textView.convert(CGPoint(x: textView.bounds.width - 36, y: textView.bounds.midY), to: nil)
+        textView.mouseDown(with: makeMouseEvent(type: .leftMouseDown, locationInWindow: suffixStart, windowNumber: window.windowNumber))
+        textView.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: dragEnd, windowNumber: window.windowNumber))
+        textView.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: dragEnd, windowNumber: window.windowNumber))
+
+        #expect(textView.hasSelection)
+        #expect(textView.selectedText != fullTitle)
+        #expect(textView.selectedText?.hasSuffix(".mkv") == true || fullTitle.hasSuffix(textView.selectedText ?? ""))
+    }
+
+    @Test
+    func remainingHeadersAndRemoteStep2CardsFollowSelectableAndNonSelectableBoundaries() throws {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        defer { WorkbenchStaticTextSelectionCoordinator.shared.clearSelection() }
+
+        let suiteName = "WorkbenchSelectableTextTests-\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let localization = AppLocalizationStore(
+            language: .english,
+            userDefaults: userDefaults,
+            userDefaultsKey: "language"
+        )
+
+        let folderURL = try #require(URL(string: "http://127.0.0.1:5244/dav/Shows/Anime"))
+        let unaddedFolder = WebDAVBrowserItem(url: folderURL.appendingPathComponent("Frieren"), name: "Frieren", kind: .folder)
+        let addedFolder = WebDAVBrowserItem(url: folderURL.appendingPathComponent("Bocchi"), name: "Bocchi", kind: .folder)
+        let videoFile = WebDAVBrowserItem(url: folderURL.appendingPathComponent("OP.mkv"), name: "OP.mkv", kind: .video)
+
+        let containerView = VStack(alignment: .leading, spacing: 8) {
+            RecentSectionTitleView(title: "Today")
+            RemoteFolderBreadcrumbBar(nodes: [
+                RemoteFolderBreadcrumbNode(url: folderURL, title: "All Folders"),
+                RemoteFolderBreadcrumbNode(url: folderURL.appendingPathComponent("Current"), title: "Current Level"),
+            ])
+            WebDAVBrowserCard(
+                item: unaddedFolder,
+                isDisabled: false,
+                isSelected: false,
+                onToggleSelection: {},
+                onOpenFolder: {}
+            )
+            WebDAVBrowserCard(
+                item: addedFolder,
+                isDisabled: true,
+                isSelected: false,
+                addedBadgeTitle: "Added",
+                onToggleSelection: {},
+                onOpenFolder: {}
+            )
+            WebDAVBrowserCard(
+                item: videoFile,
+                isDisabled: false,
+                isSelected: false,
+                onToggleSelection: {},
+                onOpenFolder: {}
+            )
+        }
+        .frame(width: 460)
+        .environmentObject(localization)
+
+        let (_, rootView) = makeTestWindow(size: CGSize(width: 480, height: 360))
+        let host = NSHostingView(rootView: containerView)
+        host.frame = CGRect(x: 10, y: 10, width: 460, height: 340)
+        rootView.addSubview(host)
+        rootView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+
+        func collectSelectableViews(in view: NSView) -> [WorkbenchSelectableTextNSView] {
+            var matches: [WorkbenchSelectableTextNSView] = []
+            if let textView = view as? WorkbenchSelectableTextNSView {
+                matches.append(textView)
+            }
+            for subview in view.subviews {
+                matches.append(contentsOf: collectSelectableViews(in: subview))
+            }
+            return matches
+        }
+
+        let interactiveTexts = collectSelectableViews(in: host).filter(\.canInteract).map(\.text)
+        #expect(interactiveTexts == ["Today", "Bocchi", "OP.mkv"])
+        #expect(!interactiveTexts.contains("All Folders"))
+        #expect(!interactiveTexts.contains("Current Level"))
+        #expect(!interactiveTexts.contains("Frieren"))
+        #expect(!interactiveTexts.contains("Added"))
+    }
+
+    @Test
+    func fileLevel2DiagonalDragFromBreadcrumbSkipsBreadcrumbAndSelectsEpisodeTitleFromStart() {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        defer { WorkbenchStaticTextSelectionCoordinator.shared.clearSelection() }
+
+        let (window, rootView) = makeTestWindow(size: CGSize(width: 520, height: 280))
+        var breadcrumbTapCount = 0
+
+        let topHost = CueSeekerHostingView(
+            rootView: AnyView(
+                HStack(spacing: 8) {
+                    BreadcrumbLink(title: "All Folders") {
+                        breadcrumbTapCount += 1
+                    }
+                    Text(">")
+                        .font(.system(size: 13))
+                    Text("Bocchi the Rock!")
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            )
+        )
+        topHost.frame = CGRect(x: 0, y: 224, width: 520, height: 36)
+        rootView.addSubview(topHost)
+
+        let scrollView = NSScrollView()
+        scrollView.frame = CGRect(x: 0, y: 0, width: 520, height: 216)
+        let docView = NSView(frame: CGRect(x: 0, y: 0, width: 520, height: 216))
+        scrollView.documentView = docView
+        rootView.addSubview(scrollView)
+
+        func makeNode(
+            _ text: String,
+            yFromBottom: CGFloat,
+            weight: NSFont.Weight = .regular,
+            isSelectable: Bool = true
+        ) -> WorkbenchSelectableTextNSView {
+            let view = WorkbenchSelectableTextNSView(frame: CGRect(x: 24, y: yFromBottom, width: 340, height: 22))
+            view.configure(
+                text: text,
+                font: .systemFont(ofSize: 13, weight: weight),
+                textColor: .labelColor,
+                alignment: .left,
+                lineLimit: 1,
+                truncatesTail: true,
+                isSelectable: isSelectable,
+                preferredPointerShape: .iBeam,
+                showsUnderline: false,
+                onTap: nil,
+                interfaceLayerContext: InterfaceLayerContext()
+            )
+            docView.addSubview(view)
+            view.prepareLayoutForFlow()
+            return view
+        }
+
+        let displayTitleView = makeNode("Bocchi the Rock! - Episode 01", yFromBottom: 170, weight: .semibold)
+        let fileLine1View = makeNode("Episode_01.mkv", yFromBottom: 136, weight: .medium)
+        let fileLine2View = makeNode("en · srt", yFromBottom: 112, weight: .regular)
+        let standaloneFolderView = makeNode("Subfolder Should Stay NonSelectable", yFromBottom: 72, isSelectable: false)
+
+        rootView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+
+        // Drag diagonally down-right from top-left Breadcrumb ("All Folders") across non-clickable
+        // Breadcrumb node and Display Title down into Episode file Line 1.
+        let breadcrumbStartPoint = CGPoint(x: 30, y: 242)
+        let intoEpisodeRowEndPoint = fileLine1View.convert(CGPoint(x: 96, y: 11), to: nil)
+
+        window.sendEvent(makeMouseEvent(type: .leftMouseDown, locationInWindow: breadcrumbStartPoint, windowNumber: window.windowNumber))
+        window.sendEvent(makeMouseEvent(type: .leftMouseDragged, locationInWindow: intoEpisodeRowEndPoint, windowNumber: window.windowNumber))
+        window.sendEvent(makeMouseEvent(type: .leftMouseUp, locationInWindow: intoEpisodeRowEndPoint, windowNumber: window.windowNumber))
+
+        #expect(breadcrumbTapCount == 0)
+        #expect(displayTitleView.selectedText == "Bocchi the Rock! - Episode 01")
+        #expect(fileLine1View.hasSelection)
+        #expect(!fileLine2View.hasSelection)
+        #expect(!standaloneFolderView.hasSelection)
+        #expect(
+            WorkbenchStaticTextSelectionCoordinator.shared.selectedText?
+                .hasPrefix("Bocchi the Rock! - Episode 01\n") == true
+        )
+    }
+
+    @Test
+    func listCardSelectableTextPreservesHoverProbeAndRightClickClearsSelectionBeforeMenu() {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        defer { WorkbenchStaticTextSelectionCoordinator.shared.clearSelection() }
+
+        // 1. PointerHoverProbeView with tracksHostedContent arms hover on enter and upgrades to .assumeInside.
+        let session = PointerHoverSession()
+        var hoverStates: [Bool] = []
+        session.action = { hoverStates.append($0) }
+        let probe = PointerHoverProbeView(frame: CGRect(x: 0, y: 0, width: 220, height: 60))
+        probe.tracksHostedContent = true
+        probe.session = session
+        session.probeView = probe
+        probe.updateTrackingAreas()
+        #expect(probe.trackingAreas.count == 1)
+        #expect(!probe.assumesMouseInside)
+
+        if let dummyEnter = NSEvent.enterExitEvent(
+            with: .mouseEntered,
+            location: NSPoint(x: 20, y: 20),
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 1,
+            trackingNumber: 1,
+            userData: nil
+        ) {
+            probe.mouseEntered(with: dummyEnter)
+        }
+        #expect(probe.assumesMouseInside)
+        #expect(probe.trackingAreas.contains(where: { $0.options.contains(.assumeInside) }))
+        #expect(hoverStates == [true])
+
+        // 2. Right-clicking over selected card text immediately clears selection and forwards to parent card.
+        final class RightClickSpyContainer: NSView {
+            private(set) var rightMouseDownCount = 0
+            override func rightMouseDown(with event: NSEvent) {
+                rightMouseDownCount += 1
+            }
+        }
+
+        let (window, rootView) = makeTestWindow(size: CGSize(width: 320, height: 120))
+        let spyContainer = RightClickSpyContainer(frame: CGRect(x: 10, y: 20, width: 280, height: 60))
+        rootView.addSubview(spyContainer)
+
+        let cardTitleView = WorkbenchSelectableTextNSView(frame: CGRect(x: 12, y: 28, width: 220, height: 22))
+        cardTitleView.configure(
+            text: "Episode_01.mkv",
+            font: .systemFont(ofSize: 13, weight: .medium),
+            textColor: .labelColor,
+            alignment: .left,
+            lineLimit: 1,
+            truncatesTail: true,
+            isSelectable: true,
+            preferredPointerShape: .iBeam,
+            showsUnderline: false,
+            onTap: nil,
+            interfaceLayerContext: InterfaceLayerContext()
+        )
+        spyContainer.addSubview(cardTitleView)
+        cardTitleView.prepareLayoutForFlow()
+
+        let startPt = cardTitleView.convert(CGPoint(x: 4, y: 11), to: nil)
+        let endPt = cardTitleView.convert(CGPoint(x: 90, y: 11), to: nil)
+        cardTitleView.mouseDown(with: makeMouseEvent(type: .leftMouseDown, locationInWindow: startPt, windowNumber: window.windowNumber))
+        cardTitleView.mouseDragged(with: makeMouseEvent(type: .leftMouseDragged, locationInWindow: endPt, windowNumber: window.windowNumber))
+        cardTitleView.mouseUp(with: makeMouseEvent(type: .leftMouseUp, locationInWindow: endPt, windowNumber: window.windowNumber))
+        #expect(cardTitleView.hasSelection)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText != nil)
+
+        cardTitleView.rightMouseDown(with: makeMouseEvent(type: .rightMouseDown, locationInWindow: endPt, windowNumber: window.windowNumber))
+        #expect(!cardTitleView.hasSelection)
+        #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText == nil)
+        #expect(spyContainer.rightMouseDownCount == 1)
     }
 }

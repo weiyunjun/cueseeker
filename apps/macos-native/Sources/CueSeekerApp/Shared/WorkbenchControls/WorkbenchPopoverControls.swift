@@ -485,6 +485,7 @@ struct WorkbenchCardRightClickMonitor: NSViewRepresentable {
                 return false
             }
 
+            WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
             (window as? CueSeekerWindow)?.onMouseDownClearAccessibility?()
             if let menuGate {
                 guard menuGate.route(event) != nil else {

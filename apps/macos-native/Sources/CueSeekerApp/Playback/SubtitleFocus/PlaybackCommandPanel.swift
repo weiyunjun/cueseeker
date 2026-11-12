@@ -716,14 +716,14 @@ private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
                 )
                 .accessibilityLabel(L("playback.back"))
 
-                Text(title)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .semibold
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                WorkbenchSelectableText(
+                    title,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .semibold,
+                    color: WorkbenchRedesignColors.textPrimary,
+                    lineLimit: 1,
+                    truncationMode: .tail
+                )
 
                 trailing
             }

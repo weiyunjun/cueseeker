@@ -516,6 +516,125 @@ struct TaskCardMenuTests {
         #expect((openMenuState?.cardID == "card-1") == true)
         #expect((openMenuState?.cardID == "card-1" && openMenuState?.isButtonAnchored == true) == false)
     }
+
+    @Test
+    func taskPanelCardsRenderSelectableLineTextsAndHostedContentHoverProbes() throws {
+        defer { AppLocalization.apply(.english) }
+        AppLocalization.apply(.english)
+
+        let databaseURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CueSeekerTaskCardSelectionTests-\(UUID().uuidString)")
+            .appendingPathExtension("sqlite")
+        defer { removeTemporaryDatabase(at: databaseURL) }
+        try DatabaseBootstrap.prepare(at: databaseURL)
+
+        let database = try TaskRecordDatabase(path: databaseURL)
+        let insertedRecord = try database.insertQueuedTask(
+            kind: .ankiExport,
+            fileName: "ExportedDeck.apkg",
+            folderPath: "/Exports/ExportedDeck.apkg",
+            itemCount: 14,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        try database.updateState(
+            id: insertedRecord.id,
+            to: .incomplete,
+            errorMessage: "Disk full",
+            changedAt: Date(timeIntervalSince1970: 1_700_000_120)
+        )
+
+        let suiteName = "CueSeekerTaskCardSelectionTests-\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let localization = AppLocalizationStore(
+            language: .english,
+            userDefaults: userDefaults,
+            userDefaultsKey: "language"
+        )
+
+        let store = TaskQueueStore(
+            database: database,
+            runExport: { _, _, _, _ in
+                try await Task.sleep(nanoseconds: 3_600_000_000_000)
+            },
+            runRemoveFolder: { _ in
+                try await Task.sleep(nanoseconds: 3_600_000_000_000)
+            }
+        )
+        store.loadPersistedRecords()
+        store.enqueueAnkiExport(
+            items: [
+                AnkiExportItem(
+                    deckDisplayTitle: "Deck",
+                    videoPath: "/Videos/episode.mkv",
+                    startMilliseconds: 0,
+                    endMilliseconds: 500,
+                    text: "line",
+                    displayTitle: "Deck",
+                    timeRange: "",
+                    cueGroupOtherTexts: [],
+                    cueID: nil,
+                    subtitlePath: ""
+                )
+            ],
+            options: AnkiExportOptions(),
+            destinationURL: URL(fileURLWithPath: "/Exports/QueuedDeck.apkg")
+        )
+        store.enqueueRemoveFolder(URL(fileURLWithPath: "/Videos/ShowToRemove"))
+
+        let panel = TaskPanel(tasks: store, confirmation: ConfirmationCenter())
+            .environmentObject(localization)
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 900),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let host = NSHostingView(rootView: panel)
+        host.frame = NSRect(x: 0, y: 0, width: 640, height: 900)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        defer { window.contentView = nil }
+
+        func collectSelectableViews(in view: NSView) -> [WorkbenchSelectableTextNSView] {
+            var result: [WorkbenchSelectableTextNSView] = []
+            if let textView = view as? WorkbenchSelectableTextNSView {
+                result.append(textView)
+            }
+            for subview in view.subviews {
+                result.append(contentsOf: collectSelectableViews(in: subview))
+            }
+            return result
+        }
+
+        func collectHoverProbes(in view: NSView) -> [PointerHoverProbeView] {
+            var result: [PointerHoverProbeView] = []
+            if let probe = view as? PointerHoverProbeView {
+                result.append(probe)
+            }
+            for subview in view.subviews {
+                result.append(contentsOf: collectHoverProbes(in: subview))
+            }
+            return result
+        }
+
+        let currentStrings = collectSelectableViews(in: host).filter(\.canInteract).map(\.text)
+        #expect(currentStrings.contains("Export to Anki: QueuedDeck.apkg"))
+        #expect(currentStrings.contains("Remove: ShowToRemove"))
+
+        store.selectedTab = .incomplete
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        let incompleteStrings = collectSelectableViews(in: host).filter(\.canInteract).map(\.text)
+        #expect(incompleteStrings.contains("Export to Anki: ExportedDeck.apkg"))
+        #expect(incompleteStrings.contains("Disk full"))
+        #expect(!incompleteStrings.contains("Completed"))
+        #expect(!incompleteStrings.contains("Incomplete"))
+
+        let probes = collectHoverProbes(in: host)
+        #expect(probes.contains { $0.tracksHostedContent })
+    }
 }
 
 private func hexString(_ color: NSColor, appearance: NSAppearance.Name = .aqua) -> String {

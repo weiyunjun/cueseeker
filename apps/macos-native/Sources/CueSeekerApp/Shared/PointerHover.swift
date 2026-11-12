@@ -164,9 +164,14 @@ final class PointerHoverScrollState: ObservableObject {
 extension View {
     func onPointerHover(
         showsHand: Bool = false,
+        tracksHostedContent: Bool = false,
         _ action: @escaping (Bool) -> Void
     ) -> some View {
-        modifier(PointerHoverModifier(showsHand: showsHand, action: action))
+        modifier(PointerHoverModifier(
+            showsHand: showsHand,
+            tracksHostedContent: tracksHostedContent,
+            action: action
+        ))
     }
 
     func onPointerHoverLocation(_ action: @escaping (CGPoint?) -> Void) -> some View {
@@ -585,6 +590,16 @@ final class PointerHoverSession: ObservableObject {
     }
 
     func report(_ isHovered: Bool) {
+        if !isHovered,
+           !tracksLocation,
+           !isFrozen,
+           currentPointerInsideView() == true
+        {
+            if let probe = probeView as? PointerHoverProbeView {
+                probe.setAssumesMouseInside(true)
+            }
+            return
+        }
         if let probe = probeView as? PointerHoverProbeView {
             if isHovered {
                 probe.setTracksReenter(false)
@@ -813,6 +828,13 @@ final class PointerHoverProbeView: NSView {
             }
         }
     }
+    var tracksHostedContent = false {
+        didSet {
+            if oldValue != tracksHostedContent {
+                updateTrackingAreas()
+            }
+        }
+    }
 
     func setAssumesMouseInside(_ value: Bool) {
         if value {
@@ -871,7 +893,7 @@ final class PointerHoverProbeView: NSView {
                     userInfo: nil
                 )
             )
-        } else if tracksReenter {
+        } else if tracksReenter || tracksHostedContent {
             addTrackingArea(
                 NSTrackingArea(
                     rect: .zero,
@@ -884,7 +906,7 @@ final class PointerHoverProbeView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        if tracksReenter, !tracksLocation {
+        if (tracksReenter || tracksHostedContent), !tracksLocation {
             tracksReenter = false
             assumesMouseInside = true
             updateTrackingAreas()
@@ -923,11 +945,13 @@ final class PointerHoverProbeView: NSView {
 private struct PointerHoverProbe: NSViewRepresentable {
     let session: PointerHoverSession
     var tracksLocation = false
+    var tracksHostedContent = false
 
     func makeNSView(context: Context) -> PointerHoverProbeView {
         let view = PointerHoverProbeView()
         view.session = session
         view.tracksLocation = tracksLocation
+        view.tracksHostedContent = tracksHostedContent
         session.probeView = view
         return view
     }
@@ -935,12 +959,14 @@ private struct PointerHoverProbe: NSViewRepresentable {
     func updateNSView(_ nsView: PointerHoverProbeView, context: Context) {
         nsView.session = session
         nsView.tracksLocation = tracksLocation
+        nsView.tracksHostedContent = tracksHostedContent
         session.probeView = nsView
     }
 }
 
 private struct PointerHoverModifier: ViewModifier {
     var showsHand = false
+    var tracksHostedContent = false
     let action: (Bool) -> Void
     @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
@@ -960,7 +986,12 @@ private struct PointerHoverModifier: ViewModifier {
             session.initializeIfNeeded(isFrozen: isFrozen)
         }()
         content
-            .background(PointerHoverProbe(session: session))
+            .background(
+                PointerHoverProbe(
+                    session: session,
+                    tracksHostedContent: tracksHostedContent
+                )
+            )
             .onAppear {
                 session.showsHand = showsHand
                 session.action = action

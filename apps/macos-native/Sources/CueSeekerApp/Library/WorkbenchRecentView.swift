@@ -197,17 +197,18 @@ struct RecentSectionTitleView: View {
     let title: String
 
     var body: some View {
-        Text(title)
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
-                weight: .semibold
-            ))
-            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(
-                .horizontal,
-                WorkbenchControlMetrics.redesignLibraryMediaCardHoverPadding
-            )
+        WorkbenchSelectableText(
+            title,
+            fontSize: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
+            weight: .semibold,
+            color: WorkbenchRedesignColors.textPrimary,
+            lineLimit: 1,
+            truncationMode: .tail
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(
+            .horizontal,
+            WorkbenchControlMetrics.redesignLibraryMediaCardHoverPadding
+        )
     }
 }

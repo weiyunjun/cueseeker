@@ -636,16 +636,17 @@ struct WebDAVBrowserCard: View {
                 WorkbenchCardIcon(icon: icon)
                     .allowsHitTesting(false)
 
-                Text(item.name)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: WorkbenchControlMetrics.redesignFontWeightControl
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .allowsHitTesting(false)
+                WorkbenchSelectableText(
+                    item.name,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: WorkbenchControlMetrics.redesignFontWeightControl,
+                    color: WorkbenchRedesignColors.textPrimary,
+                    lineLimit: 1,
+                    truncationMode: .tail,
+                    isSelectable: !isCardInteractive
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .allowsHitTesting(!isCardInteractive)
 
                 if showsAddedBadge {
                     WorkbenchBadge(
