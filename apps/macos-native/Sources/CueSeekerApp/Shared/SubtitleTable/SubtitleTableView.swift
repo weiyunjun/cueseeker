@@ -2,6 +2,43 @@ import AppKit
 import CueSeekerCore
 import SwiftUI
 
+@MainActor
+enum SubtitleTableActiveTextDragState {
+    private static weak var activeCoordinator: SubtitleTableView.Coordinator?
+
+    static var isDraggingSelection: Bool {
+        guard let coordinator = activeCoordinator,
+              let interaction = coordinator.pendingTextInteraction
+        else {
+            return false
+        }
+        return interaction.didDrag && interaction.selectionHasBegun
+    }
+
+    static func update(for coordinator: SubtitleTableView.Coordinator) {
+        let active = coordinator.pendingTextInteraction?.didDrag == true
+            && coordinator.pendingTextInteraction?.selectionHasBegun == true
+        if active {
+            let wasActive = activeCoordinator === coordinator
+            activeCoordinator = coordinator
+            if !wasActive, let window = coordinator.documentView?.window {
+                AppPointerShape.pointerMoved(
+                    in: window,
+                    at: coordinator.pendingTextInteraction?.latestWindowPoint
+                        ?? window.mouseLocationOutsideOfEventStream
+                )
+            }
+        } else if activeCoordinator === coordinator {
+            activeCoordinator = nil
+            AppPointerShape.reevaluate()
+        }
+    }
+
+    static func resetForTesting() {
+        activeCoordinator = nil
+    }
+}
+
 struct SubtitleTableView: NSViewRepresentable {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.isWorkbenchPageCovered) var isWorkbenchPageCovered
@@ -519,8 +556,8 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         enum PendingRowSelectionTarget {
-            case rowCheckbox(row: Int)
-            case rowActionButton(row: Int)
+            case rowCheckbox(row: Int, startWindowPoint: CGPoint)
+            case rowActionButton(row: Int, startWindowPoint: CGPoint)
             case selectionModeRow(row: Int, isShiftPressed: Bool)
         }
 
@@ -528,12 +565,18 @@ struct SubtitleTableView: NSViewRepresentable {
             let startPoint: CGPoint
             let anchor: SubtitleTableTextPosition?
             let directAction: PendingDirectTextAction
+            var initialRange: (start: SubtitleTableTextPosition, end: SubtitleTableTextPosition)? = nil
+            var requiresSelectableDataRegionEntry = false
             var didDrag = false
             var selectionHasBegun = false
             var latestWindowPoint: CGPoint
         }
 
-        var pendingTextInteraction: PendingTextInteraction?
+        var pendingTextInteraction: PendingTextInteraction? {
+            didSet {
+                SubtitleTableActiveTextDragState.update(for: self)
+            }
+        }
         var pendingRowSelectionTarget: PendingRowSelectionTarget?
         static let textDragThreshold: CGFloat = 3
 

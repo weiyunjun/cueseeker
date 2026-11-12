@@ -733,17 +733,23 @@ extension AppCoordinator {
         }
     }
 
-    static func isEditableTextInputFocused() -> Bool {
-        let activeWindow = NSApplication.shared.keyWindow
+    static func isEditableTextInputFocused(in window: NSWindow? = nil) -> Bool {
+        let activeWindow = window
+            ?? CueSeekerWindow.activeKeyWindow
             ?? NSApplication.shared.windows.first { $0 is CueSeekerMainWindow }
         guard let firstResponder = activeWindow?.firstResponder else {
             return false
         }
 
+        if let mainWindow = activeWindow as? CueSeekerMainWindow,
+           mainWindow.isBehindDialog(firstResponder) {
+            return false
+        }
+
         if let view = firstResponder as? NSView {
-            if let window = view.window as? CueSeekerMainWindow,
-               window.isWorkbenchCovered(),
-               !window.isUncovered(view) {
+            if let mainWindow = view.window as? CueSeekerMainWindow,
+               mainWindow.isWorkbenchCovered(),
+               !mainWindow.isUncovered(view) {
                 return false
             }
         }

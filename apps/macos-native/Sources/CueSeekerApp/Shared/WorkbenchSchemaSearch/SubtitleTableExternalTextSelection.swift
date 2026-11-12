@@ -71,7 +71,7 @@ final class SubtitleTableExternalTextSelectionSession: ObservableObject {
 
     @discardableResult
     func drag(windowPoint: CGPoint) -> Bool {
-        if WorkbenchStaticTextSelectionCoordinator.shared.isDraggingSelection {
+        if WorkbenchStaticTextSelectionCoordinator.shared.isDirectDragSelection {
             reset()
             return false
         }
@@ -306,6 +306,62 @@ enum SubtitleTableTextSelectionHitTesting {
         ) == .interactive
     }
 
+    static func ownsDragOrTextInputGesture(
+        _ hitView: NSView?,
+        atWindowPoint point: CGPoint,
+        in window: NSWindow?
+    ) -> Bool {
+        if let window {
+            for buttonType: NSWindow.ButtonType in [.closeButton, .miniaturizeButton, .zoomButton] {
+                guard let button = window.standardWindowButton(buttonType),
+                      !button.isHidden
+                else {
+                    continue
+                }
+                if hitView === button
+                    || (hitView?.isDescendant(of: button) == true)
+                    || button.convert(button.bounds, to: nil).contains(point)
+                {
+                    return true
+                }
+            }
+        }
+
+        var candidate = hitView
+        while let view = candidate {
+            if let draggable = view as? DraggableNSView, draggable.allowsHitTesting {
+                return true
+            }
+            if let selectable = view as? WorkbenchSelectableTextNSView, selectable.canInteract {
+                return true
+            }
+            if let overlay = view as? WorkbenchSingleLineContainerOverlayView,
+               overlay.isEnabled,
+               overlay.onPressRelease == nil
+            {
+                return true
+            }
+            if let textView = view as? NSTextView,
+               textView.isEditable || textView.isSelectable
+            {
+                return true
+            }
+            if let textField = view as? NSTextField,
+               textField.isEditable || textField.isSelectable
+            {
+                return true
+            }
+            if view is NSScroller
+                || view is TableScrollbarOverlayView
+                || view is NSSlider
+            {
+                return true
+            }
+            candidate = view.superview
+        }
+        return false
+    }
+
     private static func topmostSemanticInteraction(
         atWindowPoint point: CGPoint,
         in rootView: NSView
@@ -391,6 +447,8 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
     final class MonitoringView: NSView {
         nonisolated(unsafe) private var eventMonitor: Any?
         private weak var session: SubtitleTableExternalTextSelectionSession?
+        private weak var armedHitView: NSView?
+        private weak var armedControl: NSControl?
         private var startPolicy = SubtitleTableExternalTextSelectionStartPolicy(
             isBlocked: true
         )
@@ -403,11 +461,13 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
         ) {
             if self.session !== session {
                 self.session?.cancel()
+                clearArmedOrigin()
                 self.session = session
             }
             self.startPolicy = startPolicy
             if startPolicy.isBlocked {
                 session.cancel()
+                clearArmedOrigin()
             }
             installEventMonitorIfNeeded()
         }
@@ -416,6 +476,7 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
             super.viewDidMoveToWindow()
             if window == nil {
                 session?.cancel()
+                clearArmedOrigin()
                 removeEventMonitor()
             } else {
                 installEventMonitorIfNeeded()
@@ -424,18 +485,20 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
 
         func tearDown() {
             session?.cancel()
+            clearArmedOrigin()
             session = nil
             removeEventMonitor()
         }
 
-        func routeForTesting(_ event: NSEvent) {
+        @discardableResult
+        func routeForTesting(_ event: NSEvent) -> NSEvent? {
             route(event)
         }
 
         func startContextForTesting(
             atWindowPoint point: CGPoint
         ) -> SubtitleTableExternalTextSelectionStartContext? {
-            startContext(atWindowPoint: point)
+            resolvedStartContext(atWindowPoint: point)?.context
         }
 
         deinit {
@@ -452,9 +515,9 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
                 matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
             ) { [weak self] event in
                 MainActor.assumeIsolated {
-                    self?.route(event)
+                    guard let self else { return event }
+                    return self.route(event)
                 }
-                return event
             }
         }
 
@@ -466,35 +529,155 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
             self.eventMonitor = nil
         }
 
-        private func route(_ event: NSEvent) {
-            guard let session else {
+        private func clearArmedOrigin() {
+            armedHitView = nil
+            armedControl = nil
+        }
+
+        private func cancelArmedOriginatingControl(for triggerEvent: NSEvent) {
+            NotificationCenter.default.post(
+                name: .cueSeekerCancelControlPress,
+                object: window
+            )
+            if let control = armedControl {
+                control.cell?.isHighlighted = false
+                control.needsDisplay = true
                 return
+            }
+            guard let hitView = armedHitView else { return }
+            let offscreen = CGPoint(x: -10_000, y: -10_000)
+            if let dragEvent = Self.redirectedMouseEvent(
+                from: triggerEvent,
+                type: .leftMouseDragged,
+                locationInWindow: offscreen
+            ) {
+                hitView.mouseDragged(with: dragEvent)
+            }
+            if let upEvent = Self.redirectedMouseEvent(
+                from: triggerEvent,
+                type: .leftMouseUp,
+                locationInWindow: offscreen
+            ) {
+                hitView.mouseUp(with: upEvent)
+            }
+            armedHitView = nil
+        }
+
+        private static func enclosingControl(of hitView: NSView?) -> NSControl? {
+            var candidate = hitView
+            while let view = candidate {
+                if let control = view as? NSControl, control.isEnabled {
+                    return control
+                }
+                candidate = view.superview
+            }
+            return nil
+        }
+
+        private static func isHandledDirectlyByTableSurface(_ hitView: NSView?) -> Bool {
+            var candidate = hitView
+            while let view = candidate {
+                if view is SubtitleVirtualTableDocumentView
+                    || view is SubtitleTableHeaderTextOverlayView
+                {
+                    return true
+                }
+                candidate = view.superview
+            }
+            return false
+        }
+
+        private static func redirectedMouseEvent(
+            from event: NSEvent,
+            type: NSEvent.EventType,
+            locationInWindow: CGPoint
+        ) -> NSEvent? {
+            NSEvent.mouseEvent(
+                with: type,
+                location: locationInWindow,
+                modifierFlags: event.modifierFlags,
+                timestamp: event.timestamp,
+                windowNumber: event.windowNumber,
+                context: nil,
+                eventNumber: event.eventNumber,
+                clickCount: 1,
+                pressure: type == .leftMouseUp ? 0 : 1
+            )
+        }
+
+        private func route(_ event: NSEvent) -> NSEvent? {
+            guard let session else {
+                return event
             }
             if event.type == .leftMouseDown {
                 session.cancel()
+                clearArmedOrigin()
             }
-            guard event.window === window else { return }
+            guard event.window === window else { return event }
 
             switch event.type {
             case .leftMouseDown:
-                guard let context = startContext(atWindowPoint: event.locationInWindow),
-                      startPolicy.allowsStart(context)
+                guard let resolved = resolvedStartContext(atWindowPoint: event.locationInWindow),
+                      startPolicy.allowsStart(resolved.context)
                 else {
-                    return
+                    return event
                 }
-                _ = session.arm(startWindowPoint: event.locationInWindow)
+                if session.arm(startWindowPoint: event.locationInWindow) {
+                    armedHitView = resolved.hitView
+                    armedControl = Self.enclosingControl(of: resolved.hitView)
+                }
+                return event
+
             case .leftMouseDragged:
-                _ = session.drag(windowPoint: event.locationInWindow)
+                let wasArmed = session.phase == .armed
+                let handled = session.drag(windowPoint: event.locationInWindow)
+                guard handled else {
+                    return event
+                }
+                if wasArmed && session.phase == .selecting {
+                    cancelArmedOriginatingControl(for: event)
+                }
+                PointerHoverScrollState.shared.notePointerMoved()
+                if let window {
+                    AppPointerShape.pointerMoved(in: window, at: event.locationInWindow)
+                }
+                if armedControl != nil {
+                    return Self.redirectedMouseEvent(
+                        from: event,
+                        type: .leftMouseDragged,
+                        locationInWindow: CGPoint(x: -10_000, y: -10_000)
+                    ) ?? event
+                }
+                return nil
+
             case .leftMouseUp:
-                _ = session.end(windowPoint: event.locationInWindow)
+                let wasSelecting = session.phase == .selecting
+                let hadArmedControl = armedControl != nil
+                let handled = session.end(windowPoint: event.locationInWindow)
+                clearArmedOrigin()
+                guard wasSelecting || handled else {
+                    return event
+                }
+                if let window {
+                    AppPointerShape.pointerMoved(in: window, at: event.locationInWindow)
+                }
+                if hadArmedControl {
+                    return Self.redirectedMouseEvent(
+                        from: event,
+                        type: .leftMouseUp,
+                        locationInWindow: CGPoint(x: -10_000, y: -10_000)
+                    )
+                }
+                return nil
+
             default:
-                break
+                return event
             }
         }
 
-        private func startContext(
+        private func resolvedStartContext(
             atWindowPoint point: CGPoint
-        ) -> SubtitleTableExternalTextSelectionStartContext? {
+        ) -> (context: SubtitleTableExternalTextSelectionStartContext, hitView: NSView?)? {
             guard let window,
                   let contentView = window.contentView
             else {
@@ -514,14 +697,18 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
                 ?? contentView.convert(point, from: nil)
             let hitView = contentView.hitTest(hitTestPoint)
 
-            return SubtitleTableExternalTextSelectionStartContext(
-                isInsideWindowContent: contentFrame.contains(point),
-                isInsideTable: session?.targetWindowRect?.contains(point) == true,
-                isInteractive: SubtitleTableTextSelectionHitTesting.isInteractive(
-                    hitView,
-                    atWindowPoint: point,
-                    in: contentView
-                )
+            return (
+                SubtitleTableExternalTextSelectionStartContext(
+                    isInsideWindowContent: contentFrame.contains(point),
+                    isInsideTable: session?.targetWindowRect?.contains(point) == true
+                        || Self.isHandledDirectlyByTableSurface(hitView),
+                    isInteractive: SubtitleTableTextSelectionHitTesting.ownsDragOrTextInputGesture(
+                        hitView,
+                        atWindowPoint: point,
+                        in: window
+                    )
+                ),
+                hitView
             )
         }
     }

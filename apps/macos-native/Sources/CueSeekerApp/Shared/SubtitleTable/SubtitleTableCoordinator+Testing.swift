@@ -309,6 +309,13 @@ extension SubtitleTableView.Coordinator {
         clearTextSelection()
     }
 
+    func selectAllTableTextForTesting() {
+        guard isEnabled, !isSelectionMode else { return }
+        let previousSelection = textSelection
+        textSelection.selectAll()
+        invalidateTextSelectionChange(from: previousSelection)
+    }
+
     func textSelectionInvalidationCountForTesting() -> Int {
         textSelectionInvalidationCount
     }

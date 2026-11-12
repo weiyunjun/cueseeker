@@ -9,6 +9,9 @@ extension Notification.Name {
     /// Posted when a menu opens. Every surface holding selected text drops it,
     /// so no selection outlives the menu that covered it.
     static let cueSeekerClearTextSelection = Notification.Name("cueSeekerClearTextSelection")
+    /// Posted when a pointer press on a click-only control transitions into
+    /// external table text selection, cancelling any pressed visual state.
+    static let cueSeekerCancelControlPress = Notification.Name("cueSeekerCancelControlPress")
 }
 
 enum CueSeekerPointerEventRouter {
@@ -22,7 +25,7 @@ enum CueSeekerPointerEventRouter {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuItemValidation {
     private var window: NSWindow?
     private var settingsWindow: NSWindow?
     private weak var pendingForegroundWindow: NSWindow?
@@ -676,7 +679,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         editMenu.addItem(NSMenuItem(title: L("menu.edit.copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
         editMenu.addItem(NSMenuItem(title: L("menu.edit.paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
         editMenu.addItem(NSMenuItem(title: L("menu.edit.delete"), action: #selector(NSText.delete(_:)), keyEquivalent: "\u{8}")) // Backspace
-        editMenu.addItem(NSMenuItem(title: L("menu.edit.select_all"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+        let selectAllItem = NSMenuItem(
+            title: L("menu.edit.select_all"),
+            action: #selector(performSelectAll(_:)),
+            keyEquivalent: "a"
+        )
+        selectAllItem.target = self
+        editMenu.addItem(selectAllItem)
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
 
@@ -714,6 +723,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         NSApp.mainMenu = mainMenu
         NSApp.windowsMenu = windowMenu
+    }
+
+    static func canPerformSelectAll(in window: NSWindow? = nil) -> Bool {
+        AppCoordinator.isEditableTextInputFocused(in: window ?? CueSeekerWindow.activeKeyWindow)
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(performSelectAll(_:)) {
+            return Self.canPerformSelectAll()
+        }
+        return true
+    }
+
+    @discardableResult
+    static func performSelectAll(in window: NSWindow? = nil, sender: Any? = nil) -> Bool {
+        let targetWindow = window
+            ?? CueSeekerWindow.activeKeyWindow
+            ?? NSApplication.shared.windows.first { $0 is CueSeekerMainWindow }
+        guard let targetWindow,
+              canPerformSelectAll(in: targetWindow),
+              let responder = targetWindow.firstResponder
+        else {
+            return false
+        }
+        if let field = responder as? WorkbenchNativeSingleLineTextField {
+            field.selectAllInCurrentEditor()
+            return true
+        }
+        return responder.tryToPerform(#selector(NSText.selectAll(_:)), with: sender)
+    }
+
+    @objc func performSelectAll(_ sender: Any?) {
+        _ = Self.performSelectAll(sender: sender)
     }
 
     private static func hardwareArchitectureString() -> String {

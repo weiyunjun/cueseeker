@@ -1,0 +1,29 @@
+# 2026-11-12: Table Text Selection Refinement, Cross-Control Drag Entry, and Select All Scope
+
+## Requirement Source
+- `docs/human/requirements/20261112-UI-Table Text Selection Refinement Cross-Control Drag Entry And Select All Scope.md`
+- `docs/human/design/ui/UI Index.md`
+- `docs/human/design/ui/01-foundations/06-pointer-and-input-semantics.md`
+- `docs/human/design/ui/02-controls/01-text-and-number-inputs.md`
+- `docs/human/design/ui/02-controls/02-selection-and-pickers.md`
+- `docs/human/design/ui/02-controls/06-table-primitives.md`
+- `docs/human/design/ui/03-layouts/05-workbench-page-templates.md`
+
+## Summary of Changes
+1. **Table Normal Mode Text Selection & Pointer Refinement (`CueSeekerApp`)**:
+   - Added `SubtitleTextLayout.doubleClickUTF16Range(at:origin:)` (`SubtitleTableTextLayout.swift`) and wired `clickCount` forwarding through `SubtitleTableHeaderTextOverlayView` and `SubtitleVirtualTableDocumentView` (`SubtitleTableChromeAndHeaderViews.swift`).
+   - Added double-click word selection and triple-click full-cell selection in Normal Mode across fixed header data column titles, non-click static body cells (`Display Title`, `Time Range`, `Date Added`, `Language`), and `Unavailable` row `Cues` text, while keeping playable `Cues` strictly drag-only (preserving single-click playback and `Grab` pointer without multi-click word/cell selection) (`SubtitleTableCoordinator+SelectionAndInput.swift`).
+   - Conformed `SubtitleVirtualTableHeaderView` to `PointerShapeProviding` and updated `pointerShape(atWindowPoint:)` / `headerPointerShape(atWindowPoint:)` so hovering header title glyphs and `Unavailable` `Cues` text displays `.iBeam`, hovering the leading `Unavailable` `?` icon keeps `.arrow`, and active table drag selection maintains `.iBeam` globally across `.grab` cues and cards (`AppPointerShape.swift`, `SubtitleTableView.swift`, `SubtitleTableCoordinator+SelectionAndInput.swift`).
+2. **Cross-Control / Blank-Area Drag Entry & Excerpt Viewport Boundary (`CueSeekerApp`)**:
+   - Narrowed `externalTextSelectionWindowRect` (`selectableTableDataRectInRootCoordinates`) to visible selectable data columns of `header + body` (excluding `Excerpt` `Cover Summary`, pinned toolbar, and `#` column) and fixed `windowPointProjectsToHeader` to compare against actual visible body bounds (`SubtitleTableCoordinator+SelectionAndInput.swift`).
+   - Replaced broad control blocking in `SubtitleTableExternalTextSelectionEventMonitor` with `SubtitleTableTextSelectionHitTesting.ownsDragOrTextInputGesture(_:atWindowPoint:in:)` (`SubtitleTableExternalTextSelection.swift`, `WorkbenchSelectableText.swift`), allowing left-mouse drags initiated on click-only controls (toolbar buttons / `Filter Chip`, `AppSidebar` / `Sidebar Toggle`, `Cover Summary` buttons) as well as intra-table `#` column / checkboxes, `Unavailable` `?` icon, `dots-three` button, and playable `Cues` hover padding to enter table text selection while preserving `DraggableNSView`, window traffic-light buttons, editable/selectable text views, scrollbars, and sliders.
+   - Preserved the exact projected `startWindowPoint` anchor (`textPosition(..., requiresTextHit: false)`) without segment intersection or binary search, and immediately cancelled the originating control's pressed state and click action upon entering table text selection (`HoverEffectModifier.swift`, `AppDelegate.swift`, `SubtitleTableExternalTextSelection.swift`, `SubtitleTableCoordinator+SelectionAndInput.swift`).
+3. **Global `Cmd + A` (`Select All`) Scope Convergence (`CueSeekerApp`)**:
+   - Restricted `AppDelegate` `Edit -> Select All` (`validateMenuItem` / `performSelectAll`) and `CueSeekerWindow.performKeyEquivalent` for `Cmd + A` strictly to focused editable text inputs (`AppCoordinator.isEditableTextInputFocused(in:)`: `Text Field`, `Text Area`, `Search Field`, `Number Field`, and `Color Well` `Hex Input`), and removed `selectAll(_:)` responder overrides from `SubtitleVirtualTableDocumentView`, `SubtitleVirtualTableHeaderView`, `SubtitleTableHeaderTextOverlayView`, and `WorkbenchSelectableTextNSView`.
+4. **Unit & Integration Tests (`CueSeekerAppTests`)**:
+   - Updated and added tests in `SubtitleTableVirtualRowTests.swift`, `SubtitleTableExternalTextSelectionTests.swift`, `WorkbenchInputControlsTests.swift`, and `WorkbenchSelectableTextTests.swift` covering multi-click selection rules, `Unavailable` vs playable `Cues` pointers, intra-table and cross-control drag entry with press cancellation and projected `startWindowPoint` anchor, `Excerpt` `Cover Summary` exclusion, `Select Mode` selection clearing, and global `Cmd + A` / `Select All` convergence.
+
+## Verification
+- Ran `swift test --package-path apps/macos-native --no-parallel --filter "SubtitleTableExternalTextSelection|SubtitleTableVirtualRow|SubtitleTableTextSelection|SubtitleTableClipboard|WorkbenchSelectableText|WorkbenchInputControls|PointerShape"` (`165` tests passed).
+- Ran `swift test --package-path apps/macos-native --no-parallel --filter "SubtitleTextLayout|PlaybackNormalShortcutTests"` (`25` tests passed).
+- Result matched all requirement and acceptance criteria; end-to-end UI verification is ready for user acceptance.

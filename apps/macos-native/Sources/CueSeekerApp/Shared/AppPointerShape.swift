@@ -47,13 +47,17 @@ struct PointerShapeModel: Equatable {
     mutating func pointerMoved(
         over surfaceShape: PointerShape,
         isMenuOpen: Bool,
-        allowsMenuModalIBeam: Bool = false
+        allowsMenuModalIBeam: Bool = false,
+        overridesHandCards: Bool = false
     ) -> PointerShape? {
         if isMenuOpen {
             guard allowsMenuModalIBeam else {
                 return nil
             }
             return apply(surfaceShape == .iBeam ? .iBeam : .arrow)
+        }
+        if overridesHandCards {
+            return apply(surfaceShape)
         }
         return apply(handCardsUnderPointer.isEmpty ? surfaceShape : .grab)
     }
@@ -269,6 +273,7 @@ enum AppPointerShape {
         isMenuOpen = { false }
         allowsMenuModalIBeam = { false }
         pointerLocationOutside = nil
+        SubtitleTableActiveTextDragState.resetForTesting()
         model.clearHandCards()
         _ = model.reset()
     }
@@ -319,16 +324,22 @@ enum AppPointerShape {
         guard isPointerOverOwnWindow() else {
             return
         }
+        let isActiveTextDrag = SubtitleTableActiveTextDragState.isDraggingSelection
+            || WorkbenchStaticTextSelectionCoordinator.shared.activeDraggingPointerShape != nil
         set(model.pointerMoved(
             over: surfaceShape(at: windowPoint),
             isMenuOpen: isMenuOpen(),
-            allowsMenuModalIBeam: allowsMenuModalIBeam()
+            allowsMenuModalIBeam: allowsMenuModalIBeam(),
+            overridesHandCards: isActiveTextDrag
         ))
     }
 
     /// What the AppKit view under the pointer answers: a surface that decides
     /// for itself, text that can be selected or typed into, or nothing.
     private static func surfaceShape(at windowPoint: CGPoint) -> PointerShape {
+        if SubtitleTableActiveTextDragState.isDraggingSelection {
+            return .iBeam
+        }
         if let activeDragShape = WorkbenchStaticTextSelectionCoordinator.shared.activeDraggingPointerShape {
             return activeDragShape
         }

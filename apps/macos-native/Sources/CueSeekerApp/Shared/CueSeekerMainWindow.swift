@@ -81,6 +81,16 @@ class CueSeekerWindow: NSWindow {
                 .intersection(.deviceIndependentFlagsMask)
                 .subtracting([.numericPad, .function])
             if flags == .command,
+               event.charactersIgnoringModifiers?.lowercased() == "a" || event.keyCode == 0
+            {
+                let isEditableFocused = MainActor.assumeIsolated {
+                    AppCoordinator.isEditableTextInputFocused(in: self)
+                }
+                guard isEditableFocused else {
+                    return false
+                }
+            }
+            if flags == .command,
                event.charactersIgnoringModifiers?.lowercased() == "c" || event.keyCode == 8
             {
                 let copied = MainActor.assumeIsolated { () -> Bool in

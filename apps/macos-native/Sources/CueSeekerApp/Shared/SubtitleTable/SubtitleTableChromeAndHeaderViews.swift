@@ -344,7 +344,10 @@ final class SubtitleTableHeaderTextOverlayView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
-        if coordinator?.handleHeaderMouseDown(windowPoint: event.locationInWindow) == true {
+        if coordinator?.handleHeaderMouseDown(
+            windowPoint: event.locationInWindow,
+            clickCount: event.clickCount
+        ) == true {
             return
         }
         super.mouseDown(with: event)
@@ -364,16 +367,12 @@ final class SubtitleTableHeaderTextOverlayView: NSView {
         super.mouseUp(with: event)
     }
 
-    @IBAction override func selectAll(_ sender: Any?) {
-        coordinator?.selectAllTableText()
-    }
-
     @IBAction func copy(_ sender: Any?) {
         coordinator?.copyTableTextSelection()
     }
 }
 
-final class SubtitleVirtualTableHeaderView: NSView {
+final class SubtitleVirtualTableHeaderView: NSView, PointerShapeProviding {
     weak var coordinator: SubtitleTableView.Coordinator?
 
     private var indexHeaderHost: NSHostingView<AnyView>?
@@ -404,6 +403,22 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(visibleRect, cursor: AppPointerShape.rectCursor)
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        if AppPointerShape.manages(window) {
+            AppPointerShape.restate()
+        } else {
+            super.cursorUpdate(with: event)
+        }
+    }
+
+    func pointerShape(atWindowPoint point: CGPoint) -> PointerShape {
+        coordinator?.headerPointerShape(atWindowPoint: point) ?? .arrow
     }
 
     override init(frame frameRect: NSRect) {
@@ -756,10 +771,6 @@ final class SubtitleVirtualTableHeaderView: NSView {
         return !SubtitleTableTextSelectionHitTesting.isInteractive(hitTest(point))
     }
 
-    @IBAction override func selectAll(_ sender: Any?) {
-        coordinator?.selectAllTableText()
-    }
-
     @IBAction func copy(_ sender: Any?) {
         coordinator?.copyTableTextSelection()
     }
@@ -996,7 +1007,8 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
         window?.makeFirstResponder(self)
         if coordinator?.handleMouseDown(
             windowPoint: event.locationInWindow,
-            isShiftPressed: event.modifierFlags.contains(.shift)
+            isShiftPressed: event.modifierFlags.contains(.shift),
+            clickCount: event.clickCount
         ) == true {
             return
         }
@@ -1030,10 +1042,6 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
             return
         }
         super.keyDown(with: event)
-    }
-
-    @IBAction override func selectAll(_ sender: Any?) {
-        coordinator?.selectAllTableText()
     }
 
     @IBAction func copy(_ sender: Any?) {

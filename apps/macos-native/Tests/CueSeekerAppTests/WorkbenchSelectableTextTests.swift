@@ -505,6 +505,13 @@ struct WorkbenchSelectableTextTests {
             if let lastRect = selectionRects.last {
                 #expect(abs(lastRect.maxY - expectedHeight) < 0.5)
             }
+
+            selectableView.clearSelection(notifyCoordinator: true)
+            #expect(!selectableView.responds(to: #selector(NSResponder.selectAll(_:))))
+            _ = window.makeFirstResponder(selectableView)
+            #expect(!AppDelegate.canPerformSelectAll(in: window))
+            #expect(!AppDelegate.performSelectAll(in: window))
+            #expect(!selectableView.hasSelection)
         }
     }
 }

@@ -344,7 +344,7 @@ func subtitleTableExternalTextSelectionMonitorRoutesWindowCoordinatesWithoutTaki
             CGPoint(x: actionFrame.midX, y: actionFrame.midY),
             to: nil
         )
-    )?.isInteractive == true)
+    )?.isInteractive == false)
     #expect(monitor.startContextForTesting(
         atWindowPoint: monitor.convert(
             CGPoint(x: titlebarFrame.midX, y: titlebarFrame.midY),
@@ -352,9 +352,21 @@ func subtitleTableExternalTextSelectionMonitorRoutesWindowCoordinatesWithoutTaki
         )
     )?.isInteractive == true)
 
+    let editableField = NSTextField(frame: CGRect(x: 360, y: 390, width: 100, height: 24))
+    editableField.isEditable = true
+    editableField.isSelectable = true
+    monitor.addSubview(editableField)
+    #expect(monitor.startContextForTesting(
+        atWindowPoint: monitor.convert(
+            CGPoint(x: editableField.frame.midX, y: editableField.frame.midY),
+            to: nil
+        )
+    )?.isInteractive == true)
+
     for allowedPoint in [
         CGPoint(x: countFrame.midX, y: countFrame.midY),
         CGPoint(x: countFrame.minX - 12, y: countFrame.midY),
+        CGPoint(x: actionFrame.midX, y: actionFrame.midY),
         CGPoint(x: 30, y: 350),
         CGPoint(x: 380, y: 344),
     ] {
@@ -375,7 +387,7 @@ func subtitleTableExternalTextSelectionMonitorRoutesWindowCoordinatesWithoutTaki
     }
 
     for blockedPoint in [
-        CGPoint(x: actionFrame.midX, y: actionFrame.midY),
+        CGPoint(x: editableField.frame.midX, y: editableField.frame.midY),
         CGPoint(x: titlebarFrame.midX, y: titlebarFrame.midY),
         CGPoint(x: tableFrame.midX, y: tableFrame.midY),
     ] {
@@ -439,6 +451,183 @@ func subtitleTableExternalTextSelectionMonitorRoutesWindowCoordinatesWithoutTaki
     )!)
     #expect(session.phase == .idle)
     #expect(target.beginCalls.count == 1)
+}
+
+@MainActor
+@Test
+func subtitleTableExternalTextSelectionFromPressableButtonCancelsPressedStateAndSuppressesClick() throws {
+    final class EventStreamButtonView: NSView {
+        var isPressed = false
+        var clickCount = 0
+
+        override func mouseDown(with event: NSEvent) {
+            isPressed = bounds.contains(convert(event.locationInWindow, from: nil))
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            isPressed = bounds.contains(convert(event.locationInWindow, from: nil))
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            let inside = bounds.contains(convert(event.locationInWindow, from: nil))
+            if isPressed && inside {
+                clickCount += 1
+            }
+            isPressed = false
+        }
+    }
+
+    final class ButtonStateProbe: ObservableObject {
+        @Published var isPressed = false
+    }
+    struct PressableToolbarHarness: View {
+        @ObservedObject var probe: ButtonStateProbe
+        var body: some View {
+            Button(action: {}) {
+                Text("Filter")
+                    .frame(width: 96, height: 28)
+            }
+            .buttonStyle(PressableButtonStyle(isPressed: $probe.isPressed))
+        }
+    }
+
+    let contentFrame = CGRect(x: 0, y: 0, width: 480, height: 360)
+    let probe = ButtonStateProbe()
+    let window = NSWindow(
+        contentRect: contentFrame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    let rootView = NSView(frame: contentFrame)
+    let buttonView = EventStreamButtonView(frame: CGRect(x: 16, y: 320, width: 96, height: 28))
+    let hostingView = CueSeekerHostingView(rootView: PressableToolbarHarness(probe: probe))
+    hostingView.frame = CGRect(x: 140, y: 320, width: 96, height: 28)
+    let monitor = SubtitleTableExternalTextSelectionEventMonitor.MonitoringView(frame: .zero)
+    rootView.addSubview(buttonView)
+    rootView.addSubview(hostingView)
+    rootView.addSubview(monitor)
+    window.contentView = rootView
+    rootView.layoutSubtreeIfNeeded()
+    hostingView.layoutSubtreeIfNeeded()
+    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+
+    let target = SubtitleTableExternalTextSelectionTargetSpy()
+    target.windowRect = CGRect(x: 48, y: 20, width: 400, height: 220)
+    let session = SubtitleTableExternalTextSelectionSession()
+    session.bind(target)
+    monitor.update(
+        session: session,
+        startPolicy: SubtitleTableExternalTextSelectionStartPolicy(isBlocked: false)
+    )
+    defer { monitor.tearDown() }
+
+    let buttonWindowPoint = buttonView.convert(
+        CGPoint(x: buttonView.bounds.midX, y: buttonView.bounds.midY),
+        to: nil
+    )
+    #expect(monitor.startContextForTesting(atWindowPoint: buttonWindowPoint)?.isInteractive == false)
+    let swiftUIButtonPoint = hostingView.convert(
+        CGPoint(x: hostingView.bounds.midX, y: hostingView.bounds.midY),
+        to: nil
+    )
+    #expect(monitor.startContextForTesting(atWindowPoint: swiftUIButtonPoint)?.isInteractive == false)
+
+    // 1. Plain click without entering table still fires button action
+    let clickDown = NSEvent.mouseEvent(
+        with: .leftMouseDown,
+        location: buttonWindowPoint,
+        modifierFlags: [],
+        timestamp: 1,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 1,
+        clickCount: 1,
+        pressure: 1
+    )!
+    if let routed = monitor.routeForTesting(clickDown) {
+        buttonView.mouseDown(with: routed)
+    }
+    #expect(buttonView.isPressed)
+    #expect(session.phase == .armed)
+
+    let clickUp = NSEvent.mouseEvent(
+        with: .leftMouseUp,
+        location: buttonWindowPoint,
+        modifierFlags: [],
+        timestamp: 2,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 1,
+        clickCount: 1,
+        pressure: 0
+    )!
+    if let routed = monitor.routeForTesting(clickUp) {
+        buttonView.mouseUp(with: routed)
+    }
+    #expect(!buttonView.isPressed)
+    #expect(buttonView.clickCount == 1)
+    #expect(target.beginCalls.isEmpty)
+
+    // 2. Press on button and drag diagonally into table: immediately cancels both responder press and PressableButtonStyle binding, preserves startWindowPoint, and suppresses click even if released back over button
+    probe.isPressed = true
+    let dragDown = NSEvent.mouseEvent(
+        with: .leftMouseDown,
+        location: buttonWindowPoint,
+        modifierFlags: [],
+        timestamp: 3,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 2,
+        clickCount: 1,
+        pressure: 1
+    )!
+    if let routed = monitor.routeForTesting(dragDown) {
+        buttonView.mouseDown(with: routed)
+    }
+    #expect(buttonView.isPressed)
+    #expect(probe.isPressed)
+
+    let tableEntryPoint = CGPoint(x: 200, y: 150)
+    let dragIntoTable = NSEvent.mouseEvent(
+        with: .leftMouseDragged,
+        location: tableEntryPoint,
+        modifierFlags: [],
+        timestamp: 4,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 2,
+        clickCount: 1,
+        pressure: 1
+    )!
+    let routedDrag = monitor.routeForTesting(dragIntoTable)
+    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+    #expect(routedDrag == nil)
+    #expect(session.phase == .selecting)
+    #expect(!buttonView.isPressed)
+    #expect(!probe.isPressed)
+    #expect(target.beginCalls.count == 1)
+    #expect(target.beginCalls[0].start == buttonWindowPoint)
+    #expect(target.beginCalls[0].current == tableEntryPoint)
+
+    let releaseOverButton = NSEvent.mouseEvent(
+        with: .leftMouseUp,
+        location: buttonWindowPoint,
+        modifierFlags: [],
+        timestamp: 5,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 2,
+        clickCount: 1,
+        pressure: 0
+    )!
+    let routedUp = monitor.routeForTesting(releaseOverButton)
+    if let routedUp {
+        buttonView.mouseUp(with: routedUp)
+    }
+    #expect(routedUp == nil)
+    #expect(buttonView.clickCount == 1)
+    #expect(session.phase == .idle)
 }
 
 @MainActor

@@ -1609,5 +1609,158 @@ struct WorkbenchInputControlsTests {
         #expect(abs(longMessageRect.maxX - longFieldRect.maxX) <= 0.5)
         #expect(longMessageRect.minX < longFieldRect.minX)
     }
+
+    @Test
+    func selectAllScopeAppliesStrictlyToFocusedEditableInputsAndNowhereElse() throws {
+        _ = NSApplication.shared
+        let window = CueSeekerWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 560),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+
+        let searchBox = StringBox("search words")
+        let textBox = StringBox("plain text")
+        let numberBox = StringBox("42")
+        let areaBox = StringBox("line one\nline two")
+        let colorBox = SubtitleValueBox()
+        colorBox.isColorPopoverOpen = true
+
+        struct AllEditableInputsHarness: View {
+            @ObservedObject var searchBox: StringBox
+            @ObservedObject var textBox: StringBox
+            @ObservedObject var numberBox: StringBox
+            @ObservedObject var areaBox: StringBox
+            @ObservedObject var colorBox: SubtitleValueBox
+            @FocusState private var textFocused: Bool
+            @FocusState private var numberFocused: Bool
+            @FocusState private var areaFocused: Bool
+
+            var body: some View {
+                VStack(alignment: .leading, spacing: 12) {
+                    WorkbenchSearchField(
+                        placeholder: "Search",
+                        text: $searchBox.text,
+                        autofocus: false
+                    )
+                    WorkbenchFormTextField(
+                        label: "Title",
+                        placeholder: "Text",
+                        text: $textBox.text,
+                        validationMessage: nil,
+                        focus: $textFocused
+                    )
+                    WorkbenchNumberField(
+                        placeholder: "0",
+                        text: $numberBox.text,
+                        unit: "ms",
+                        focus: $numberFocused,
+                        normalizeDraft: { $0 },
+                        onEditingEnded: {},
+                        onSubmit: {}
+                    )
+                    .frame(width: 114)
+                    SettingsSubtitleColorField(
+                        color: $colorBox.textColor,
+                        accessibilityLabel: "Color",
+                        isPopoverOpen: $colorBox.isColorPopoverOpen
+                    )
+                    WorkbenchFormTextArea(
+                        label: "Notes",
+                        placeholder: "Notes",
+                        text: $areaBox.text,
+                        validationMessage: nil,
+                        focus: $areaFocused,
+                        height: 80
+                    )
+                    WorkbenchSelectableText("Read-only static summary")
+                }
+                .padding(20)
+                .frame(width: 600, height: 520, alignment: .topLeading)
+            }
+        }
+
+        let hosting = CueSeekerHostingView(
+            rootView: AllEditableInputsHarness(
+                searchBox: searchBox,
+                textBox: textBox,
+                numberBox: numberBox,
+                areaBox: areaBox,
+                colorBox: colorBox
+            )
+        )
+        hosting.frame = NSRect(x: 0, y: 0, width: 640, height: 560)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        hosting.layoutSubtreeIfNeeded()
+
+        let cmdAEvent = try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 1,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: "a",
+            charactersIgnoringModifiers: "a",
+            isARepeat: false,
+            keyCode: 0
+        ))
+
+        // Unfocused: Select All is disabled and Cmd+A is blocked
+        _ = window.makeFirstResponder(nil)
+        #expect(!AppDelegate.canPerformSelectAll(in: window))
+        #expect(!AppDelegate.performSelectAll(in: window))
+        #expect(!window.performKeyEquivalent(with: cmdAEvent))
+
+        // Each single-line editable input (Search, Text, Number, ColorWell Hex): Select All selects entire field text
+        let singleLineFields = collectEditableTextFields(in: hosting)
+            .compactMap { $0 as? WorkbenchNativeSingleLineTextField }
+        #expect(singleLineFields.count == 4)
+        for field in singleLineFields {
+            #expect(window.makeFirstResponder(field))
+            let editor = try #require(field.currentEditor() as? NSTextView)
+            editor.setSelectedRange(NSRange(location: 0, length: 0))
+            #expect(AppDelegate.canPerformSelectAll(in: window))
+            #expect(AppDelegate.performSelectAll(in: window))
+            #expect(editor.selectedRange() == NSRange(location: 0, length: (editor.string as NSString).length))
+        }
+
+        // Text Area: Select All selects entire multi-line text
+        func findTextArea(in view: NSView) -> WorkbenchTextAreaNativeTextView? {
+            if let match = view as? WorkbenchTextAreaNativeTextView { return match }
+            for subview in view.subviews {
+                if let found = findTextArea(in: subview) { return found }
+            }
+            return nil
+        }
+        let textArea = try #require(findTextArea(in: hosting))
+        #expect(window.makeFirstResponder(textArea))
+        textArea.setSelectedRange(NSRange(location: 0, length: 0))
+        #expect(AppDelegate.canPerformSelectAll(in: window))
+        #expect(AppDelegate.performSelectAll(in: window))
+        #expect(textArea.selectedRange() == NSRange(location: 0, length: (textArea.string as NSString).length))
+
+        // Non-editable selectable text view as first responder: Select All is disabled and selects nothing
+        func findSelectableText(in view: NSView) -> WorkbenchSelectableTextNSView? {
+            if let match = view as? WorkbenchSelectableTextNSView,
+               match.text == "Read-only static summary" {
+                return match
+            }
+            for subview in view.subviews {
+                if let found = findSelectableText(in: subview) { return found }
+            }
+            return nil
+        }
+        let staticView = try #require(findSelectableText(in: hosting))
+        #expect(window.makeFirstResponder(staticView))
+        staticView.clearSelection(notifyCoordinator: true)
+        #expect(!AppDelegate.canPerformSelectAll(in: window))
+        #expect(!AppDelegate.performSelectAll(in: window))
+        #expect(!window.performKeyEquivalent(with: cmdAEvent))
+        #expect(!staticView.hasSelection)
+    }
 }
 

@@ -212,6 +212,32 @@ final class SubtitleTextLayout {
         return min(max(0, characterIndex), textStorage.length)
     }
 
+    func doubleClickUTF16Range(at point: CGPoint, origin: CGPoint) -> NSRange? {
+        guard textStorage.length > 0 else { return nil }
+        let validGlyphRange = layoutManager.glyphRange(for: textContainer)
+        guard validGlyphRange.length > 0 else { return nil }
+        let localPoint = CGPoint(x: point.x - origin.x, y: point.y - origin.y)
+        let rawGlyphIndex = layoutManager.glyphIndex(
+            for: localPoint,
+            in: textContainer,
+            fractionOfDistanceThroughGlyph: nil
+        )
+        let glyphIndex = min(
+            max(rawGlyphIndex, validGlyphRange.location),
+            NSMaxRange(validGlyphRange) - 1
+        )
+        let characterRange = layoutManager.characterRange(
+            forGlyphRange: NSRange(location: glyphIndex, length: 1),
+            actualGlyphRange: nil
+        )
+        let charIndex = min(
+            max(0, characterRange.location),
+            max(0, textStorage.length - 1)
+        )
+        let wordRange = textStorage.doubleClick(at: charIndex)
+        return wordRange.length > 0 ? wordRange : nil
+    }
+
     func selectionRects(forUTF16Range range: NSRange, at origin: CGPoint) -> [CGRect] {
         let safeRange = NSIntersectionRange(
             range,

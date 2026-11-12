@@ -12,11 +12,104 @@ extension SubtitleTableView.Coordinator {
 
     var externalTextSelectionWindowRect: CGRect? {
         guard let container, container.window != nil else { return nil }
-        return container.convert(container.bounds, to: nil)
+        return selectableTableDataRectInRootCoordinates
+    }
+
+    private var selectableTableDataRectInRootCoordinates: CGRect? {
+        guard container != nil else { return nil }
+        let headerRect = headerSelectableDataWindowRect
+        let bodyRect = bodySelectableDataWindowRect
+        switch (headerRect, bodyRect) {
+        case (let h?, let b?):
+            return h.union(b)
+        case (let h?, nil):
+            return h
+        case (nil, let b?):
+            return b
+        case (nil, nil):
+            return nil
+        }
+    }
+
+    private var headerSelectableDataWindowRect: CGRect? {
+        guard showsHeader,
+              let headerView,
+              !headerView.isHidden,
+              headerView.bounds.width > 0,
+              headerView.bounds.height > 0
+        else {
+            return nil
+        }
+        let layout = headerColumnLayoutForRendering(
+            viewportWidth: headerView.bounds.width,
+            height: headerView.bounds.height
+        )
+        let minX = max(headerView.bounds.minX, layout.indexRect.maxX)
+        guard headerView.bounds.maxX > minX else { return nil }
+        let localRect = CGRect(
+            x: minX,
+            y: headerView.bounds.minY,
+            width: headerView.bounds.maxX - minX,
+            height: headerView.bounds.height
+        )
+        return headerView.convert(localRect, to: nil).standardized
+    }
+
+    private var bodySelectableDataWindowRect: CGRect? {
+        guard rowCount > 0,
+              let documentView,
+              let scrollView
+        else {
+            return nil
+        }
+        let visibleRect = currentTableBodyVisibleRect
+        guard visibleRect.width > 0, visibleRect.height > 0 else { return nil }
+        let layout = tableColumnLayout(
+            contentWidth: documentView.bounds.width,
+            height: max(1, visibleRect.height)
+        )
+        let minX = max(visibleRect.minX, layout.indexRect.maxX)
+        guard visibleRect.maxX > minX else { return nil }
+        let localRect = CGRect(
+            x: minX,
+            y: visibleRect.minY,
+            width: visibleRect.maxX - minX,
+            height: visibleRect.height
+        )
+        let clipWindowRect = scrollView.contentView.convert(
+            scrollView.contentView.bounds,
+            to: nil
+        ).standardized
+        let docWindowRect = documentView.convert(localRect, to: nil).standardized
+        let intersected = docWindowRect.intersection(clipWindowRect)
+        guard !intersected.isNull, intersected.width > 0, intersected.height > 0 else {
+            return nil
+        }
+        return intersected
+    }
+
+    func isWindowPointInSelectableDataRegion(_ windowPoint: CGPoint) -> Bool {
+        guard selectableTableDataRectInRootCoordinates?.contains(windowPoint) == true else {
+            return false
+        }
+        if let documentView {
+            let docPoint = documentView.convert(windowPoint, from: nil)
+            if currentTableBodyVisibleRect.contains(docPoint),
+               let row = rowAtDocumentPoint(docPoint)
+            {
+                if isPointInRowActionButton(row: row, point: docPoint)
+                    || isPointInCueStateIndicator(row: row, point: docPoint)
+                {
+                    return false
+                }
+            }
+        }
+        return true
     }
 
     var canBeginExternalTextSelection: Bool {
-        isEnabled &&
+        !isPointerFrozen &&
+            isEnabled &&
             !isSelectionMode &&
             pendingTextInteraction == nil &&
             container != nil &&
@@ -30,8 +123,25 @@ extension SubtitleTableView.Coordinator {
         startWindowPoint: CGPoint,
         currentWindowPoint: CGPoint
     ) -> Bool {
-        guard canBeginExternalTextSelection,
-              externalTextSelectionWindowRect?.contains(currentWindowPoint) == true,
+        guard canBeginExternalTextSelection else {
+            return false
+        }
+        return beginProjectedDragTextSelection(
+            startWindowPoint: startWindowPoint,
+            currentWindowPoint: currentWindowPoint
+        )
+    }
+
+    func beginProjectedDragTextSelection(
+        startWindowPoint: CGPoint,
+        currentWindowPoint: CGPoint
+    ) -> Bool {
+        guard !isPointerFrozen,
+              isEnabled,
+              !isSelectionMode,
+              pendingTextInteraction == nil,
+              !visibleTextColumnOrder().isEmpty,
+              isWindowPointInSelectableDataRegion(currentWindowPoint),
               let anchor = textPosition(
                   atWindowPoint: startWindowPoint,
                   requiresTextHit: false
@@ -40,6 +150,7 @@ extension SubtitleTableView.Coordinator {
             return false
         }
 
+        hideCueStateTip()
         clearFocusedCheckbox()
         documentView?.window?.makeFirstResponder(documentView)
         var interaction = PendingTextInteraction(
@@ -52,7 +163,7 @@ extension SubtitleTableView.Coordinator {
         beginPendingTextSelectionIfPossible(&interaction)
         guard interaction.selectionHasBegun else { return false }
         pendingTextInteraction = interaction
-        updateTextSelectionFocus(atWindowPoint: currentWindowPoint)
+        updateTextSelectionFocus(atWindowPoint: currentWindowPoint, for: interaction)
         updateTextDragAutoScrollState(for: interaction)
         return true
     }
@@ -125,7 +236,7 @@ extension SubtitleTableView.Coordinator {
         refreshHeaderForHorizontalScrollIfNeeded()
         pageScrollbar?.metricsDidChange()
         notifyVisibleRowsChanged()
-        updateTextSelectionFocus(atWindowPoint: interaction.latestWindowPoint)
+        updateTextSelectionFocus(atWindowPoint: interaction.latestWindowPoint, for: interaction)
     }
 
     func textDragAutoScrollTarget(
@@ -164,7 +275,10 @@ extension SubtitleTableView.Coordinator {
         )
     }
 
-    func updateTextSelectionFocus(atWindowPoint windowPoint: CGPoint) {
+    func updateTextSelectionFocus(
+        atWindowPoint windowPoint: CGPoint,
+        for interaction: PendingTextInteraction? = nil
+    ) {
         guard let focus = textPosition(
             atWindowPoint: windowPoint,
             requiresTextHit: false
@@ -172,7 +286,20 @@ extension SubtitleTableView.Coordinator {
             return
         }
         let previousSelection = textSelection
-        textSelection.updateFocus(to: focus)
+        if let initialRange = interaction?.initialRange {
+            if focus < initialRange.start {
+                textSelection.begin(at: initialRange.end)
+                textSelection.updateFocus(to: focus)
+            } else if focus > initialRange.end {
+                textSelection.begin(at: initialRange.start)
+                textSelection.updateFocus(to: focus)
+            } else {
+                textSelection.begin(at: initialRange.start)
+                textSelection.updateFocus(to: initialRange.end)
+            }
+        } else {
+            textSelection.updateFocus(to: focus)
+        }
         invalidateTextSelectionChange(from: previousSelection)
     }
 
@@ -241,13 +368,6 @@ extension SubtitleTableView.Coordinator {
             clearHover()
             headerView?.clearHoverState()
         }
-    }
-
-    func selectAllTableText() {
-        guard isEnabled, !isSelectionMode else { return }
-        let previousSelection = textSelection
-        textSelection.selectAll()
-        invalidateTextSelectionChange(from: previousSelection)
     }
 
     func copyTableTextSelection(to pasteboard: NSPasteboard = .general) {
@@ -556,6 +676,26 @@ extension SubtitleTableView.Coordinator {
             || interfaceLayerContext.isFrozen
     }
 
+    func headerPointerShape(atWindowPoint windowPoint: CGPoint) -> PointerShape {
+        guard !isPointerFrozen else { return .arrow }
+        if SubtitleTableActiveTextDragState.isDraggingSelection {
+            return .iBeam
+        }
+        guard isEnabled,
+              !isSelectionMode,
+              showsHeader,
+              let headerView,
+              !headerView.isHidden
+        else {
+            return .arrow
+        }
+        let point = headerView.convert(windowPoint, from: nil)
+        guard headerView.bounds.contains(point) else {
+            return .arrow
+        }
+        return isHeaderTextHitForInteraction(at: point) ? .iBeam : .arrow
+    }
+
     /// The table's answer to the pointer, asked by `AppPointerShape` when
     /// the pointer really moved. Playable cue text takes the hand and
     /// selectable text the I-beam; a frozen table, Select Mode and
@@ -565,6 +705,9 @@ extension SubtitleTableView.Coordinator {
         guard !isPointerFrozen, let documentView else {
             return .arrow
         }
+        if SubtitleTableActiveTextDragState.isDraggingSelection {
+            return .iBeam
+        }
         let point = documentView.convert(windowPoint, from: nil)
         let visibleRect = currentTableBodyVisibleRect
         guard visibleRect.contains(point),
@@ -573,7 +716,9 @@ extension SubtitleTableView.Coordinator {
             return .arrow
         }
         let rows = row..<(row + 1)
-        if isPointInRowActionButton(row: row, point: point) {
+        if isPointInRowActionButton(row: row, point: point)
+            || isPointInCueStateIndicator(row: row, point: point)
+        {
             return .arrow
         }
         if interactiveCellRects(in: visibleRect, rows: rows)
@@ -638,13 +783,15 @@ extension SubtitleTableView.Coordinator {
             return []
         }
 
-        let selectableColumnIDs = visibleTextColumnOrder().filter {
+        let allColumnIDs = visibleTextColumnOrder()
+        let staticColumnIDs = allColumnIDs.filter {
             $0 != "cues"
         }
         return range.flatMap { row -> [CGRect] in
-            guard rowProvider(row) != nil else { return [] }
+            guard let model = rowProvider(row) else { return [] }
             let rowRect = rectForRow(row, width: documentWidth)
-            return selectableColumnIDs.flatMap { columnID in
+            let rowColumnIDs = model.cueState.isUnavailable ? allColumnIDs : staticColumnIDs
+            return rowColumnIDs.flatMap { columnID in
                 textFragments(row: row, columnID: columnID, rowRect: rowRect).flatMap { fragment in
                     textLayout.update(attributedString: fragment.attributed, width: fragment.width)
                     return textLayout.usedRects(at: fragment.origin).compactMap { rect in
@@ -975,7 +1122,7 @@ extension SubtitleTableView.Coordinator {
         atWindowPoint windowPoint: CGPoint,
         requiresTextHit: Bool
     ) -> SubtitleTableTextPosition? {
-        if let headerView {
+        if showsHeader, let headerView, !headerView.isHidden {
             let headerWindowRect = headerView.convert(headerView.bounds, to: nil)
             let projectsToHeader = headerWindowRect.contains(windowPoint) ||
                 (!requiresTextHit && windowPointProjectsToHeader(
@@ -1014,9 +1161,15 @@ extension SubtitleTableView.Coordinator {
            windowPoint.y <= headerWindowRect.maxY {
             return true
         }
-
-        guard let scrollView else { return false }
-        let bodyWindowRect = scrollView.convert(scrollView.bounds, to: nil)
+        guard rowCount > 0 else {
+            return true
+        }
+        guard let documentView else { return false }
+        let visibleBodyRect = currentTableBodyVisibleRect
+        guard !visibleBodyRect.isEmpty else {
+            return true
+        }
+        let bodyWindowRect = documentView.convert(visibleBodyRect, to: nil)
         if bodyWindowRect.midY < headerWindowRect.midY {
             return windowPoint.y > headerWindowRect.maxY
         }
@@ -1160,7 +1313,124 @@ extension SubtitleTableView.Coordinator {
         updateHoveredCueTextRow(cueTextRow)
     }
 
-    func handleMouseDown(windowPoint: CGPoint, isShiftPressed: Bool = false) -> Bool {
+    func headerMultiClickSelectionRange(
+        at point: CGPoint,
+        clickCount: Int
+    ) -> (start: SubtitleTableTextPosition, end: SubtitleTableTextPosition)? {
+        guard clickCount >= 2 else { return nil }
+        guard let item = headerTextFragments().first(where: { item in
+            guard item.fragment.clipRect.contains(point) else { return false }
+            textLayout.update(
+                attributedString: item.fragment.attributed,
+                width: item.fragment.width
+            )
+            return textLayout.containsText(at: point, origin: item.fragment.origin)
+        }) else {
+            return nil
+        }
+        textLayout.update(
+            attributedString: item.fragment.attributed,
+            width: item.fragment.width
+        )
+        if clickCount >= 3 {
+            let fullLength = item.fragment.logicalUTF16Range.length
+            guard fullLength > 0 else { return nil }
+            return (
+                SubtitleTableTextPosition(row: .header, columnIndex: item.columnIndex, utf16Offset: 0),
+                SubtitleTableTextPosition(row: .header, columnIndex: item.columnIndex, utf16Offset: fullLength)
+            )
+        }
+        guard let wordRange = textLayout.doubleClickUTF16Range(
+            at: point,
+            origin: item.fragment.origin
+        ) else {
+            return nil
+        }
+        let startOffset = item.fragment.logicalUTF16Range.location + wordRange.location
+        let endOffset = startOffset + wordRange.length
+        return (
+            SubtitleTableTextPosition(row: .header, columnIndex: item.columnIndex, utf16Offset: startOffset),
+            SubtitleTableTextPosition(row: .header, columnIndex: item.columnIndex, utf16Offset: endOffset)
+        )
+    }
+
+    func bodyStaticCellMultiClickSelectionRange(
+        at point: CGPoint,
+        clickCount: Int
+    ) -> (start: SubtitleTableTextPosition, end: SubtitleTableTextPosition)? {
+        guard clickCount >= 2,
+              let documentView,
+              let row = rowAtDocumentPoint(point),
+              let model = rowProvider(row)
+        else {
+            return nil
+        }
+        let rowRect = rectForRow(row, width: documentView.bounds.width)
+        let columnIDs = visibleTextColumnOrder()
+        guard let columnIndex = columnIDs.firstIndex(where: {
+            dataCellRect(columnID: $0, rowRect: rowRect)?.contains(point) == true
+        }) else {
+            return nil
+        }
+        let columnID = columnIDs[columnIndex]
+        guard columnID != "cues" || model.cueState.isUnavailable else {
+            return nil
+        }
+        let fragments = textFragments(row: row, columnID: columnID, rowRect: rowRect)
+        guard let fragment = fragments.first(where: { candidate in
+            guard candidate.clipRect.contains(point) else { return false }
+            textLayout.update(attributedString: candidate.attributed, width: candidate.width)
+            return textLayout.containsText(at: point, origin: candidate.origin)
+        }) else {
+            return nil
+        }
+        textLayout.update(attributedString: fragment.attributed, width: fragment.width)
+        if clickCount >= 3 {
+            let fullLength = (selectableText(for: columnID, model: model) as NSString).length
+            guard fullLength > 0 else { return nil }
+            return (
+                SubtitleTableTextPosition(row: .body(row), columnIndex: columnIndex, utf16Offset: 0),
+                SubtitleTableTextPosition(row: .body(row), columnIndex: columnIndex, utf16Offset: fullLength)
+            )
+        }
+        guard let wordRange = textLayout.doubleClickUTF16Range(
+            at: point,
+            origin: fragment.origin
+        ) else {
+            return nil
+        }
+        let startOffset = fragment.logicalUTF16Range.location + wordRange.location
+        let endOffset = startOffset + wordRange.length
+        return (
+            SubtitleTableTextPosition(row: .body(row), columnIndex: columnIndex, utf16Offset: startOffset),
+            SubtitleTableTextPosition(row: .body(row), columnIndex: columnIndex, utf16Offset: endOffset)
+        )
+    }
+
+    func applyImmediateMultiClickSelection(
+        range: (start: SubtitleTableTextPosition, end: SubtitleTableTextPosition),
+        startWindowPoint: CGPoint
+    ) {
+        WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+        let previousSelection = textSelection
+        textSelection.begin(at: range.start)
+        textSelection.updateFocus(to: range.end)
+        invalidateTextSelectionChange(from: previousSelection)
+        pendingTextInteraction = PendingTextInteraction(
+            startPoint: startWindowPoint,
+            anchor: range.start,
+            directAction: .none,
+            initialRange: range,
+            selectionHasBegun: true,
+            latestWindowPoint: startWindowPoint
+        )
+    }
+
+    func handleMouseDown(
+        windowPoint: CGPoint,
+        isShiftPressed: Bool = false,
+        clickCount: Int = 1
+    ) -> Bool {
         guard isEnabled,
               !isMenuOpen,
               !isCoveredByHigherLayer,
@@ -1186,10 +1456,14 @@ extension SubtitleTableView.Coordinator {
             )
             return true
         }
+        clearTextSelection()
         if let row, isPointInRowActionButton(row: row, point: point) {
             clearFocusedCheckbox()
             cancelPendingTextInteraction()
-            pendingRowSelectionTarget = .rowActionButton(row: row)
+            pendingRowSelectionTarget = .rowActionButton(
+                row: row,
+                startWindowPoint: windowPoint
+            )
             updatePressedRowActionRow(row)
             return true
         }
@@ -1202,12 +1476,22 @@ extension SubtitleTableView.Coordinator {
             else {
                 return false
             }
-            pendingRowSelectionTarget = .rowCheckbox(row: row)
+            pendingRowSelectionTarget = .rowCheckbox(
+                row: row,
+                startWindowPoint: windowPoint
+            )
             return true
         }
         if let row, isPointInCueStateIndicator(row: row, point: point) {
             clearFocusedCheckbox()
             cancelPendingTextInteraction()
+            pendingTextInteraction = PendingTextInteraction(
+                startPoint: windowPoint,
+                anchor: textPosition(atWindowPoint: windowPoint, requiresTextHit: false),
+                directAction: .none,
+                requiresSelectableDataRegionEntry: true,
+                latestWindowPoint: windowPoint
+            )
             return true
         }
 
@@ -1220,11 +1504,33 @@ extension SubtitleTableView.Coordinator {
         } else {
             directAction = .none
         }
-        let exactAnchor = textPosition(atDocumentPoint: point, requiresTextHit: true)
-        let anchor = exactAnchor ?? (
-            isNoDirectTextAction(directAction)
-                ? textPosition(atDocumentPoint: point, requiresTextHit: false)
-                : nil
+
+        if isNoDirectTextAction(directAction),
+           let multiClickRange = bodyStaticCellMultiClickSelectionRange(
+               at: point,
+               clickCount: clickCount
+           )
+        {
+            clearFocusedCheckbox()
+            pendingRowSelectionTarget = nil
+            applyImmediateMultiClickSelection(
+                range: multiClickRange,
+                startWindowPoint: windowPoint
+            )
+            return true
+        }
+
+        let layout = tableColumnLayout(
+            contentWidth: documentView.bounds.width,
+            height: max(1, currentTableBodyVisibleRect.height)
+        )
+        let isInsideIndexColumn = point.x < layout.indexRect.maxX
+        let exactAnchor = isInsideIndexColumn
+            ? nil
+            : textPosition(atDocumentPoint: point, requiresTextHit: true)
+        let anchor = exactAnchor ?? textPosition(
+            atDocumentPoint: point,
+            requiresTextHit: false
         )
         guard anchor != nil || !isNoDirectTextAction(directAction) else {
             return false
@@ -1236,12 +1542,16 @@ extension SubtitleTableView.Coordinator {
             startPoint: windowPoint,
             anchor: anchor,
             directAction: directAction,
+            requiresSelectableDataRegionEntry: isInsideIndexColumn,
             latestWindowPoint: windowPoint
         )
         return true
     }
 
-    func handleHeaderMouseDown(windowPoint: CGPoint) -> Bool {
+    func handleHeaderMouseDown(
+        windowPoint: CGPoint,
+        clickCount: Int = 1
+    ) -> Bool {
         guard isEnabled,
               !isSelectionMode,
               !isMenuOpen,
@@ -1257,27 +1567,70 @@ extension SubtitleTableView.Coordinator {
             return false
         }
 
+        clearTextSelection()
         clearFocusedCheckbox()
         pendingRowSelectionTarget = nil
+        if let multiClickRange = headerMultiClickSelectionRange(
+            at: point,
+            clickCount: clickCount
+        ) {
+            applyImmediateMultiClickSelection(
+                range: multiClickRange,
+                startWindowPoint: windowPoint
+            )
+            return true
+        }
+
+        let headerLayout = headerColumnLayoutForRendering(
+            viewportWidth: headerView.bounds.width,
+            height: headerView.bounds.height
+        )
+        let isInsideIndexColumn = headerLayout.indexRect.contains(point)
         pendingTextInteraction = PendingTextInteraction(
             startPoint: windowPoint,
             anchor: anchor,
             directAction: .none,
+            requiresSelectableDataRegionEntry: isInsideIndexColumn,
             latestWindowPoint: windowPoint
         )
         return true
     }
 
     func handleMouseDragged(windowPoint: CGPoint) -> Bool {
-        if case .rowActionButton(let row) = pendingRowSelectionTarget {
-            guard let documentView else { return false }
-            let point = documentView.convert(windowPoint, from: nil)
-            let isInside = currentTableBodyVisibleRect.contains(point)
-                && isPointInRowActionButton(row: row, point: point)
-            updatePressedRowActionRow(isInside ? row : nil)
-            updateHoveredRowActionRow(isInside ? row : nil)
+        switch pendingRowSelectionTarget {
+        case .rowCheckbox(_, let startWindowPoint),
+             .rowActionButton(_, let startWindowPoint):
+            let distance = hypot(
+                windowPoint.x - startWindowPoint.x,
+                windowPoint.y - startWindowPoint.y
+            )
+            if distance >= Self.textDragThreshold,
+               isWindowPointInSelectableDataRegion(windowPoint)
+            {
+                pendingRowSelectionTarget = nil
+                updatePressedRowActionRow(nil)
+                updateHoveredRowActionRow(nil)
+                if beginProjectedDragTextSelection(
+                    startWindowPoint: startWindowPoint,
+                    currentWindowPoint: windowPoint
+                ) {
+                    return true
+                }
+            }
+            if case .rowActionButton(let row, _) = pendingRowSelectionTarget {
+                guard let documentView else { return false }
+                let point = documentView.convert(windowPoint, from: nil)
+                let isInside = currentTableBodyVisibleRect.contains(point)
+                    && isPointInRowActionButton(row: row, point: point)
+                updatePressedRowActionRow(isInside ? row : nil)
+                updateHoveredRowActionRow(isInside ? row : nil)
+                return true
+            }
             return true
+        case .selectionModeRow, nil:
+            break
         }
+
         guard var interaction = pendingTextInteraction else {
             return false
         }
@@ -1290,11 +1643,18 @@ extension SubtitleTableView.Coordinator {
             interaction.didDrag = true
         }
         if interaction.didDrag {
-            beginPendingTextSelectionIfPossible(&interaction)
+            if !interaction.requiresSelectableDataRegionEntry
+                || isWindowPointInSelectableDataRegion(windowPoint)
+            {
+                if interaction.requiresSelectableDataRegionEntry {
+                    hideCueStateTip()
+                }
+                beginPendingTextSelectionIfPossible(&interaction)
+            }
         }
         pendingTextInteraction = interaction
-        if interaction.selectionHasBegun {
-            updateTextSelectionFocus(atWindowPoint: windowPoint)
+        if interaction.didDrag && interaction.selectionHasBegun {
+            updateTextSelectionFocus(atWindowPoint: windowPoint, for: interaction)
             updateTextDragAutoScrollState(for: interaction)
         }
         return true
@@ -1316,11 +1676,11 @@ extension SubtitleTableView.Coordinator {
                 return true
             }
             switch selectionTarget {
-            case .rowCheckbox(let row):
+            case .rowCheckbox(let row, _):
                 if !isSelectionMode, isPointInCheckbox(row: row, point: point) {
                     _ = toggleRowCheckboxFromMouse(row: row)
                 }
-            case .rowActionButton(let row):
+            case .rowActionButton(let row, _):
                 if !isSelectionMode,
                    isPointInRowActionButton(row: row, point: point),
                    let buttonFrame = rowActionButtonFrameInContainer(for: row)
@@ -1349,7 +1709,6 @@ extension SubtitleTableView.Coordinator {
             return false
         }
         stopTextDragAutoScroll()
-        pendingTextInteraction = nil
         if hypot(
             windowPoint.x - interaction.startPoint.x,
             windowPoint.y - interaction.startPoint.y
@@ -1357,11 +1716,19 @@ extension SubtitleTableView.Coordinator {
             interaction.didDrag = true
         }
         if interaction.didDrag {
-            beginPendingTextSelectionIfPossible(&interaction)
+            if !interaction.requiresSelectableDataRegionEntry
+                || isWindowPointInSelectableDataRegion(windowPoint)
+            {
+                if interaction.requiresSelectableDataRegionEntry {
+                    hideCueStateTip()
+                }
+                beginPendingTextSelectionIfPossible(&interaction)
+            }
+            if interaction.selectionHasBegun {
+                updateTextSelectionFocus(atWindowPoint: windowPoint, for: interaction)
+            }
         }
-        if interaction.selectionHasBegun {
-            updateTextSelectionFocus(atWindowPoint: windowPoint)
-        }
+        pendingTextInteraction = nil
         guard !interaction.didDrag else { return true }
 
         switch interaction.directAction {

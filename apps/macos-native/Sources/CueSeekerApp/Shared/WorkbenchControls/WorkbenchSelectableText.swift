@@ -43,6 +43,13 @@ final class WorkbenchStaticTextSelectionCoordinator {
         return activeView?.isTrackingMouse == true
     }
 
+    var isDirectDragSelection: Bool {
+        if case .selecting = externalDragState {
+            return false
+        }
+        return activeView?.isTrackingMouse == true
+    }
+
     var activeDraggingPointerShape: PointerShape? {
         guard isDraggingSelection, let activeView, activeView.canInteract else {
             return nil
@@ -1056,10 +1063,6 @@ final class WorkbenchSelectableTextNSView: NSView, PointerShapeProviding, Subtit
 
     @IBAction func copy(_ sender: Any?) {
         _ = WorkbenchStaticTextSelectionCoordinator.shared.copyActiveSelection()
-    }
-
-    @IBAction override func selectAll(_ sender: Any?) {
-        selectAllText()
     }
 
     func selectAllText() {

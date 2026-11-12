@@ -34,6 +34,14 @@ struct PressableButtonStyle: ButtonStyle {
                     isHovered?.wrappedValue = false
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .cueSeekerCancelControlPress)) { _ in
+                if isPressed {
+                    isPressed = false
+                }
+                if (NSEvent.pressedMouseButtons & 1) != 0 {
+                    isHovered?.wrappedValue = false
+                }
+            }
             .onDisappear {
                 if isPressed {
                     isPressed = false
