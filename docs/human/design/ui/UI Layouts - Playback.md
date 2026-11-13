@@ -1,6 +1,6 @@
 # 说明
 1. 本文档由人类维护，定义播放相关界面布局（`L-07` ~ `L-09`）：Player、Playback Overlay、Command Panel。
-2. 播放页顶底栏显隐、浮层层级屏蔽与全屏规则详见 `/docs/human/design/ui/UI Interaction Rules.md`。
+2. 播放页顶底栏显隐、浮层层级屏蔽与全屏规则详见 `/docs/human/design/ui/UI Interaction Rules.md`；字幕流与浮层文本选择规则详见 `/docs/human/design/ui/UI Text Selection Rules.md`。
 
 # 3. Layouts（Part 2：Player, Overlay & Command Panel `L-07` ~ `L-09`）
 

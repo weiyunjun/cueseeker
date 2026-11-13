@@ -1,6 +1,6 @@
 # 说明
 1. 本文档由人类维护，定义工作台与对话框界面布局（`L-01` ~ `L-06`）：App Shell、Settings、Recent、Library and File、Search and Excerpt、Dialogs。
-2. 通用布局边距、滚动条预留通道与 Dialog 等距测量基准详见 `/docs/human/design/ui/UI Design Rules.md`。
+2. 通用布局边距、滚动条预留通道与 Dialog 等距测量基准详见 `/docs/human/design/ui/UI Design Rules.md`；全界面文本选择范围与交互规则详见 `/docs/human/design/ui/UI Text Selection Rules.md`。
 
 # 3. Layouts（Part 1：Workbench & Dialogs `L-01` ~ `L-06`）
 
@@ -487,7 +487,7 @@
 - Cover Summary 使用 `--spacing-8` 边距，Episode Grid 使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的剧集封面图与 Cover Summary 水平边界齐平。
 - Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
 - Cover Summary 内容：
-  - Supporting Content 第 1 行为视频与字幕数量（`xx videos  yy subtitles`，中间以 2 个英文空格分隔），第 2 行为文件夹路径（本地文件夹路径支持点击在 Finder 中打开，Hover 显示同色下划线与 Grab 指针，拖拽则划选文字；远程文件夹路径为普通静态可选文本）。
+  - Supporting Content 第 1 行为视频与字幕数量（`xx videos  yy subtitles`，中间以 2 个英文空格分隔），第 2 行为文件夹路径（本地文件夹路径支持点击在 Finder 中打开，Hover 显示同色下划线与 Grab 指针）。
   - Progress Label（仅 Resume 态显示）：`EPxx  mm:ss / mm:ss`（集数与时间戳之间以 2 个英文空格分隔，不显示百分比）。
   - Action Row：`Resume` / `Play`、`View in File`（图标 `folder`，点击跳转至 File 对应目录视图；若文件夹已不在媒体库中则拦截并弹出 Toast）、`More`（图标 `dots-three`，弹出菜单内容与 Library 一级界面文件夹卡片右键菜单一致）。
 
@@ -592,7 +592,7 @@
   - 进行中（In Progress）：`Spinner` + `--color-text-secondary`（`Indexing [Folder]`、`Indexing All Folders`、`Removing [Folder]`）
   - 失败（Failed）：`warning`（18px 1.30px `--color-danger-text`）+ `--color-danger-text`（`Index Failed: [Folder]`、`Removal Failed: [Folder]`）
   - 闲置（Idle）：无左侧图标，`--color-text-secondary`（`Last Updated: yyyy-MM-dd HH:mm:ss` / `Last Updated: -`）。层级切换或重新进入时若无进行中操作则恢复闲置状态。
-- 点击与选词交互：所有状态下状态文字均支持拖拽划选与复制（左侧图标除外）；从未索引（`Last Updated: -`）时为纯静态可选文本（Pointer 为 I-beam），其余状态下状态文字同时支持点击（Hover 显示与当前文字同色下划线，Pointer 为 Grab，单击直接打开对应任务 `Index All`、`Index`、`Add Folder`、`Remove Folder` 的 `Task Info` 详情弹窗，拖拽则划选文字且松手不打开弹窗；若该任务记录已被删除则弹出 Toast 提示）。
+- 点击交互：除从未索引（`Last Updated: -`）外，其余状态下状态文字支持点击（Hover 显示与当前文字同色下划线，Pointer 为 Grab，单击直接打开对应任务 `Index All`、`Index`、`Add Folder`、`Remove Folder` 的 `Task Info` 详情弹窗；若该任务记录已被删除则弹出 Toast 提示）。文本选词与拖拽分流详见 `UI Text Selection Rules.md`。
 
 ### L-04.6 File Card Layout
 
@@ -713,7 +713,7 @@
 - Cover Summary、Toolbar 与 Table Content Region 使用相同宽度和水平边界。
 - Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
 - Cover Summary 内容：
-  - Supporting Content 第 1 行为有效台词总数量与创建时间（`xx excerpts  Created yyyy-MM-dd`，中间以 2 个英文空格分隔），第 2 行为摘录列表描述（未填写时显示占位文案 `No description`；仅当描述发生单行截断或包含换行时支持点击在原地展开详情浮层，Hover 显示同色下划线与 Grab 指针，拖拽则划选文字）。
+  - Supporting Content 第 1 行为有效台词总数量与创建时间（`xx excerpts  Created yyyy-MM-dd`，中间以 2 个英文空格分隔），第 2 行为摘录列表描述（未填写时显示占位文案 `No description`；仅当描述发生单行截断或包含换行时支持点击在原地展开详情浮层，Hover 显示同色下划线与 Grab 指针）。
   - Progress Label（仅 Resume 态显示）：`#x / y  台词内容`（`y` 为有效台词数，序号与台词内容之间以 2 个英文空格分隔，超出单行或遇换行均在末尾以 `...` 截断）。
   - Action Row：`Resume` / `Play`（已同步状态下无有效摘录时为 Disabled `Play`；未刷新冻结状态下后台已无有效摘录时点击拦截并弹出右下角 3 秒 `No Available Excerpts` Toast）、`More`（图标 `dots-three`，弹出菜单内容与 Excerpt 一级界面卡片右键菜单一致，含 `Edit List` 与 `Delete List`；确认删除当前列表后自动退回 Excerpt 一级界面）。
 
@@ -746,7 +746,7 @@
    - Row 1：从左到右依次为 Search Field（自适应撑满整行剩余宽度）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Sort Trigger（图标为 `funnel-simple`，文字为当前选中的排序方式；点击展开与按钮左边缘对齐的 Radio Menu）
    - Row 2（与下方表格左外框左对齐）：Result Count（Search 为 `xx results`，未输入搜索词时不显示；Excerpt 为 `xx excerpts`，仅统计有效台词）
 2. Select Mode：
-   - Row 1（与下方表格等宽，左侧与表格左外框对齐）：从左到右依次为 Selected Count（`xx / yy rows selected`，可选行数不含 Unavailable 行，样式同 Result Count 且保持完整显示不截断）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`，文字可选中且 Pointer 为 I-beam，宽度不足时优先缩减并尾部省略 `...`）、靠右对齐表格右外框的 `Exit Selection` 按钮（Button / Destructive，带 18px `sign-out` 图标）
+   - Row 1（与下方表格等宽，左侧与表格左外框对齐）：从左到右依次为 Selected Count（`xx / yy rows selected`，可选行数不含 Unavailable 行，样式同 Result Count 且保持完整显示不截断）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`，宽度不足时优先缩减并尾部省略 `...`）、靠右对齐表格右外框的 `Exit Selection` 按钮（Button / Destructive，带 18px `sign-out` 图标）
    - Row 2（与下方表格左外框左对齐，单行空间不足时自动换行）：前 3 个通用 Neutral 按钮从左到右固定为 `Export to Anki`（图标 `export`，快捷键 `A`）、`Copy Deep Links`（图标 `link-simple`，快捷键 `D`）、`Copy Table`（图标 `copy`，快捷键 `T`）；Search 表格其后接 `Save to Excerpt List`（Neutral，图标 `arrow-right`，快捷键 `S`），Excerpt 表格其后依次接 `Move to ...`（Neutral，图标 `arrow-right`，快捷键 `M`）、`Duplicate to ...`（Neutral，图标 `arrow-right`，快捷键 `C`）、`Remove Excerpt`（Destructive，图标 `bookmark-simple`，快捷键 `R`）
 
 #### Components
@@ -965,7 +965,7 @@
 
 - Width：`--width-dialog-medium`
 - Form Region 为左 Label（宽度 `--width-form-label`）、右内容的双列水平布局；右侧内容与输入框的右缘与最右侧按钮的右缘对齐。
-- Current Name 的 Label 与 Text Field 的 Label 相同，右侧当前名文字左内边距 `--padding-field-x`（与下方输入框内文本左对齐），多行自然折行完整显示且支持选中（Pointer 为 I-beam）；Rename Folder 显示当前文件夹名称，Rename Files 显示视频与字幕去掉扩展名后的公共名。
+- Current Name 的 Label 与 Text Field 的 Label 相同，右侧当前名文字左内边距 `--padding-field-x`（与下方输入框内文本左对齐），多行自然折行完整显示；Rename Folder 显示当前文件夹名称，Rename Files 显示视频与字幕去掉扩展名后的公共名。
 
 #### Spacing
 
@@ -1092,7 +1092,7 @@
 - Default
 - Validation Error
   - File Name 或 Location 为空或非法时报错。
-  - 点击 Export 时若 Front 或 Back 为空则拦截导出，对应白色卡片边框变红（`--color-danger-text`）并在卡片内居中显示红色错误提示（错误提示文字可选中，Pointer 为 I-beam）；添加任意数据对象后错误状态自动清除。
+  - 点击 Export 时若 Front 或 Back 为空则拦截导出，对应白色卡片边框变红（`--color-danger-text`）并在卡片内居中显示红色错误提示；添加任意数据对象后错误状态自动清除。
 
 ### L-06.6 Filter Dialog Layout
 
@@ -1186,7 +1186,7 @@
    1. File Header Row
       - `Folder Info`：静态文件夹图标与名称（最多 2 行，超出省略），随下方内容滚动
       - `File Info`：与 Header 一起固定在顶部不随下方滚动的配对文件下拉触发器（撑满内容宽，圆角 `--radius-settings-group`，边框 `--border-width-control`，内边距纵向 `--spacing-3`、横向 `--spacing-4`；Default 背景 `--color-table-bg`、边框 `--color-border-control`，Hover / Open 背景 `--color-bg-hover`、边框 `--color-border-control-hover`，Pressed 背景 `--color-bg-pressed`、边框 `--color-border-control-hover`），内部依次为文件大图标、文件名（最多 2 行，超出省略）与右侧 `caret-down`（`--size-card-chevron`，`--color-text-secondary`）。点击在正下方（间距 `--spacing-1`）弹出等宽下拉菜单，按「视频在上、配对字幕在下（按 Data 中的字幕顺序）」列出全部配对文件（包含当前文件；菜单项复用 `Action Menu Item`，无勾选标记，左侧 `18px` `video` / `subtitles` 图标对齐首行，右侧完整文件名多行自然折行、上下内边距 `--padding-settings-row-y`）；选择后切换详情并使下方滚动区回到顶部，弹窗打开期间配对列表与各文件详情保持冻结快照不变
-   2. Property Groups：Settings 风格卡片组（各属性行右侧数值、文件名与路径文字可选中，Pointer 为 I-beam；左侧固定属性名与 `#1`、`#2`... 序号不可选）
+   2. Property Groups：Settings 风格卡片组
       - Folder（Root Folder / Subfolder）：`Folder Info`（Path、Folder Count、Video Count、Subtitle Count）、`Index Info`（Added、Updated）
       - Video File：`Video`（Resolution `W × H`、Frame Rate、Codec、Bit Depth、Pixel Format、Duration）、`Audio #N`（无有效音轨时不显示此分组；Codec、Channels、Sample Rate、Bit Depth、Language、Title，仅展示有效项）、`Associated Subtitles`、`File Details`（File Size、Bitrate、Format 按内部实际容器格式展示且同容器家族保持原后缀对应名称、Path、Modified）
       - Subtitle File：`Subtitle Specifications`（Encoding、Raw Cues、Valid Cues）、`Associated Video`、`File Details`（File Size、Format、Path、Modified）
@@ -1320,7 +1320,7 @@
    2. Close Button
 2. Content
    1. Task Header Row：任务图标与纯任务类型名称（`Export to Anki`、`Rename Folder`、`Rename Files`、`Index All`、`Index`、`Add Folder`、`Remove Folder`）
-   2. Property Groups：Settings 风格卡片组（各属性行右侧数值、路径、文件名列表、进度百分比与失败原因文字可选中，Pointer 为 I-beam；左侧固定属性名与 `#1`、`#2`... 序号不可选），上方为业务信息分组（数量均为纯阿拉伯数字），最下方固定为 `Task Status` 分组
+   2. Property Groups：Settings 风格卡片组，上方为业务信息分组（数量均为纯阿拉伯数字），最下方固定为 `Task Status` 分组
       - Export to Anki：`Export Info`（File Name、Location、Card Count，以及 In Progress / Completed / Incomplete 状态下展示 Succeeded、Failed；Incomplete 状态下 Succeeded 固定为 0、Failed 固定为总数量）
       - Rename Folder：`Rename Info`（Original Path、New Path）
       - Rename Files：`Rename Info`（Location、File Count）、`Original File Names`（`#1`、`#2`... 完整文件名含扩展名）、`New File Names`（`#1`、`#2`... 完整文件名含扩展名）

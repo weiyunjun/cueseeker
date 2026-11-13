@@ -3,7 +3,7 @@
 1. 本文档由人类维护，是 `/docs/human/design/ui/` 的目录与编号索引（Map of Content）。
 2. **AI 检索规则（Token 优化与防遗漏铁律）**：
    - 凡涉及 UI 视觉、组件或布局实现，**必须首先阅读 [`UI Design Rules.md`](UI%20Design%20Rules.md)（通用视觉与度量公理）与 [`UI Interaction Rules.md`](UI%20Interaction%20Rules.md)（通用交互状态机）**。
-   - 随后，根据下方编号速查表，**仅按需读取涉及的组件（`C-xx`）、布局（`L-xx`）或 Token 章节**，严禁无差别全量加载所有 UI 分册。
+   - 随后，根据下方分册职责与编号速查表，**仅按需读取涉及的专项规则（如文本选择 [`UI Text Selection Rules.md`](UI%20Text%20Selection%20Rules.md)、无障碍 [`UI Accessibility Rules.md`](UI%20Accessibility%20Rules.md)）、组件（`C-xx`）、布局（`L-xx`）或 Token 章节**，严禁无差别全量加载所有 UI 分册。
 3. **编号沟通规范**：
    - 每个组件具有唯一编号 `C-{分类}.{序号}`，每个布局具有唯一编号 `L-{分类}.{序号}`。
    - 在需求讨论、截图走查标注、Bug 定位时，统一使用编号 + 名称（如 `C-05.6 Breadcrumb`、`L-04.5 File Page Layout`）指代目标元素。
@@ -15,7 +15,9 @@
 | 文档名称 | 内容范围 |
 | --- | --- |
 | [`UI Design Rules.md`](UI%20Design%20Rules.md) | **全局视觉与度量约束**：按下态（Pressed）组件白名单、选中态组件白名单、Dialog 四边等距与 Cap 顶测量法则、Light/Dark 明暗表面海拔层级、页面/网格/滚动条槽位边距体系、封面加载防闪烁。 |
-| [`UI Interaction Rules.md`](UI%20Interaction%20Rules.md) | **全局交互与输入规则**：界面层级与上层屏蔽、菜单模态、Hover 与选中更新条件、按下触发时机、焦点与 Tab、快捷键录入、尺寸过渡禁点、全屏行为、Player UI 与指针显隐、鼠标指针形状（Arrow/Grab/I-beam）优先级、无障碍交互预留。 |
+| [`UI Interaction Rules.md`](UI%20Interaction%20Rules.md) | **全局交互与输入规则**：界面层级与上层屏蔽、菜单模态、Hover 与选中更新条件、按下触发时机、焦点与 Tab、快捷键录入、尺寸过渡禁点、全屏行为、Player UI 与指针显隐、鼠标指针形状（Arrow/Grab/I-beam）优先级。 |
+| [`UI Text Selection Rules.md`](UI%20Text%20Selection%20Rules.md) | **全局文本选择与复制规则**：文本选择元素四分类与指针映射、四类选区作用域与层级屏蔽、跨区拖拽起选与边缘滚屏、剪贴板复制格式与截断还原、`Cmd + C` / `Cmd + A` 边界、全界面与弹窗可选范围速查。 |
+| [`UI Accessibility Rules.md`](UI%20Accessibility%20Rules.md) | **键盘与手柄无障碍规则**：屏蔽系统焦点环、外圈光圈规范、白名单组件遍历顺序、`Hover` / `Select` 联动与逐级退出规则。 |
 | [`UI Tokens.md`](UI%20Tokens.md) | **Core Tokens**：`1.1 颜色`、`1.2 字体与文本`、`1.3 尺寸（Height / Size）`、`1.4 间距（Spacing / Padding）`、`1.5 形状与效果（Radius / Shadow / Scrim / Opacity）`、`1.6 动效`。 |
 | [`UI Components - Controls.md`](UI%20Components%20-%20Controls.md) | **基础交互组件（`C-01` ~ `C-07`）**：输入框、选择控件、按钮、菜单、导航（Sidebar / Tabs / Breadcrumb）、表格、滚动条。 |
 | [`UI Components - Domain.md`](UI%20Components%20-%20Domain.md) | **业务与反馈组件（`C-08` ~ `C-13`）**：数据展示徽章与标题、Toast 与播放反馈、对话框容器、媒体封面与卡片、播放器控制条组件、播放台词流组件。 |

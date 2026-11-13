@@ -14,7 +14,9 @@
 | --- | --- |
 | [`ui/UI Index.md`](ui/UI%20Index.md) | **UI 根入口**：定义 UI 子文档检索规则，提供全部组件（`C-xx`）与布局（`L-xx`）的唯一编号速查表。 |
 | [`ui/UI Design Rules.md`](ui/UI%20Design%20Rules.md) | **通用视觉与度量公理**：全局无按下视觉效果、选中态组件白名单、基于 Cap 顶与可见边界的等距计算基准、Light/Dark 明暗表面层级、页面与网格边距法则、封面防闪烁规则。 |
-| [`ui/UI Interaction Rules.md`](ui/UI%20Interaction%20Rules.md) | **通用交互与输入状态机**：界面 Z 轴层级与输入屏蔽、菜单模态、Hover 与选中移动条件、焦点与 Tab 规则、快捷键录入与冲突、全屏规则、Player UI 与指针显隐状态机、鼠标指针形状优先级、无障碍交互预留。 |
+| [`ui/UI Interaction Rules.md`](ui/UI%20Interaction%20Rules.md) | **通用交互与输入状态机**：界面 Z 轴层级与输入屏蔽、菜单模态、Hover 与选中移动条件、焦点与 Tab 规则、快捷键录入与冲突、全屏规则、Player UI 与指针显隐状态机、鼠标指针形状优先级。 |
+| [`ui/UI Text Selection Rules.md`](ui/UI%20Text%20Selection%20Rules.md) | **全局文本选择与复制规范**：文本选择四分类与指针映射、四类选区作用域、跨不可选区拖入起选与边缘滚屏、剪贴板序列化与截断还原、`Cmd + C` / `Cmd + A` 边界、全界面可选范围速查。 |
+| [`ui/UI Accessibility Rules.md`](ui/UI%20Accessibility%20Rules.md) | **键盘与手柄无障碍交互规则**：外圈无障碍光圈视觉规范、显式白名单遍历顺序、无障碍与 `Hover` / `Select` 联动及 `Esc` / 手柄按键退出优先级。 |
 | [`ui/UI Tokens.md`](ui/UI%20Tokens.md) | **设计变量（Core Tokens）**：颜色、字体与文本装饰、高度与尺寸、间距与内边距、圆角与阴影、渐变与动效参数。 |
 | [`ui/UI Components - Controls.md`](ui/UI%20Components%20-%20Controls.md) | **基础交互控件（`C-01` ~ `C-07`）**：Inputs、Selection Controls、Buttons、Menus、Navigation（含 Breadcrumb）、Tables、Scrollbars。 |
 | [`ui/UI Components - Domain.md`](ui/UI%20Components%20-%20Domain.md) | **业务与反馈组件（`C-08` ~ `C-13`）**：Data Display（Badges/Tag/Indicators/Titles/Keycap）、Feedback（Toast/Empty State/Spinner/Player Error）、Dialogs、Media（Cover/Cover Summary/Media Card）、Player Controls、Playback Content。 |

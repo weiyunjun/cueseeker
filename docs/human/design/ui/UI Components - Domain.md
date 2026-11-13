@@ -1,6 +1,6 @@
 # 说明
 1. 本文档由人类维护，定义业务与反馈组件（`C-08` ~ `C-13`）：Data Display、Feedback、Dialogs、Media、Player Controls、Playback Content。
-2. 所有组件默认遵守 `/docs/human/design/ui/UI Design Rules.md` 与 `/docs/human/design/ui/UI Interaction Rules.md`。
+2. 所有组件默认遵守 `/docs/human/design/ui/UI Design Rules.md`、`/docs/human/design/ui/UI Interaction Rules.md` 与 `/docs/human/design/ui/UI Text Selection Rules.md`。
 
 # 2. Components（Part 2：Domain `C-08` ~ `C-13`）
 
@@ -174,7 +174,7 @@
 - Text Color：`--color-text-secondary`
 - Icon Size：`--size-control-icon`
 - Gap：`--spacing-2`
-- Selection：Enabled（Label 文字可选中；File 可点击状态文字 Pointer 为 Grab，其余为 I-beam）
+- Selection：Enabled（详见 `UI Text Selection Rules.md`）
 - Usage：File `Last Updated`、Search `xx results`、Excerpt `xx excerpts`、Select Mode `xx / yy rows selected`、Library `xx folders`、Excerpt `xx lists  yy cues`
 
 ##### Cue State Indicator
@@ -625,7 +625,7 @@
 
 - Container：Dialog
 - Title
-- Message（文字可选中，Pointer 为 I-beam）
+- Message
 - Cancel Action：Button / Neutral
 - Confirm Action
   - Component：Button
@@ -773,7 +773,6 @@
   - Font Weight：`--font-weight-cover-summary-title`
   - Color：Split Form `--color-text-primary`；Backdrop Form `--color-cover-summary-text`
   - Maximum Lines：`1`
-  - Selection：Enabled（Pointer 为 I-beam）
 - Supporting Content
   - Font Size：`--font-size-body`
   - Line Height：`--line-height-cover-summary-description`
@@ -781,11 +780,11 @@
   - Text Hierarchy：Secondary
   - Each Item Maximum Lines：`1`
   - Each Item Overflow：Tail Truncation
-  - Selection：Enabled（静态文本 Pointer 为 I-beam；可点击文本在 Hover 时显示与当前文字同色的下划线，Pointer 为 Grab，单击触发动作，拖拽划选文字）
+  - Interactive Item Hover：可点击文本在 Hover 时显示与当前文字同色的下划线，Pointer 为 Grab（文本选词与拖拽分流详见 `UI Text Selection Rules.md`）
 - Description Detail Popover（当 Secondary Metadata 为未完整显示的描述并点击展开时）
   - Position & Size：首行文字起点及折行宽度与展开前第 2 行重合，外框向左右外扩 `--padding-cover-summary-description-popover-x`、向上下外扩 `--padding-cover-summary-description-popover-y`，下外框最高延伸至 Action Row 下外沿；圆角 `--radius-control`，外边框 `--border-width-control`
   - Surface：Split Form 背景 `--color-bg-popover`、边框 `--color-border-control`、阴影 `--shadow-popover`；Backdrop Form 背景 `--color-cover-summary-description-popover-backdrop-bg`、边框 `--color-cover-summary-text`（`--opacity-cover-summary-button-border`）、阴影 `--shadow-player-overlay`
-  - Content & Interaction：字号 `--font-size-body`、行高 `--line-height-cover-summary-description`、颜色同 Supporting Content，保留换行并支持选词复制（Pointer 为 I-beam），超出最大高度时右侧悬浮显示 `C-07.1 Scrollbar / Vertical`；点击容器外部或按 `Esc` 收起（遵循菜单模态屏蔽规则）
+  - Content & Interaction：字号 `--font-size-body`、行高 `--line-height-cover-summary-description`、颜色同 Supporting Content，保留换行，超出最大高度时右侧悬浮显示 `C-07.1 Scrollbar / Vertical`；点击容器外部或按 `Esc` 收起（遵循菜单模态屏蔽规则）
 - Progress Label
   - Font Size：`--font-size-caption`
   - Font Weight：`500`
@@ -793,7 +792,6 @@
   - Maximum Width：`--width-cover-summary-progress`
   - Maximum Lines：`1`
   - Overflow：Tail Truncation
-  - Selection：Enabled（Pointer 为 I-beam）
 
 #### States
 
@@ -1170,7 +1168,6 @@
 
 - Cue Container
 - Visual Line Stack
-  - Pointer：I-beam（可拖选的字幕文字上）
   - Primary Cue Text
 - Cue Metadata
   - Presence：Optional

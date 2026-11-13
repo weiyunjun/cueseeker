@@ -1,6 +1,6 @@
 # 说明
 1. 本文档由人类维护，定义基础交互组件（`C-01` ~ `C-07`）：Inputs、Selection Controls、Buttons、Menus、Navigation、Tables、Scrollbars。
-2. 所有组件默认遵守 `/docs/human/design/ui/UI Design Rules.md`（如按下态与选中态组件白名单）与 `/docs/human/design/ui/UI Interaction Rules.md`。
+2. 所有组件默认遵守 `/docs/human/design/ui/UI Design Rules.md`（如按下态与选中态组件白名单）、`/docs/human/design/ui/UI Interaction Rules.md` 与 `/docs/human/design/ui/UI Text Selection Rules.md`。
 
 # 2. Components（Part 1：Controls `C-01` ~ `C-07`）
 
@@ -1216,7 +1216,7 @@
 - Font Size：`--font-size-table`
 - Font Weight：Regular
 - Color：`--color-text-secondary`
-- Selection：Enabled
+- Selection：Enabled（仅非 Select Mode；详见 `UI Text Selection Rules.md`）
 - Pointer：I-beam
 
 ##### Index Text
@@ -1244,8 +1244,8 @@
   - Padding Inline：`--padding-table-cell-hover-x`
   - Padding Block：`--padding-table-cell-hover-y`
   - Radius：`--radius-table-cell-hover`
-- Selection：Enabled
-- Pointer：Grab
+- Selection：Enabled（仅非 Select Mode；详见 `UI Text Selection Rules.md`）
+- Pointer：Grab（Unavailable 行文本为 I-beam）
 - States
   - Default
   - Hover
