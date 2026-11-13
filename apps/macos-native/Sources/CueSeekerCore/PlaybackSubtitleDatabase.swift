@@ -10,37 +10,110 @@ public protocol PlaybackSubtitleRenderCacheProviding: Sendable {
         actualFileSize: Int64,
         actualModifiedAt: Date
     ) throws -> ASSEventOffsetIndex?
-    func assEventByteRanges(
-        forSubtitleFile subtitleFile: URL,
-        inMilliseconds windowMilliseconds: Range<Int>
-    ) throws -> [ASSEventByteRange]?
 }
 
 public struct PlaybackSubtitleRenderCacheReader: PlaybackSubtitleRenderCacheProviding, Equatable, Sendable {
+    private final class ConnectionBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private let databaseURL: URL
+        private let subtitleCache: WebDAVSubtitleCache
+        private var cachedDatabase: PlaybackSubtitleDatabase?
+        private(set) var openedConnectionCount = 0
+
+        init(databaseURL: URL, subtitleCache: WebDAVSubtitleCache) {
+            self.databaseURL = databaseURL
+            self.subtitleCache = subtitleCache
+        }
+
+        init(sharedDatabase: PlaybackSubtitleDatabase) {
+            self.databaseURL = sharedDatabase.databaseURL
+            self.subtitleCache = sharedDatabase.subtitleCache
+            self.cachedDatabase = sharedDatabase
+        }
+
+        func resolveDatabase() throws -> PlaybackSubtitleDatabase {
+            lock.lock()
+            defer { lock.unlock() }
+            if let cachedDatabase {
+                return cachedDatabase
+            }
+            let opened = try PlaybackSubtitleDatabase(
+                path: databaseURL,
+                access: .readOnly,
+                subtitleCache: subtitleCache
+            )
+            cachedDatabase = opened
+            openedConnectionCount += 1
+            return opened
+        }
+
+        var currentOpenedConnectionCount: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return openedConnectionCount
+        }
+    }
+
     public let databaseURL: URL
+    public let subtitleCache: WebDAVSubtitleCache
+    private let connectionBox: ConnectionBox
 
     public init(databaseURL: URL) {
+        self.init(databaseURL: databaseURL, subtitleCache: .shared)
+    }
+
+    public init(
+        databaseURL: URL,
+        subtitleCache: WebDAVSubtitleCache
+    ) {
         self.databaseURL = databaseURL
+        self.subtitleCache = subtitleCache
+        self.connectionBox = ConnectionBox(
+            databaseURL: databaseURL,
+            subtitleCache: subtitleCache
+        )
+    }
+
+    public init(database: PlaybackSubtitleDatabase) {
+        self.databaseURL = database.databaseURL
+        self.subtitleCache = database.subtitleCache
+        self.connectionBox = ConnectionBox(sharedDatabase: database)
+    }
+
+    public static func == (
+        lhs: PlaybackSubtitleRenderCacheReader,
+        rhs: PlaybackSubtitleRenderCacheReader
+    ) -> Bool {
+        lhs.databaseURL.standardizedFileURL.path == rhs.databaseURL.standardizedFileURL.path
+            && lhs.subtitleCache.standardizedCacheDirectoryPath == rhs.subtitleCache.standardizedCacheDirectoryPath
+    }
+
+    var openedDatabaseConnectionCountForTesting: Int {
+        connectionBox.currentOpenedConnectionCount
     }
 
     public var cacheScopeID: String {
-        databaseURL.standardizedFileURL.path
+        let baseScope = databaseURL.standardizedFileURL.path
+        if subtitleCache === WebDAVSubtitleCache.shared {
+            return baseScope
+        }
+        return "\(baseScope)|\(subtitleCache.standardizedCacheDirectoryPath)"
     }
 
     public func hasCurrentASSFontReferenceManifest(forSubtitleFile subtitleFile: URL) throws -> Bool {
-        try PlaybackSubtitleDatabase(path: databaseURL)
+        try connectionBox.resolveDatabase()
             .hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile)
     }
 
     public func assFontReferences(forSubtitleFile subtitleFile: URL) throws -> [ASSFontReference] {
-        try PlaybackSubtitleDatabase(path: databaseURL)
+        try connectionBox.resolveDatabase()
             .assFontReferences(forSubtitleFile: subtitleFile)
     }
 
     public func validatedASSEventOffsetIndex(
         forSubtitleFile subtitleFile: URL
     ) throws -> ASSEventOffsetIndex? {
-        try PlaybackSubtitleDatabase(path: databaseURL)
+        try connectionBox.resolveDatabase()
             .validatedASSEventOffsetIndex(forSubtitleFile: subtitleFile)
     }
 
@@ -49,22 +122,11 @@ public struct PlaybackSubtitleRenderCacheReader: PlaybackSubtitleRenderCacheProv
         actualFileSize: Int64,
         actualModifiedAt: Date
     ) throws -> ASSEventOffsetIndex? {
-        try PlaybackSubtitleDatabase(path: databaseURL)
+        try connectionBox.resolveDatabase()
             .validatedASSEventOffsetIndex(
                 forSubtitleFile: subtitleFile,
                 actualFileSize: actualFileSize,
                 actualModifiedAt: actualModifiedAt
-            )
-    }
-
-    public func assEventByteRanges(
-        forSubtitleFile subtitleFile: URL,
-        inMilliseconds windowMilliseconds: Range<Int>
-    ) throws -> [ASSEventByteRange]? {
-        try PlaybackSubtitleDatabase(path: databaseURL)
-            .assEventByteRanges(
-                forSubtitleFile: subtitleFile,
-                inMilliseconds: windowMilliseconds
             )
     }
 }
@@ -72,17 +134,28 @@ public struct PlaybackSubtitleRenderCacheReader: PlaybackSubtitleRenderCacheProv
 public final class PlaybackSubtitleDatabase: PlaybackSubtitleRenderCacheProviding, @unchecked Sendable {
     private let path: URL
     private let database: SQLiteDatabase
+    let subtitleCache: WebDAVSubtitleCache
 
     public init(
         path: URL,
-        access: DatabaseConnectionAccess = .readOnly
+        access: DatabaseConnectionAccess = .readOnly,
+        subtitleCache: WebDAVSubtitleCache = .shared
     ) throws {
         self.path = path
+        self.subtitleCache = subtitleCache
         database = try SQLiteDatabase(path: path, access: access)
     }
 
+    var databaseURL: URL {
+        path
+    }
+
     public var cacheScopeID: String {
-        path.standardizedFileURL.path
+        let baseScope = path.standardizedFileURL.path
+        if subtitleCache === WebDAVSubtitleCache.shared {
+            return baseScope
+        }
+        return "\(baseScope)|\(subtitleCache.standardizedCacheDirectoryPath)"
     }
 
     public func hasCurrentPlaybackFinishMetadata(forSubtitleFile subtitleFile: URL) throws -> Bool {
@@ -269,8 +342,16 @@ public final class PlaybackSubtitleDatabase: PlaybackSubtitleRenderCacheProvidin
             }
             let storedAlgorithmVersion = statement.intColumn(0)
             let storedFileSize = statement.nullableInt64Column(1)
+            let sizeMatches: Bool
+            if let fileSize {
+                sizeMatches = (storedFileSize == fileSize)
+            } else if subtitleFile.isRemoteMediaURL {
+                sizeMatches = (storedFileSize != nil)
+            } else {
+                sizeMatches = (storedFileSize == nil)
+            }
             guard storedAlgorithmVersion == ASSEventOffsetIndexer.currentAlgorithmVersion,
-                  storedFileSize == fileSize,
+                  sizeMatches,
                   let storedModifiedAt = statement.nullableDoubleColumn(2),
                   abs(storedModifiedAt - modifiedAt.timeIntervalSince1970) < 0.001
             else {
@@ -284,9 +365,23 @@ public final class PlaybackSubtitleDatabase: PlaybackSubtitleRenderCacheProvidin
     public func validatedASSEventOffsetIndex(
         forSubtitleFile subtitleFile: URL
     ) throws -> ASSEventOffsetIndex? {
-        guard !subtitleFile.isRemoteMediaURL else {
-            return nil
+        if subtitleFile.isRemoteMediaURL {
+            let cachedFileURL = subtitleCache.cachedFileURL(for: subtitleFile)
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: cachedFileURL.path),
+                  let cachedFileSize = (attributes[.size] as? NSNumber)?.int64Value,
+                  cachedFileSize >= 0
+            else {
+                return nil
+            }
+            let fallbackModifiedAt = (attributes[.modificationDate] as? Date) ?? Date(timeIntervalSince1970: 0)
+            return try loadValidatedASSEventOffsetIndex(
+                forSubtitleFile: subtitleFile,
+                expectedFileSize: cachedFileSize,
+                expectedModifiedAt: nil,
+                fallbackModifiedAt: fallbackModifiedAt
+            )
         }
+
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: subtitleFile.path),
               let actualFileSize = (attributes[.size] as? NSNumber)?.int64Value,
               let actualModifiedAt = attributes[.modificationDate] as? Date
@@ -304,6 +399,20 @@ public final class PlaybackSubtitleDatabase: PlaybackSubtitleRenderCacheProvidin
         forSubtitleFile subtitleFile: URL,
         actualFileSize: Int64,
         actualModifiedAt: Date
+    ) throws -> ASSEventOffsetIndex? {
+        try loadValidatedASSEventOffsetIndex(
+            forSubtitleFile: subtitleFile,
+            expectedFileSize: actualFileSize,
+            expectedModifiedAt: actualModifiedAt,
+            fallbackModifiedAt: actualModifiedAt
+        )
+    }
+
+    private func loadValidatedASSEventOffsetIndex(
+        forSubtitleFile subtitleFile: URL,
+        expectedFileSize: Int64,
+        expectedModifiedAt: Date?,
+        fallbackModifiedAt: Date
     ) throws -> ASSEventOffsetIndex? {
         for candidatePath in Self.candidateSubtitleMediaPaths(for: subtitleFile) {
             let statement = try database.prepare(
@@ -327,9 +436,7 @@ public final class PlaybackSubtitleDatabase: PlaybackSubtitleRenderCacheProvidin
             guard algorithmVersion == ASSEventOffsetIndexer.currentAlgorithmVersion,
                   status == ASSEventOffsetIndexStatus.ready.rawValue,
                   let storedFileSize = statement.nullableInt64Column(3),
-                  storedFileSize == actualFileSize,
-                  let storedModifiedAt = statement.nullableDoubleColumn(4),
-                  abs(storedModifiedAt - actualModifiedAt.timeIntervalSince1970) < 0.001,
+                  storedFileSize == expectedFileSize,
                   let encodingName = statement.nullableStringColumn(5),
                   !encodingName.isEmpty,
                   SubtitleTextDecoder.stringEncoding(named: encodingName) != nil,
@@ -338,6 +445,19 @@ public final class PlaybackSubtitleDatabase: PlaybackSubtitleRenderCacheProvidin
                   let compressedEvents = statement.nullableBlobColumn(8)
             else {
                 return nil
+            }
+            let resolvedModifiedAt: Date
+            if let expectedModifiedAt {
+                guard let storedModifiedAt = statement.nullableDoubleColumn(4),
+                      abs(storedModifiedAt - expectedModifiedAt.timeIntervalSince1970) < 0.001
+                else {
+                    return nil
+                }
+                resolvedModifiedAt = Date(timeIntervalSince1970: storedModifiedAt)
+            } else if let storedModifiedAt = statement.nullableDoubleColumn(4) {
+                resolvedModifiedAt = Date(timeIntervalSince1970: storedModifiedAt)
+            } else {
+                resolvedModifiedAt = fallbackModifiedAt
             }
             let eventCount = statement.intColumn(7)
             guard eventCount > 0,
@@ -353,34 +473,13 @@ public final class PlaybackSubtitleDatabase: PlaybackSubtitleRenderCacheProvidin
                 subtitlePath: storedSubtitlePath,
                 algorithmVersion: algorithmVersion,
                 fileSize: storedFileSize,
-                modifiedAt: Date(timeIntervalSince1970: storedModifiedAt),
+                modifiedAt: resolvedModifiedAt,
                 encodingName: encodingName,
                 headerText: headerText,
                 events: events
             )
         }
         return nil
-    }
-
-    public func assEventByteRanges(
-        forSubtitleFile subtitleFile: URL,
-        inMilliseconds windowMilliseconds: Range<Int>
-    ) throws -> [ASSEventByteRange]? {
-        try validatedASSEventOffsetIndex(forSubtitleFile: subtitleFile)?
-            .overlappingEvents(in: windowMilliseconds)
-    }
-
-    public func assEventByteRanges(
-        forSubtitleFile subtitleFile: URL,
-        actualFileSize: Int64,
-        actualModifiedAt: Date,
-        inMilliseconds windowMilliseconds: Range<Int>
-    ) throws -> [ASSEventByteRange]? {
-        try validatedASSEventOffsetIndex(
-            forSubtitleFile: subtitleFile,
-            actualFileSize: actualFileSize,
-            actualModifiedAt: actualModifiedAt
-        )?.overlappingEvents(in: windowMilliseconds)
     }
 
     private static func candidateSubtitleMediaPaths(for subtitleFile: URL) -> [String] {

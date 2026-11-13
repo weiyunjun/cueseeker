@@ -173,8 +173,14 @@ func extractsASSReferencedFontsFromStylesAndInlineOverrides() {
 func rejectsInvalidASSTimecodes() {
     #expect(ASSParser.milliseconds(from: "0:00:00.00") == 0)
     #expect(ASSParser.milliseconds(from: "1:02:03.45") == 3_723_450)
+    #expect(ASSParser.milliseconds(from: "0:01:23:45") == 83_450)
+    #expect(ASSParser.milliseconds(from: "0:01:23.456789") == 83_456)
+    #expect(ASSParser.milliseconds(from: "0:01:23:4567890123456789012345") == 83_456)
     #expect(ASSParser.milliseconds(from: "0:60:00.00") == nil)
     #expect(ASSParser.milliseconds(from: "0:00:60.00") == nil)
+    #expect(ASSParser.milliseconds(from: "0:01:23:45.6") == nil)
+    #expect(ASSParser.milliseconds(from: "0:01:23.") == nil)
+    #expect(ASSParser.milliseconds(from: "0:01:23:-5") == nil)
     #expect(ASSParser.milliseconds(from: "bad") == nil)
 }
 

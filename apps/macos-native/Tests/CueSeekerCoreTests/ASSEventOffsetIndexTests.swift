@@ -158,9 +158,7 @@ func indexesSmallAndLargeASSAndSSAWithoutSizeThresholdAndPreservesExactSourceOrd
     #expect(!ep1Index.headerText.contains("Aegisub"))
     #expect(!ep1Index.headerText.contains("Dialogue:"))
 
-    let windowRanges = try #require(
-        try renderCache.assEventByteRanges(forSubtitleFile: ep1ASS, inMilliseconds: 5_000..<6_000)
-    )
+    let windowRanges = ep1Index.overlappingEvents(in: 5_000..<6_000)
     #expect(windowRanges.count == 5)
     let slicedLines = try #require(try ep1Index.readAndDecodeEventLines(windowRanges, from: ep1ASS))
     #expect(slicedLines == [
@@ -171,10 +169,8 @@ func indexesSmallAndLargeASSAndSSAWithoutSizeThresholdAndPreservesExactSourceOrd
         "Dialogue: 9,0:00:05.01,0:00:07.00,FX,,0,0,0,,{\\an8}置底分组特效标题"
     ])
 
-    // Silent window returns empty array (not nil, because index itself is valid!).
-    let silentWindow = try #require(
-        try playbackDB.assEventByteRanges(forSubtitleFile: ep1ASS, inMilliseconds: 10_000..<15_000)
-    )
+    // Silent window returns empty array on the validated in-memory index.
+    let silentWindow = ep1Index.overlappingEvents(in: 10_000..<15_000)
     #expect(silentWindow.isEmpty)
 
     // Verify EP02.ssa legacy format
@@ -318,7 +314,6 @@ func marksEmbeddedFontsOrMidStreamFormatChangeIneligibleAndSkipsRescanningOnRepe
 
     let playbackDB = try PlaybackSubtitleDatabase(path: fixture.databaseURL, access: .readOnly)
     #expect(try playbackDB.validatedASSEventOffsetIndex(forSubtitleFile: embeddedURL) == nil)
-    #expect(try playbackDB.assEventByteRanges(forSubtitleFile: embeddedURL, inMilliseconds: 0..<5_000) == nil)
 
     // Repeat Index on unchanged folder skips rescanning the checked-ineligible file!
     let secondRun = try indexer.index(folder: fixture.root, into: fixture.indexingDatabase)
@@ -458,7 +453,6 @@ func invalidatesFingerprintOnExternalEditRefreshesCleansUpAndPreservesAcrossInAp
     )
 
     #expect(try readOnlyPlaybackDB.validatedASSEventOffsetIndex(forSubtitleFile: assURL) == nil)
-    #expect(try readOnlyPlaybackDB.assEventByteRanges(forSubtitleFile: assURL, inMilliseconds: 0..<10_000) == nil)
 
     // 2. Same-byte-size mtime change ALSO invalidates fingerprint.
     let reindexedResult = try indexer.index(folder: fixture.root, into: fixture.indexingDatabase)
@@ -521,4 +515,473 @@ func invalidatesFingerprintOnExternalEditRefreshesCleansUpAndPreservesAcrossInAp
         compactAfterRemovingSubtitles: false
     )
     #expect(try sqliteRowCount(in: "ass_event_offset_indexes", databaseURL: fixture.databaseURL) == 0)
+}
+
+
+@Test
+func coalescesNearbyEventByteRangesIntoFewChunkReadsPreservesCallerOrderAndGuardsOverflowBounds() throws {
+    let fixture = try ASSEventOffsetTestFixture()
+    defer { fixture.cleanUp() }
+
+    var lines: [String] = [
+        "[Script Info]",
+        "ScriptType: v4.00+",
+        "PlayResX: 1920",
+        "PlayResY: 1080",
+        "",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
+    ]
+    var expectedEventLines: [String] = []
+    expectedEventLines.reserveCapacity(3_200)
+
+    // Cluster A: 1,600 overlapping OP particle events with small inter-line comment gaps (<= 32 KB)
+    for idx in 0..<1_600 {
+        let line = "Dialogue: 0,0:00:01.00,0:00:05.00,Default,,0,0,0,,ClusterA-\(idx)-粒子特效"
+        lines.append(line)
+        expectedEventLines.append(line)
+        if idx % 200 == 199 {
+            lines.append("Comment: 0,0:00:01.00,0:00:05.00,Default,,0,0,0,,\(String(repeating: "x", count: 2_048))")
+        }
+    }
+
+    // Large > 32 KB comment gap (~40 KB) forcing a clean second coalesced read chunk
+    lines.append("Comment: 0,0:00:01.00,0:00:05.00,Default,,0,0,0,,\(String(repeating: "G", count: 40_960))")
+
+    // Cluster B: 1,600 overlapping OP particle events after the 40 KB gap
+    for idx in 0..<1_600 {
+        let line = "Dialogue: 1,0:00:01.50,0:00:05.50,Default,,0,0,0,,ClusterB-\(idx)-レイヤー"
+        lines.append(line)
+        expectedEventLines.append(line)
+    }
+
+    let assData = Data(lines.joined(separator: "\r\n").utf8)
+    let assURL = try fixture.writeRawSubtitle(name: "HeavyCoalesce.ass", data: assData)
+    try fixture.writeVideo(name: "HeavyCoalesce.mkv")
+
+    _ = try SubtitleIndexer().index(folder: fixture.root, into: fixture.indexingDatabase)
+
+    let playbackDB = try PlaybackSubtitleDatabase(path: fixture.databaseURL, access: .readOnly)
+    let index = try #require(try playbackDB.validatedASSEventOffsetIndex(forSubtitleFile: assURL))
+    #expect(index.eventCount == 3_200)
+
+    let windowRanges = index.overlappingEvents(in: 1_000..<6_000)
+    #expect(windowRanges.count == 3_200)
+
+    var chunkReads: [(Int64, Int)] = []
+    let decodedAll = try #require(
+        try index.readAndDecodeEventLines(windowRanges, from: assURL) { offset, count in
+            chunkReads.append((offset, count))
+        }
+    )
+    #expect(decodedAll == expectedEventLines)
+    // 3,200 lines separated only once by a > 32 KB gap must coalesce into exactly 2 sequential chunk reads!
+    #expect(chunkReads.count == 2)
+
+    // Arbitrary / reversed / duplicate caller order must be strictly preserved on output while still coalescing I/O!
+    let nearbyShuffledIndices = [1_605, 10, 1_600, 0, 10, 1_603, 5]
+    let nearbyShuffledRanges = nearbyShuffledIndices.map { windowRanges[$0] }
+    var reorderedChunkReads = 0
+    let decodedCustomOrder = try #require(
+        try index.readAndDecodeEventLines(nearbyShuffledRanges, from: assURL) { _, _ in
+            reorderedChunkReads += 1
+        }
+    )
+    #expect(decodedCustomOrder == nearbyShuffledIndices.map { expectedEventLines[$0] })
+    #expect(reorderedChunkReads == 2)
+
+    // Widely spaced (> 32 KB apart) sparse ranges avoid over-reading huge dead gaps while still coalescing duplicates.
+    let sparseIndices = [3_199, 0, 1_600, 799, 0, 2_400, 1_599]
+    var sparseChunkReads = 0
+    let decodedSparseOrder = try #require(
+        try index.readAndDecodeEventLines(sparseIndices.map { windowRanges[$0] }, from: assURL) { _, _ in
+            sparseChunkReads += 1
+        }
+    )
+    #expect(decodedSparseOrder == sparseIndices.map { expectedEventLines[$0] })
+    #expect(sparseChunkReads == 6)
+
+    // Overflow and boundary protection on both FileHandle reading and Data slicing
+    let overflowRange = ASSEventByteRange(
+        startMilliseconds: 0,
+        endMilliseconds: 1_000,
+        byteOffset: Int64.max - 8,
+        byteLength: 64
+    )
+    let negativeOffsetRange = ASSEventByteRange(
+        startMilliseconds: 0,
+        endMilliseconds: 1_000,
+        byteOffset: -1,
+        byteLength: 10
+    )
+    let zeroLengthRange = ASSEventByteRange(
+        startMilliseconds: 0,
+        endMilliseconds: 1_000,
+        byteOffset: 0,
+        byteLength: 0
+    )
+    let pastEOFRange = ASSEventByteRange(
+        startMilliseconds: 0,
+        endMilliseconds: 1_000,
+        byteOffset: max(0, index.fileSize - 4),
+        byteLength: 16
+    )
+
+    for invalidRange in [overflowRange, negativeOffsetRange, zeroLengthRange, pastEOFRange] {
+        #expect(try index.readAndDecodeEventLines([invalidRange], from: assURL) == nil)
+        #expect(index.decodeEventLines([invalidRange], from: assData) == nil)
+    }
+}
+
+@Test
+func validatesAndSlicesRemoteCachedSubtitlesReadOnlyAndHandlesCacheMissOrSizeMismatchSafely() throws {
+    let fixture = try ASSEventOffsetTestFixture()
+    defer { fixture.cleanUp() }
+
+    let isolatedCacheDir = fixture.root.appendingPathComponent("IsolatedRemoteSubtitleCache", isDirectory: true)
+    let isolatedCache = WebDAVSubtitleCache(cacheDirectoryURL: isolatedCacheDir)
+
+    let remoteCases: [(folder: String, subtitle: String, video: String)] = [
+        (
+            "http://192.168.50.10:5244/dav/Anime",
+            "http://192.168.50.10:5244/dav/Anime/EP01.ass",
+            "http://192.168.50.10:5244/dav/Anime/EP01.mkv"
+        ),
+        (
+            "smb://192.168.50.10/Share/Anime",
+            "smb://192.168.50.10/Share/Anime/EP02.ass",
+            "smb://192.168.50.10/Share/Anime/EP02.mkv"
+        ),
+        (
+            "ftp://192.168.50.10:2121/Anime",
+            "ftp://192.168.50.10:2121/Anime/EP03.ass",
+            "ftp://192.168.50.10:2121/Anime/EP03.mkv"
+        ),
+        (
+            "nfs://192.168.50.10/export/Anime",
+            "nfs://192.168.50.10/export/Anime/EP04.ass",
+            "nfs://192.168.50.10/export/Anime/EP04.mkv"
+        )
+    ]
+
+    let remoteServerModifiedAt = Date(timeIntervalSince1970: 1_700_000_000)
+
+    for (idx, item) in remoteCases.enumerated() {
+        let folderURL = URL.fromMediaPath(item.folder)
+        let subtitleURL = URL.fromMediaPath(item.subtitle)
+        let videoURL = URL.fromMediaPath(item.video)
+
+        let script = """
+        [Script Info]
+        ScriptType: v4.00+
+        PlayResX: 1920
+        PlayResY: 1080
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:02.00,0:00:05.00,Default,,0,0,0,,Remote-\(idx)-第一句远程缓存字幕
+        Dialogue: 0,0:00:06.00,0:00:09.00,Default,,0,0,0,,Remote-\(idx)-第二句远程缓存字幕
+        """
+        let data = Data(script.utf8)
+        let cachedFileURL = try isolatedCache.storeSubtitleData(data, for: subtitleURL)
+        // Simulate local cache mtime being hours newer than remote server's Last-Modified header.
+        try FileManager.default.setAttributes(
+            [.modificationDate: remoteServerModifiedAt.addingTimeInterval(86_400)],
+            ofItemAtPath: cachedFileURL.path
+        )
+
+        let decoded = try SubtitleTextDecoder.decodeWithResolvedEncoding(data, format: .ass)
+        let cueGroups = try ASSParser.parseCueGroupsForIndexing(decoded.contents, format: .ass)
+        let languageAnalysis = SubtitleLanguageAnalyzer().analyze(format: .ass, cueGroups: cueGroups)
+        let offsetIndex = ASSEventOffsetIndexer.build(
+            from: data,
+            format: .ass,
+            encoding: decoded.encoding,
+            encodingName: decoded.encodingName
+        )
+
+        _ = try fixture.indexingDatabase.addSearchPath(folderURL)
+        _ = try fixture.indexingDatabase.publishLibraryIndex(
+            PreparedLibraryIndex(
+                folder: folderURL,
+                changedFiles: [
+                    PreparedSubtitleIndexFile(
+                        subtitleFile: subtitleURL,
+                        videoFile: videoURL,
+                        format: .ass,
+                        cueGroups: cueGroups,
+                        assFontReferences: [],
+                        assEventOffsetIndex: offsetIndex,
+                        fileSize: Int64(data.count),
+                        modifiedAt: remoteServerModifiedAt,
+                        rawCueCount: 2,
+                        encoding: decoded.encodingName,
+                        videoFileSize: 10_000_000,
+                        videoModifiedAt: remoteServerModifiedAt,
+                        languageAnalysis: languageAnalysis,
+                        refreshVideoMetadata: false
+                    )
+                ],
+                bindingRefreshes: [],
+                missingVideoSubtitleFiles: [],
+                keptSubtitlePaths: [subtitleURL.mediaPath]
+            )
+        )
+    }
+
+    let reader = PlaybackSubtitleRenderCacheReader(
+        databaseURL: fixture.databaseURL,
+        subtitleCache: isolatedCache
+    )
+
+    for (idx, item) in remoteCases.enumerated() {
+        let subtitleURL = URL.fromMediaPath(item.subtitle)
+        let index = try #require(try reader.validatedASSEventOffsetIndex(forSubtitleFile: subtitleURL))
+        #expect(index.eventCount == 2)
+        #expect(abs(index.modifiedAt.timeIntervalSince1970 - remoteServerModifiedAt.timeIntervalSince1970) < 0.001)
+
+        let secondOnly = index.overlappingEvents(in: 6_500..<7_500)
+        #expect(secondOnly.count == 1)
+        let lines = try #require(
+            try index.readAndDecodeEventLines(
+                secondOnly,
+                from: subtitleURL,
+                subtitleCache: isolatedCache
+            )
+        )
+        #expect(lines == ["Dialogue: 0,0:00:06.00,0:00:09.00,Default,,0,0,0,,Remote-\(idx)-第二句远程缓存字幕"])
+
+        // Explicit actualFileSize / actualModifiedAt entry continues to validate exact size + remote timestamp.
+        #expect(
+            try reader.validatedASSEventOffsetIndex(
+                forSubtitleFile: subtitleURL,
+                actualFileSize: index.fileSize,
+                actualModifiedAt: remoteServerModifiedAt
+            ) != nil
+        )
+        #expect(
+            try reader.validatedASSEventOffsetIndex(
+                forSubtitleFile: subtitleURL,
+                actualFileSize: index.fileSize,
+                actualModifiedAt: remoteServerModifiedAt.addingTimeInterval(60)
+            ) == nil
+        )
+    }
+
+    // Size mismatch in local cache invalidates both validation and direct range reading without network I/O.
+    let firstRemoteURL = URL.fromMediaPath(remoteCases[0].subtitle)
+    let previouslyValidated = try #require(
+        try reader.validatedASSEventOffsetIndex(forSubtitleFile: firstRemoteURL)
+    )
+    _ = try isolatedCache.storeSubtitleData(Data("corrupted-shorter-cache".utf8), for: firstRemoteURL)
+    #expect(try reader.validatedASSEventOffsetIndex(forSubtitleFile: firstRemoteURL) == nil)
+    #expect(
+        try previouslyValidated.readAndDecodeEventLines(
+            previouslyValidated.events,
+            from: firstRemoteURL,
+            subtitleCache: isolatedCache
+        ) == nil
+    )
+
+    // Missing local cache file returns nil safely (even for empty range) and never writes or downloads.
+    isolatedCache.removeCachedSubtitle(for: firstRemoteURL)
+    let cachedPath = isolatedCache.cachedFileURL(for: firstRemoteURL).path
+    #expect(!FileManager.default.fileExists(atPath: cachedPath))
+    #expect(try reader.validatedASSEventOffsetIndex(forSubtitleFile: firstRemoteURL) == nil)
+    #expect(
+        try previouslyValidated.readAndDecodeEventLines(
+            previouslyValidated.events,
+            from: firstRemoteURL,
+            subtitleCache: isolatedCache
+        ) == nil
+    )
+    #expect(
+        try previouslyValidated.readAndDecodeEventLines(
+            [],
+            from: firstRemoteURL,
+            subtitleCache: isolatedCache
+        ) == nil
+    )
+    #expect(!FileManager.default.fileExists(atPath: cachedPath))
+}
+
+@Test
+func reusesReadOnlyDatabaseConnectionAcrossSessionQueriesAndGuardsDecompressionCountOverflow() throws {
+    let fixture = try ASSEventOffsetTestFixture()
+    defer { fixture.cleanUp() }
+
+    let assText = """
+    [Script Info]
+    ScriptType: v4.00+
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize
+    Style: Default,Hiragino Sans,48
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Session connection reuse line 1
+    Dialogue: 0,0:00:05.00,0:00:08.00,Default,,0,0,0,,Session connection reuse line 2
+    """
+    let assURL = try fixture.writeRawSubtitle(name: "SessionReuse.ass", data: Data(assText.utf8))
+    try fixture.writeVideo(name: "SessionReuse.mkv")
+    _ = try SubtitleIndexer().index(folder: fixture.root, into: fixture.indexingDatabase)
+
+    let reader = PlaybackSubtitleRenderCacheReader(databaseURL: fixture.databaseURL)
+    #expect(reader.openedDatabaseConnectionCountForTesting == 0)
+
+    #expect(try reader.hasCurrentASSFontReferenceManifest(forSubtitleFile: assURL))
+    #expect(reader.openedDatabaseConnectionCountForTesting == 1)
+
+    let fonts = try reader.assFontReferences(forSubtitleFile: assURL)
+    #expect(fonts.map(\.fontName) == ["Hiragino Sans"])
+    #expect(reader.openedDatabaseConnectionCountForTesting == 1)
+
+    // Copying the struct preserves the shared underlying connection box.
+    let copiedReader = reader
+    let sessionIndex = try #require(try copiedReader.validatedASSEventOffsetIndex(forSubtitleFile: assURL))
+    #expect(sessionIndex.eventCount == 2)
+    #expect(reader.openedDatabaseConnectionCountForTesting == 1)
+    #expect(copiedReader.openedDatabaseConnectionCountForTesting == 1)
+
+    // Wrapping an already-open PlaybackSubtitleDatabase opens zero additional connections.
+    let sharedDB = try PlaybackSubtitleDatabase(path: fixture.databaseURL, access: .readOnly)
+    let sharedReader = PlaybackSubtitleRenderCacheReader(database: sharedDB)
+    #expect(try sharedReader.validatedASSEventOffsetIndex(forSubtitleFile: assURL)?.eventCount == 2)
+    #expect(sharedReader.openedDatabaseConnectionCountForTesting == 0)
+
+    // Decompression expectedCount * 16 overflow and negative count guards
+    let validCompressed = try ASSEventOffsetIndexer.packAndCompressEvents(sessionIndex.events)
+    #expect(throws: ASSEventOffsetIndexError.corruptedPayload) {
+        _ = try ASSEventOffsetIndexer.decompressAndUnpackEvents(validCompressed, expectedCount: Int.max)
+    }
+    #expect(throws: ASSEventOffsetIndexError.corruptedPayload) {
+        _ = try ASSEventOffsetIndexer.decompressAndUnpackEvents(
+            validCompressed,
+            expectedCount: (Int.max / 16) + 1
+        )
+    }
+    #expect(throws: ASSEventOffsetIndexError.corruptedPayload) {
+        _ = try ASSEventOffsetIndexer.decompressAndUnpackEvents(validCompressed, expectedCount: -1)
+    }
+
+    // Corrupted overflowing event_count in SQLite safely returns nil instead of trapping.
+    try executeDatabaseTestSQLite(
+        at: fixture.databaseURL,
+        "UPDATE ass_event_offset_indexes SET event_count = \(Int64.max);"
+    )
+    #expect(try reader.validatedASSEventOffsetIndex(forSubtitleFile: assURL) == nil)
+}
+
+@Test
+func supportsEmptyFontsGraphicsPlaceholdersUnknownMetadataSectionsColonFractionAndSubMillisecondTimestamps() throws {
+    let fixture = try ASSEventOffsetTestFixture()
+    defer { fixture.cleanUp() }
+
+    // 1. Real-world fansub / legacy SSA features that libass accepts cleanly:
+    //    - Non-Aegisub unknown section [Project Garbage] before styles
+    //    - Colon-separated fraction timestamps (0:01:23:45 -> 83,450ms)
+    //    - > 3 fractional digit timestamps (0:02:10.123987 -> 130,123ms and 0:02:12:45678 -> 132,456ms)
+    //    - Unknown [Extradata] section after [Events]
+    //    - Trailing empty [Fonts] and [Graphics] placeholder headers with comments/blank lines only
+    let compatibleFansubASS = """
+    [Script Info]
+    Title: Real Fansub Edge Cases
+    ScriptType: v4.00+
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [Project Garbage]
+    Audio File: EP01.mkv
+    Scroll Position: 42
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize, Alignment, MarginL, MarginR, MarginV
+    Style: Default,Arial,48,2,20,20,30
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:01:23:45,0:01:26:05,Default,,0,0,0,,冒号分隔百分秒时间戳台词
+    Dialogue: 0,0:02:10.123987,0:02:12:45678,Default,,0,0,0,,超三位小数高精度时间戳台词
+
+    [Extradata]
+    Data: 1,custom_tool,opaque_blob
+
+    [Fonts]
+    ; Empty template placeholder with comment only
+    !: Another legacy comment marker
+
+    [Graphics]
+       
+    """
+    let compatibleURL = try fixture.writeRawSubtitle(
+        name: "CompatibleFansub.ass",
+        data: Data(compatibleFansubASS.utf8)
+    )
+    try fixture.writeVideo(name: "CompatibleFansub.mkv")
+
+    // 2. Non-empty [Graphics] section with actual embedded data MUST still be marked ineligible!
+    let embeddedGraphicsASS = """
+    [Script Info]
+    ScriptType: v4.00+
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Has embedded graphic
+
+    [Graphics]
+    filename: logo.png
+    !!""##$$%%&&''(())**++,,--..//00112233445566778899
+    """
+    let embeddedGraphicsURL = try fixture.writeRawSubtitle(
+        name: "EmbeddedGraphics.ass",
+        data: Data(embeddedGraphicsASS.utf8)
+    )
+    try fixture.writeVideo(name: "EmbeddedGraphics.mkv")
+
+    let result = try SubtitleIndexer().index(folder: fixture.root, into: fixture.indexingDatabase)
+    #expect(result.indexedSubtitleFiles == 2)
+    #expect(result.failedFiles.isEmpty)
+
+    let playbackDB = try PlaybackSubtitleDatabase(path: fixture.databaseURL, access: .readOnly)
+
+    let index = try #require(try playbackDB.validatedASSEventOffsetIndex(forSubtitleFile: compatibleURL))
+    #expect(index.eventCount == 2)
+    #expect(!index.headerText.contains("[Project Garbage]"))
+    #expect(!index.headerText.contains("[Extradata]"))
+    #expect(!index.headerText.contains("[Fonts]"))
+    #expect(!index.headerText.contains("[Graphics]"))
+
+    #expect(index.events[0].startMilliseconds == 83_450)
+    #expect(index.events[0].endMilliseconds == 86_050)
+    #expect(index.events[1].startMilliseconds == 130_123)
+    #expect(index.events[1].endMilliseconds == 132_456)
+
+    let firstMatch = index.overlappingEvents(in: 83_450..<83_451)
+    #expect(
+        try index.readAndDecodeEventLines(firstMatch, from: compatibleURL) == [
+            "Dialogue: 0,0:01:23:45,0:01:26:05,Default,,0,0,0,,冒号分隔百分秒时间戳台词"
+        ]
+    )
+
+    let secondMatch = index.overlappingEvents(in: 130_123..<130_124)
+    #expect(
+        try index.readAndDecodeEventLines(secondMatch, from: compatibleURL) == [
+            "Dialogue: 0,0:02:10.123987,0:02:12:45678,Default,,0,0,0,,超三位小数高精度时间戳台词"
+        ]
+    )
+
+    // Non-empty [Graphics] must be rejected as ineligible.
+    #expect(try playbackDB.validatedASSEventOffsetIndex(forSubtitleFile: embeddedGraphicsURL) == nil)
+    #expect(
+        try sqliteStringValue(
+            at: fixture.databaseURL,
+            sql: """
+                SELECT idx.status
+                FROM ass_event_offset_indexes idx
+                JOIN subtitle_files sf ON sf.id = idx.subtitle_file_id
+                WHERE sf.subtitle_path LIKE '%/EmbeddedGraphics.ass';
+                """
+        ) == "ineligible"
+    )
 }

@@ -878,4 +878,160 @@ struct WebDAVSupportTests {
         #expect(second.config.davRootPath == "http://192.168.1.99:5244/dav/115/Anime")
         #expect(requestedPaths.withValue { $0 } == ["/dav/115/Anime"])
     }
+
+    @Test
+    func subtitleIndexerBuildsAndValidatesWebDAVASSEventOffsetIndexUsingIsolatedCacheWithoutNetworkReads() throws {
+        let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "CueSeekerWebDAVASSIndexTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        let databaseURL = tempRoot.appendingPathComponent("CueSeeker.sqlite")
+        let cacheDirectoryURL = tempRoot.appendingPathComponent("IsolatedCache", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        let isolatedCache = WebDAVSubtitleCache(cacheDirectoryURL: cacheDirectoryURL)
+        let rootURL = URL.fromMediaPath("http://192.168.1.173:5244/115/Anime")
+        defer {
+            WebDAVClient.shared.setCustomHTTPHandlerForTesting(nil)
+            WebDAVConfigurationStore.shared.remove(url: rootURL)
+            try? FileManager.default.removeItem(at: tempRoot)
+        }
+
+        WebDAVConfigurationStore.shared.save(
+            WebDAVRootConfig(
+                rootPath: rootURL.mediaPath,
+                davRootPath: "http://192.168.1.173:5244/dav/115/Anime",
+                name: "Anime",
+                address: rootURL.mediaPath,
+                username: "user",
+                password: "pw"
+            )
+        )
+
+        let assContent = """
+        [Script Info]
+        ScriptType: v4.00+
+        PlayResX: 1920
+        PlayResY: 1080
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:01.00,0:00:03.50,Default,,0,0,0,,WebDAV ASS cached line 1
+        Dialogue: 0,0:00:05.00,0:00:07.50,Default,,0,0,0,,WebDAV ASS cached line 2
+        """
+        let assData = Data(assContent.utf8)
+
+        WebDAVClient.shared.setCustomHTTPHandlerForTesting { request in
+            let method = request.httpMethod ?? "GET"
+            let path = request.url?.path ?? ""
+            if method == "PROPFIND" {
+                let xml = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <D:multistatus xmlns:D="DAV:">
+                  <D:response>
+                    <D:href>/dav/115/Anime/</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/115/Anime/EP01.mkv</D:href>
+                    <D:propstat>
+                      <D:prop>
+                        <D:resourcetype/>
+                        <D:getcontentlength>52428800</D:getcontentlength>
+                        <D:getlastmodified>Mon, 14 Oct 2026 00:00:00 GMT</D:getlastmodified>
+                      </D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/115/Anime/EP01.ass</D:href>
+                    <D:propstat>
+                      <D:prop>
+                        <D:resourcetype/>
+                        <D:getcontentlength>\(assData.count)</D:getcontentlength>
+                        <D:getlastmodified>Mon, 14 Oct 2026 00:00:00 GMT</D:getlastmodified>
+                      </D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                </D:multistatus>
+                """
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 207,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: ["Content-Type": "application/xml"]
+                )!
+                return (Data(xml.utf8), response)
+            } else if path.hasSuffix("EP01.ass") {
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: nil
+                )!
+                return (assData, response)
+            }
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 404,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil
+            )!
+            return (Data(), response)
+        }
+
+        try DatabaseBootstrap.prepare(at: databaseURL)
+        let indexingDatabase = try IndexingDatabase(path: databaseURL)
+        _ = try indexingDatabase.addSearchPath(rootURL)
+        let indexResult = try SubtitleIndexer(subtitleCache: isolatedCache).index(
+            folder: rootURL,
+            into: indexingDatabase
+        )
+        #expect(indexResult.indexedSubtitleFiles == 1)
+
+        // Replace HTTP handler with a trap counter to prove read-only validation & slicing trigger ZERO network calls!
+        let unexpectedNetworkCalls = LockedBox(0)
+        WebDAVClient.shared.setCustomHTTPHandlerForTesting { request in
+            unexpectedNetworkCalls.withValue { $0 += 1 }
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 500,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil
+            )!
+            return (Data(), response)
+        }
+
+        let remoteSubtitleURL = URL.fromMediaPath("http://192.168.1.173:5244/115/Anime/EP01.ass")
+        let reader = PlaybackSubtitleRenderCacheReader(
+            databaseURL: databaseURL,
+            subtitleCache: isolatedCache
+        )
+        let validated = try #require(try reader.validatedASSEventOffsetIndex(forSubtitleFile: remoteSubtitleURL))
+        #expect(validated.eventCount == 2)
+
+        let secondLine = try #require(
+            try validated.readAndDecodeEventLines(
+                validated.overlappingEvents(in: 5_500..<6_000),
+                from: remoteSubtitleURL,
+                subtitleCache: isolatedCache
+            )
+        )
+        #expect(secondLine == ["Dialogue: 0,0:00:05.00,0:00:07.50,Default,,0,0,0,,WebDAV ASS cached line 2"])
+        #expect(unexpectedNetworkCalls.withValue { $0 } == 0)
+
+        isolatedCache.removeCachedSubtitle(for: remoteSubtitleURL)
+        #expect(try reader.validatedASSEventOffsetIndex(forSubtitleFile: remoteSubtitleURL) == nil)
+        #expect(
+            try validated.readAndDecodeEventLines(
+                validated.events,
+                from: remoteSubtitleURL,
+                subtitleCache: isolatedCache
+            ) == nil
+        )
+        #expect(unexpectedNetworkCalls.withValue { $0 } == 0)
+    }
 }

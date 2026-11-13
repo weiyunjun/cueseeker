@@ -25,6 +25,9 @@ public struct ASSEventByteRange: Equatable, Sendable {
 }
 
 public struct ASSEventOffsetIndex: Equatable, Sendable {
+    public static let maxCoalescedReadGapBytes: Int64 = 32 * 1024
+    private static let maxCoalescedChunkBytes: Int64 = 16 * 1024 * 1024
+
     public let subtitlePath: String
     public let algorithmVersion: Int
     public let fileSize: Int64
@@ -94,13 +97,17 @@ public struct ASSEventOffsetIndex: Equatable, Sendable {
         lines.reserveCapacity(eventRanges.count)
         for range in eventRanges {
             guard range.byteOffset >= 0,
-                  range.byteLength > 0,
-                  let start = Int(exactly: range.byteOffset)
+                  range.byteLength > 0
             else {
                 return nil
             }
-            let (end, overflow) = start.addingReportingOverflow(range.byteLength)
-            guard !overflow, end >= start, end <= sourceData.count else {
+            let (endOffset64, overflow64) = range.byteOffset.addingReportingOverflow(Int64(range.byteLength))
+            guard !overflow64,
+                  endOffset64 > range.byteOffset,
+                  let start = Int(exactly: range.byteOffset),
+                  let end = Int(exactly: endOffset64),
+                  end <= sourceData.count
+            else {
                 return nil
             }
             let slice = sourceData.subdata(in: start..<end)
@@ -114,34 +121,218 @@ public struct ASSEventOffsetIndex: Equatable, Sendable {
 
     public func readAndDecodeEventLines(
         _ eventRanges: [ASSEventByteRange],
-        from subtitleFile: URL
+        from subtitleFile: URL,
+        subtitleCache: WebDAVSubtitleCache = .shared
+    ) throws -> [String]? {
+        try readAndDecodeEventLines(
+            eventRanges,
+            from: subtitleFile,
+            subtitleCache: subtitleCache,
+            onChunkRead: nil
+        )
+    }
+
+    func readAndDecodeEventLines(
+        _ eventRanges: [ASSEventByteRange],
+        from subtitleFile: URL,
+        subtitleCache: WebDAVSubtitleCache = .shared,
+        onChunkRead: ((Int64, Int) -> Void)?
     ) throws -> [String]? {
         guard let encoding = SubtitleTextDecoder.stringEncoding(named: encodingName) else {
             return nil
         }
-        guard !eventRanges.isEmpty else {
-            return []
-        }
-        let handle = try FileHandle(forReadingFrom: subtitleFile)
-        defer {
-            try? handle.close()
-        }
-        var lines: [String] = []
-        lines.reserveCapacity(eventRanges.count)
-        for range in eventRanges {
-            guard range.byteOffset >= 0, range.byteLength > 0 else {
+
+        let localFileURL: URL
+        if subtitleFile.isRemoteMediaURL {
+            guard fileSize >= 0 else {
                 return nil
             }
-            try handle.seek(toOffset: UInt64(range.byteOffset))
-            guard let slice = try handle.read(upToCount: range.byteLength),
-                  slice.count == range.byteLength,
-                  let decoded = String(data: slice, encoding: encoding)
+            let cachedURL = subtitleCache.cachedFileURL(for: subtitleFile)
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: cachedURL.path),
+                  let cachedFileSize = (attributes[.size] as? NSNumber)?.int64Value,
+                  cachedFileSize == fileSize
             else {
                 return nil
             }
-            lines.append(decoded)
+            if eventRanges.isEmpty {
+                return []
+            }
+            localFileURL = cachedURL
+        } else {
+            if eventRanges.isEmpty {
+                return []
+            }
+            localFileURL = subtitleFile
         }
-        return lines
+
+        struct IndexedEventSlice {
+            let originalIndex: Int
+            let startOffset: Int64
+            let endOffset: Int64
+            let byteLength: Int
+        }
+
+        struct CoalescedReadChunk {
+            let startOffset: Int64
+            var endOffset: Int64
+            var slices: [IndexedEventSlice]
+        }
+
+        let handle: FileHandle
+        if subtitleFile.isRemoteMediaURL {
+            guard let opened = try? FileHandle(forReadingFrom: localFileURL) else {
+                return nil
+            }
+            handle = opened
+        } else {
+            handle = try FileHandle(forReadingFrom: localFileURL)
+        }
+        defer {
+            try? handle.close()
+        }
+
+        let actualFileSizeU64 = try handle.seekToEnd()
+        if subtitleFile.isRemoteMediaURL {
+            guard let expectedSizeU64 = UInt64(exactly: fileSize),
+                  actualFileSizeU64 == expectedSizeU64
+            else {
+                return nil
+            }
+        }
+
+        var indexedSlices: [IndexedEventSlice] = []
+        indexedSlices.reserveCapacity(eventRanges.count)
+        for (originalIndex, range) in eventRanges.enumerated() {
+            guard range.byteOffset >= 0,
+                  range.byteLength > 0
+            else {
+                return nil
+            }
+            let (endOffset, overflow) = range.byteOffset.addingReportingOverflow(Int64(range.byteLength))
+            guard !overflow,
+                  endOffset > range.byteOffset,
+                  let endOffsetU64 = UInt64(exactly: endOffset),
+                  endOffsetU64 <= actualFileSizeU64
+            else {
+                return nil
+            }
+            indexedSlices.append(
+                IndexedEventSlice(
+                    originalIndex: originalIndex,
+                    startOffset: range.byteOffset,
+                    endOffset: endOffset,
+                    byteLength: range.byteLength
+                )
+            )
+        }
+
+        indexedSlices.sort { lhs, rhs in
+            if lhs.startOffset != rhs.startOffset {
+                return lhs.startOffset < rhs.startOffset
+            }
+            if lhs.endOffset != rhs.endOffset {
+                return lhs.endOffset < rhs.endOffset
+            }
+            return lhs.originalIndex < rhs.originalIndex
+        }
+
+        var chunks: [CoalescedReadChunk] = []
+        for slice in indexedSlices {
+            if var lastChunk = chunks.last {
+                let (gapLimit, gapOverflow) = lastChunk.endOffset.addingReportingOverflow(
+                    Self.maxCoalescedReadGapBytes
+                )
+                let withinGap = slice.startOffset <= (gapOverflow ? Int64.max : gapLimit)
+                let proposedEnd = max(lastChunk.endOffset, slice.endOffset)
+                let (proposedSpan, spanOverflow) = proposedEnd.subtractingReportingOverflow(lastChunk.startOffset)
+                if withinGap,
+                   !spanOverflow,
+                   proposedSpan <= Self.maxCoalescedChunkBytes,
+                   Int(exactly: proposedSpan) != nil
+                {
+                    lastChunk.endOffset = proposedEnd
+                    lastChunk.slices.append(slice)
+                    chunks[chunks.count - 1] = lastChunk
+                    continue
+                }
+            }
+            chunks.append(
+                CoalescedReadChunk(
+                    startOffset: slice.startOffset,
+                    endOffset: slice.endOffset,
+                    slices: [slice]
+                )
+            )
+        }
+
+        var decodedByOriginalIndex = [String?](repeating: nil, count: eventRanges.count)
+        for chunk in chunks {
+            let (span64, spanOverflow) = chunk.endOffset.subtractingReportingOverflow(chunk.startOffset)
+            guard !spanOverflow,
+                  let chunkByteCount = Int(exactly: span64),
+                  chunkByteCount > 0,
+                  let seekOffset = UInt64(exactly: chunk.startOffset)
+            else {
+                return nil
+            }
+            try handle.seek(toOffset: seekOffset)
+            guard let chunkData = try handle.read(upToCount: chunkByteCount),
+                  chunkData.count == chunkByteCount
+            else {
+                return nil
+            }
+            onChunkRead?(chunk.startOffset, chunkByteCount)
+
+            let didDecodeChunk = chunkData.withUnsafeBytes { rawBuffer -> Bool in
+                guard let baseAddress = rawBuffer.baseAddress else {
+                    return false
+                }
+                for slice in chunk.slices {
+                    let (relativeStart64, relOverflow) = slice.startOffset.subtractingReportingOverflow(
+                        chunk.startOffset
+                    )
+                    guard !relOverflow,
+                          let relativeStart = Int(exactly: relativeStart64),
+                          relativeStart >= 0
+                    else {
+                        return false
+                    }
+                    let (relativeEnd, endOverflow) = relativeStart.addingReportingOverflow(slice.byteLength)
+                    guard !endOverflow,
+                          relativeEnd >= relativeStart,
+                          relativeEnd <= rawBuffer.count
+                    else {
+                        return false
+                    }
+                    let slicePointer = UnsafeMutableRawPointer(
+                        mutating: baseAddress.advanced(by: relativeStart)
+                    )
+                    let view = Data(
+                        bytesNoCopy: slicePointer,
+                        count: slice.byteLength,
+                        deallocator: .none
+                    )
+                    guard let decoded = String(data: view, encoding: encoding) else {
+                        return false
+                    }
+                    decodedByOriginalIndex[slice.originalIndex] = decoded
+                }
+                return true
+            }
+            guard didDecodeChunk else {
+                return nil
+            }
+        }
+
+        var orderedLines: [String] = []
+        orderedLines.reserveCapacity(eventRanges.count)
+        for maybeLine in decodedByOriginalIndex {
+            guard let line = maybeLine else {
+                return nil
+            }
+            orderedLines.append(line)
+        }
+        return orderedLines
     }
 }
 
@@ -153,17 +344,20 @@ enum ASSEventOffsetIndexStatus: String, Equatable, Sendable {
 struct PreparedASSEventOffsetIndex: Equatable, Sendable {
     let algorithmVersion: Int
     let status: ASSEventOffsetIndexStatus
+    let sourceByteCount: Int64?
     let encodingName: String?
     let headerText: String?
     let eventCount: Int
     let compressedEvents: Data?
 
     static func ineligible(
+        sourceByteCount: Int64? = nil,
         algorithmVersion: Int = ASSEventOffsetIndexer.currentAlgorithmVersion
     ) -> PreparedASSEventOffsetIndex {
         PreparedASSEventOffsetIndex(
             algorithmVersion: algorithmVersion,
             status: .ineligible,
+            sourceByteCount: sourceByteCount,
             encodingName: nil,
             headerText: nil,
             eventCount: 0,
@@ -173,13 +367,14 @@ struct PreparedASSEventOffsetIndex: Equatable, Sendable {
 }
 
 public enum ASSEventOffsetIndexer {
-    public static let currentAlgorithmVersion = 1
+    public static let currentAlgorithmVersion = 2
 
     private enum SectionState {
         case beforeFirstSection
         case scriptInfo
         case styles
         case events
+        case embeddedResource
         case ignoredMetadata
     }
 
@@ -189,16 +384,17 @@ public enum ASSEventOffsetIndexer {
         encoding: String.Encoding,
         encodingName: String
     ) -> PreparedASSEventOffsetIndex {
+        let sourceByteCount = Int64(data.count)
         guard format.usesASSSemantics,
               !isStatefulEncoding(encoding, encodingName: encodingName),
               SubtitleTextDecoder.stringEncoding(named: encodingName) != nil
         else {
-            return .ineligible()
+            return .ineligible(sourceByteCount: sourceByteCount)
         }
 
         let bomLength = SubtitleTextDecoder.leadingByteOrderMarkLength(in: data)
         guard bomLength <= data.count else {
-            return .ineligible()
+            return .ineligible(sourceByteCount: sourceByteCount)
         }
 
         var section: SectionState = .beforeFirstSection
@@ -236,10 +432,7 @@ public enum ASSEventOffsetIndexer {
             if trimmed.hasPrefix("["), trimmed.hasSuffix("]") {
                 let lowerSection = trimmed.lowercased()
                 if lowerSection == "[fonts]" || lowerSection == "[graphics]" {
-                    return false
-                }
-                if lowerSection.hasPrefix("[aegisub ") {
-                    section = .ignoredMetadata
+                    section = .embeddedResource
                     return true
                 }
                 if lowerSection == "[script info]" {
@@ -269,11 +462,15 @@ public enum ASSEventOffsetIndexer {
                     section = .events
                     return true
                 }
-                return false
+                section = .ignoredMetadata
+                return true
             }
 
             switch section {
             case .beforeFirstSection:
+                return false
+
+            case .embeddedResource:
                 return false
 
             case .ignoredMetadata:
@@ -329,8 +526,8 @@ public enum ASSEventOffsetIndexer {
                         startFieldIndex: startIdx,
                         endFieldIndex: endIdx
                     ),
-                    let startMs = parseASSTimestampMilliseconds(startSlice),
-                    let endMs = parseASSTimestampMilliseconds(endSlice),
+                    let startMs = ASSParser.milliseconds(from: startSlice),
+                    let endMs = ASSParser.milliseconds(from: endSlice),
                     startMs >= 0,
                     endMs >= 0,
                     startMs <= Int(Int32.max),
@@ -359,7 +556,7 @@ public enum ASSEventOffsetIndexer {
               let eventFormatLine,
               !events.isEmpty
         else {
-            return .ineligible()
+            return .ineligible(sourceByteCount: sourceByteCount)
         }
 
         headerLines.append("[Events]")
@@ -367,12 +564,13 @@ public enum ASSEventOffsetIndexer {
         let headerText = headerLines.joined(separator: "\n")
 
         guard let compressedEvents = try? packAndCompressEvents(events) else {
-            return .ineligible()
+            return .ineligible(sourceByteCount: sourceByteCount)
         }
 
         return PreparedASSEventOffsetIndex(
             algorithmVersion: currentAlgorithmVersion,
             status: .ready,
+            sourceByteCount: sourceByteCount,
             encodingName: encodingName,
             headerText: headerText,
             eventCount: events.count,
@@ -381,7 +579,11 @@ public enum ASSEventOffsetIndexer {
     }
 
     static func packAndCompressEvents(_ events: [ASSEventByteRange]) throws -> Data {
-        var rawBytes = Data(count: events.count * 16)
+        let (byteCount, overflow) = events.count.multipliedReportingOverflow(by: 16)
+        guard !overflow, byteCount >= 0 else {
+            throw ASSEventOffsetIndexError.corruptedPayload
+        }
+        var rawBytes = Data(count: byteCount)
         rawBytes.withUnsafeMutableBytes { buffer in
             guard let base = buffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
                 return
@@ -421,11 +623,17 @@ public enum ASSEventOffsetIndexer {
         _ compressedData: Data,
         expectedCount: Int
     ) throws -> [ASSEventByteRange] {
+        guard expectedCount >= 0 else {
+            throw ASSEventOffsetIndexError.corruptedPayload
+        }
         guard expectedCount > 0 else {
             return []
         }
+        let (expectedByteCount, overflow) = expectedCount.multipliedReportingOverflow(by: 16)
+        guard !overflow, expectedByteCount > 0 else {
+            throw ASSEventOffsetIndexError.corruptedPayload
+        }
         let rawBytes = try (compressedData as NSData).decompressed(using: .zlib) as Data
-        let expectedByteCount = expectedCount * 16
         guard rawBytes.count == expectedByteCount else {
             throw ASSEventOffsetIndexError.corruptedPayload
         }
@@ -724,55 +932,5 @@ public enum ASSEventOffsetIndexer {
             return nil
         }
         return (startSlice, endSlice)
-    }
-
-    private static func parseASSTimestampMilliseconds(_ raw: Substring) -> Int? {
-        var trimmed = raw
-        while let first = trimmed.first, first.isWhitespace {
-            trimmed = trimmed.dropFirst()
-        }
-        while let last = trimmed.last, last.isWhitespace {
-            trimmed = trimmed.dropLast()
-        }
-
-        let hourParts = trimmed.split(separator: ":", omittingEmptySubsequences: false)
-        guard hourParts.count == 3,
-              let hours = Int(hourParts[0]),
-              hours >= 0,
-              let minutes = Int(hourParts[1]),
-              minutes >= 0,
-              minutes < 60
-        else {
-            return nil
-        }
-
-        let secondParts = hourParts[2].split(separator: ".", omittingEmptySubsequences: false)
-        guard secondParts.count == 2,
-              let seconds = Int(secondParts[0]),
-              seconds >= 0,
-              seconds < 60,
-              let fraction = Int(secondParts[1]),
-              fraction >= 0
-        else {
-            return nil
-        }
-
-        let milliseconds: Int
-        switch secondParts[1].count {
-        case 1:
-            milliseconds = fraction * 100
-        case 2:
-            milliseconds = fraction * 10
-        case 3:
-            milliseconds = fraction
-        default:
-            return nil
-        }
-
-        guard milliseconds >= 0, milliseconds < 1_000 else {
-            return nil
-        }
-
-        return (((hours * 60) + minutes) * 60 + seconds) * 1_000 + milliseconds
     }
 }

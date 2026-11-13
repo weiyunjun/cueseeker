@@ -2235,7 +2235,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.bind(subtitleFileID, at: 1)
         try statement.bind(index.algorithmVersion, at: 2)
         try statement.bind(index.status.rawValue, at: 3)
-        try bindOptional(fileSize, to: statement, at: 4)
+        try bindOptional(fileSize ?? index.sourceByteCount, to: statement, at: 4)
         try bindOptional(modifiedAt?.timeIntervalSince1970, to: statement, at: 5)
         try bindOptional(index.encodingName, to: statement, at: 6)
         try bindOptional(index.headerText, to: statement, at: 7)

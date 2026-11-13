@@ -200,36 +200,39 @@ public struct SubtitleIndexer {
     private let scanner: SubtitleFileScanner
     private let matcher: VideoMatcher
     private let languageAnalyzer: SubtitleLanguageAnalyzer
+    private let subtitleCache: WebDAVSubtitleCache
     private let loadSubtitleData: (URL) throws -> Data
 
     public init(
         scanner: SubtitleFileScanner = SubtitleFileScanner(),
         matcher: VideoMatcher = VideoMatcher(),
-        languageAnalyzer: SubtitleLanguageAnalyzer = SubtitleLanguageAnalyzer()
+        languageAnalyzer: SubtitleLanguageAnalyzer = SubtitleLanguageAnalyzer(),
+        subtitleCache: WebDAVSubtitleCache = .shared
     ) {
         self.init(
             scanner: scanner,
             matcher: matcher,
             languageAnalyzer: languageAnalyzer,
+            subtitleCache: subtitleCache,
             loadSubtitleData: { url in
                 if url.isWebDAVURL {
                     let data = try WebDAVClient.shared.downloadData(from: url)
-                    _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: url)
+                    _ = try? subtitleCache.storeSubtitleData(data, for: url)
                     return data
                 }
                 if url.isSMBURL {
                     let data = try SMBClient.shared.downloadData(from: url)
-                    _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: url)
+                    _ = try? subtitleCache.storeSubtitleData(data, for: url)
                     return data
                 }
                 if url.isFTPURL {
                     let data = try FTPClient.shared.downloadData(from: url)
-                    _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: url)
+                    _ = try? subtitleCache.storeSubtitleData(data, for: url)
                     return data
                 }
                 if url.isNFSURL {
                     let data = try NFSClient.shared.downloadData(from: url)
-                    _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: url)
+                    _ = try? subtitleCache.storeSubtitleData(data, for: url)
                     return data
                 }
                 return try Data(contentsOf: url)
@@ -241,11 +244,13 @@ public struct SubtitleIndexer {
         scanner: SubtitleFileScanner = SubtitleFileScanner(),
         matcher: VideoMatcher = VideoMatcher(),
         languageAnalyzer: SubtitleLanguageAnalyzer = SubtitleLanguageAnalyzer(),
+        subtitleCache: WebDAVSubtitleCache = .shared,
         loadSubtitleData: @escaping (URL) throws -> Data
     ) {
         self.scanner = scanner
         self.matcher = matcher
         self.languageAnalyzer = languageAnalyzer
+        self.subtitleCache = subtitleCache
         self.loadSubtitleData = loadSubtitleData
     }
 
@@ -266,7 +271,10 @@ public struct SubtitleIndexer {
         if !isWebDAV {
             try scanner.validateReadableDirectory(folder)
         }
-        let playbackDatabase = try PlaybackSubtitleDatabase(path: database.path)
+        let playbackDatabase = try PlaybackSubtitleDatabase(
+            path: database.path,
+            subtitleCache: subtitleCache
+        )
 
         var result = SubtitleIndexingResult()
         let subtitleFiles: [URL]
@@ -444,10 +452,10 @@ public struct SubtitleIndexer {
                 if !needsRawCueCountOrEncoding, !needsASSEventOffsetIndex {
                     keptSubtitlePaths.insert(subtitleMediaPath)
                     if isWebDAV {
-                        let cachedURL = WebDAVSubtitleCache.shared.cachedFileURL(for: subtitleFile)
+                        let cachedURL = subtitleCache.cachedFileURL(for: subtitleFile)
                         if !FileManager.default.fileExists(atPath: cachedURL.path),
                            let data = try? loadSubtitleData(subtitleFile) {
-                            _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: subtitleFile)
+                            _ = try? subtitleCache.storeSubtitleData(data, for: subtitleFile)
                         }
                     }
                     if videoBindingNeedsRefresh(
@@ -515,7 +523,7 @@ public struct SubtitleIndexer {
                 let data: Data
                 do {
                     if isWebDAV {
-                        let cachedURL = WebDAVSubtitleCache.shared.cachedFileURL(for: subtitleFile)
+                        let cachedURL = subtitleCache.cachedFileURL(for: subtitleFile)
                         if FileManager.default.fileExists(atPath: cachedURL.path),
                            let cachedData = try? Data(contentsOf: cachedURL),
                            observation.fileSize == nil || Int64(cachedData.count) == observation.fileSize
@@ -523,7 +531,7 @@ public struct SubtitleIndexer {
                             data = cachedData
                         } else {
                             let loadedData = try loadSubtitleData(subtitleFile)
-                            _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(loadedData, for: subtitleFile)
+                            _ = try? subtitleCache.storeSubtitleData(loadedData, for: subtitleFile)
                             data = loadedData
                         }
                     } else {

@@ -26,46 +26,117 @@ public enum ASSParser {
     }
 
     public static func milliseconds(from timecode: String) -> Int? {
-        let trimmed = timecode.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hourParts = trimmed.split(separator: ":", omittingEmptySubsequences: false)
+        milliseconds(from: timecode[...])
+    }
 
-        guard hourParts.count == 3,
-              let hours = Int(hourParts[0]),
-              let minutes = Int(hourParts[1]),
-              minutes >= 0,
-              minutes < 60
-        else {
+    static func milliseconds(from rawTimecode: Substring) -> Int? {
+        var trimmed = rawTimecode
+        while let first = trimmed.first, first.isWhitespace {
+            trimmed = trimmed.dropFirst()
+        }
+        while let last = trimmed.last, last.isWhitespace {
+            trimmed = trimmed.dropLast()
+        }
+        guard !trimmed.isEmpty else {
             return nil
         }
 
-        let secondParts = hourParts[2].split(separator: ".", omittingEmptySubsequences: false)
-        guard secondParts.count == 2,
-              let seconds = Int(secondParts[0]),
-              seconds >= 0,
-              seconds < 60,
-              let fraction = Int(secondParts[1])
-        else {
-            return nil
-        }
+        let colonParts = trimmed.split(separator: ":", omittingEmptySubsequences: false)
+        let hoursSlice: Substring
+        let minutesSlice: Substring
+        let secondsSlice: Substring
+        let fractionSlice: Substring
 
-        let fractionText = String(secondParts[1])
-        let milliseconds: Int
-        switch fractionText.count {
-        case 1:
-            milliseconds = fraction * 100
-        case 2:
-            milliseconds = fraction * 10
+        switch colonParts.count {
         case 3:
-            milliseconds = fraction
+            let secondParts = colonParts[2].split(separator: ".", omittingEmptySubsequences: false)
+            guard secondParts.count == 2 else {
+                return nil
+            }
+            hoursSlice = colonParts[0]
+            minutesSlice = colonParts[1]
+            secondsSlice = secondParts[0]
+            fractionSlice = secondParts[1]
+        case 4:
+            guard !colonParts.contains(where: { $0.contains(".") }) else {
+                return nil
+            }
+            hoursSlice = colonParts[0]
+            minutesSlice = colonParts[1]
+            secondsSlice = colonParts[2]
+            fractionSlice = colonParts[3]
         default:
             return nil
         }
 
-        guard milliseconds >= 0, milliseconds < 1_000 else {
+        guard let hours = parseNonNegativeASCIIDigits(hoursSlice),
+              let minutes = parseNonNegativeASCIIDigits(minutesSlice),
+              minutes < 60,
+              let seconds = parseNonNegativeASCIIDigits(secondsSlice),
+              seconds < 60,
+              let milliseconds = parseFractionMilliseconds(fractionSlice)
+        else {
             return nil
         }
 
-        return (((hours * 60) + minutes) * 60 + seconds) * 1_000 + milliseconds
+        let (hoursInMinutes, hOverflow) = hours.multipliedReportingOverflow(by: 60)
+        guard !hOverflow else { return nil }
+        let (totalMinutes, mOverflow) = hoursInMinutes.addingReportingOverflow(minutes)
+        guard !mOverflow else { return nil }
+        let (minutesInSeconds, sMulOverflow) = totalMinutes.multipliedReportingOverflow(by: 60)
+        guard !sMulOverflow else { return nil }
+        let (totalSeconds, sAddOverflow) = minutesInSeconds.addingReportingOverflow(seconds)
+        guard !sAddOverflow else { return nil }
+        let (secondsInMs, msMulOverflow) = totalSeconds.multipliedReportingOverflow(by: 1_000)
+        guard !msMulOverflow else { return nil }
+        let (totalMilliseconds, msAddOverflow) = secondsInMs.addingReportingOverflow(milliseconds)
+        guard !msAddOverflow, totalMilliseconds >= 0 else { return nil }
+        return totalMilliseconds
+    }
+
+    private static func parseNonNegativeASCIIDigits(_ slice: Substring) -> Int? {
+        guard !slice.isEmpty else {
+            return nil
+        }
+        var value = 0
+        for scalar in slice.unicodeScalars {
+            guard scalar.value >= 0x30, scalar.value <= 0x39 else {
+                return nil
+            }
+            let digit = Int(scalar.value - 0x30)
+            let (mul, mulOverflow) = value.multipliedReportingOverflow(by: 10)
+            guard !mulOverflow else { return nil }
+            let (sum, addOverflow) = mul.addingReportingOverflow(digit)
+            guard !addOverflow else { return nil }
+            value = sum
+        }
+        return value
+    }
+
+    private static func parseFractionMilliseconds(_ slice: Substring) -> Int? {
+        guard !slice.isEmpty else {
+            return nil
+        }
+        var digits: [Int] = []
+        digits.reserveCapacity(3)
+        for scalar in slice.unicodeScalars {
+            guard scalar.value >= 0x30, scalar.value <= 0x39 else {
+                return nil
+            }
+            if digits.count < 3 {
+                digits.append(Int(scalar.value - 0x30))
+            }
+        }
+        switch digits.count {
+        case 1:
+            return digits[0] * 100
+        case 2:
+            return digits[0] * 100 + digits[1] * 10
+        case 3:
+            return digits[0] * 100 + digits[1] * 10 + digits[2]
+        default:
+            return nil
+        }
     }
 
     public static func cleanText(_ text: String) -> String {

@@ -576,6 +576,10 @@ public final class WebDAVSubtitleCache: @unchecked Sendable {
         self.cacheDirectoryURL = cacheDirectoryURL ?? Self.defaultCacheDirectoryURL(fileManager: fileManager)
     }
 
+    var standardizedCacheDirectoryPath: String {
+        cacheDirectoryURL.standardizedFileURL.path
+    }
+
     public static func defaultCacheDirectoryURL(
         for configuration: AppBuildConfiguration = .current,
         baseApplicationSupportDirectoryURL: URL? = nil,
