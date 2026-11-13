@@ -346,6 +346,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         window.acceptsMouseMovedEvents = true
         window.minSize = NSSize(width: AppShellLayout.minimumWindowWidth, height: AppShellLayout.minimumWindowHeight)
         window.delegate = self
+        window.interfaceLayers = appState.interfaceLayers
         window.center()
         // Measured and placed before the content view is hosted: the top bar
         // reads the window controls' width on its first layout, and a reading
@@ -543,6 +544,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                     || settingsInterfaceLayers.isOpen(.dialog)
             }
         }
+        settingsWindow.interfaceLayers = settingsInterfaceLayers
         settingsWindow.title = L("settings.window.title")
         settingsWindow.titleVisibility = .hidden
         settingsWindow.titlebarAppearsTransparent = true
@@ -616,11 +618,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     /// File panels and Export to Anki's replace warning are the only sheets
     /// left on the main window.
     func windowWillBeginSheet(_ notification: Notification) {
-        appState.interfaceLayers.setSystemSheetAttached(true)
+        updateSystemSheetAttachment(for: notification.object as? NSWindow, isAttached: true)
     }
 
     func windowDidEndSheet(_ notification: Notification) {
-        appState.interfaceLayers.setSystemSheetAttached(window?.attachedSheet != nil)
+        let targetWindow = (notification.object as? NSWindow) ?? window
+        updateSystemSheetAttachment(
+            for: targetWindow,
+            isAttached: targetWindow?.attachedSheet != nil
+        )
+    }
+
+    private func updateSystemSheetAttachment(for targetWindow: NSWindow?, isAttached: Bool) {
+        let layers = (targetWindow as? CueSeekerWindow)?.interfaceLayers ?? appState.interfaceLayers
+        layers.setSystemSheetAttached(isAttached)
     }
 
     func windowWillClose(_ notification: Notification) {

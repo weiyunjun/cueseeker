@@ -27,34 +27,62 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
     @ViewBuilder let dialogs: () -> Dialogs
     /// A file panel dims the whole window itself, as the sheet over a sheet
     /// did, so the veil steps aside for it and the page is dimmed once.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isSystemSheetAttached) private var isSystemSheetAttached
     @Environment(\.interfaceLayers) private var interfaceLayers
 
     var body: some View {
+        let hasOpenDialogs = !dialogIDs.isEmpty
+        let showsScrim = WorkbenchDialogMotion.showsScrim(
+            hasOpenDialogs: hasOpenDialogs,
+            isSystemSheetAttached: isSystemSheetAttached
+        )
+
         GeometryReader { proxy in
             ZStack {
-                if !dialogIDs.isEmpty {
-                    WorkbenchRedesignColors.dialogScrim
-                        .opacity(isSystemSheetAttached ? 0 : 1)
-                        .overlay(alignment: .top) {
-                            // Moving and zooming the window belong to the
-                            // window, not to the page the veil covers.
-                            TitlebarBackgroundView(
-                                backgroundColor: Color.clear,
-                                onDoubleClickZoom: { window in
-                                    NotificationCenter.default.post(
-                                        name: .topbarTitlebarZoomRequested,
-                                        object: window
-                                    )
-                                    return true
-                                }
+                // Keep the scrim mounted across open/sheet transitions so toggling
+                // `showsScrim` always crossfades opacity smoothly instead of snapping
+                // when an attached system sheet begins dismissing.
+                WorkbenchRedesignColors.dialogScrim
+                    .opacity(showsScrim ? 1 : 0)
+                    .allowsHitTesting(hasOpenDialogs)
+                    .accessibilityHidden(true)
+                    .animation(
+                        WorkbenchDialogMotion.scrimAnimation(reducesMotion: reduceMotion),
+                        value: showsScrim
+                    )
+                    .zIndex(0)
+
+                if hasOpenDialogs {
+                    // Moving and zooming the window belong to the window, not to
+                    // the veil covering the page below. Keeping it separate avoids
+                    // tearing down or fading the band during scrim/sheet switches.
+                    TitlebarBackgroundView(
+                        backgroundColor: Color.clear,
+                        onDoubleClickZoom: { window in
+                            NotificationCenter.default.post(
+                                name: .topbarTitlebarZoomRequested,
+                                object: window
                             )
-                            .frame(height: topBandHeight)
+                            return true
                         }
-                        .transition(.opacity)
+                    )
+                    .frame(height: topBandHeight)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .zIndex(0.5)
                 }
 
-                dialogs()
+                // Isolate the dialog stack animation from scrim/sheet state so
+                // system sheet dismissal never interferes with dialog transitions
+                // while preserving sibling `.zIndex(level)` ordering inside `dialogs()`.
+                ZStack {
+                    dialogs()
+                }
+                .animation(
+                    WorkbenchDialogMotion.dialogTransactionAnimation(reducesMotion: reduceMotion),
+                    value: dialogIDs
+                )
+                .zIndex(1)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .environment(\.workbenchDialogLayerSize, proxy.size)
@@ -66,8 +94,6 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
                 )
             )
         }
-        .animation(WorkbenchDialogMotion.animation, value: dialogIDs)
-        .animation(WorkbenchDialogMotion.animation, value: isSystemSheetAttached)
         // This is where the dialogs are drawn over the page, so this is where
         // the dialog layer is registered: open while the list has a dialog in
         // it, closed once it is empty. A dialog added to the list needs
@@ -241,6 +267,7 @@ extension View {
 /// the edge just inside it in dark, and cast the shadow.
 private struct WorkbenchDialogChrome: ViewModifier {
     let isCovered: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
     @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.workbenchDialogLayerSize) private var layerSize
@@ -270,17 +297,34 @@ private struct WorkbenchDialogChrome: ViewModifier {
                     .fill(WorkbenchRedesignColors.dialogScrim)
                     .opacity(isCovered ? 1 : 0)
                     .allowsHitTesting(isCovered)
+                    .animation(
+                        WorkbenchDialogMotion.scrimAnimation(reducesMotion: reduceMotion),
+                        value: isCovered
+                    )
             )
-            // One device pixel wide, left showing around the opaque dialog.
+            // One device pixel wide, left showing strictly outside the circular
+            // dialog shape so it never overlaps translucent layers behind it.
             .background(
                 shape
                     .inset(by: -1 / displayScale)
                     .fill(WorkbenchRedesignColors.dialogOutline)
+                    .clipShape(
+                        WorkbenchExteriorClipShape(
+                            cornerRadius: WorkbenchControlMetrics.redesignDialogCornerRadius,
+                            outset: 1 / displayScale + 1,
+                            cornerStyle: .circular
+                        ),
+                        style: FillStyle(eoFill: true)
+                    )
             )
             .shadowToken(
                 WorkbenchRedesignColors.shadowDialog,
                 cornerRadius: WorkbenchControlMetrics.redesignDialogCornerRadius
             )
+            // Keep one persistent offscreen compositing group across rest and
+            // transition frames so finishing an enter transition never switches
+            // composition paths and flashes.
+            .compositingGroup()
             .background(
                 GeometryReader { proxy in
                     Color.clear
@@ -325,24 +369,68 @@ private struct WorkbenchDialogFrame: Layout {
     }
 }
 
-/// The system sheet's motion, measured on macOS 15.5. The veil fades
-/// linearly; the dialog slides down into place on the easing and is opaque
-/// early, and leaves the same way backwards, fading all the while.
+/// Tokenized macOS dialog motion and backdrop scrim curves (`Dialog Motion` tokens).
+/// Dialogs translate and fade on GPU-backed transitions matching native sheets,
+/// falling back to pure opacity fade when Reduce Motion is active.
 enum WorkbenchDialogMotion {
     /// --duration-dialog-motion
     static let duration = 0.27
     /// --duration-dialog-fade-in
     static let fadeInDuration = 0.12
+    /// --duration-dialog-fade-out
+    static let fadeOutDuration = 0.22
+    /// --duration-dialog-reduce-motion
+    static let reduceMotionDuration = 0.18
     /// --distance-dialog-motion: how far above its place a dialog enters from
     /// and leaves to.
     static let distance: CGFloat = 34
-    /// --easing-dialog-motion
-    static let easing = UnitBezier(x1: 0.4, y1: 0.2, x2: 0.58, y2: 1)
+    /// --easing-dialog-enter
+    static let enterEasing = UnitBezier(x1: 0.4, y1: 0.2, x2: 0.58, y2: 1)
+    /// --easing-dialog-exit
+    static let exitEasing = UnitBezier(x1: 0.42, y1: 0, x2: 0.58, y2: 1)
+    /// --easing-dialog-fade-in
+    static let fadeInEasing = UnitBezier(x1: 0, y1: 0, x2: 0.58, y2: 1)
+    /// --easing-dialog-fade-out
+    static let fadeOutEasing = UnitBezier(x1: 0.42, y1: 0, x2: 0.58, y2: 1)
+    /// --easing-dialog-scrim
+    static let scrimEasing = UnitBezier(x1: 0.42, y1: 0, x2: 0.58, y2: 1)
+    /// Alias for callers referencing the primary dialog enter curve.
+    static let easing = enterEasing
 
-    /// Linear, because every part of the motion takes its own curve from the
-    /// one progress.
+    static var enterAnimation: Animation {
+        enterEasing.animation(duration: duration)
+    }
+
+    static var exitAnimation: Animation {
+        exitEasing.animation(duration: duration)
+    }
+
+    static var fadeInAnimation: Animation {
+        fadeInEasing.animation(duration: fadeInDuration)
+    }
+
+    static var fadeOutAnimation: Animation {
+        fadeOutEasing.animation(duration: fadeOutDuration)
+    }
+
+    static var reduceMotionAnimation: Animation {
+        .easeInOut(duration: reduceMotionDuration)
+    }
+
+    static func scrimAnimation(reducesMotion: Bool) -> Animation {
+        reducesMotion ? reduceMotionAnimation : scrimEasing.animation(duration: duration)
+    }
+
+    static func dialogTransactionAnimation(reducesMotion: Bool) -> Animation {
+        reducesMotion ? reduceMotionAnimation : .linear(duration: duration)
+    }
+
     static var animation: Animation {
-        .linear(duration: duration)
+        dialogTransactionAnimation(reducesMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
+
+    static func showsScrim(hasOpenDialogs: Bool, isSystemSheetAttached: Bool) -> Bool {
+        hasOpenDialogs && !isSystemSheetAttached
     }
 }
 
@@ -352,6 +440,10 @@ struct UnitBezier: Equatable {
     let y1: Double
     let x2: Double
     let y2: Double
+
+    func animation(duration: TimeInterval) -> Animation {
+        .timingCurve(x1, y1, x2, y2, duration: duration)
+    }
 
     /// The curve's progress at `time`, both from 0 to 1.
     func value(at time: Double) -> Double {
@@ -383,50 +475,41 @@ struct UnitBezier: Equatable {
 
 extension AnyTransition {
     static var workbenchDialog: AnyTransition {
-        .asymmetric(
-            insertion: .modifier(
-                active: WorkbenchDialogMotionEffect(progress: 0, isEntering: true),
-                identity: WorkbenchDialogMotionEffect(progress: 1, isEntering: true)
-            ),
-            removal: .modifier(
-                active: WorkbenchDialogMotionEffect(progress: 0, isEntering: false),
-                identity: WorkbenchDialogMotionEffect(progress: 1, isEntering: false)
-            )
+        workbenchDialog(reducesMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
+
+    static func workbenchDialog(reducesMotion: Bool) -> AnyTransition {
+        if reducesMotion {
+            let fade = AnyTransition.opacity.animation(WorkbenchDialogMotion.reduceMotionAnimation)
+            return .asymmetric(insertion: fade, removal: fade)
+        }
+
+        let slideTransition = AnyTransition.modifier(
+            active: WorkbenchDialogSlideModifier(isActive: true),
+            identity: WorkbenchDialogSlideModifier(isActive: false)
+        )
+        return .asymmetric(
+            insertion: slideTransition
+                .animation(WorkbenchDialogMotion.enterAnimation)
+                .combined(
+                    with: .opacity.animation(WorkbenchDialogMotion.fadeInAnimation)
+                ),
+            removal: slideTransition
+                .animation(WorkbenchDialogMotion.exitAnimation)
+                .combined(
+                    with: .opacity.animation(WorkbenchDialogMotion.fadeOutAnimation)
+                )
         )
     }
 }
 
-private struct WorkbenchDialogMotionEffect: ViewModifier, Animatable {
-    /// 0 is off its place and transparent, 1 is in place.
-    var progress: Double
-    let isEntering: Bool
-
-    nonisolated var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
-    }
+private struct WorkbenchDialogSlideModifier: ViewModifier {
+    let isActive: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        let _ = DebugInteractionLatencyProbe.recordDialogAnimationFrame(
-            progress: CGFloat(progress),
-            isEntering: isEntering
+        content.offset(
+            y: (isActive && !reduceMotion) ? -WorkbenchDialogMotion.distance : 0
         )
-        content
-            // The dialog fades as one picture, the way the sheet's window
-            // did. Faded part by part, the opaque shapes its shadows are cast
-            // from would show through it as grey.
-            .compositingGroup()
-            .opacity(opacity)
-            .offset(
-                y: -WorkbenchDialogMotion.distance
-                    * (1 - WorkbenchDialogMotion.easing.value(at: progress))
-            )
-    }
-
-    private var opacity: Double {
-        guard isEntering else {
-            return progress
-        }
-        return min(1, progress * WorkbenchDialogMotion.duration / WorkbenchDialogMotion.fadeInDuration)
     }
 }

@@ -348,6 +348,7 @@ private struct SettingsWindowCloseButtonSyncView: NSViewRepresentable {
 
     func makeNSView(context _: Context) -> SyncView {
         let view = SyncView()
+        view.wantsLayer = true
         view.isCloseEnabled = isCloseEnabled
         return view
     }

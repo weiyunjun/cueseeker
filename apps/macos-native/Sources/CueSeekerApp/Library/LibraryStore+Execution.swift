@@ -105,11 +105,7 @@ extension LibraryStore {
             }
         }
 
-        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow {
-            panel.beginSheetModal(for: window, completionHandler: completion)
-            return
-        }
-        completion(panel.runModal())
+        SystemSheetPresentation.presentFilePanel(panel, completionHandler: completion)
     }
 
     func cancelLibraryCoverEditing() {

@@ -15,6 +15,8 @@ class CueSeekerWindow: NSWindow {
     private(set) var hasUserFocusedTextInput = false
     /// Set by the App once the interface layer registry exists.
     var isFocusLocked: () -> Bool = { false }
+    /// Weak reference to the window's interface layer registry for sheet scrim synchronization.
+    weak var interfaceLayers: InterfaceLayerRegistry?
     /// Clears any active keyboard/controller accessibility focus when the user clicks with the mouse.
     var onMouseDownClearAccessibility: (() -> Void)?
     private var trackedControlSession: TrackedControlMouseSession?

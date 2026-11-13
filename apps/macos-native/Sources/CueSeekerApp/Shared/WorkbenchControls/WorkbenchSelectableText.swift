@@ -453,6 +453,9 @@ final class WorkbenchSelectableTextNSView:
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        // Persistent backing layer avoids AppKit layer attach/detach flashes
+        // when parent containers animate opacity or transforms (e.g. dialogs).
+        wantsLayer = true
         textContainer.lineFragmentPadding = 0
         layoutManager.usesFontLeading = true
         layoutManager.addTextContainer(textContainer)

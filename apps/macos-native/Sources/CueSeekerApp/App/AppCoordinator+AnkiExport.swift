@@ -140,11 +140,7 @@ extension AppCoordinator {
             self.settings.ankiExportFolderPath = folderURL.path
         }
 
-        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow {
-            panel.beginSheetModal(for: window, completionHandler: completion)
-        } else {
-            completion(panel.runModal())
-        }
+        SystemSheetPresentation.presentFilePanel(panel, completionHandler: completion)
     }
 
     /// Queues the export. A file already at the destination is replaced only
@@ -182,11 +178,7 @@ extension AppCoordinator {
             self.enqueueAnkiExport(session, to: destinationURL)
         }
 
-        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow {
-            alert.beginSheetModal(for: window, completionHandler: completion)
-        } else {
-            completion(alert.runModal())
-        }
+        SystemSheetPresentation.presentAlert(alert, completionHandler: completion)
     }
 
     private func enqueueAnkiExport(_ session: AnkiExportSession, to destinationURL: URL) {

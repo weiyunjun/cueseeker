@@ -73,6 +73,9 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        // Persistent backing layer prevents final-frame compositing flashes
+        // when animated inside dialog transitions.
+        wantsLayer = true
         let customCell = WorkbenchSingleLineTextFieldCell(textCell: "")
         customCell.isEditable = true
         customCell.isSelectable = true
@@ -617,6 +620,7 @@ struct WorkbenchSingleLineContainerOverlay: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WorkbenchSingleLineContainerOverlayView {
         let view = WorkbenchSingleLineContainerOverlayView()
+        view.wantsLayer = true
         view.isEnabled = isEnabled
         view.trailingExclusionSize = trailingExclusionSize
         view.trailingExclusionRightInset = trailingExclusionRightInset
@@ -855,7 +859,9 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
 
 struct FocusedTextInputCompanionSurface: NSViewRepresentable {
     func makeNSView(context: Context) -> FocusedTextInputCompanionView {
-        FocusedTextInputCompanionView()
+        let view = FocusedTextInputCompanionView()
+        view.wantsLayer = true
+        return view
     }
 
     func updateNSView(_ nsView: FocusedTextInputCompanionView, context: Context) {}
@@ -893,6 +899,7 @@ struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WorkbenchNativeSecureTextField {
         let field = WorkbenchNativeSecureTextField()
+        field.wantsLayer = true
         field.delegate = context.coordinator
         field.onFocusChange = { [weak coordinator = context.coordinator] focused in
             coordinator?.setFocus(focused)

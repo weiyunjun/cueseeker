@@ -154,3 +154,75 @@ enum AppWindowControls {
     @objc(setTitlebarHeight:) func setTitlebarHeight(_ height: CGFloat)
     @objc(setStandardWindowButtonGroupOffset:) func setStandardWindowButtonGroupOffset(_ offset: NSSize)
 }
+
+@MainActor
+enum SystemSheetPresentation {
+    private static func targetWindow() -> NSWindow? {
+        NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow
+    }
+
+    static func releaseScrimOnCompletion(
+        for interfaceLayers: InterfaceLayerRegistry?,
+        activeSheetCount: Int
+    ) {
+        // When the panel/alert completion handler runs while it is still the
+        // only sheet on the window, macOS has just started its dismiss animation.
+        // Clear `isSystemSheetAttached` now so our Scrim crossfades back in
+        // lockstep with the system backdrop rather than snapping after
+        // `windowDidEndSheet`.
+        guard activeSheetCount <= 1 else {
+            return
+        }
+        interfaceLayers?.setSystemSheetAttached(false)
+    }
+
+    static func presentFilePanel(
+        _ panel: NSOpenPanel,
+        completionHandler: @escaping (NSApplication.ModalResponse) -> Void
+    ) {
+        presentSheetModal(
+            present: { window, handler in
+                panel.beginSheetModal(for: window, completionHandler: handler)
+            },
+            fallback: { panel.runModal() },
+            completionHandler: completionHandler
+        )
+    }
+
+    static func presentAlert(
+        _ alert: NSAlert,
+        completionHandler: @escaping (NSApplication.ModalResponse) -> Void
+    ) {
+        presentSheetModal(
+            present: { window, handler in
+                alert.beginSheetModal(for: window, completionHandler: handler)
+            },
+            fallback: { alert.runModal() },
+            completionHandler: completionHandler
+        )
+    }
+
+    private static func presentSheetModal(
+        present: (NSWindow, @escaping (NSApplication.ModalResponse) -> Void) -> Void,
+        fallback: () -> NSApplication.ModalResponse,
+        completionHandler: @escaping (NSApplication.ModalResponse) -> Void
+    ) {
+        guard let window = targetWindow() else {
+            completionHandler(fallback())
+            return
+        }
+        let layers = (window as? CueSeekerWindow)?.interfaceLayers
+        // Ensure windows whose delegate is not AppDelegate (e.g. Settings) still
+        // synchronize the custom Scrim if they host a sheet.
+        layers?.setSystemSheetAttached(true)
+        present(window) { response in
+            MainActor.assumeIsolated {
+                releaseScrimOnCompletion(
+                    for: layers,
+                    activeSheetCount: window.sheets.count
+                )
+            }
+            completionHandler(response)
+        }
+    }
+}

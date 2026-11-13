@@ -587,15 +587,18 @@ struct WorkbenchRedesignShadow {
     }
 }
 
-private struct WorkbenchShadowExteriorClipShape: Shape {
+/// Clips a background ring or shadow caster to the area strictly outside a
+/// rounded rectangle, punching out the container's interior via even-odd fill.
+struct WorkbenchExteriorClipShape: Shape {
     let cornerRadius: CGFloat
     let outset: CGFloat
+    var cornerStyle: RoundedCornerStyle = .continuous
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
         path.addRect(rect.insetBy(dx: -outset, dy: -outset))
         path.addPath(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: cornerStyle)
                 .path(in: rect)
         )
         return path
@@ -627,7 +630,7 @@ extension View {
                 }
             }
             .clipShape(
-                WorkbenchShadowExteriorClipShape(
+                WorkbenchExteriorClipShape(
                     cornerRadius: cornerRadius,
                     outset: shadow.maximumOutset
                 ),

@@ -12,7 +12,9 @@ struct WindowKeyDownMonitor: NSViewRepresentable {
     let handle: (NSEvent) -> Bool
 
     func makeNSView(context _: Context) -> MonitoringView {
-        MonitoringView()
+        let view = MonitoringView()
+        view.wantsLayer = true
+        return view
     }
 
     func updateNSView(_ nsView: MonitoringView, context _: Context) {

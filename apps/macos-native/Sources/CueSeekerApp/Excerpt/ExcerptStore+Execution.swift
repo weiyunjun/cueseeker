@@ -250,11 +250,7 @@ extension ExcerptStore {
             self.importExcerptListEditorCover(from: sourceURL, for: session)
         }
 
-        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow {
-            panel.beginSheetModal(for: window, completionHandler: completion)
-        } else {
-            completion(panel.runModal())
-        }
+        SystemSheetPresentation.presentFilePanel(panel, completionHandler: completion)
     }
 
     func importExcerptListEditorCover(
