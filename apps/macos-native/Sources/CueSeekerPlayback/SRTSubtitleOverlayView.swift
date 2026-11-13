@@ -11,6 +11,9 @@ final class SRTSubtitleOverlayView: NSView {
                   oldValue != areSubtitlesVisible
             else { return }
             imageLayer.isHidden = !areSubtitlesVisible
+            if !areSubtitlesVisible {
+                cancelPendingTelemetry()
+            }
             updateImage(force: true)
         }
     }
@@ -39,6 +42,12 @@ final class SRTSubtitleOverlayView: NSView {
     /// App and is shown in the player's error banner.
     var onSourceLoadFailure: ((URL) -> Void)?
 
+    private struct PendingTelemetryRender {
+        let attempt: PlaybackSubtitleFirstFrameAttempt
+        let targetTimestampMilliseconds: Int
+        var awaitingPrepCompletion: Bool
+    }
+
     private var source: PlaybackSubtitleSource?
     private var loadTask: Task<Void, Never>?
     private var layoutTask: Task<Void, Never>?
@@ -50,6 +59,9 @@ final class SRTSubtitleOverlayView: NSView {
     private var activeValidRangeMilliseconds: Range<Int>?
     private var renderedImage: CGImage?
     private var isApplyingPresentation = false
+    private var currentPrepStartedAt: CFTimeInterval?
+    private var pendingTelemetry: PendingTelemetryRender?
+    private var isEvaluatingSynchronousTelemetry = false
     private let imageLayer = CALayer()
 
     private(set) var sourceLoadCountForTesting = 0
@@ -85,13 +97,21 @@ final class SRTSubtitleOverlayView: NSView {
         imageLayer.frame = videoRect()
     }
 
+    func cancelPendingTelemetry() {
+        pendingTelemetry?.attempt.cancel()
+        pendingTelemetry = nil
+        isEvaluatingSynchronousTelemetry = false
+    }
+
     func setSource(_ source: PlaybackSubtitleSource?) {
         guard let source, source.format == .srt else {
+            cancelPendingTelemetry()
             loadTask?.cancel()
             layoutTask?.cancel()
             self.source = nil
             loadingSourceIdentity = nil
             loadedSourceIdentity = nil
+            currentPrepStartedAt = nil
             cues = []
             preparedLayout = nil
             activeOrdinals = []
@@ -110,10 +130,12 @@ final class SRTSubtitleOverlayView: NSView {
             return
         }
 
+        cancelPendingTelemetry()
         loadTask?.cancel()
         layoutTask?.cancel()
         loadingSourceIdentity = nextIdentity
         loadedSourceIdentity = nil
+        currentPrepStartedAt = CACurrentMediaTime()
         cues = []
         preparedLayout = nil
         activeOrdinals = []
@@ -156,30 +178,183 @@ final class SRTSubtitleOverlayView: NSView {
         milliseconds: Int,
         isVisible: Bool
     ) {
+        _ = setPresentation(
+            source: nextSource,
+            videoSize: nextVideoSize,
+            milliseconds: milliseconds,
+            isVisible: isVisible,
+            telemetryAttempt: nil
+        )
+    }
+
+    @discardableResult
+    func setPresentation(
+        source nextSource: PlaybackSubtitleSource?,
+        videoSize nextVideoSize: CGSize?,
+        milliseconds: Int,
+        isVisible: Bool,
+        telemetryAttempt: PlaybackSubtitleFirstFrameAttempt?
+    ) -> PlaybackSubtitleCommitSyncState {
+        cancelPendingTelemetry()
+        let opStartedAt = telemetryAttempt?.startedAt ?? CACurrentMediaTime()
         let previousVideoSize = videoSize
         let previousIdentity = source.map(Self.identity(for:))
+        let safeMilliseconds = max(0, milliseconds)
+        let nextIdentity = nextSource.map(Self.identity(for:))
+        let willReusePreparedLayoutSynchronously = nextSource != nil
+            && nextSource?.format == .srt
+            && isVisible
+            && previousIdentity == nextIdentity
+            && loadedSourceIdentity == previousIdentity
+            && previousVideoSize == nextVideoSize
+            && preparedLayout != nil
 
         isApplyingPresentation = true
         videoSize = nextVideoSize
-        currentTimeMilliseconds = max(0, milliseconds)
+        currentTimeMilliseconds = safeMilliseconds
         areSubtitlesVisible = isVisible
         isApplyingPresentation = false
         imageLayer.isHidden = !isVisible
 
         setSource(nextSource)
 
-        guard let nextSource,
-              previousIdentity == Self.identity(for: nextSource)
-        else {
-            return
+        guard let nextSource, nextSource.format == .srt else {
+            telemetryAttempt?.cancel()
+            return .noSubtitle
         }
 
-        if previousVideoSize != nextVideoSize {
-            rebuildLayout()
-            needsLayout = true
-        } else {
-            updateImage(force: true)
+        if previousIdentity == Self.identity(for: nextSource) {
+            if previousVideoSize != nextVideoSize {
+                rebuildLayout()
+                needsLayout = true
+            } else {
+                if willReusePreparedLayoutSynchronously,
+                   let attempt = telemetryAttempt,
+                   !attempt.isCancelled {
+                    attempt.markReusedSource(renderStartedAt: opStartedAt)
+                    isEvaluatingSynchronousTelemetry = true
+                    pendingTelemetry = PendingTelemetryRender(
+                        attempt: attempt,
+                        targetTimestampMilliseconds: safeMilliseconds,
+                        awaitingPrepCompletion: false
+                    )
+                }
+                updateImage(force: true)
+                isEvaluatingSynchronousTelemetry = false
+            }
         }
+
+        guard isVisible else {
+            cancelPendingTelemetry()
+            telemetryAttempt?.cancel()
+            return .hidden
+        }
+
+        if willReusePreparedLayoutSynchronously {
+            return .syncReady
+        }
+
+        if let attempt = telemetryAttempt, !attempt.isCancelled {
+            if loadTask != nil || layoutTask != nil {
+                attempt.markPrepStarted(at: currentPrepStartedAt ?? opStartedAt)
+                pendingTelemetry = PendingTelemetryRender(
+                    attempt: attempt,
+                    targetTimestampMilliseconds: safeMilliseconds,
+                    awaitingPrepCompletion: true
+                )
+            } else {
+                attempt.cancel()
+            }
+        }
+        return .asyncPending
+    }
+
+    func commitPreservedPresentation(
+        videoSize nextVideoSize: CGSize?,
+        milliseconds: Int,
+        attempt: PlaybackSubtitleFirstFrameAttempt?
+    ) -> PlaybackSubtitleCommitSyncState {
+        if attempt != nil {
+            cancelPendingTelemetry()
+        }
+        let opStartedAt = attempt?.startedAt ?? CACurrentMediaTime()
+        let safeMilliseconds = max(0, milliseconds)
+
+        if let attempt, !attempt.isCancelled, source != nil, areSubtitlesVisible {
+            let canPotentiallySync = (videoSize == nextVideoSize) && preparedLayout != nil
+            if canPotentiallySync {
+                attempt.markReusedSource(renderStartedAt: opStartedAt)
+                isEvaluatingSynchronousTelemetry = true
+                pendingTelemetry = PendingTelemetryRender(
+                    attempt: attempt,
+                    targetTimestampMilliseconds: safeMilliseconds,
+                    awaitingPrepCompletion: false
+                )
+            }
+        }
+
+        videoSize = nextVideoSize
+        currentTimeMilliseconds = safeMilliseconds
+        isEvaluatingSynchronousTelemetry = false
+
+        guard source != nil else {
+            cancelPendingTelemetry()
+            attempt?.cancel()
+            return .noSubtitle
+        }
+        guard areSubtitlesVisible else {
+            cancelPendingTelemetry()
+            attempt?.cancel()
+            return .hidden
+        }
+
+        if preparedLayout != nil, loadTask == nil, layoutTask == nil {
+            if pendingTelemetry != nil {
+                completePendingTelemetryIfPresenting(isSynchronous: true)
+            }
+            return .syncReady
+        }
+
+        if let attempt, !attempt.isCancelled {
+            if loadTask != nil || layoutTask != nil {
+                attempt.markPrepStarted(at: currentPrepStartedAt ?? opStartedAt)
+                pendingTelemetry = PendingTelemetryRender(
+                    attempt: attempt,
+                    targetTimestampMilliseconds: safeMilliseconds,
+                    awaitingPrepCompletion: true
+                )
+            } else {
+                attempt.cancel()
+            }
+        }
+        return .asyncPending
+    }
+
+    func bindTelemetryAttemptAfterLoadSetup(
+        milliseconds: Int,
+        attempt: PlaybackSubtitleFirstFrameAttempt
+    ) {
+        cancelPendingTelemetry()
+        guard source != nil, areSubtitlesVisible, !attempt.isCancelled else {
+            attempt.cancel()
+            return
+        }
+        let safeMilliseconds = max(0, milliseconds)
+        if loadTask != nil || layoutTask != nil {
+            attempt.markPrepStarted(at: currentPrepStartedAt ?? attempt.startedAt)
+            pendingTelemetry = PendingTelemetryRender(
+                attempt: attempt,
+                targetTimestampMilliseconds: safeMilliseconds,
+                awaitingPrepCompletion: true
+            )
+            return
+        }
+        if preparedLayout != nil {
+            attempt.markReusedSource(renderStartedAt: attempt.startedAt)
+            attempt.completeSynchronouslyAtCommit(at: CACurrentMediaTime())
+            return
+        }
+        attempt.cancel()
     }
 
     private func finishLoading(
@@ -202,6 +377,8 @@ final class SRTSubtitleOverlayView: NSView {
         loadingSourceIdentity = nil
         if let errorMessage {
             loadedSourceIdentity = nil
+            currentPrepStartedAt = nil
+            cancelPendingTelemetry()
             onRenderingFailure?(errorMessage)
             if let sourceURL = source?.url {
                 onSourceLoadFailure?(sourceURL)
@@ -220,6 +397,10 @@ final class SRTSubtitleOverlayView: NSView {
             activeValidRangeMilliseconds = nil
             renderedImage = nil
             imageLayer.contents = nil
+            if loadTask == nil {
+                currentPrepStartedAt = nil
+                cancelPendingTelemetry()
+            }
             return
         }
         let sourceIdentity = Self.identity(for: source)
@@ -231,6 +412,9 @@ final class SRTSubtitleOverlayView: NSView {
         activeOrdinals = []
         activeValidRangeMilliseconds = nil
         imageLayer.contents = nil
+        if currentPrepStartedAt == nil {
+            currentPrepStartedAt = CACurrentMediaTime()
+        }
         let cues = self.cues
         let style = self.style
         layoutBuildCountForTesting += 1
@@ -279,6 +463,21 @@ final class SRTSubtitleOverlayView: NSView {
         }
         layoutTask = nil
         preparedLayout = layout
+        currentPrepStartedAt = nil
+        guard layout != nil else {
+            cancelPendingTelemetry()
+            updateImage(force: true)
+            return
+        }
+        if var pending = pendingTelemetry, pending.awaitingPrepCompletion {
+            if pending.attempt.isCancelled {
+                pendingTelemetry = nil
+            } else {
+                pending.attempt.markPrepFinished(at: CACurrentMediaTime())
+                pending.awaitingPrepCompletion = false
+                pendingTelemetry = pending
+            }
+        }
         updateImage(force: true)
     }
 
@@ -292,6 +491,7 @@ final class SRTSubtitleOverlayView: NSView {
         if !force,
            let activeValidRangeMilliseconds,
            activeValidRangeMilliseconds.contains(currentTimeMilliseconds) {
+            completePendingTelemetryIfPresenting(isSynchronous: isEvaluatingSynchronousTelemetry)
             return
         }
         let nextValidRange = Self.validRange(
@@ -302,7 +502,10 @@ final class SRTSubtitleOverlayView: NSView {
         let ordinals = preparedLayout.track
             .activeCues(atMilliseconds: currentTimeMilliseconds)
             .map(\.sourceOrdinal)
-        guard force || ordinals != activeOrdinals else { return }
+        guard force || ordinals != activeOrdinals else {
+            completePendingTelemetryIfPresenting(isSynchronous: isEvaluatingSynchronousTelemetry)
+            return
+        }
         activeOrdinals = ordinals
         renderedImage = PlaybackPerformanceProbe.measure(
             "SRTSubtitleRenderer.image",
@@ -314,6 +517,25 @@ final class SRTSubtitleOverlayView: NSView {
             )
         }
         imageLayer.contents = renderedImage
+        completePendingTelemetryIfPresenting(isSynchronous: isEvaluatingSynchronousTelemetry)
+    }
+
+    private func completePendingTelemetryIfPresenting(isSynchronous: Bool) {
+        guard let pending = pendingTelemetry,
+              !pending.awaitingPrepCompletion
+        else {
+            return
+        }
+        pendingTelemetry = nil
+        guard !pending.attempt.isCancelled else {
+            return
+        }
+        let presentedAt = CACurrentMediaTime()
+        if isSynchronous {
+            pending.attempt.completeSynchronouslyAtCommit(at: presentedAt)
+        } else {
+            pending.attempt.completeAsynchronously(at: presentedAt)
+        }
     }
 
     func nextScheduledRenderMilliseconds(after timestampMilliseconds: Int) -> Int? {

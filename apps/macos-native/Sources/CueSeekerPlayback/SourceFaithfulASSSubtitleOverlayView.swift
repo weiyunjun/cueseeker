@@ -328,6 +328,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                 subtitleContainerLayer.isHidden = !areSubtitlesVisible
                 if areSubtitlesVisible {
                     requestRender(force: true)
+                } else {
+                    cancelPendingTelemetry()
                 }
                 needsDisplay = true
             }
@@ -357,6 +359,13 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     /// App and is shown in the player's error banner.
     var onSourceLoadFailure: ((URL) -> Void)?
 
+    private struct PendingTelemetryRender {
+        let attempt: PlaybackSubtitleFirstFrameAttempt
+        var targetTimestampMilliseconds: Int
+        var awaitingLoadCompletion: Bool
+        var minCompletingRenderSequence: UInt
+    }
+
     private var source: PlaybackSubtitleSource?
     private var generation: UUID?
     private var isRendererReady = false
@@ -367,6 +376,9 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var renderedFrame: ASSRenderedFrame?
     private var failureMessage: String?
     private var isApplyingPresentation = false
+    private var currentLoadStartedAt: CFTimeInterval?
+    private var pendingTelemetryRender: PendingTelemetryRender?
+    private var nextRenderSequence: UInt = 0
     private let subtitleContainerLayer = CALayer()
     private var subtitleSurfaceLayer: CALayer?
     private var rendererWorker = SourceFaithfulASSRendererWorker()
@@ -461,6 +473,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     func setSource(_ source: PlaybackSubtitleSource?) {
+        cancelPendingTelemetry()
         self.source = source
         clearPresentationState()
 
@@ -474,21 +487,45 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         needsDisplay = true
     }
 
+    func cancelPendingTelemetry() {
+        pendingTelemetryRender?.attempt.cancel()
+        pendingTelemetryRender = nil
+    }
+
     func setPresentation(
         source nextSource: PlaybackSubtitleSource?,
         videoSize nextVideoSize: CGSize?,
         milliseconds: Int,
         isVisible: Bool
     ) {
+        _ = setPresentation(
+            source: nextSource,
+            videoSize: nextVideoSize,
+            milliseconds: milliseconds,
+            isVisible: isVisible,
+            telemetryAttempt: nil
+        )
+    }
+
+    @discardableResult
+    func setPresentation(
+        source nextSource: PlaybackSubtitleSource?,
+        videoSize nextVideoSize: CGSize?,
+        milliseconds: Int,
+        isVisible: Bool,
+        telemetryAttempt: PlaybackSubtitleFirstFrameAttempt?
+    ) -> PlaybackSubtitleCommitSyncState {
+        cancelPendingTelemetry()
         let canReuseRenderer = rendererCanBeReused(
             for: nextSource,
             videoSize: nextVideoSize
         )
+        let safeMilliseconds = max(0, milliseconds)
 
         isApplyingPresentation = true
         source = nextSource
         videoSize = nextVideoSize
-        currentTimeMilliseconds = max(0, milliseconds)
+        currentTimeMilliseconds = safeMilliseconds
         areSubtitlesVisible = isVisible
         isApplyingPresentation = false
         subtitleContainerLayer.isHidden = !isVisible
@@ -497,18 +534,118 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             clearPresentationState()
             replaceRendererWorker()
             needsDisplay = true
-            return
+            telemetryAttempt?.cancel()
+            return .noSubtitle
         }
 
         if canReuseRenderer {
             failureMessage = nil
             requestRender(force: true)
             needsDisplay = true
-            return
+        } else {
+            reloadRendererIfPossible()
+            needsDisplay = true
+        }
+        return armTelemetryForCurrentState(
+            attempt: telemetryAttempt,
+            targetMilliseconds: safeMilliseconds,
+            opStartedAt: telemetryAttempt?.startedAt ?? CACurrentMediaTime(),
+            allowSynchronousCompletion: false
+        )
+    }
+
+    func commitPreservedPresentation(
+        videoSize nextVideoSize: CGSize?,
+        milliseconds: Int,
+        attempt: PlaybackSubtitleFirstFrameAttempt?
+    ) -> PlaybackSubtitleCommitSyncState {
+        if attempt != nil {
+            cancelPendingTelemetry()
+        }
+        let opStartedAt = attempt?.startedAt ?? CACurrentMediaTime()
+        let safeMilliseconds = max(0, milliseconds)
+
+        videoSize = nextVideoSize
+        currentTimeMilliseconds = safeMilliseconds
+
+        return armTelemetryForCurrentState(
+            attempt: attempt,
+            targetMilliseconds: safeMilliseconds,
+            opStartedAt: opStartedAt,
+            allowSynchronousCompletion: true
+        )
+    }
+
+    func bindTelemetryAttemptAfterLoadSetup(
+        milliseconds: Int,
+        attempt: PlaybackSubtitleFirstFrameAttempt
+    ) {
+        cancelPendingTelemetry()
+        _ = armTelemetryForCurrentState(
+            attempt: attempt,
+            targetMilliseconds: max(0, milliseconds),
+            opStartedAt: attempt.startedAt,
+            allowSynchronousCompletion: true
+        )
+    }
+
+    private func armTelemetryForCurrentState(
+        attempt: PlaybackSubtitleFirstFrameAttempt?,
+        targetMilliseconds: Int,
+        opStartedAt: CFTimeInterval,
+        allowSynchronousCompletion: Bool
+    ) -> PlaybackSubtitleCommitSyncState {
+        guard source != nil else {
+            attempt?.cancel()
+            return .noSubtitle
+        }
+        guard areSubtitlesVisible else {
+            attempt?.cancel()
+            return .hidden
         }
 
-        reloadRendererIfPossible()
-        needsDisplay = true
+        if !isRendererReady {
+            if let attempt, !attempt.isCancelled, generation != nil {
+                attempt.markPrepStarted(at: currentLoadStartedAt ?? opStartedAt)
+                pendingTelemetryRender = PendingTelemetryRender(
+                    attempt: attempt,
+                    targetTimestampMilliseconds: targetMilliseconds,
+                    awaitingLoadCompletion: true,
+                    minCompletingRenderSequence: nextRenderSequence &+ 1
+                )
+            } else {
+                attempt?.cancel()
+            }
+            return .asyncPending
+        }
+
+        if allowSynchronousCompletion,
+           !isRenderInFlight,
+           pendingTimestampMilliseconds == nil,
+           (renderedTimestampMilliseconds == targetMilliseconds
+               || renderedValidRangeMilliseconds?.contains(targetMilliseconds) == true) {
+            attempt?.markReusedSource(renderStartedAt: opStartedAt)
+            attempt?.completeSynchronouslyAtCommit(at: CACurrentMediaTime())
+            return .syncReady
+        }
+
+        if let attempt, !attempt.isCancelled {
+            if isRenderInFlight || pendingTimestampMilliseconds != nil {
+                attempt.markReusedSource(renderStartedAt: opStartedAt)
+                let minSequence = pendingTimestampMilliseconds != nil
+                    ? (nextRenderSequence &+ 1)
+                    : max(nextRenderSequence, 1)
+                pendingTelemetryRender = PendingTelemetryRender(
+                    attempt: attempt,
+                    targetTimestampMilliseconds: targetMilliseconds,
+                    awaitingLoadCompletion: false,
+                    minCompletingRenderSequence: minSequence
+                )
+            } else {
+                attempt.cancel()
+            }
+        }
+        return .asyncPending
     }
 
     private func reloadRendererIfPossible() {
@@ -519,6 +656,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
             guard let renderSize = renderFrameSize() else {
                 failureMessage = "ASS renderer is waiting for a valid video size."
+                cancelPendingTelemetry()
                 needsDisplay = true
                 return
             }
@@ -528,6 +666,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             failureMessage = nil
             needsDisplay = true
             replaceRendererWorker()
+            currentLoadStartedAt = CACurrentMediaTime()
 
             let loadGeneration = rendererWorker.load(
                 source: source,
@@ -549,8 +688,22 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     case .success:
                         self.isRendererReady = true
                         self.failureMessage = nil
+                        if var pending = self.pendingTelemetryRender,
+                           pending.awaitingLoadCompletion {
+                            if pending.attempt.isCancelled {
+                                self.pendingTelemetryRender = nil
+                            } else {
+                                let prepFinishedAt = CACurrentMediaTime()
+                                pending.attempt.markPrepFinished(at: prepFinishedAt)
+                                pending.awaitingLoadCompletion = false
+                                pending.targetTimestampMilliseconds = max(0, self.currentTimeMilliseconds)
+                                pending.minCompletingRenderSequence = self.nextRenderSequence &+ 1
+                                self.pendingTelemetryRender = pending
+                            }
+                        }
                         self.requestRender(force: true)
                     case .failure(let error):
+                        self.cancelPendingTelemetry()
                         self.isRendererReady = false
                         self.renderedFrame = nil
                         self.failureMessage = error.message
@@ -621,6 +774,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         pendingTimestampMilliseconds = nil
         isRenderInFlight = true
+        nextRenderSequence &+= 1
+        let renderSequence = nextRenderSequence
 
         rendererWorker.render(
             generation: generation,
@@ -646,6 +801,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     self.apply(frame)
                     self.failureMessage = nil
                 case .failure(let error):
+                    self.cancelPendingTelemetry()
                     self.clearPresentationState()
                     self.failureMessage = error.message
                     self.onRenderingFailure?(error.message)
@@ -659,11 +815,43 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     self.pendingTimestampMilliseconds = nil
                 }
 
+                if case .success(let frame) = result {
+                    self.completePendingTelemetryAfterRenderIfNeeded(
+                        frame: frame,
+                        sequence: renderSequence
+                    )
+                }
+
                 if self.pendingTimestampMilliseconds != nil, let generation = self.generation {
                     self.startNextRenderIfNeeded(generation: generation)
                 }
             })
         }
+    }
+
+    private func completePendingTelemetryAfterRenderIfNeeded(
+        frame: ASSRenderedFrame,
+        sequence: UInt
+    ) {
+        guard let pending = pendingTelemetryRender,
+              !pending.awaitingLoadCompletion
+        else {
+            return
+        }
+        guard !pending.attempt.isCancelled else {
+            pendingTelemetryRender = nil
+            return
+        }
+        let coveredTarget = sequence >= pending.minCompletingRenderSequence
+            || frame.timestampMilliseconds == pending.targetTimestampMilliseconds
+            || frame.validRangeMilliseconds.contains(pending.targetTimestampMilliseconds)
+            || renderedTimestampMilliseconds == pending.targetTimestampMilliseconds
+        guard coveredTarget else {
+            return
+        }
+        let presentedAt = CACurrentMediaTime()
+        pendingTelemetryRender = nil
+        pending.attempt.completeAsynchronously(at: presentedAt)
     }
 
     private func apply(_ frame: ASSRenderedFrame) {

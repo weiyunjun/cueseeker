@@ -56,6 +56,7 @@ private enum PendingSubtitleAction {
 
 private struct PendingPresentation {
     var generation: UInt?
+    let trigger: PlaybackSubtitleFirstFrameTrigger
     let targetMilliseconds: Int
     let heldMilliseconds: Int
     var subtitleAction: PendingSubtitleAction
@@ -85,6 +86,8 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var persistentAutoPauseBoundary: PlaybackAutoStopBoundary?
     private var autoPauseAuthorization: PlaybackAutoPauseAuthorization?
     private let autoPauseAuthorizationLock = NSLock()
+    private var activeSubtitleFirstFrameAttempt: PlaybackSubtitleFirstFrameAttempt?
+    private let subtitleFirstFrameAttemptLock = NSLock()
 
     public weak var delegate: PlaybackPlayerDelegate?
 
@@ -193,6 +196,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
         replacePersistentAutoPauseBoundary(autoPauseBoundary)
         beginPresentationTransition(
+            trigger: .newVideoOpen,
             targetMilliseconds: request.startMilliseconds,
             subtitleAction: .replace(request.subtitleSource)
         )
@@ -321,6 +325,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     public func cancelPendingPresentation() {
         pendingPresentation = nil
+        cancelActiveSubtitleFirstFrameTelemetry()
     }
 
     @discardableResult
@@ -337,6 +342,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             details: "video=\"\(currentVideoURL?.lastPathComponent ?? "none")\" target_ms=\(safeMilliseconds) hw_decode=\(nativePlayer.usingHardwareDecode ? 1 : 0)"
         )
         beginPresentationTransition(
+            trigger: .sameVideoSeek,
             targetMilliseconds: safeMilliseconds,
             subtitleAction: subtitleAction
         )
@@ -392,6 +398,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             details: "video=\"\(currentVideoURL?.lastPathComponent ?? "none")\" target_ms=\(boundary.startMilliseconds) auto_stop_ms=\(boundary.endMilliseconds) hw_decode=\(nativePlayer.usingHardwareDecode ? 1 : 0)"
         )
         beginPresentationTransition(
+            trigger: .sameVideoSeek,
             targetMilliseconds: boundary.startMilliseconds,
             subtitleAction: subtitleAction
         )
@@ -423,6 +430,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         reachedAutoStopBoundaryMilliseconds = nil
         replacePersistentAutoPauseBoundary(nil)
         beginPresentationTransition(
+            trigger: .sameVideoSeek,
             targetMilliseconds: segment.startMilliseconds,
             subtitleAction: subtitleAction
         )
@@ -443,10 +451,26 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         return generation
     }
 
+    private func replaceActiveSubtitleFirstFrameAttempt(
+        _ nextAttempt: PlaybackSubtitleFirstFrameAttempt?
+    ) {
+        subtitleFirstFrameAttemptLock.lock()
+        let previous = activeSubtitleFirstFrameAttempt
+        activeSubtitleFirstFrameAttempt = nextAttempt
+        subtitleFirstFrameAttemptLock.unlock()
+        previous?.cancel()
+    }
+
+    private func cancelActiveSubtitleFirstFrameTelemetry() {
+        replaceActiveSubtitleFirstFrameAttempt(nil)
+    }
+
     private func beginPresentationTransition(
+        trigger: PlaybackSubtitleFirstFrameTrigger,
         targetMilliseconds: Int,
         subtitleAction: PendingSubtitleAction
     ) {
+        cancelActiveSubtitleFirstFrameTelemetry()
         let heldMilliseconds = pendingPresentation?.heldMilliseconds
             ?? heldSubtitlePresentationMilliseconds
             ?? lastRenderedASSSubtitleMilliseconds
@@ -469,6 +493,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
         pendingPresentation = PendingPresentation(
             generation: nil,
+            trigger: trigger,
             targetMilliseconds: max(0, targetMilliseconds),
             heldMilliseconds: max(0, heldMilliseconds),
             subtitleAction: resolvedSubtitleAction,
@@ -572,6 +597,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public func stop() throws {
         nativePlayer.stop()
         delegate?.playerDidResetTimelineThumbnails(self)
+        cancelActiveSubtitleFirstFrameTelemetry()
         currentRequest = nil
         currentVideoURL = nil
         lastOpenedVideoURL = nil
@@ -643,6 +669,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     public func loadSubtitleSource(_ source: PlaybackSubtitleSource?) {
+        cancelActiveSubtitleFirstFrameTelemetry()
         if pendingPresentation != nil {
             pendingPresentation?.subtitleAction = .replace(source)
             return
@@ -674,10 +701,20 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             fallbackMilliseconds: fallbackMilliseconds
         )
 
+        let telemetryAttempt = PlaybackSubtitleFirstFrameAttempt(
+            trigger: .manualSubtitleSwitch,
+            source: source,
+            targetMilliseconds: initialMilliseconds,
+            presentationGeneration: committedPresentationGeneration,
+            videoCommittedAt: nil
+        )
+        replaceActiveSubtitleFirstFrameAttempt(telemetryAttempt)
+
         Task { @MainActor in
             guard self.activeSubtitleSource == source,
                   let container = self.renderView as? PlaybackRenderContainerView
             else {
+                telemetryAttempt.cancel()
                 return
             }
 
@@ -693,6 +730,15 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             container.setSubtitleTime(milliseconds: initialMilliseconds)
             container.setSubtitleSource(source)
             container.setSubtitlesVisible(self.subtitlesVisible)
+            if self.subtitlesVisible, !telemetryAttempt.isCancelled {
+                container.bindManualSubtitleSwitchTelemetry(
+                    for: source,
+                    milliseconds: initialMilliseconds,
+                    attempt: telemetryAttempt
+                )
+            } else {
+                telemetryAttempt.cancel()
+            }
             self.lastRenderedASSSubtitleMilliseconds = initialMilliseconds
         }
         startASSSubtitleRenderTicks()
@@ -707,6 +753,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         if isVisible {
             startASSSubtitleRenderTicks()
         } else {
+            cancelActiveSubtitleFirstFrameTelemetry()
             stopASSSubtitleRenderTicks()
         }
         Task { @MainActor in
@@ -969,20 +1016,56 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         let videoSize = currentNativeVideoSize()
 
         let subtitleStart = CACurrentMediaTime()
+        let targetSubtitleSource: PlaybackSubtitleSource?
+        switch pendingPresentation.subtitleAction {
+        case .preserve:
+            targetSubtitleSource = activeSubtitleSource
+        case .replace(let source):
+            targetSubtitleSource = source
+        }
+        let telemetryAttempt: PlaybackSubtitleFirstFrameAttempt?
+        if let targetSubtitleSource, subtitlesVisible {
+            let attempt = PlaybackSubtitleFirstFrameAttempt(
+                trigger: pendingPresentation.trigger,
+                source: targetSubtitleSource,
+                targetMilliseconds: safeMilliseconds,
+                presentationGeneration: generation,
+                startedAt: subtitleStart,
+                videoCommittedAt: commitStart
+            )
+            replaceActiveSubtitleFirstFrameAttempt(attempt)
+            telemetryAttempt = attempt
+        } else {
+            cancelActiveSubtitleFirstFrameTelemetry()
+            telemetryAttempt = nil
+        }
+
+        let subtitleSyncState: PlaybackSubtitleCommitSyncState
         switch pendingPresentation.subtitleAction {
         case .preserve:
             retargetASSSubtitleRenderTimeGate(forExplicitMilliseconds: safeMilliseconds)
-            (renderView as? PlaybackRenderContainerView)?.setVideoSize(videoSize)
-            (renderView as? PlaybackRenderContainerView)?.setSubtitleTime(
-                milliseconds: safeMilliseconds
-            )
+            if let container = renderView as? PlaybackRenderContainerView {
+                subtitleSyncState = container.commitPreservedSubtitlePresentation(
+                    videoSize: videoSize,
+                    milliseconds: safeMilliseconds,
+                    activeSource: activeSubtitleSource,
+                    isVisible: subtitlesVisible,
+                    telemetryAttempt: telemetryAttempt
+                )
+            } else {
+                telemetryAttempt?.cancel()
+                subtitleSyncState = activeSubtitleSource == nil
+                    ? .noSubtitle
+                    : (subtitlesVisible ? .asyncPending : .hidden)
+            }
             lastRenderedASSSubtitleMilliseconds = safeMilliseconds
             startASSSubtitleRenderTicks()
         case .replace(let source):
-            activateSubtitleSourceForCommittedPresentation(
+            subtitleSyncState = activateSubtitleSourceForCommittedPresentation(
                 source,
                 milliseconds: safeMilliseconds,
-                videoSize: videoSize
+                videoSize: videoSize,
+                telemetryAttempt: telemetryAttempt
             )
         }
         let subtitleCommitMs = (CACurrentMediaTime() - subtitleStart) * 1000.0
@@ -1009,7 +1092,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             .playback,
             "Playback presentation committed",
             details: String(
-                format: "video=\"%@\" gen=%lu target_ms=%ld presented_ms=%ld hw_decode=%d total_ms=%.1f resolve_ms=%.1f subtitle_ms=%.1f ui_commit_ms=%.1f",
+                format: "video=\"%@\" gen=%lu target_ms=%ld presented_ms=%ld hw_decode=%d total_ms=%.1f resolve_ms=%.1f subtitle_ms=%.1f ui_commit_ms=%.1f subtitle_sync=%@",
                 videoName,
                 generation,
                 pendingPresentation.targetMilliseconds,
@@ -1018,13 +1101,22 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 totalEndToEndMs,
                 pendingPresentation.resolve302Milliseconds,
                 subtitleCommitMs,
-                commitElapsedMs
+                commitElapsedMs,
+                subtitleSyncState.rawValue
             )
+        )
+        PlaybackSubtitleFirstFrameTelemetry.emitPresentationCommit(
+            generation: generation,
+            targetMilliseconds: pendingPresentation.targetMilliseconds,
+            presentedMilliseconds: safeMilliseconds,
+            subtitleSyncState: subtitleSyncState,
+            subtitleFileName: targetSubtitleSource?.url.lastPathComponent
         )
     }
 
     @MainActor
     private func clearSubtitleSourceAfterStop() {
+        cancelActiveSubtitleFirstFrameTelemetry()
         activeSubtitleSource = nil
         lastRenderedASSSubtitleMilliseconds = 0
         assSubtitleRenderTimeGate = nil
@@ -1036,21 +1128,25 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private func activateSubtitleSourceForCommittedPresentation(
         _ source: PlaybackSubtitleSource?,
         milliseconds: Int,
-        videoSize: CGSize?
-    ) {
+        videoSize: CGSize?,
+        telemetryAttempt: PlaybackSubtitleFirstFrameAttempt?
+    ) -> PlaybackSubtitleCommitSyncState {
         activeSubtitleSource = source
         lastRenderedASSSubtitleMilliseconds = milliseconds
 
         guard let source else {
             assSubtitleRenderTimeGate = nil
             stopASSSubtitleRenderTicks()
-            (renderView as? PlaybackRenderContainerView)?.commitSubtitlePresentation(
+            return (renderView as? PlaybackRenderContainerView)?.commitSubtitlePresentation(
                 source: nil,
                 videoSize: videoSize,
                 milliseconds: milliseconds,
-                isVisible: subtitlesVisible
-            )
-            return
+                isVisible: subtitlesVisible,
+                telemetryAttempt: telemetryAttempt
+            ) ?? {
+                telemetryAttempt?.cancel()
+                return .noSubtitle
+            }()
         }
 
         let initialGate = PlaybackSubtitleRenderTimeGate(
@@ -1062,7 +1158,8 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         ) ?? initialGate
 
         guard let container = renderView as? PlaybackRenderContainerView else {
-            return
+            telemetryAttempt?.cancel()
+            return subtitlesVisible ? .asyncPending : .hidden
         }
         container.assRenderingFailureHandler = { [weak self] message in
             guard let self else { return }
@@ -1072,13 +1169,15 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             guard let self else { return }
             self.delegate?.player(self, didFailToLoadSubtitleSource: url)
         }
-        container.commitSubtitlePresentation(
+        let syncState = container.commitSubtitlePresentation(
             source: source,
             videoSize: videoSize,
             milliseconds: milliseconds,
-            isVisible: subtitlesVisible
+            isVisible: subtitlesVisible,
+            telemetryAttempt: telemetryAttempt
         )
         startASSSubtitleRenderTicks()
+        return syncState
     }
 }
 
@@ -1301,12 +1400,14 @@ public final class PlaybackRenderContainerView: NSView {
         synchronizeAttachedRenderFrames(logName: "PlaybackRenderContainerView.layout")
     }
 
+    @discardableResult
     func commitSubtitlePresentation(
         source: PlaybackSubtitleSource?,
         videoSize: CGSize?,
         milliseconds: Int,
-        isVisible: Bool
-    ) {
+        isVisible: Bool,
+        telemetryAttempt: PlaybackSubtitleFirstFrameAttempt? = nil
+    ) -> PlaybackSubtitleCommitSyncState {
         currentASSSubtitleSource = source
         currentASSSubtitleTimeMilliseconds = max(0, milliseconds)
         currentSubtitlesVisible = isVisible
@@ -1316,24 +1417,116 @@ public final class PlaybackRenderContainerView: NSView {
         case .ass:
             srtSubtitleOverlayView?.setSource(nil)
             ensureSourceFaithfulASSOverlayView()
-            sourceFaithfulASSOverlayView?.setPresentation(
+            return sourceFaithfulASSOverlayView?.setPresentation(
                 source: source,
                 videoSize: videoSize,
                 milliseconds: currentASSSubtitleTimeMilliseconds,
-                isVisible: isVisible
-            )
+                isVisible: isVisible,
+                telemetryAttempt: telemetryAttempt
+            ) ?? {
+                telemetryAttempt?.cancel()
+                return isVisible ? .asyncPending : .hidden
+            }()
         case .srt:
             sourceFaithfulASSOverlayView?.setSource(nil)
             ensureSRTSubtitleOverlayView()
-            srtSubtitleOverlayView?.setPresentation(
+            return srtSubtitleOverlayView?.setPresentation(
                 source: source,
                 videoSize: videoSize,
                 milliseconds: currentASSSubtitleTimeMilliseconds,
-                isVisible: isVisible
-            )
+                isVisible: isVisible,
+                telemetryAttempt: telemetryAttempt
+            ) ?? {
+                telemetryAttempt?.cancel()
+                return isVisible ? .asyncPending : .hidden
+            }()
         case nil:
             sourceFaithfulASSOverlayView?.setSource(nil)
             srtSubtitleOverlayView?.setSource(nil)
+            telemetryAttempt?.cancel()
+            return .noSubtitle
+        }
+    }
+
+    @discardableResult
+    func commitPreservedSubtitlePresentation(
+        videoSize: CGSize?,
+        milliseconds: Int,
+        activeSource: PlaybackSubtitleSource?,
+        isVisible: Bool,
+        telemetryAttempt: PlaybackSubtitleFirstFrameAttempt?
+    ) -> PlaybackSubtitleCommitSyncState {
+        currentVideoSize = videoSize
+        currentASSSubtitleTimeMilliseconds = milliseconds
+
+        guard let activeSource else {
+            sourceFaithfulASSOverlayView?.videoSize = videoSize
+            srtSubtitleOverlayView?.videoSize = videoSize
+            sourceFaithfulASSOverlayView?.currentTimeMilliseconds = milliseconds
+            srtSubtitleOverlayView?.currentTimeMilliseconds = milliseconds
+            telemetryAttempt?.cancel()
+            return .noSubtitle
+        }
+
+        guard isVisible else {
+            sourceFaithfulASSOverlayView?.videoSize = videoSize
+            srtSubtitleOverlayView?.videoSize = videoSize
+            sourceFaithfulASSOverlayView?.currentTimeMilliseconds = milliseconds
+            srtSubtitleOverlayView?.currentTimeMilliseconds = milliseconds
+            telemetryAttempt?.cancel()
+            return .hidden
+        }
+
+        switch activeSource.format {
+        case .ass:
+            srtSubtitleOverlayView?.videoSize = videoSize
+            srtSubtitleOverlayView?.currentTimeMilliseconds = milliseconds
+            if let sourceFaithfulASSOverlayView {
+                return sourceFaithfulASSOverlayView.commitPreservedPresentation(
+                    videoSize: videoSize,
+                    milliseconds: milliseconds,
+                    attempt: telemetryAttempt
+                )
+            }
+        case .srt:
+            sourceFaithfulASSOverlayView?.videoSize = videoSize
+            sourceFaithfulASSOverlayView?.currentTimeMilliseconds = milliseconds
+            if let srtSubtitleOverlayView {
+                return srtSubtitleOverlayView.commitPreservedPresentation(
+                    videoSize: videoSize,
+                    milliseconds: milliseconds,
+                    attempt: telemetryAttempt
+                )
+            }
+        }
+        telemetryAttempt?.cancel()
+        return .asyncPending
+    }
+
+    func bindManualSubtitleSwitchTelemetry(
+        for source: PlaybackSubtitleSource,
+        milliseconds: Int,
+        attempt: PlaybackSubtitleFirstFrameAttempt
+    ) {
+        switch source.format {
+        case .ass:
+            if let sourceFaithfulASSOverlayView {
+                sourceFaithfulASSOverlayView.bindTelemetryAttemptAfterLoadSetup(
+                    milliseconds: milliseconds,
+                    attempt: attempt
+                )
+            } else {
+                attempt.cancel()
+            }
+        case .srt:
+            if let srtSubtitleOverlayView {
+                srtSubtitleOverlayView.bindTelemetryAttemptAfterLoadSetup(
+                    milliseconds: milliseconds,
+                    attempt: attempt
+                )
+            } else {
+                attempt.cancel()
+            }
         }
     }
 
