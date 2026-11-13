@@ -231,6 +231,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-table`: `14px`
 - `--font-size-table-header`: `14px`
 - `--font-size-caption`: `12px`
+- `--line-height-table-cell`: `20px`
 - `--line-height-table-cue-primary`: `24px`
 - `--line-height-table-cue-secondary`: `20px`
 - `--font-size-app-sidebar-item`: `13px`
@@ -283,7 +284,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--height-filter-chip-count-placeholder`: `12px`
 - `--height-field`: `30px`
 - `--height-table-header`: `44px`
-- `--min-height-table-row`: `40px`
+- `--min-height-table-row`: `48px`
 - `--height-action-menu-item`: `32px`
 - `--height-select-menu-item`: `32px`
 - `--max-height-menu`: `480px`
@@ -421,6 +422,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--gap-menu-scrollbar-outer`: `6px`
 - `--inset-menu-divider`: `--padding-menu` 与 `--padding-menu-item` 之和
 - `--gap-menu-divider`: `4px`
+- `--gap-table-cue-group`: `4px`
 - `--gap-subtitle-focus-cue`: `8px`
 - `--gap-subtitle-focus-internal-line`: `3px`
 - `--gap-app-topbar-toggle-after-window-controls`: `20px`
@@ -455,7 +457,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--padding-chip-y`: `4px`
 - `--padding-table-cell-hover-x`: `12px`
 - `--padding-table-cell-hover-y`: `8px`
-- `--padding-table-row-y`: `8px`
+- `--padding-table-row-y`: `12px`
 - `--padding-table-cell-leading`: `12px`
 - `--padding-table-cell-trailing`: `14px`
 - `--padding-subtitle-focus-cue-y`: `8px`

@@ -1214,8 +1214,10 @@
 
 - Font Family：`--font-family-base`
 - Font Size：`--font-size-table`
+- Line Height：`--line-height-table-cell`
 - Font Weight：Regular
-- Color：`--color-text-secondary`
+- Color：`--color-text-secondary`（Unavailable 行为 `--color-text-muted`）
+- Alignment：Vertical Center
 - Selection：Enabled（仅非 Select Mode；详见 `UI Text Selection Rules.md`）
 - Pointer：I-beam
 
@@ -1234,12 +1236,16 @@
 - Font Family：`--font-family-base`
 - 目标字幕
   - Font Size：`--font-size-table`
+  - Line Height：`--line-height-table-cue-primary`
   - Font Weight：Medium
-  - Color：`--color-text-primary`
+  - Color：`--color-text-secondary`（Unavailable 行为 `--color-text-muted`）
 - Cue Group 附加字幕
   - Font Size：`--font-size-caption`
+  - Line Height：`--line-height-table-cue-secondary`
   - Font Weight：Regular
-  - Color：`--color-text-secondary`
+  - Color：`--color-text-secondary`（Unavailable 行为 `--color-text-muted`）
+- Item Gap：`--gap-table-cue-group`
+- Alignment：Vertical Center
 - Hover Region
   - Padding Inline：`--padding-table-cell-hover-x`
   - Padding Block：`--padding-table-cell-hover-y`
