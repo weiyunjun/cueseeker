@@ -72,24 +72,50 @@ enum SourceFaithfulASSSubtitleLayout {
 }
 
 private enum ASSRenderedFrame: @unchecked Sendable {
-    case sparse(ASSSparseFrame, validRangeMilliseconds: Range<Int>)
-    case unchanged(timestampMilliseconds: Int, validRangeMilliseconds: Range<Int>)
+    case sparse(
+        ASSSparseFrame,
+        validRangeMilliseconds: Range<Int>,
+        activeSetRangeMilliseconds: Range<Int>
+    )
+    case unchanged(
+        timestampMilliseconds: Int,
+        validRangeMilliseconds: Range<Int>,
+        activeSetRangeMilliseconds: Range<Int>
+    )
 
     var timestampMilliseconds: Int {
         switch self {
-        case .sparse(let frame, _):
+        case .sparse(let frame, _, _):
             frame.timestampMilliseconds
-        case .unchanged(let timestampMilliseconds, _):
+        case .unchanged(let timestampMilliseconds, _, _):
             timestampMilliseconds
         }
     }
 
     var validRangeMilliseconds: Range<Int> {
         switch self {
-        case .sparse(_, let range):
+        case .sparse(_, let range, _):
             range
-        case .unchanged(_, let range):
+        case .unchanged(_, let range, _):
             range
+        }
+    }
+
+    var activeSetRangeMilliseconds: Range<Int> {
+        switch self {
+        case .sparse(_, _, let activeSetRangeMilliseconds):
+            activeSetRangeMilliseconds
+        case .unchanged(_, _, let activeSetRangeMilliseconds):
+            activeSetRangeMilliseconds
+        }
+    }
+
+    var sparseFrame: ASSSparseFrame? {
+        switch self {
+        case .sparse(let frame, _, _):
+            frame
+        case .unchanged:
+            nil
         }
     }
 }
@@ -111,6 +137,7 @@ enum ASSIndexedPartialLoadDiagnostics {
     private static let lock = NSLock()
     private static var storedSnapshot = Snapshot()
     private static var storedArtificialLoadDelaySeconds: TimeInterval = 0
+    private static var storedArtificialRenderDelaySeconds: TimeInterval = 0
     private static var storedScopedPathSubstring: String?
 
     static var snapshot: Snapshot {
@@ -145,11 +172,35 @@ enum ASSIndexedPartialLoadDiagnostics {
         }
     }
 
+    static var artificialRenderDelaySecondsForTesting: TimeInterval {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedArtificialRenderDelaySeconds
+        }
+        set {
+            lock.lock()
+            storedArtificialRenderDelaySeconds = max(0, newValue)
+            lock.unlock()
+        }
+    }
+
     static func artificialLoadDelaySeconds(forSourcePath sourcePath: String) -> TimeInterval {
+        scopedDelaySecondsLocked(forSourcePath: sourcePath, delay: storedArtificialLoadDelaySeconds)
+    }
+
+    static func artificialRenderDelaySeconds(forSourcePath sourcePath: String) -> TimeInterval {
+        scopedDelaySecondsLocked(forSourcePath: sourcePath, delay: storedArtificialRenderDelaySeconds)
+    }
+
+    private static func scopedDelaySecondsLocked(
+        forSourcePath sourcePath: String,
+        delay: @autoclosure () -> TimeInterval
+    ) -> TimeInterval {
         lock.lock()
         defer { lock.unlock() }
         guard matchesScopeLocked(sourcePath) else { return 0 }
-        return storedArtificialLoadDelaySeconds
+        return delay()
     }
 
     private static func matchesScopeLocked(_ sourcePath: String) -> Bool {
@@ -202,6 +253,7 @@ enum ASSIndexedPartialLoadDiagnostics {
         lock.lock()
         storedSnapshot = Snapshot()
         storedArtificialLoadDelaySeconds = 0
+        storedArtificialRenderDelaySeconds = 0
         storedScopedPathSubstring = nil
         lock.unlock()
         ValidatedASSOffsetIndexMemoryCache.shared.clear()
@@ -397,17 +449,8 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             let delaySeconds = ASSIndexedPartialLoadDiagnostics.artificialLoadDelaySeconds(
                 forSourcePath: sourcePath
             )
-            if delaySeconds > 0 {
-                let deadline = CACurrentMediaTime() + delaySeconds
-                while CACurrentMediaTime() < deadline {
-                    if self.isInvalidated {
-                        return
-                    }
-                    Thread.sleep(forTimeInterval: min(0.01, max(0, deadline - CACurrentMediaTime())))
-                }
-                guard !self.isInvalidated else {
-                    return
-                }
+            guard self.waitForArtificialDelayIfNeeded(delaySeconds) else {
+                return
             }
 
             do {
@@ -473,6 +516,15 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 return
             }
 
+            if let sourcePath = self.sourcePath {
+                let renderDelaySeconds = ASSIndexedPartialLoadDiagnostics.artificialRenderDelaySeconds(
+                    forSourcePath: sourcePath
+                )
+                guard self.waitForArtificialDelayIfNeeded(renderDelaySeconds) else {
+                    return
+                }
+            }
+
             do {
                 guard let currentSession = self.session else {
                     completion(
@@ -514,11 +566,20 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 let validLower = max(0, output.unchangedFromMilliseconds)
                 let validUpper = max(validLower + 1, output.unchangedUntilMilliseconds)
                 let validRange = validLower ..< max(validLower + 1, validUpper)
+                let activeSetLower = max(0, output.activeEventSetFromMilliseconds)
+                let activeSetUpper = max(activeSetLower + 1, output.activeEventSetUntilMilliseconds)
+                let activeSetRange = activeSetLower ..< max(activeSetLower + 1, activeSetUpper)
 
                 guard output.changed else {
                     completion(
                         expectedGeneration,
-                        .success(.unchanged(timestampMilliseconds: timestampMilliseconds, validRangeMilliseconds: validRange))
+                        .success(
+                            .unchanged(
+                                timestampMilliseconds: timestampMilliseconds,
+                                validRangeMilliseconds: validRange,
+                                activeSetRangeMilliseconds: activeSetRange
+                            )
+                        )
                     )
                     return
                 }
@@ -529,7 +590,16 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                     frameHeight: output.frameHeight,
                     timestampMilliseconds: timestampMilliseconds
                 )
-                completion(expectedGeneration, .success(.sparse(frame, validRangeMilliseconds: validRange)))
+                completion(
+                    expectedGeneration,
+                    .success(
+                        .sparse(
+                            frame,
+                            validRangeMilliseconds: validRange,
+                            activeSetRangeMilliseconds: activeSetRange
+                        )
+                    )
+                )
             } catch {
                 guard !self.isInvalidated else {
                     return
@@ -541,6 +611,20 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 )
             }
         }
+    }
+
+    private func waitForArtificialDelayIfNeeded(_ delaySeconds: TimeInterval) -> Bool {
+        guard delaySeconds > 0 else {
+            return !isInvalidated
+        }
+        let deadline = CACurrentMediaTime() + delaySeconds
+        while CACurrentMediaTime() < deadline {
+            if isInvalidated {
+                return false
+            }
+            Thread.sleep(forTimeInterval: min(0.01, max(0, deadline - CACurrentMediaTime())))
+        }
+        return !isInvalidated
     }
 
     private var isInvalidated: Bool {
@@ -720,6 +804,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
 
 @MainActor
 final class SourceFaithfulASSSubtitleOverlayView: NSView {
+    static let firstFrameMicroOffsetToleranceMilliseconds = 50
     var areSubtitlesVisible: Bool = true {
         didSet {
             if !isApplyingPresentation, oldValue != areSubtitlesVisible {
@@ -777,6 +862,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var pendingTimestampMilliseconds: Int?
     private var renderedTimestampMilliseconds: Int?
     private var renderedValidRangeMilliseconds: Range<Int>?
+    private var renderedActiveSetRangeMilliseconds: Range<Int>?
     private var renderedFrame: ASSRenderedFrame?
     private var renderedSurfaceImage: CGImage?
     private var displayedFrame: ASSSparseFrame?
@@ -796,6 +882,17 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var rendererWorker: SourceFaithfulASSRendererWorker
     private(set) var rendererLoadCountForTesting = 0
     private(set) var rendererInPlaceResizeCountForTesting = 0
+    private(set) var rendererRenderDispatchCountForTesting = 0
+    private(set) var rendererRenderCompletionCountForTesting = 0
+    private(set) var layerClearCountForTesting = 0
+
+    var isRenderInFlightForTesting: Bool {
+        isRenderInFlight
+    }
+
+    var pendingTimestampMillisecondsForTesting: Int? {
+        pendingTimestampMilliseconds
+    }
 
     var hasDisplayedSubtitleImage: Bool {
         !subtitleContainerLayer.isHidden && subtitleSurfaceLayer?.contents != nil
@@ -851,7 +948,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
 
         switch renderedFrame {
-        case .sparse(let frame, _):
+        case .sparse(let frame, _, _):
             return frame
         case .unchanged:
             return nil
@@ -921,6 +1018,24 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         let safeMilliseconds = max(0, targetMilliseconds)
         return renderedTimestampMilliseconds == safeMilliseconds
             || renderedValidRangeMilliseconds?.contains(safeMilliseconds) == true
+            || canReuseStagedFrameForMicroOffset(atMilliseconds: safeMilliseconds)
+    }
+
+    private func canReuseStagedFrameForMicroOffset(
+        atMilliseconds targetMilliseconds: Int
+    ) -> Bool {
+        guard defersLayerPresentation,
+              isRendererReady,
+              !loadFailedForCurrentSource,
+              failureMessage == nil,
+              let renderedTimestampMilliseconds,
+              renderedFrame?.sparseFrame != nil,
+              renderedActiveSetRangeMilliseconds?.contains(targetMilliseconds) == true
+        else {
+            return false
+        }
+        return abs(targetMilliseconds - renderedTimestampMilliseconds)
+            <= Self.firstFrameMicroOffsetToleranceMilliseconds
     }
 
     func isPreparedForManualSwitch(
@@ -995,7 +1110,22 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         isSuppressingPreparedFrameReadyCallback = true
         defer { isSuppressingPreparedFrameReadyCallback = false }
 
-        if currentTimeMilliseconds != safeMilliseconds {
+        let canKeepPreparedFrameWithoutRender = !isRenderInFlight
+            && pendingTimestampMilliseconds == nil
+            && (renderedTimestampMilliseconds == safeMilliseconds
+                || renderedValidRangeMilliseconds?.contains(safeMilliseconds) == true
+                || canReuseStagedFrameForMicroOffset(atMilliseconds: safeMilliseconds))
+
+        if canKeepPreparedFrameWithoutRender {
+            if defersLayerPresentation && stagedReadyAt == nil {
+                stagedReadyAt = CACurrentMediaTime()
+            }
+            if currentTimeMilliseconds != safeMilliseconds {
+                isApplyingPresentation = true
+                currentTimeMilliseconds = safeMilliseconds
+                isApplyingPresentation = false
+            }
+        } else if currentTimeMilliseconds != safeMilliseconds {
             currentTimeMilliseconds = safeMilliseconds
         } else if isRendererReady,
                   !isRenderInFlight,
@@ -1015,7 +1145,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         if source == nil || !areSubtitlesVisible || loadFailedForCurrentSource || failureMessage != nil {
             clearSubtitleLayers()
-        } else if let renderedFrame, case .sparse(let sparseFrame, _) = renderedFrame {
+        } else if let renderedFrame, case .sparse(let sparseFrame, _, _) = renderedFrame {
             applySparseFrameToLayer(sparseFrame, precomputedImage: renderedSurfaceImage)
         } else {
             clearSubtitleLayers()
@@ -1039,6 +1169,22 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     pending.attempt.completeAsynchronously(at: committedAt)
                 }
             }
+        }
+
+        // Silently refine any deferred micro-offset frame in the background after
+        // synchronous gate commit and telemetry completion so dynamic fade/motion
+        // timing snaps to the actual presented frame without blank flashing.
+        let safeMilliseconds = max(0, currentTimeMilliseconds)
+        if source != nil,
+           areSubtitlesVisible,
+           isRendererReady,
+           !loadFailedForCurrentSource,
+           failureMessage == nil,
+           !isRenderInFlight,
+           pendingTimestampMilliseconds == nil,
+           renderedTimestampMilliseconds != safeMilliseconds,
+           renderedValidRangeMilliseconds?.contains(safeMilliseconds) != true {
+            requestRender()
         }
     }
 
@@ -1127,6 +1273,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         if canReuseRenderer {
             failureMessage = nil
+            stagedReadyAt = nil
             requestRender(force: true)
             needsDisplay = true
         } else if matchesLoadedOrLoadingSource, updateRendererFrameSizeInPlaceIfPossible() {
@@ -1155,8 +1302,19 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         let opStartedAt = attempt?.startedAt ?? CACurrentMediaTime()
         let safeMilliseconds = max(0, milliseconds)
 
+        let previousVideoSize = videoSize
+        let previousTimeMilliseconds = currentTimeMilliseconds
         videoSize = nextVideoSize
         currentTimeMilliseconds = safeMilliseconds
+        if previousVideoSize == nextVideoSize,
+           previousTimeMilliseconds == safeMilliseconds,
+           isRendererReady,
+           !isRenderInFlight,
+           pendingTimestampMilliseconds == nil,
+           renderedTimestampMilliseconds != safeMilliseconds,
+           renderedValidRangeMilliseconds?.contains(safeMilliseconds) != true {
+            requestRender(force: true)
+        }
 
         return armTelemetryForCurrentState(
             attempt: attempt,
@@ -1369,6 +1527,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         rendererInPlaceResizeCountForTesting += 1
         renderedTimestampMilliseconds = nil
         renderedValidRangeMilliseconds = nil
+        renderedActiveSetRangeMilliseconds = nil
         renderedFrame = nil
         renderedSurfaceImage = nil
         stagedReadyAt = nil
@@ -1422,8 +1581,12 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             }
         } else if force {
             renderedValidRangeMilliseconds = nil
+            renderedActiveSetRangeMilliseconds = nil
         }
 
+        if defersLayerPresentation {
+            stagedReadyAt = nil
+        }
         pendingTimestampMilliseconds = timestampMilliseconds
         startNextRenderIfNeeded(generation: generation)
     }
@@ -1437,6 +1600,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         pendingTimestampMilliseconds = nil
         isRenderInFlight = true
+        rendererRenderDispatchCountForTesting += 1
         nextRenderSequence &+= 1
         let renderSequence = nextRenderSequence
         let requestFrameSizeRevision = frameSizeRevision
@@ -1457,6 +1621,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                 }
 
                 self.isRenderInFlight = false
+                self.rendererRenderCompletionCountForTesting += 1
 
                 guard requestFrameSizeRevision == self.frameSizeRevision else {
                     if self.pendingTimestampMilliseconds != nil, let generation = self.generation {
@@ -1469,6 +1634,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                 case .success(let frame):
                     self.renderedTimestampMilliseconds = frame.timestampMilliseconds
                     self.renderedValidRangeMilliseconds = frame.validRangeMilliseconds
+                    self.renderedActiveSetRangeMilliseconds = frame.activeSetRangeMilliseconds
                     self.apply(frame)
                     self.failureMessage = nil
                 case .failure(let error):
@@ -1487,11 +1653,17 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     self.needsDisplay = true
                 }
 
-                if let nextPending = self.pendingTimestampMilliseconds,
-                   let validRange = self.renderedValidRangeMilliseconds,
-                   validRange.contains(nextPending) {
-                    self.renderedTimestampMilliseconds = nextPending
-                    self.pendingTimestampMilliseconds = nil
+                if case .success = result, let nextPending = self.pendingTimestampMilliseconds {
+                    if let validRange = self.renderedValidRangeMilliseconds,
+                       validRange.contains(nextPending) {
+                        self.renderedTimestampMilliseconds = nextPending
+                        self.pendingTimestampMilliseconds = nil
+                    } else if self.canReuseStagedFrameForMicroOffset(atMilliseconds: nextPending) {
+                        // Hold `renderedTimestampMilliseconds` at `t_staged` while keeping
+                        // `currentTimeMilliseconds` at `nextPending`; `flushDeferredLayerPresentation`
+                        // will kick off background refinement immediately after gate commit.
+                        self.pendingTimestampMilliseconds = nil
+                    }
                 }
 
                 if case .success(let frame) = result, !self.defersLayerPresentation {
@@ -1553,7 +1725,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     private func apply(_ frame: ASSRenderedFrame) {
         switch frame {
-        case .sparse(let sparseFrame, _):
+        case .sparse(let sparseFrame, _, _):
             renderedFrame = frame
             renderedSurfaceImage = sparseFrame.surface.flatMap { makeImage(from: $0) }
             if !defersLayerPresentation {
@@ -1570,6 +1742,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         pendingTimestampMilliseconds = nil
         renderedTimestampMilliseconds = nil
         renderedValidRangeMilliseconds = nil
+        renderedActiveSetRangeMilliseconds = nil
         renderedFrame = nil
         renderedSurfaceImage = nil
         stagedReadyAt = nil
@@ -1589,7 +1762,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     private func updatePresentation(for renderedFrame: ASSRenderedFrame) {
         switch renderedFrame {
-        case .sparse(let frame, _):
+        case .sparse(let frame, _, _):
             applySparseFrameToLayer(frame, precomputedImage: renderedSurfaceImage)
         case .unchanged:
             break
@@ -1648,7 +1821,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     private func updatePresentationLayout(for renderedFrame: ASSRenderedFrame) {
         switch renderedFrame {
-        case .sparse(let frame, _):
+        case .sparse(let frame, _, _):
             updatePresentationLayout(
                 for: frame,
                 layoutVideoSize: videoSize,
@@ -1692,6 +1865,9 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     private func clearSubtitleLayers() {
+        if subtitleSurfaceLayer != nil {
+            layerClearCountForTesting += 1
+        }
         subtitleSurfaceLayer?.removeFromSuperlayer()
         subtitleSurfaceLayer = nil
         displayedFrame = nil

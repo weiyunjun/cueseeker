@@ -42,6 +42,8 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
 @property (nonatomic, readonly) BOOL changed;
 @property (nonatomic, readonly) NSInteger unchangedFromMilliseconds;
 @property (nonatomic, readonly) NSInteger unchangedUntilMilliseconds;
+@property (nonatomic, readonly) NSInteger activeEventSetFromMilliseconds;
+@property (nonatomic, readonly) NSInteger activeEventSetUntilMilliseconds;
 
 - (instancetype)init NS_UNAVAILABLE;
 

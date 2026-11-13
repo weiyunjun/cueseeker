@@ -55,7 +55,9 @@ typedef struct {
                        imageCount:(NSInteger)imageCount
                           changed:(BOOL)changed
         unchangedFromMilliseconds:(NSInteger)unchangedFromMilliseconds
-       unchangedUntilMilliseconds:(NSInteger)unchangedUntilMilliseconds NS_DESIGNATED_INITIALIZER;
+       unchangedUntilMilliseconds:(NSInteger)unchangedUntilMilliseconds
+   activeEventSetFromMilliseconds:(NSInteger)activeEventSetFromMilliseconds
+  activeEventSetUntilMilliseconds:(NSInteger)activeEventSetUntilMilliseconds NS_DESIGNATED_INITIALIZER;
 
 @end
 
@@ -108,22 +110,27 @@ static uint8_t * _Nullable SFXBuildASSEventAnimatedFlags(const ASS_Track *track)
     return flags;
 }
 
-static void SFXComputeASSUnchangedWindow(
+static void SFXComputeASSRenderWindows(
     const ASS_Track *track,
     const uint8_t * _Nullable animatedFlags,
     NSInteger timestampMilliseconds,
-    NSInteger *outFromMilliseconds,
-    NSInteger *outUntilMilliseconds
+    NSInteger *outUnchangedFromMilliseconds,
+    NSInteger *outUnchangedUntilMilliseconds,
+    NSInteger *outActiveEventSetFromMilliseconds,
+    NSInteger *outActiveEventSetUntilMilliseconds
 ) {
     long long t = MAX(0LL, (long long)timestampMilliseconds);
     if (track == NULL || track->n_events <= 0 || track->events == NULL) {
-        *outFromMilliseconds = 0;
-        *outUntilMilliseconds = NSIntegerMax;
+        *outUnchangedFromMilliseconds = 0;
+        *outUnchangedUntilMilliseconds = NSIntegerMax;
+        *outActiveEventSetFromMilliseconds = 0;
+        *outActiveEventSetUntilMilliseconds = NSIntegerMax;
         return;
     }
 
     long long windowStart = 0;
     long long windowEnd = (long long)NSIntegerMax;
+    BOOL hasAnimatedActiveEvent = NO;
     for (int i = 0; i < track->n_events; i++) {
         const ASS_Event *event = &track->events[i];
         long long start = MAX(0LL, event->Start);
@@ -132,15 +139,13 @@ static void SFXComputeASSUnchangedWindow(
             continue;
         }
         if (t >= start && t < end) {
-            BOOL isAnimated = animatedFlags != NULL
-                ? (animatedFlags[i] != 0)
-                : SFXASSEventContainsAnimationTags(event);
-            if (isAnimated) {
-                *outFromMilliseconds = timestampMilliseconds;
-                *outUntilMilliseconds = timestampMilliseconds < NSIntegerMax
-                    ? timestampMilliseconds + 1
-                    : NSIntegerMax;
-                return;
+            if (!hasAnimatedActiveEvent) {
+                BOOL isAnimated = animatedFlags != NULL
+                    ? (animatedFlags[i] != 0)
+                    : SFXASSEventContainsAnimationTags(event);
+                if (isAnimated) {
+                    hasAnimatedActiveEvent = YES;
+                }
             }
             if (start > windowStart) {
                 windowStart = start;
@@ -163,8 +168,39 @@ static void SFXComputeASSUnchangedWindow(
         windowStart = t;
         windowEnd = t < (long long)NSIntegerMax ? t + 1 : (long long)NSIntegerMax;
     }
-    *outFromMilliseconds = (NSInteger)MIN(windowStart, (long long)NSIntegerMax);
-    *outUntilMilliseconds = (NSInteger)MIN(windowEnd, (long long)NSIntegerMax);
+    NSInteger activeSetFrom = (NSInteger)MIN(windowStart, (long long)NSIntegerMax);
+    NSInteger activeSetUntil = (NSInteger)MIN(windowEnd, (long long)NSIntegerMax);
+    *outActiveEventSetFromMilliseconds = activeSetFrom;
+    *outActiveEventSetUntilMilliseconds = activeSetUntil;
+
+    if (hasAnimatedActiveEvent) {
+        *outUnchangedFromMilliseconds = timestampMilliseconds;
+        *outUnchangedUntilMilliseconds = timestampMilliseconds < NSIntegerMax
+            ? timestampMilliseconds + 1
+            : NSIntegerMax;
+    } else {
+        *outUnchangedFromMilliseconds = activeSetFrom;
+        *outUnchangedUntilMilliseconds = activeSetUntil;
+    }
+}
+
+static inline void SFXClampASSWindowToRange(
+    NSInteger *fromMilliseconds,
+    NSInteger *untilMilliseconds,
+    NSInteger clampStartMilliseconds,
+    NSInteger clampEndMilliseconds,
+    NSInteger fallbackTimestampMilliseconds
+) {
+    NSInteger clampedFrom = MAX(*fromMilliseconds, clampStartMilliseconds);
+    NSInteger clampedUntil = MIN(*untilMilliseconds, clampEndMilliseconds);
+    if (clampedUntil <= clampedFrom) {
+        clampedFrom = fallbackTimestampMilliseconds;
+        clampedUntil = fallbackTimestampMilliseconds < NSIntegerMax
+            ? fallbackTimestampMilliseconds + 1
+            : NSIntegerMax;
+    }
+    *fromMilliseconds = clampedFrom;
+    *untilMilliseconds = clampedUntil;
 }
 
 static NSError *SFXASSRenderingError(SFXASSRenderingErrorCode code, NSString *message) {
@@ -1126,7 +1162,9 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
                        imageCount:(NSInteger)imageCount
                           changed:(BOOL)changed
         unchangedFromMilliseconds:(NSInteger)unchangedFromMilliseconds
-       unchangedUntilMilliseconds:(NSInteger)unchangedUntilMilliseconds {
+       unchangedUntilMilliseconds:(NSInteger)unchangedUntilMilliseconds
+    activeEventSetFromMilliseconds:(NSInteger)activeEventSetFromMilliseconds
+   activeEventSetUntilMilliseconds:(NSInteger)activeEventSetUntilMilliseconds {
     self = [super init];
     if (self == nil) {
         return nil;
@@ -1144,6 +1182,8 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     _changed = changed;
     _unchangedFromMilliseconds = unchangedFromMilliseconds;
     _unchangedUntilMilliseconds = unchangedUntilMilliseconds;
+    _activeEventSetFromMilliseconds = activeEventSetFromMilliseconds;
+    _activeEventSetUntilMilliseconds = activeEventSetUntilMilliseconds;
     return self;
 }
 
@@ -1172,6 +1212,8 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     BOOL _hasRenderedCroppedFrame;
     NSInteger _lastUnchangedFromMilliseconds;
     NSInteger _lastUnchangedUntilMilliseconds;
+    NSInteger _lastActiveEventSetFromMilliseconds;
+    NSInteger _lastActiveEventSetUntilMilliseconds;
 }
 
 - (nullable instancetype)initWithASSFileAtPath:(NSString *)path
@@ -1207,6 +1249,8 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     _loadedWindowEndMilliseconds = -1;
     _lastUnchangedFromMilliseconds = -1;
     _lastUnchangedUntilMilliseconds = -1;
+    _lastActiveEventSetFromMilliseconds = -1;
+    _lastActiveEventSetUntilMilliseconds = -1;
 
     NSString *failureMessage = [NSString stringWithFormat:@"libass could not load ASS source file: %@", path];
     if (!SFXMapFileAtPath(path, &_mappedScriptBytes, &_mappedScriptLength)) {
@@ -1259,6 +1303,8 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     _loadedWindowEndMilliseconds = -1;
     _lastUnchangedFromMilliseconds = -1;
     _lastUnchangedUntilMilliseconds = -1;
+    _lastActiveEventSetFromMilliseconds = -1;
+    _lastActiveEventSetUntilMilliseconds = -1;
 
     NSData *utf8Data = [script dataUsingEncoding:NSUTF8StringEncoding];
     if (utf8Data == nil || utf8Data.length == 0) {
@@ -1314,6 +1360,8 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     _loadedWindowEndMilliseconds = -1;
     _lastUnchangedFromMilliseconds = -1;
     _lastUnchangedUntilMilliseconds = -1;
+    _lastActiveEventSetFromMilliseconds = -1;
+    _lastActiveEventSetUntilMilliseconds = -1;
 
     NSData *headerData = [headerScript dataUsingEncoding:NSUTF8StringEncoding];
     NSString *failureMessage = [NSString stringWithFormat:@"libass could not load indexed ASS header: %@", sourceIdentifier];
@@ -1641,6 +1689,8 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     _loadedWindowEndMilliseconds = winEnd;
     _lastUnchangedFromMilliseconds = -1;
     _lastUnchangedUntilMilliseconds = -1;
+    _lastActiveEventSetFromMilliseconds = -1;
+    _lastActiveEventSetUntilMilliseconds = -1;
     return YES;
 }
 
@@ -1660,6 +1710,8 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     }
     _lastUnchangedFromMilliseconds = -1;
     _lastUnchangedUntilMilliseconds = -1;
+    _lastActiveEventSetFromMilliseconds = -1;
+    _lastActiveEventSetUntilMilliseconds = -1;
 
     NSInteger stride = self.frameWidth * 4;
     NSMutableData *rgbaData = [NSMutableData dataWithLength:(NSUInteger)(stride * self.frameHeight)];
@@ -1705,6 +1757,12 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
         && _lastUnchangedUntilMilliseconds > _lastUnchangedFromMilliseconds
         && timestampMilliseconds >= _lastUnchangedFromMilliseconds
         && timestampMilliseconds < _lastUnchangedUntilMilliseconds) {
+        NSInteger cachedActiveSetFrom = _lastActiveEventSetUntilMilliseconds > _lastActiveEventSetFromMilliseconds
+            ? _lastActiveEventSetFromMilliseconds
+            : _lastUnchangedFromMilliseconds;
+        NSInteger cachedActiveSetUntil = _lastActiveEventSetUntilMilliseconds > _lastActiveEventSetFromMilliseconds
+            ? _lastActiveEventSetUntilMilliseconds
+            : _lastUnchangedUntilMilliseconds;
         return [[SFXASSCroppedRenderOutput alloc] initWithRGBAData:[NSData data]
                                                              width:0
                                                             height:0
@@ -1716,25 +1774,39 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
                                                         imageCount:0
                                                            changed:NO
                                          unchangedFromMilliseconds:_lastUnchangedFromMilliseconds
-                                        unchangedUntilMilliseconds:_lastUnchangedUntilMilliseconds];
+                                        unchangedUntilMilliseconds:_lastUnchangedUntilMilliseconds
+                                    activeEventSetFromMilliseconds:cachedActiveSetFrom
+                                   activeEventSetUntilMilliseconds:cachedActiveSetUntil];
     }
 
     NSInteger unchangedFromMs = timestampMilliseconds;
     NSInteger unchangedUntilMs = timestampMilliseconds < NSIntegerMax ? timestampMilliseconds + 1 : NSIntegerMax;
-    SFXComputeASSUnchangedWindow(
+    NSInteger activeSetFromMs = unchangedFromMs;
+    NSInteger activeSetUntilMs = unchangedUntilMs;
+    SFXComputeASSRenderWindows(
         _track,
         _eventAnimatedFlags,
         timestampMilliseconds,
         &unchangedFromMs,
-        &unchangedUntilMs
+        &unchangedUntilMs,
+        &activeSetFromMs,
+        &activeSetUntilMs
     );
     if (_usesWindowedEvents) {
-        unchangedFromMs = MAX(unchangedFromMs, _loadedWindowStartMilliseconds);
-        unchangedUntilMs = MIN(unchangedUntilMs, _loadedWindowEndMilliseconds);
-        if (unchangedUntilMs <= unchangedFromMs) {
-            unchangedFromMs = timestampMilliseconds;
-            unchangedUntilMs = timestampMilliseconds < NSIntegerMax ? timestampMilliseconds + 1 : NSIntegerMax;
-        }
+        SFXClampASSWindowToRange(
+            &unchangedFromMs,
+            &unchangedUntilMs,
+            _loadedWindowStartMilliseconds,
+            _loadedWindowEndMilliseconds,
+            timestampMilliseconds
+        );
+        SFXClampASSWindowToRange(
+            &activeSetFromMs,
+            &activeSetUntilMs,
+            _loadedWindowStartMilliseconds,
+            _loadedWindowEndMilliseconds,
+            timestampMilliseconds
+        );
     }
 
     int detectChange = 0;
@@ -1744,6 +1816,8 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     _hasRenderedCroppedFrame = YES;
     _lastUnchangedFromMilliseconds = unchangedFromMs;
     _lastUnchangedUntilMilliseconds = unchangedUntilMs;
+    _lastActiveEventSetFromMilliseconds = activeSetFromMs;
+    _lastActiveEventSetUntilMilliseconds = activeSetUntilMs;
 
     if (!changed) {
         return [[SFXASSCroppedRenderOutput alloc] initWithRGBAData:[NSData data]
@@ -1757,7 +1831,9 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
                                                         imageCount:0
                                                            changed:NO
                                          unchangedFromMilliseconds:unchangedFromMs
-                                        unchangedUntilMilliseconds:unchangedUntilMs];
+                                        unchangedUntilMilliseconds:unchangedUntilMs
+                                    activeEventSetFromMilliseconds:activeSetFromMs
+                                   activeEventSetUntilMilliseconds:activeSetUntilMs];
     }
 
     NSInteger minX = 0;
@@ -1788,7 +1864,9 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
                                                         imageCount:0
                                                            changed:YES
                                          unchangedFromMilliseconds:unchangedFromMs
-                                        unchangedUntilMilliseconds:unchangedUntilMs];
+                                        unchangedUntilMilliseconds:unchangedUntilMs
+                                    activeEventSetFromMilliseconds:activeSetFromMs
+                                   activeEventSetUntilMilliseconds:activeSetUntilMs];
     }
 
     NSInteger cropWidth = maxX - minX;
@@ -1836,7 +1914,9 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
                                                     imageCount:imageCount
                                                        changed:YES
                                      unchangedFromMilliseconds:unchangedFromMs
-                                    unchangedUntilMilliseconds:unchangedUntilMs];
+                                    unchangedUntilMilliseconds:unchangedUntilMs
+                                activeEventSetFromMilliseconds:activeSetFromMs
+                               activeEventSetUntilMilliseconds:activeSetUntilMs];
 }
 
 - (BOOL)updateFrameWidth:(NSInteger)frameWidth
@@ -1853,6 +1933,8 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     _hasRenderedCroppedFrame = NO;
     _lastUnchangedFromMilliseconds = -1;
     _lastUnchangedUntilMilliseconds = -1;
+    _lastActiveEventSetFromMilliseconds = -1;
+    _lastActiveEventSetUntilMilliseconds = -1;
     return YES;
 }
 

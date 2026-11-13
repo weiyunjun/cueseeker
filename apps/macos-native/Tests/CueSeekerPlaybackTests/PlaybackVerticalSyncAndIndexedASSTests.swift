@@ -1839,6 +1839,645 @@ extension PlaybackSubtitleFirstFrameTelemetryTests {
         #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 2)
         #expect(ASSFontAliasResolver.shared.snapshotScanCountForTesting == 2)
     }
+
+    @Test
+    @MainActor
+    func animatedASSSubtitleOverlayMicroOffsetTimingAAndTimingBAndRefinement() async throws {
+        let tempDir = try makeVerticalSyncTempDirectory()
+        let scopeToken = tempDir.lastPathComponent
+        defer {
+            ASSIndexedPartialLoadDiagnostics.resetForTesting()
+            PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let assURL = tempDir.appendingPathComponent("animated-micro-offset.ass")
+        try writeVerticalSyncASSSubtitle(
+            at: assURL,
+            cues: [
+                (start: "0:00:00.50", end: "0:00:03.50", text: "{\\fad(120,120)\\move(60,300,320,300)}Animated Micro Offset")
+            ]
+        )
+
+        let recorder = MicroOffsetTelemetrySpy()
+        PlaybackSubtitleFirstFrameTelemetry.setTestObserver { event in
+            recorder.recordFirstFrame(event)
+        }
+
+        let overlay = SourceFaithfulASSSubtitleOverlayView(frame: CGRect(x: 0, y: 0, width: 640, height: 360))
+        let targetVideoSize = CGSize(width: 640, height: 360)
+        let source = PlaybackSubtitleSource(
+            url: assURL,
+            format: .ass,
+            matchedVideoURL: nil,
+            initialTimestampMilliseconds: 1_100
+        )
+
+        // Timing A: Render #1 at t_staged (1100ms) completes BEFORE retargetDeferredPresentation to t_actual (1138ms).
+        overlay.defersLayerPresentation = true
+        let attemptA = PlaybackSubtitleFirstFrameAttempt(
+            trigger: .sameVideoSeek,
+            source: source,
+            targetMilliseconds: 1_100,
+            presentationGeneration: 101,
+            videoCommittedAt: nil
+        )
+        let initialStateA = overlay.setPresentation(
+            source: source,
+            videoSize: targetVideoSize,
+            milliseconds: 1_100,
+            isVisible: true,
+            telemetryAttempt: attemptA
+        )
+        #expect(initialStateA == .asyncPending)
+
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 1_100, videoSize: targetVideoSize)
+        }
+        #expect(overlay.rendererRenderDispatchCountForTesting == 1)
+        #expect(overlay.rendererRenderCompletionCountForTesting == 1)
+
+        attemptA.updateTargetMilliseconds(1_138)
+        overlay.retargetDeferredPresentation(videoSize: targetVideoSize, milliseconds: 1_138)
+        #expect(!overlay.isRenderInFlightForTesting)
+        #expect(overlay.pendingTimestampMillisecondsForTesting == nil)
+        #expect(overlay.rendererRenderDispatchCountForTesting == 1)
+        #expect(overlay.isPreparedForPresentation(atMilliseconds: 1_138, videoSize: targetVideoSize))
+        #expect(recorder.firstFrameEvents.isEmpty)
+
+        overlay.flushDeferredLayerPresentation(isSynchronousCommit: true)
+        #expect(overlay.hasDisplayedSubtitleImage)
+        #expect(overlay.currentPresentationFrame()?.timestampMilliseconds == 1_100)
+        #expect(overlay.rendererRenderCompletionCountForTesting == 1)
+        #expect(overlay.layerClearCountForTesting == 0)
+        #expect(recorder.firstFrameEvents.count == 1)
+        #expect(recorder.firstFrameEvents.last?.isSynchronousAtCommit == true)
+        #expect(recorder.firstFrameEvents.last?.lagMilliseconds == 0)
+        #expect(recorder.firstFrameEvents.last?.targetMilliseconds == 1_138)
+
+        // Wait for background in-place refinement to snap from 1100ms to exact 1138ms without flashing or re-emitting telemetry.
+        try await waitForVerticalSyncCondition {
+            overlay.rendererRenderCompletionCountForTesting >= 2 && !overlay.isRenderInFlightForTesting
+        }
+        #expect(overlay.rendererRenderDispatchCountForTesting == 2)
+        #expect(overlay.hasDisplayedSubtitleImage)
+        #expect(overlay.currentPresentationFrame()?.timestampMilliseconds == 1_138)
+        #expect(overlay.layerClearCountForTesting == 0)
+        #expect(recorder.firstFrameEvents.count == 1)
+
+        // Timing B: Render #1 at t_staged (1600ms) is still in flight when retargetDeferredPresentation queues 1642ms.
+        ASSIndexedPartialLoadDiagnostics.scopedPathSubstringForTesting = scopeToken
+        ASSIndexedPartialLoadDiagnostics.artificialRenderDelaySecondsForTesting = 0.18
+
+        var preparedCallbackFired = false
+        overlay.onPreparedFrameReady = {
+            preparedCallbackFired = true
+        }
+
+        let baselineDispatchesB = overlay.rendererRenderDispatchCountForTesting
+        let baselineCompletionsB = overlay.rendererRenderCompletionCountForTesting
+        overlay.defersLayerPresentation = true
+        let attemptB = PlaybackSubtitleFirstFrameAttempt(
+            trigger: .sameVideoSeek,
+            source: source,
+            targetMilliseconds: 1_600,
+            presentationGeneration: 102,
+            videoCommittedAt: nil
+        )
+        let stateB = overlay.commitPreservedPresentation(
+            videoSize: targetVideoSize,
+            milliseconds: 1_600,
+            attempt: attemptB
+        )
+        #expect(stateB == .asyncPending)
+        #expect(overlay.isRenderInFlightForTesting)
+
+        attemptB.updateTargetMilliseconds(1_642)
+        overlay.retargetDeferredPresentation(videoSize: targetVideoSize, milliseconds: 1_642)
+        #expect(overlay.pendingTimestampMillisecondsForTesting == 1_642)
+        #expect(!overlay.isPreparedForPresentation(atMilliseconds: 1_642, videoSize: targetVideoSize))
+
+        try await waitForVerticalSyncCondition {
+            preparedCallbackFired && overlay.isPreparedForPresentation(atMilliseconds: 1_642, videoSize: targetVideoSize)
+        }
+        #expect(overlay.pendingTimestampMillisecondsForTesting == nil)
+        #expect(overlay.currentTimeMilliseconds == 1_642)
+        #expect(overlay.rendererRenderDispatchCountForTesting - baselineDispatchesB == 1)
+        #expect(overlay.rendererRenderCompletionCountForTesting - baselineCompletionsB == 1)
+
+        ASSIndexedPartialLoadDiagnostics.artificialRenderDelaySecondsForTesting = 0
+        overlay.flushDeferredLayerPresentation(isSynchronousCommit: true)
+        #expect(overlay.hasDisplayedSubtitleImage)
+        #expect(overlay.currentPresentationFrame()?.timestampMilliseconds == 1_600)
+        #expect(overlay.rendererRenderCompletionCountForTesting - baselineCompletionsB == 1)
+        #expect(overlay.layerClearCountForTesting == 0)
+        #expect(recorder.firstFrameEvents.count == 2)
+        #expect(recorder.firstFrameEvents.last?.isSynchronousAtCommit == true)
+        #expect(recorder.firstFrameEvents.last?.lagMilliseconds == 0)
+        #expect(recorder.firstFrameEvents.last?.targetMilliseconds == 1_642)
+
+        try await waitForVerticalSyncCondition {
+            overlay.rendererRenderCompletionCountForTesting >= baselineCompletionsB + 2 && !overlay.isRenderInFlightForTesting
+        }
+        #expect(overlay.currentPresentationFrame()?.timestampMilliseconds == 1_642)
+        #expect(overlay.layerClearCountForTesting == 0)
+        #expect(recorder.firstFrameEvents.count == 2)
+
+        // Verify commitPreservedPresentation reliably renders when currentTimeMilliseconds already equals target
+        // while the cached frame still sits at a different timestamp and does not cover target.
+        overlay.onPreparedFrameReady = nil
+        overlay.defersLayerPresentation = true
+        _ = overlay.commitPreservedPresentation(videoSize: targetVideoSize, milliseconds: 2_160, attempt: nil)
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 2_160, videoSize: targetVideoSize)
+        }
+        overlay.retargetDeferredPresentation(videoSize: targetVideoSize, milliseconds: 2_200)
+        #expect(overlay.currentTimeMilliseconds == 2_200)
+        #expect(overlay.currentPresentationFrame()?.timestampMilliseconds == 1_642)
+
+        let baselineSameTimeDispatches = overlay.rendererRenderDispatchCountForTesting
+        let sameTimeAttempt = PlaybackSubtitleFirstFrameAttempt(
+            trigger: .sameVideoSeek,
+            source: source,
+            targetMilliseconds: 2_200,
+            presentationGeneration: 103,
+            videoCommittedAt: nil
+        )
+        let sameTimeState = overlay.commitPreservedPresentation(
+            videoSize: targetVideoSize,
+            milliseconds: 2_200,
+            attempt: sameTimeAttempt
+        )
+        #expect(sameTimeState == .asyncPending)
+        #expect(overlay.rendererRenderDispatchCountForTesting == baselineSameTimeDispatches + 1)
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 2_200, videoSize: targetVideoSize)
+        }
+        overlay.flushDeferredLayerPresentation(isSynchronousCommit: true)
+        #expect(overlay.currentPresentationFrame()?.timestampMilliseconds == 2_200)
+        #expect(recorder.firstFrameEvents.count == 3)
+    }
+
+    @Test
+    @MainActor
+    func animatedASSSubtitleOverlayRejectsCrossBoundaryOverThresholdAndResolutionChange() async throws {
+        let tempDir = try makeVerticalSyncTempDirectory()
+        let scopeToken = tempDir.lastPathComponent
+        defer {
+            ASSIndexedPartialLoadDiagnostics.resetForTesting()
+            PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let assURL = tempDir.appendingPathComponent("animated-boundaries.ass")
+        try writeVerticalSyncASSSubtitle(
+            at: assURL,
+            cues: [
+                (start: "0:00:01.00", end: "0:00:04.00", text: "{\\move(80,300,260,300)}Primary Line"),
+                (start: "0:00:02.00", end: "0:00:03.50", text: "Overlay Line")
+            ]
+        )
+
+        let overlay = SourceFaithfulASSSubtitleOverlayView(frame: CGRect(x: 0, y: 0, width: 640, height: 360))
+        let baseVideoSize = CGSize(width: 640, height: 360)
+        let source = PlaybackSubtitleSource(
+            url: assURL,
+            format: .ass,
+            matchedVideoURL: nil,
+            initialTimestampMilliseconds: 980
+        )
+
+        // 1. Blank (980ms) -> Cue 1 start at 1000ms (1010ms, only +30ms): must NOT reuse blank frame.
+        overlay.defersLayerPresentation = true
+        _ = overlay.setPresentation(
+            source: source,
+            videoSize: baseVideoSize,
+            milliseconds: 980,
+            isVisible: true,
+            telemetryAttempt: nil
+        )
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 980, videoSize: baseVideoSize)
+        }
+        overlay.retargetDeferredPresentation(videoSize: baseVideoSize, milliseconds: 1_010)
+        #expect(!overlay.isPreparedForPresentation(atMilliseconds: 1_010, videoSize: baseVideoSize))
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 1_010, videoSize: baseVideoSize)
+        }
+        overlay.flushDeferredLayerPresentation(isSynchronousCommit: true)
+        #expect(overlay.hasDisplayedSubtitleImage)
+        #expect(overlay.currentPresentationFrame()?.timestampMilliseconds == 1_010)
+
+        // 2. Cue 1 only (1980ms) -> Overlay Cue 2 start at 2000ms (2015ms, only +35ms): must NOT reuse single-line frame.
+        let beforeOverlapCompletions = overlay.rendererRenderCompletionCountForTesting
+        overlay.defersLayerPresentation = true
+        _ = overlay.commitPreservedPresentation(videoSize: baseVideoSize, milliseconds: 1_980, attempt: nil)
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 1_980, videoSize: baseVideoSize)
+        }
+        overlay.retargetDeferredPresentation(videoSize: baseVideoSize, milliseconds: 2_015)
+        #expect(!overlay.isPreparedForPresentation(atMilliseconds: 2_015, videoSize: baseVideoSize))
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 2_015, videoSize: baseVideoSize)
+        }
+        #expect(overlay.rendererRenderCompletionCountForTesting - beforeOverlapCompletions >= 2)
+        overlay.flushDeferredLayerPresentation(isSynchronousCommit: true)
+        #expect(overlay.currentPresentationFrame()?.timestampMilliseconds == 2_015)
+
+        // 3. Cue 1 tail (3980ms) -> Blank at 4000ms (4010ms, only +30ms): must NOT keep subtitle into blank gap.
+        let beforeBlankCompletions = overlay.rendererRenderCompletionCountForTesting
+        overlay.defersLayerPresentation = true
+        _ = overlay.commitPreservedPresentation(videoSize: baseVideoSize, milliseconds: 3_980, attempt: nil)
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 3_980, videoSize: baseVideoSize)
+        }
+        overlay.retargetDeferredPresentation(videoSize: baseVideoSize, milliseconds: 4_010)
+        #expect(!overlay.isPreparedForPresentation(atMilliseconds: 4_010, videoSize: baseVideoSize))
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 4_010, videoSize: baseVideoSize)
+        }
+        #expect(overlay.rendererRenderCompletionCountForTesting - beforeBlankCompletions >= 2)
+        overlay.flushDeferredLayerPresentation(isSynchronousCommit: true)
+        #expect(!overlay.hasDisplayedSubtitleImage)
+        #expect(overlay.currentPresentationFrame()?.surface == nil)
+
+        // 4. Same active set [1000, 2000): exact +50ms is tolerated, +51ms (Timing A and Timing B) and -51ms are rejected.
+        overlay.defersLayerPresentation = true
+        _ = overlay.commitPreservedPresentation(videoSize: baseVideoSize, milliseconds: 1_200, attempt: nil)
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 1_200, videoSize: baseVideoSize)
+        }
+        overlay.retargetDeferredPresentation(videoSize: baseVideoSize, milliseconds: 1_250)
+        #expect(overlay.isPreparedForPresentation(atMilliseconds: 1_250, videoSize: baseVideoSize))
+        overlay.flushDeferredLayerPresentation(isSynchronousCommit: true)
+        try await waitForVerticalSyncCondition { !overlay.isRenderInFlightForTesting }
+
+        overlay.defersLayerPresentation = true
+        _ = overlay.commitPreservedPresentation(videoSize: baseVideoSize, milliseconds: 1_200, attempt: nil)
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 1_200, videoSize: baseVideoSize)
+        }
+        overlay.retargetDeferredPresentation(videoSize: baseVideoSize, milliseconds: 1_251)
+        #expect(!overlay.isPreparedForPresentation(atMilliseconds: 1_251, videoSize: baseVideoSize))
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 1_251, videoSize: baseVideoSize)
+        }
+        overlay.flushDeferredLayerPresentation(isSynchronousCommit: true)
+
+        // Negative > 50ms (-51ms) rejected too.
+        overlay.defersLayerPresentation = true
+        _ = overlay.commitPreservedPresentation(videoSize: baseVideoSize, milliseconds: 1_200, attempt: nil)
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 1_200, videoSize: baseVideoSize)
+        }
+        overlay.retargetDeferredPresentation(videoSize: baseVideoSize, milliseconds: 1_149)
+        #expect(!overlay.isPreparedForPresentation(atMilliseconds: 1_149, videoSize: baseVideoSize))
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 1_149, videoSize: baseVideoSize)
+        }
+        overlay.flushDeferredLayerPresentation(isSynchronousCommit: true)
+
+        // Timing B with > 50ms offset must queue and wait for Render #2 instead of skipping it.
+        ASSIndexedPartialLoadDiagnostics.scopedPathSubstringForTesting = scopeToken
+        ASSIndexedPartialLoadDiagnostics.artificialRenderDelaySecondsForTesting = 0.14
+        let baselineTimingBOverCompletions = overlay.rendererRenderCompletionCountForTesting
+        overlay.defersLayerPresentation = true
+        _ = overlay.commitPreservedPresentation(videoSize: baseVideoSize, milliseconds: 1_200, attempt: nil)
+        overlay.retargetDeferredPresentation(videoSize: baseVideoSize, milliseconds: 1_280)
+        #expect(overlay.pendingTimestampMillisecondsForTesting == 1_280)
+        ASSIndexedPartialLoadDiagnostics.artificialRenderDelaySecondsForTesting = 0
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 1_280, videoSize: baseVideoSize)
+        }
+        #expect(overlay.rendererRenderCompletionCountForTesting - baselineTimingBOverCompletions >= 2)
+        overlay.flushDeferredLayerPresentation(isSynchronousCommit: true)
+        #expect(overlay.currentPresentationFrame()?.timestampMilliseconds == 1_280)
+
+        // 5. Video resolution change during retargetDeferredPresentation must invalidate staged slot despite <= 50ms offset.
+        overlay.defersLayerPresentation = true
+        _ = overlay.commitPreservedPresentation(videoSize: baseVideoSize, milliseconds: 1_200, attempt: nil)
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 1_200, videoSize: baseVideoSize)
+        }
+        let resizeTarget = CGSize(width: 1_280, height: 720)
+        let beforeResizeCount = overlay.rendererInPlaceResizeCountForTesting
+        overlay.retargetDeferredPresentation(videoSize: resizeTarget, milliseconds: 1_220)
+        #expect(overlay.rendererInPlaceResizeCountForTesting == beforeResizeCount + 1)
+        #expect(!overlay.isPreparedForPresentation(atMilliseconds: 1_220, videoSize: resizeTarget))
+        try await waitForVerticalSyncCondition {
+            overlay.isPreparedForPresentation(atMilliseconds: 1_220, videoSize: resizeTarget)
+        }
+        overlay.flushDeferredLayerPresentation(isSynchronousCommit: true)
+        #expect(overlay.currentPresentationFrame()?.frameWidth == 1_280)
+        #expect(overlay.currentPresentationFrame()?.frameHeight == 720)
+        #expect(overlay.currentPresentationFrame()?.timestampMilliseconds == 1_220)
+    }
+
+    @Test
+    @MainActor
+    func e2ePlaybackPlayerAnimatedASSSubtitleMicroOffsetSyncCommitAndRefinement() async throws {
+        let ffmpegURL = try #require(verticalSyncTestFFmpegURL())
+        let tempDir = try makeVerticalSyncTempDirectory()
+        let scopeToken = tempDir.lastPathComponent
+        defer {
+            ASSIndexedPartialLoadDiagnostics.resetForTesting()
+            PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let videoURL = tempDir.appendingPathComponent("ntsc-micro-offset.mkv")
+        let assURL = tempDir.appendingPathComponent("ntsc-micro-offset.ass")
+        try makeVerticalSyncTestVideo(
+            at: videoURL,
+            ffmpegURL: ffmpegURL,
+            frameRate: "24000/1001",
+            durationSeconds: 4
+        )
+        try writeVerticalSyncASSSubtitle(
+            at: assURL,
+            cues: [
+                (start: "0:00:00.50", end: "0:00:03.50", text: "{\\fad(120,120)\\move(80,300,300,300)}E2E Animated Cue")
+            ]
+        )
+
+        let player = PlaybackPlayer()
+        player.setVolume(0)
+        defer { try? player.stop() }
+        player.decodeMode = .software
+        let container = try #require(player.renderView as? PlaybackRenderContainerView)
+        container.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
+
+        let delegateSpy = VerticalSyncPlayerDelegateSpy(container: container)
+        player.delegate = delegateSpy
+
+        let recorder = MicroOffsetTelemetrySpy()
+        recorder.attach(to: container)
+
+        let source = PlaybackSubtitleSource(
+            url: assURL,
+            format: .ass,
+            matchedVideoURL: videoURL,
+            initialTimestampMilliseconds: 500
+        )
+
+        // Open initially so video dimensions & font session are ready for seek benchmarks.
+        let openGen = try player.open(
+            PlaybackRequest(
+                videoURL: videoURL,
+                startMilliseconds: 500,
+                subtitleSource: source
+            )
+        )
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: openGen) != nil
+        }
+        let overlay = try #require(container.assOverlayViewForTesting)
+        try await waitForVerticalSyncCondition { !overlay.isRenderInFlightForTesting }
+
+        // 1. Natural seek to 1_010ms (23.976fps naturally aligns next video frame around ~1_042ms, +32ms <= 50ms):
+        //    must commit synchronously on Render #1 (syncReady, lag == 0) then refine to commit.milliseconds in place.
+        recorder.resetFirstFrameEvents()
+        let seek1BaselineCompletions = overlay.rendererRenderCompletionCountForTesting
+        let seek1Gen = try player.seek(toMilliseconds: 1_010, pauseAfterFirstFrame: true)
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: seek1Gen) != nil
+        }
+        let seek1Commit = try #require(delegateSpy.commit(forGeneration: seek1Gen))
+        let seek1TelemetryAtCommit = try #require(recorder.commitSnapshot(forGeneration: seek1Gen))
+        #expect(seek1Commit.milliseconds > 1_010 && seek1Commit.milliseconds <= 1_060)
+        #expect(seek1Commit.hasASSVisibleSurface)
+        #expect(container.hasDisplayedSubtitleImageForTesting)
+        #expect(seek1TelemetryAtCommit.event.subtitleSyncState == .syncReady)
+        #expect(seek1TelemetryAtCommit.completionCount - seek1BaselineCompletions == 1)
+
+        try await waitForVerticalSyncCondition {
+            overlay.rendererRenderCompletionCountForTesting >= seek1BaselineCompletions + 2
+                && !overlay.isRenderInFlightForTesting
+        }
+        #expect(container.currentASSSubtitleFrame()?.timestampMilliseconds == seek1Commit.milliseconds)
+        #expect(overlay.layerClearCountForTesting == seek1TelemetryAtCommit.clearCount)
+        let seek1FirstFrameEvents = recorder.firstFrameEvents.filter { $0.presentationGeneration == seek1Gen }
+        #expect(seek1FirstFrameEvents.count == 1)
+        #expect(seek1FirstFrameEvents.first?.isSynchronousAtCommit == true)
+        #expect(seek1FirstFrameEvents.first?.lagMilliseconds == 0)
+
+        // 2. Forced Timing B seek to 1_510ms (video frame around ~1_543ms finishes decoding BEFORE delayed libass render #1):
+        //    gate must still commit immediately once Render #1 returns, without waiting for Render #2.
+        ASSIndexedPartialLoadDiagnostics.scopedPathSubstringForTesting = scopeToken
+        ASSIndexedPartialLoadDiagnostics.artificialRenderDelaySecondsForTesting = 0.22
+        let seek2BaselineCompletions = overlay.rendererRenderCompletionCountForTesting
+        let seek2Gen = try player.seek(toMilliseconds: 1_510, pauseAfterFirstFrame: true)
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: seek2Gen) != nil
+        }
+        ASSIndexedPartialLoadDiagnostics.artificialRenderDelaySecondsForTesting = 0
+
+        let seek2Commit = try #require(delegateSpy.commit(forGeneration: seek2Gen))
+        let seek2TelemetryAtCommit = try #require(recorder.commitSnapshot(forGeneration: seek2Gen))
+        #expect(seek2Commit.milliseconds > 1_510 && seek2Commit.milliseconds <= 1_560)
+        #expect(seek2Commit.hasASSVisibleSurface)
+        #expect(container.hasDisplayedSubtitleImageForTesting)
+        #expect(seek2TelemetryAtCommit.event.subtitleSyncState == .syncReady)
+        #expect(seek2TelemetryAtCommit.completionCount - seek2BaselineCompletions == 1)
+
+        try await waitForVerticalSyncCondition {
+            overlay.rendererRenderCompletionCountForTesting >= seek2BaselineCompletions + 2
+                && !overlay.isRenderInFlightForTesting
+        }
+        #expect(container.currentASSSubtitleFrame()?.timestampMilliseconds == seek2Commit.milliseconds)
+        #expect(overlay.layerClearCountForTesting == seek2TelemetryAtCommit.clearCount)
+        let seek2FirstFrameEvents = recorder.firstFrameEvents.filter { $0.presentationGeneration == seek2Gen }
+        #expect(seek2FirstFrameEvents.count == 1)
+        #expect(seek2FirstFrameEvents.first?.isSynchronousAtCommit == true)
+        #expect(seek2FirstFrameEvents.first?.lagMilliseconds == 0)
+    }
+
+    @Test
+    @MainActor
+    func e2ePlaybackPlayerRejectsCrossBoundaryAndOverThresholdWhilePreservingRepeat2msAlignment() async throws {
+        let ffmpegURL = try #require(verticalSyncTestFFmpegURL())
+        let tempDir = try makeVerticalSyncTempDirectory()
+        defer {
+            ASSIndexedPartialLoadDiagnostics.resetForTesting()
+            PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        // Part A (24fps MKV): Frame 23 = 958ms (2ms before 960ms Repeat start), Frame 48 = 2_000ms (Cue 3 boundary).
+        let video24URL = tempDir.appendingPathComponent("fps24-boundary.mkv")
+        let assBoundaryURL = tempDir.appendingPathComponent("fps24-boundary.ass")
+        try makeVerticalSyncTestVideo(at: video24URL, ffmpegURL: ffmpegURL, frameRate: "24", durationSeconds: 4)
+        try writeVerticalSyncASSSubtitle(
+            at: assBoundaryURL,
+            cues: [
+                (start: "0:00:00.10", end: "0:00:00.96", text: "{\\move(60,300,140,300)}Sentence One"),
+                (start: "0:00:00.96", end: "0:00:03.00", text: "{\\move(80,300,260,300)}Sentence Two Repeat"),
+                (start: "0:00:02.00", end: "0:00:02.80", text: "Sentence Three Overlap")
+            ]
+        )
+
+        let player = PlaybackPlayer()
+        player.setVolume(0)
+        defer { try? player.stop() }
+        player.decodeMode = .software
+        let container = try #require(player.renderView as? PlaybackRenderContainerView)
+        container.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
+
+        let delegateSpy = VerticalSyncPlayerDelegateSpy(container: container)
+        player.delegate = delegateSpy
+
+        let recorder = MicroOffsetTelemetrySpy()
+        recorder.attach(to: container)
+
+        let open24Gen = try player.open(
+            PlaybackRequest(
+                videoURL: video24URL,
+                startMilliseconds: 200,
+                subtitleSource: PlaybackSubtitleSource(
+                    url: assBoundaryURL,
+                    format: .ass,
+                    matchedVideoURL: video24URL,
+                    initialTimestampMilliseconds: 200
+                )
+            )
+        )
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: open24Gen) != nil
+        }
+        let overlay24 = try #require(container.assOverlayViewForTesting)
+        try await waitForVerticalSyncCondition { !overlay24.isRenderInFlightForTesting }
+
+        // 1. Repeat sentence-2 start at 960ms: raw frame 958ms (0 <= 960 - 958 <= 2ms) aligns to 960ms.
+        let repeatGen = try player.seek(toMilliseconds: 960, pauseAfterFirstFrame: true)
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: repeatGen) != nil
+        }
+        let repeatCommit = try #require(delegateSpy.commit(forGeneration: repeatGen))
+        #expect(repeatCommit.milliseconds == 960)
+        #expect(repeatCommit.hasASSVisibleSurface)
+        try await waitForVerticalSyncCondition { !overlay24.isRenderInFlightForTesting }
+        #expect(container.currentASSSubtitleFrame()?.timestampMilliseconds == 960)
+
+        // 2. Cross-boundary seek (1_985ms -> frame lands at 2_000ms crossing Sentence Three Start):
+        //    must block for Render #2 instead of reusing the pre-overlap 1_985ms frame.
+        let boundaryBaseline = overlay24.rendererRenderCompletionCountForTesting
+        let boundaryGen = try player.seek(toMilliseconds: 1_985, pauseAfterFirstFrame: true)
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: boundaryGen) != nil
+        }
+        let boundaryCommit = try #require(delegateSpy.commit(forGeneration: boundaryGen))
+        #expect(boundaryCommit.milliseconds == 2_000)
+        #expect(boundaryCommit.hasASSVisibleSurface)
+        let boundaryCompletionAtCommit = try #require(recorder.commitSnapshot(forGeneration: boundaryGen)?.completionCount)
+        #expect(boundaryCompletionAtCommit - boundaryBaseline >= 2)
+        #expect(container.currentASSSubtitleFrame()?.timestampMilliseconds == 2_000)
+
+        // Part B (10fps MKV, 100ms per frame): seeking to 1_210ms aligns to 1_300ms (+90ms > 50ms),
+        // which must be rejected and re-rendered at 1_300ms before opening the gate.
+        let video10URL = tempDir.appendingPathComponent("fps10-over-threshold.mkv")
+        let ass10URL = tempDir.appendingPathComponent("fps10-over-threshold.ass")
+        try makeVerticalSyncTestVideo(
+            at: video10URL,
+            ffmpegURL: ffmpegURL,
+            frameRate: "10",
+            durationSeconds: 3,
+            keyframeInterval: 5
+        )
+        try writeVerticalSyncASSSubtitle(
+            at: ass10URL,
+            cues: [
+                (start: "0:00:00.50", end: "0:00:02.80", text: "{\\move(60,300,300,300)}10fps Animated Cue")
+            ]
+        )
+
+        let open10Gen = try player.open(
+            PlaybackRequest(
+                videoURL: video10URL,
+                startMilliseconds: 500,
+                subtitleSource: PlaybackSubtitleSource(
+                    url: ass10URL,
+                    format: .ass,
+                    matchedVideoURL: video10URL,
+                    initialTimestampMilliseconds: 500
+                )
+            )
+        )
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: open10Gen) != nil
+        }
+        let overlay10 = try #require(container.assOverlayViewForTesting)
+        try await waitForVerticalSyncCondition { !overlay10.isRenderInFlightForTesting }
+
+        let overBaseline = overlay10.rendererRenderCompletionCountForTesting
+        let overGen = try player.seek(toMilliseconds: 1_210, pauseAfterFirstFrame: true)
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: overGen) != nil
+        }
+        let overCommit = try #require(delegateSpy.commit(forGeneration: overGen))
+        #expect(overCommit.milliseconds == 1_300)
+        #expect(overCommit.hasASSVisibleSurface)
+        let overCompletionAtCommit = try #require(recorder.commitSnapshot(forGeneration: overGen)?.completionCount)
+        #expect(overCompletionAtCommit - overBaseline >= 2)
+        #expect(container.currentASSSubtitleFrame()?.timestampMilliseconds == 1_300)
+    }
+}
+
+private final class MicroOffsetTelemetrySpy: @unchecked Sendable {
+    struct CommitSnapshot {
+        let event: PlaybackPresentationCommitTelemetryEvent
+        let completionCount: Int
+        let clearCount: Int
+    }
+
+    private let lock = NSLock()
+    private var storedFirstFrameEvents: [PlaybackSubtitleFirstFrameTelemetryEvent] = []
+    private var storedCommitSnapshots: [UInt: CommitSnapshot] = [:]
+
+    var firstFrameEvents: [PlaybackSubtitleFirstFrameTelemetryEvent] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedFirstFrameEvents
+    }
+
+    func commitSnapshot(forGeneration generation: UInt) -> CommitSnapshot? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedCommitSnapshots[generation]
+    }
+
+    func resetFirstFrameEvents() {
+        lock.lock()
+        storedFirstFrameEvents.removeAll()
+        lock.unlock()
+    }
+
+    func recordFirstFrame(_ event: PlaybackSubtitleFirstFrameTelemetryEvent) {
+        lock.lock()
+        storedFirstFrameEvents.append(event)
+        lock.unlock()
+    }
+
+    func attach(to container: PlaybackRenderContainerView) {
+        PlaybackSubtitleFirstFrameTelemetry.setTestObserver { [weak self] event in
+            self?.recordFirstFrame(event)
+        }
+        PlaybackSubtitleFirstFrameTelemetry.setPresentationCommitTestObserver { [weak self, weak container] event in
+            guard let self, let container, Thread.isMainThread else { return }
+            let (completionCount, clearCount) = MainActor.assumeIsolated {
+                (
+                    container.assOverlayViewForTesting?.rendererRenderCompletionCountForTesting ?? 0,
+                    container.assOverlayViewForTesting?.layerClearCountForTesting ?? 0
+                )
+            }
+            self.lock.lock()
+            self.storedCommitSnapshots[event.generation] = CommitSnapshot(
+                event: event,
+                completionCount: completionCount,
+                clearCount: clearCount
+            )
+            self.lock.unlock()
+        }
+    }
 }
 
 
