@@ -57,13 +57,29 @@ enum SubtitleTableTextRole {
 @MainActor
 enum SubtitleTableText {
     static let tagFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
-    static let lineSpacing: CGFloat = 4
+    static let cellLineHeight = WorkbenchControlMetrics.redesignLineHeightTableCell
+
+    /// Builds a fixed line-box paragraph style with zero trailing line or paragraph spacing.
+    static func fixedLineParagraphStyle(lineHeight: CGFloat) -> NSParagraphStyle {
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byWordWrapping
+        style.minimumLineHeight = lineHeight
+        style.maximumLineHeight = lineHeight
+        style.lineSpacing = 0
+        style.paragraphSpacing = 0
+        return style
+    }
+
+    static func naturalLineHeight(for font: NSFont) -> CGFloat {
+        ceil(font.ascender - font.descender + font.leading)
+    }
+
+    static func centeredBaselineOffset(for font: NSFont, lineHeight: CGFloat) -> CGFloat {
+        max(0, (lineHeight - naturalLineHeight(for: font)) / 2)
+    }
 
     static func bodyParagraphStyle() -> NSParagraphStyle {
-        let style = NSMutableParagraphStyle()
-        style.lineSpacing = lineSpacing
-        style.lineBreakMode = .byWordWrapping
-        return style
+        fixedLineParagraphStyle(lineHeight: cellLineHeight)
     }
 
     static func body(
@@ -71,9 +87,11 @@ enum SubtitleTableText {
         role: SubtitleTableTextRole = .primaryContent,
         foregroundColor: NSColor? = nil
     ) -> NSAttributedString {
-        NSAttributedString(string: text, attributes: [
-            .font: bodyFont(role: role),
+        let font = bodyFont(role: role)
+        return NSAttributedString(string: text, attributes: [
+            .font: font,
             .paragraphStyle: bodyParagraphStyle(),
+            .baselineOffset: centeredBaselineOffset(for: font, lineHeight: cellLineHeight),
             .foregroundColor: foregroundColor ?? bodyColor(role: role),
         ])
     }
@@ -112,7 +130,7 @@ enum SubtitleTableText {
         case .primaryContent:
             return NSFont.systemFont(
                 ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
-                weight: .medium
+                weight: .regular
             )
         case .secondaryContext:
             return NSFont.systemFont(
@@ -158,7 +176,7 @@ final class SubtitleTextLayout {
     init(maximumNumberOfLines: Int = 0) {
         textContainer.lineFragmentPadding = 0
         textContainer.maximumNumberOfLines = maximumNumberOfLines
-        layoutManager.usesFontLeading = true
+        layoutManager.usesFontLeading = false
         layoutManager.addTextContainer(textContainer)
         textStorage.addLayoutManager(layoutManager)
     }

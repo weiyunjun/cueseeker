@@ -135,6 +135,14 @@ func buttonHeightMatchesDesignSpecification() {
     #expect(WorkbenchControlMetrics.redesignFieldPaddingX == 10)
     #expect(WorkbenchControlMetrics.redesignFormLabelWidth == 96)
     #expect(WorkbenchControlMetrics.redesignTableCellHoverRadius == 8)
+    #expect(WorkbenchControlMetrics.redesignTableCellHoverPaddingX == 12)
+    #expect(WorkbenchControlMetrics.redesignTableCellHoverPaddingY == 8)
+    #expect(WorkbenchControlMetrics.redesignTableRowMinHeight == 48)
+    #expect(WorkbenchControlMetrics.redesignTableRowPaddingY == 12)
+    #expect(WorkbenchControlMetrics.redesignTableCueGroupGap == 4)
+    #expect(WorkbenchControlMetrics.redesignLineHeightTableCell == 20)
+    #expect(WorkbenchControlMetrics.redesignLineHeightTableCuePrimary == 24)
+    #expect(WorkbenchControlMetrics.redesignLineHeightTableCueSecondary == 20)
 }
 
 @Test

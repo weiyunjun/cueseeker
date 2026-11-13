@@ -6,14 +6,14 @@ enum SubtitleTableCueStyle: Sendable {
 
     var fontSize: CGFloat {
         switch self {
-        case .primary: 14
-        case .extra: 12
+        case .primary: WorkbenchControlMetrics.redesignFontSizeTable
+        case .extra: WorkbenchControlMetrics.redesignFontSizeCaption
         }
     }
 
     var fontWeight: NSFont.Weight {
         switch self {
-        case .primary: .medium
+        case .primary: .regular
         case .extra: .regular
         }
     }
@@ -32,23 +32,24 @@ enum SubtitleTableCueStyle: Sendable {
 
     @MainActor
     var naturalLineHeight: CGFloat {
-        ceil(font.ascender - font.descender + font.leading)
+        SubtitleTableText.naturalLineHeight(for: font)
     }
 
     @MainActor
     var baselineOffset: CGFloat {
-        max(0, (lineHeight - naturalLineHeight) / 2)
+        SubtitleTableText.centeredBaselineOffset(for: font, lineHeight: lineHeight)
     }
 }
 
 enum SubtitleTableCueGeometry {
-    static let styleRevision = 2
-    static let minimumRowHeight: CGFloat = 40
-    static let rowPaddingY: CGFloat = 8
+    static let styleRevision = 3
+    static let minimumRowHeight = WorkbenchControlMetrics.redesignTableRowMinHeight
+    static let rowPaddingY = WorkbenchControlMetrics.redesignTableRowPaddingY
+    static let cueGroupGap = WorkbenchControlMetrics.redesignTableCueGroupGap
     static let cellLeadingPadding: CGFloat = 12
     static let cellTrailingPadding: CGFloat = 14
-    static let primaryLineHeight: CGFloat = 24
-    static let extraLineHeight: CGFloat = 20
+    static let primaryLineHeight = WorkbenchControlMetrics.redesignLineHeightTableCuePrimary
+    static let extraLineHeight = WorkbenchControlMetrics.redesignLineHeightTableCueSecondary
     static let measurementOverscan = 4
     static let cueUnavailableIconSize: CGFloat = 18
     static let cueUnavailableIconGap: CGFloat = 8
@@ -62,7 +63,7 @@ enum SubtitleTableCueGeometry {
         let extraHeight = extraCueLineCounts.reduce(CGFloat.zero) { height, lineCount in
             height + CGFloat(max(1, lineCount)) * extraLineHeight
         }
-        let itemSpacing = CGFloat(extraCueLineCounts.count) * rowPaddingY
+        let itemSpacing = CGFloat(extraCueLineCounts.count) * cueGroupGap
         return primaryHeight + extraHeight + itemSpacing
     }
 
@@ -115,11 +116,11 @@ struct SubtitleTableRowMeasurement: Equatable {
     var extraCueOffsets: [CGFloat] {
         var nextOffset = cueBlockTopOffset
             + CGFloat(primaryLineCount) * SubtitleTableCueGeometry.primaryLineHeight
-            + (extraCueLineCounts.isEmpty ? 0 : SubtitleTableCueGeometry.rowPaddingY)
+            + (extraCueLineCounts.isEmpty ? 0 : SubtitleTableCueGeometry.cueGroupGap)
         return extraCueLineCounts.map { lineCount in
             defer {
                 nextOffset += CGFloat(lineCount) * SubtitleTableCueGeometry.extraLineHeight
-                    + SubtitleTableCueGeometry.rowPaddingY
+                    + SubtitleTableCueGeometry.cueGroupGap
             }
             return nextOffset
         }
@@ -239,12 +240,6 @@ final class SubtitleTableCueTextMeasurer {
     }
 
     private static func paragraphStyle(for style: SubtitleTableCueStyle) -> NSParagraphStyle {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineBreakMode = .byWordWrapping
-        paragraph.minimumLineHeight = style.lineHeight
-        paragraph.maximumLineHeight = style.lineHeight
-        paragraph.lineSpacing = 0
-        paragraph.paragraphSpacing = 0
-        return paragraph
+        SubtitleTableText.fixedLineParagraphStyle(lineHeight: style.lineHeight)
     }
 }

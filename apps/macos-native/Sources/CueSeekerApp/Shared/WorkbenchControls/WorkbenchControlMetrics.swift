@@ -240,6 +240,12 @@ enum WorkbenchControlMetrics {
     static let redesignAppTopbarToggleGapAfterWindowControls: CGFloat = 20
     /// --padding-header-trigger-x: 12px
     static let redesignPaddingHeaderTriggerX: CGFloat = 12
+    /// --min-height-table-row: 48px
+    static let redesignTableRowMinHeight: CGFloat = 48
+    /// --padding-table-row-y: 12px
+    static let redesignTableRowPaddingY: CGFloat = 12
+    /// --gap-table-cue-group: 4px
+    static let redesignTableCueGroupGap: CGFloat = 4
     /// --radius-table-cell-hover: 8px
     static let redesignTableCellHoverRadius: CGFloat = 8
     /// --padding-table-cell-hover-x: 12px
@@ -250,6 +256,12 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeTable: CGFloat = 14
     /// --font-size-table-header: 14px
     static let redesignFontSizeTableHeader: CGFloat = 14
+    /// --line-height-table-cell: 20px
+    static let redesignLineHeightTableCell: CGFloat = 20
+    /// --line-height-table-cue-primary: 24px
+    static let redesignLineHeightTableCuePrimary: CGFloat = 24
+    /// --line-height-table-cue-secondary: 20px
+    static let redesignLineHeightTableCueSecondary: CGFloat = 20
     /// --font-size-body: 14px
     static let redesignFontSizeBody: CGFloat = 14
     /// --font-size-caption: 12px

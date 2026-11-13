@@ -497,6 +497,10 @@ func subtitleTableViewSkipsDuplicateVisibleRowNotifications() {
 
     scrollView.contentView.scroll(to: CGPoint(x: 0, y: 10))
     coordinator.scrollContentDidChange()
+    #expect(notifiedRanges.count == 1)
+
+    scrollView.contentView.scroll(to: CGPoint(x: 0, y: SubtitleTableCueGeometry.minimumRowHeight))
+    coordinator.scrollContentDidChange()
     #expect(notifiedRanges.count == 2)
 
     scrollView.contentView.scroll(to: CGPoint(x: 0, y: 1_000))
@@ -3459,12 +3463,12 @@ func subtitleTableViewResolvesDocumentedDynamicRowHeightsAndPrimarySlotAlignment
         showsCueGroup: true
     )
 
-    #expect(fixture.coordinator.rowHeightForTesting(0) == 40)
-    #expect(fixture.coordinator.rowHeightForTesting(1) == 64)
-    #expect(fixture.coordinator.rowHeightForTesting(2) == 88)
-    #expect(fixture.coordinator.rowHeightForTesting(3) == 68)
+    #expect(fixture.coordinator.rowHeightForTesting(0) == 48)
+    #expect(fixture.coordinator.rowHeightForTesting(1) == 72)
+    #expect(fixture.coordinator.rowHeightForTesting(2) == 96)
+    #expect(fixture.coordinator.rowHeightForTesting(3) == 72)
     #expect(fixture.coordinator.rowHeightForTesting(4) == 96)
-    #expect(fixture.coordinator.rowHeightForTesting(5) == 92)
+    #expect(fixture.coordinator.rowHeightForTesting(5) == 96)
 
     let checkbox = try #require(fixture.coordinator.checkboxRectForTesting(row: 3))
     let expectedRowCenterY = fixture.coordinator.rowYOffsetForTesting(3)
@@ -3488,8 +3492,8 @@ func subtitleTableViewUsesTallestVisibleColumnAndCentersCheckbox() throws {
         rowProvider: { rows[$0] }
     )
 
-    #expect(fixture.coordinator.rowHeightForTesting(0) == 40)
-    #expect(fixture.coordinator.rowHeightForTesting(1) > 40)
+    #expect(fixture.coordinator.rowHeightForTesting(0) == 48)
+    #expect(fixture.coordinator.rowHeightForTesting(1) == 104)
 
     let checkbox = try #require(fixture.coordinator.checkboxRectForTesting(row: 1))
     let expectedCenter = fixture.coordinator.rowYOffsetForTesting(1)
@@ -3784,7 +3788,7 @@ func subtitleTableViewExtraCueLeftAndRightHitRegionsStillTargetPrimaryRow() thro
         y: fixture.coordinator.rowYOffsetForTesting(0)
             + SubtitleTableCueGeometry.rowPaddingY
             + SubtitleTableCueGeometry.primaryLineHeight
-            + SubtitleTableCueGeometry.rowPaddingY
+            + SubtitleTableCueGeometry.cueGroupGap
             + 10
     )
     let windowPoint = fixture.documentView.convert(extraPoint, to: nil)
@@ -3933,7 +3937,7 @@ func subtitleTableViewCueCellPatchPreservesSamePrimaryIdentityAnchor() throws {
     )
 
     let afterY = try #require(fixture.coordinator.primaryFirstLineScreenYForTesting(row: anchorRow))
-    #expect(fixture.coordinator.rowHeightForTesting(anchorRow) == 88)
+    #expect(fixture.coordinator.rowHeightForTesting(anchorRow) == 96)
     #expect(abs(afterY - beforeY) < 0.5)
 }
 
@@ -3973,7 +3977,7 @@ func subtitleTableViewReloadPreservesSamePrimaryIdentityAnchor() throws {
     )
 
     let afterY = try #require(fixture.coordinator.primaryFirstLineScreenYForTesting(row: anchorRow))
-    #expect(fixture.coordinator.rowHeightForTesting(anchorRow) == 88)
+    #expect(fixture.coordinator.rowHeightForTesting(anchorRow) == 96)
     #expect(abs(afterY - beforeY) < 0.5)
 }
 
@@ -4009,7 +4013,7 @@ func subtitleTableViewAppendKeepsMeasurementsWhileReloadInvalidatesIdentityConte
     )
 
     #expect(fixture.coordinator.measurementComputeCountForTesting() == 1)
-    #expect(fixture.coordinator.rowHeightForTesting(0) == 40)
+    #expect(fixture.coordinator.rowHeightForTesting(0) == 48)
 
     fixture.coordinator.resetMeasurementComputeCountForTesting()
     rows[0] = dynamicTableRow(id: 1, primary: "one\nchanged\ncontent")
@@ -4030,7 +4034,7 @@ func subtitleTableViewAppendKeepsMeasurementsWhileReloadInvalidatesIdentityConte
         onPlay: { _ in }
     )
 
-    #expect(fixture.coordinator.rowHeightForTesting(0) == 88)
+    #expect(fixture.coordinator.rowHeightForTesting(0) == 96)
     #expect(fixture.coordinator.measurementComputeCountForTesting() == rows.count)
 }
 
@@ -5160,4 +5164,192 @@ func subtitleTableHigherLayerCoverageClearsExistingSelectionAndStopsActiveDrag()
     #expect(session.phase == .idle)
     #expect(!fixture.coordinator.pendingTextSelectionHasBegunForTesting())
     #expect(!fixture.coordinator.textSelection.hasSelection)
+}
+
+@MainActor
+@Test
+func subtitleTableRowHeightsSharedCenterAxisAndPlainTextSelectionCopyMatchRefinedSpec() async throws {
+    let closedRows = [
+        // Row 0: Closed Cue Group, all columns 1 line -> 48px, shared horizontal center axis (midY = 24).
+        SubtitleTableRow(
+            id: 1,
+            primaryCueID: 1,
+            dateAdded: "26-07-04 19:00",
+            displayTitle: "Episode One",
+            timeRange: "00:01:02 - 00:01:05",
+            primaryCueText: "Primary single line",
+            cueGroupTexts: ["Extra before", "Primary single line"],
+            primaryGroupIndex: 1
+        ),
+        // Row 1: Closed Cue Group, 2-line Display Title (40px), 1-line primary -> 64px (12 + 40 + 12).
+        SubtitleTableRow(
+            id: 2,
+            primaryCueID: 2,
+            dateAdded: "26-07-04 19:05",
+            displayTitle: "Episode Two Line 1\nEpisode Two Line 2",
+            timeRange: "00:02:10 - 00:02:14",
+            primaryCueText: "Short unavailable primary",
+            cueGroupTexts: ["Short unavailable primary"],
+            primaryGroupIndex: 0,
+            cueState: .unavailable(.cueMissing)
+        ),
+    ]
+    let closedFixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        rowCount: closedRows.count,
+        rowProvider: { closedRows[$0] },
+        showsDateAddedColumn: true,
+        showsTimeColumn: true,
+        showsCueGroup: false
+    )
+
+    // Row 0: 48px height, symmetric 12px padding on primary cue, hover pill preserves 8px vertical padding.
+    #expect(closedFixture.coordinator.rowHeightForTesting(0) == 48)
+    let row0Y = closedFixture.coordinator.rowYOffsetForTesting(0)
+    let row0CueFrag = try #require(closedFixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "cues").first)
+    #expect(abs(row0CueFrag.textBounds.minY - (row0Y + 12)) < 0.5)
+    #expect(abs(row0CueFrag.textBounds.height - 24) < 0.5)
+    for columnID in ["dateAdded", "display", "time"] {
+        let frag = try #require(closedFixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: columnID).first)
+        #expect(abs(frag.textBounds.height - 20) < 0.5)
+        #expect(abs(frag.textBounds.midY - row0CueFrag.textBounds.midY) < 0.5)
+    }
+    let cueHoverRect = try #require(
+        closedFixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues")
+    )
+    #expect(abs(cueHoverRect.height - 40) < 0.5)
+    #expect(abs(cueHoverRect.minY - (row0Y + 4)) < 0.5)
+
+    // Row 1: 64px height, 2-line Display Title symmetric 12px top/bottom padding, vertically centered action/icon.
+    #expect(closedFixture.coordinator.rowHeightForTesting(1) == 64)
+    let row1Y = closedFixture.coordinator.rowYOffsetForTesting(1)
+    let row1DisplayFrag = try #require(
+        closedFixture.coordinator.textFragmentInfoForTesting(row: 1, columnID: "display").first
+    )
+    #expect(abs(row1DisplayFrag.textBounds.minY - (row1Y + 12)) < 0.5)
+    #expect(abs(row1DisplayFrag.textBounds.maxY - (row1Y + 64 - 12)) < 0.5)
+    #expect(abs(row1DisplayFrag.textBounds.height - 40) < 0.5)
+    let row1CueFrag = try #require(
+        closedFixture.coordinator.textFragmentInfoForTesting(row: 1, columnID: "cues").first
+    )
+    #expect(abs(row1CueFrag.textBounds.midY - (row1Y + 32)) < 0.5)
+    let actionFrame = try #require(closedFixture.coordinator.rowActionButtonDocumentFrameForTesting(row: 1))
+    #expect(abs(actionFrame.midY - (row1Y + 32)) < 0.5)
+    let unavailableIcon = try #require(closedFixture.coordinator.cueStateIndicatorRectForTesting(row: 1))
+    #expect(abs(unavailableIcon.midY - row1CueFrag.textBounds.midY) < 0.5)
+
+    // Click hit-testing, double-click word / triple-click full cell, drag selection rects, and copy on 2-line plain text.
+    let secondLinePoint = CGPoint(
+        x: row1DisplayFrag.textBounds.minX + 6,
+        y: row1DisplayFrag.textBounds.minY + 30
+    )
+    let secondLineWindowPoint = closedFixture.documentView.convert(secondLinePoint, to: nil as NSView?)
+    #expect(closedFixture.coordinator.pointerShape(atWindowPoint: secondLineWindowPoint) == .iBeam)
+    #expect(closedFixture.coordinator.handleMouseDown(windowPoint: secondLineWindowPoint, clickCount: 2))
+    #expect(closedFixture.coordinator.handleMouseUp(windowPoint: secondLineWindowPoint))
+    let wordRange = try #require(closedFixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "display"))
+    #expect(("Episode Two Line 1\nEpisode Two Line 2" as NSString).substring(with: wordRange) == "Episode")
+
+    #expect(closedFixture.coordinator.handleMouseDown(windowPoint: secondLineWindowPoint, clickCount: 3))
+    #expect(closedFixture.coordinator.handleMouseUp(windowPoint: secondLineWindowPoint))
+    let selectionRects = closedFixture.coordinator.textSelectionRectsForTesting(row: 1, columnID: "display")
+    #expect(selectionRects.count == 2)
+    #expect(selectionRects.allSatisfy { abs($0.height - 20) < 0.5 })
+    #expect(abs(selectionRects[1].minY - selectionRects[0].maxY) < 0.5)
+
+    let pasteboard = NSPasteboard(name: .init("SubtitleTableRefinedCopy-\(UUID().uuidString)"))
+    defer { pasteboard.clearContents() }
+    closedFixture.coordinator.copyTableTextSelection(to: pasteboard)
+    await closedFixture.coordinator.waitForTextCopyForTesting()
+    #expect(
+        pasteboard.string(forType: .string)?
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\t"))
+            == "\"Episode Two Line 1\nEpisode Two Line 2\""
+    )
+    #expect(pasteboard.string(forType: .html)?.contains("Episode Two Line 1<br>Episode Two Line 2") == true)
+
+    // Soft-wrapped Display Title (without explicit '\n') also uses 20px centered line boxes and symmetric 12px padding.
+    let softWrapRow = [
+        SubtitleTableRow(
+            id: 20,
+            primaryCueID: 20,
+            displayTitle: "Episode Soft Wrap Title Two Lines",
+            primaryCueText: "Short cue",
+            cueGroupTexts: ["Short cue"],
+            primaryGroupIndex: 0
+        ),
+    ]
+    let wrapFixture = makeAttachedVirtualTableCoordinator(
+        width: 720,
+        rowCount: softWrapRow.count,
+        rowProvider: { softWrapRow[$0] },
+        showsCueGroup: false
+    )
+    #expect(wrapFixture.coordinator.rowHeightForTesting(0) == 64)
+    let wrapDisplayFrag = try #require(
+        wrapFixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "display").first
+    )
+    let wrapRowY = wrapFixture.coordinator.rowYOffsetForTesting(0)
+    #expect(abs(wrapDisplayFrag.textBounds.minY - (wrapRowY + 12)) < 0.5)
+    #expect(abs(wrapDisplayFrag.textBounds.height - 40) < 0.5)
+
+    // Time Range & Date Added click-hit & triple-click copy stay aligned inside their 20px line boxes.
+    let timeFrag = try #require(closedFixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "time").first)
+    let timePoint = closedFixture.documentView.convert(
+        CGPoint(x: timeFrag.textBounds.minX + 6, y: timeFrag.textBounds.midY),
+        to: nil as NSView?
+    )
+    #expect(closedFixture.coordinator.handleMouseDown(windowPoint: timePoint, clickCount: 3))
+    #expect(closedFixture.coordinator.handleMouseUp(windowPoint: timePoint))
+    closedFixture.coordinator.copyTableTextSelection(to: pasteboard)
+    await closedFixture.coordinator.waitForTextCopyForTesting()
+    #expect(
+        pasteboard.string(forType: .string)?
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\t"))
+            == "00:01:02 - 00:01:05"
+    )
+
+    let dateFrag = try #require(closedFixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "dateAdded").first)
+    let datePoint = closedFixture.documentView.convert(
+        CGPoint(x: dateFrag.textBounds.minX + 6, y: dateFrag.textBounds.midY),
+        to: nil as NSView?
+    )
+    #expect(closedFixture.coordinator.handleMouseDown(windowPoint: datePoint, clickCount: 3))
+    #expect(closedFixture.coordinator.handleMouseUp(windowPoint: datePoint))
+    closedFixture.coordinator.copyTableTextSelection(to: pasteboard)
+    await closedFixture.coordinator.waitForTextCopyForTesting()
+    #expect(
+        pasteboard.string(forType: .string)?
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\t"))
+            == "26-07-04 19:00"
+    )
+
+    // Open Cue Group acceptance cases: 1-line primary + 1-line extra + 2-line right column -> 72px;
+    // 2-line primary + 1-line extra -> 96px.
+    let openRows = [
+        SubtitleTableRow(
+            id: 3,
+            primaryCueID: 3,
+            displayTitle: "Right Line 1\nRight Line 2",
+            primaryCueText: "Primary one",
+            cueGroupTexts: ["Extra one", "Primary one"],
+            primaryGroupIndex: 1
+        ),
+        SubtitleTableRow(
+            id: 4,
+            primaryCueID: 4,
+            displayTitle: "Single Title",
+            primaryCueText: "Primary one\nPrimary two",
+            cueGroupTexts: ["Extra one", "Primary one\nPrimary two"],
+            primaryGroupIndex: 1
+        ),
+    ]
+    let openFixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        rowCount: openRows.count,
+        rowProvider: { openRows[$0] },
+        showsCueGroup: true
+    )
+    #expect(openFixture.coordinator.rowHeightForTesting(0) == 72)
+    #expect(openFixture.coordinator.rowHeightForTesting(1) == 96)
 }

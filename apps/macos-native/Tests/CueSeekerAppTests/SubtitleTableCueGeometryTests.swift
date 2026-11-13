@@ -8,9 +8,9 @@ func subtitleCueGeometryUsesDocumentedHardLineHeights() {
     let measurer = SubtitleTableCueTextMeasurer()
 
     for (text, expectedLines, expectedHeight) in [
-        ("one", 1, CGFloat(40)),
-        ("one\ntwo", 2, CGFloat(64)),
-        ("one\ntwo\nthree", 3, CGFloat(88)),
+        ("one", 1, CGFloat(48)),
+        ("one\ntwo", 2, CGFloat(72)),
+        ("one\ntwo\nthree", 3, CGFloat(96)),
     ] {
         let row = SubtitleTableRow(id: expectedLines, displayTitle: "", primaryCueText: text, cueGroupTexts: [text], primaryGroupIndex: 0)
         let measurement = measurer.rowMeasurement(row: row, effectiveCuesWidth: 2_000, showsCueGroup: false)
@@ -62,16 +62,16 @@ func subtitleCueGeometryAddsEveryExtraCueVisualLineBelowPrimary() {
         showsCueGroup: true
     )
 
-    #expect(firstMeasurement.height == 68)
-    #expect(firstMeasurement.primaryFirstLineOffset == 8)
+    #expect(firstMeasurement.height == 72)
+    #expect(firstMeasurement.primaryFirstLineOffset == 12)
     #expect(firstMeasurement.extraCueOffsets == [40])
     #expect(secondMeasurement.height == 96)
-    #expect(secondMeasurement.primaryFirstLineOffset == 8)
-    #expect(secondMeasurement.extraCueOffsets == [40, 68])
-    #expect(thirdMeasurement.height == 92)
-    #expect(thirdMeasurement.primaryFirstLineOffset == 8)
+    #expect(secondMeasurement.primaryFirstLineOffset == 12)
+    #expect(secondMeasurement.extraCueOffsets == [40, 64])
+    #expect(thirdMeasurement.height == 96)
+    #expect(thirdMeasurement.primaryFirstLineOffset == 12)
     #expect(thirdMeasurement.extraCueOffsets == [64])
-    #expect(measurer.rowMeasurement(row: onePrimaryTwoExtras, effectiveCuesWidth: 2_000, showsCueGroup: false).height == 40)
+    #expect(measurer.rowMeasurement(row: onePrimaryTwoExtras, effectiveCuesWidth: 2_000, showsCueGroup: false).height == 48)
 }
 
 @MainActor
@@ -105,7 +105,7 @@ func subtitleCueGeometrySpacesCueItemsInsteadOfVisualLines() {
     )
 
     #expect(oneItem.extraCueLineCounts == [2])
-    #expect(oneItem.height == 88)
+    #expect(oneItem.height == 92)
     #expect(twoItems.extraCueLineCounts == [1, 1])
     #expect(twoItems.height == 96)
 }
@@ -122,15 +122,18 @@ func subtitleCueGeometryCentersCueBlockInsideTallestColumnRow() {
         extraCueLineCounts: []
     )
 
-    #expect(measurement.height == 66)
+    #expect(measurement.height == 74)
     #expect(measurement.cueBlockHeight == 24)
-    #expect(measurement.cueBlockTopOffset == 21)
-    #expect(measurement.primaryFirstLineOffset == 21)
+    #expect(measurement.cueBlockTopOffset == 25)
+    #expect(measurement.primaryFirstLineOffset == 25)
 }
 
 @Test
-func subtitleTableHoverVerticalPaddingMatchesRowPadding() {
-    #expect(WorkbenchControlMetrics.redesignTableCellHoverPaddingY == SubtitleTableCueGeometry.rowPaddingY)
+func subtitleTableHoverVerticalPaddingRemainsSeparateFromRowPadding() {
+    #expect(WorkbenchControlMetrics.redesignTableCellHoverPaddingY == 8)
+    #expect(SubtitleTableCueGeometry.rowPaddingY == 12)
+    #expect(SubtitleTableCueGeometry.minimumRowHeight == 48)
+    #expect(SubtitleTableCueGeometry.cueGroupGap == 4)
 }
 
 @MainActor
@@ -152,14 +155,14 @@ func subtitleCueVisualLineCountHasNoSoftWrapLimit() {
     let lines = measurer.visualLineCount(text: text, width: 50, style: .primary)
 
     #expect(lines > 6)
-    #expect(SubtitleTableCueGeometry.rowHeight(primaryLineCount: lines, extraCueLineCounts: []) == 16 + CGFloat(lines) * 24)
+    #expect(SubtitleTableCueGeometry.rowHeight(primaryLineCount: lines, extraCueLineCounts: []) == 24 + CGFloat(lines) * 24)
 }
 
 @MainActor
 @Test
 func subtitleCueTypographyUsesDocumentedPrimaryAndExtraStyles() {
     #expect(SubtitleTableCueStyle.primary.fontSize == 14)
-    #expect(SubtitleTableCueStyle.primary.fontWeight == .medium)
+    #expect(SubtitleTableCueStyle.primary.fontWeight == .regular)
     #expect(SubtitleTableCueStyle.primary.lineHeight == 24)
     #expect(SubtitleTableCueStyle.extra.fontSize == 12)
     #expect(SubtitleTableCueStyle.extra.fontWeight == .regular)

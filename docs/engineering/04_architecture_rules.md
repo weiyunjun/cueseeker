@@ -356,11 +356,15 @@ Rules:
   row identity snapshot, result count, selection, or primary-Cue action targets.
 - Search and Shiori use one native AppKit virtual Cue
   table contract. Every row owns one primary Cue identity and a content-driven
-  height of `16 + 24P + 20S`, where `P` is the primary Cue visual-line count and
-  `S` is the visual-line count of optional additional Cue Group context shown
-  below it. Source line breaks and width-dependent wrapping both contribute to
-  those counts; the table must render all Cue text without truncation or a
-  maximum line count.
+  height of `max(48, H_max + 24)`, where `H_max` is the tallest visible column
+  content block height (`24P + 20S + 4G` for the Cue block with `P` primary
+  visual lines, `S` additional Cue Group visual lines across `G` visible extra
+  cue items, and `20L` for plain-text data columns with `L` visual lines;
+  `--min-height-table-row: 48px`, `--padding-table-row-y: 12px`,
+  `--gap-table-cue-group: 4px`, `--line-height-table-cell: 20px`). Source line
+  breaks and width-dependent wrapping both contribute to those visual-line
+  counts (adding `0` extra cue-item gap within a single cue item), and the
+  table must render all Cue text without truncation or a maximum line count.
 - Dynamic Cue-table measurement is a visible-plus-overscan concern. Width
   reflow and `Show Cue Group` changes should invalidate table-local presentation
   only: measurement and height indexes, visible drawing, document/scrollbar

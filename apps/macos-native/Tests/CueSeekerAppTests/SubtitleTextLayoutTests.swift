@@ -96,7 +96,7 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
     #expect(fontWeight(secondaryFont) == fontWeight(metadataFont))
     #expect(primaryFont.fontDescriptor == NSFont.systemFont(
         ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
-        weight: .medium
+        weight: .regular
     ).fontDescriptor)
     #expect(secondaryFont.fontDescriptor == NSFont.systemFont(
         ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
@@ -113,6 +113,66 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
     #expect(try attributedForeground(header) === WorkbenchRedesignColors.NS.textSecondary)
     #expect(sequence.string == "37")
     #expect(try attributedForeground(sequence) === WorkbenchRedesignColors.NS.textMuted)
+}
+
+@MainActor
+@Test
+func subtitleTableBodyUsesFixedCenteredTwentyPointLineBoxesAndAlignsHitSelection() throws {
+    let layout = SubtitleTextLayout()
+    let expectedLineHeight = WorkbenchControlMetrics.redesignLineHeightTableCell
+    #expect(expectedLineHeight == 20)
+
+    for (role, sample) in [
+        (SubtitleTableTextRole.secondaryContext, "Episode Title 日本語"),
+        (.metadata, "00:01:02 - 00:01:05"),
+    ] {
+        let single = SubtitleTableText.body(sample, role: role)
+        layout.update(attributedString: single, width: 400)
+        #expect(layout.usedHeight == expectedLineHeight)
+        let singleRects = layout.usedRects(at: .zero)
+        #expect(singleRects.count == 1)
+        #expect(singleRects.first?.height == expectedLineHeight)
+
+        let paragraph = try #require(
+            single.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+        )
+        #expect(paragraph.minimumLineHeight == expectedLineHeight)
+        #expect(paragraph.maximumLineHeight == expectedLineHeight)
+        #expect(paragraph.lineSpacing == 0)
+        #expect(paragraph.paragraphSpacing == 0)
+
+        let font = try attributedFont(single)
+        let baselineOffset = try #require(
+            single.attribute(.baselineOffset, at: 0, effectiveRange: nil) as? CGFloat
+        )
+        let expectedOffset = max(0, (expectedLineHeight - ceil(font.ascender - font.descender + font.leading)) / 2)
+        #expect(abs(baselineOffset - expectedOffset) < 0.001)
+    }
+
+    // Two explicit lines stack at 2 * 20 = 40 without trailing or extra lineSpacing.
+    let twoLines = SubtitleTableText.body("First Line\nSecond Line", role: .secondaryContext)
+    layout.update(attributedString: twoLines, width: 400)
+    #expect(layout.usedHeight == 40)
+    let lineRects = layout.usedRects(at: .zero)
+    #expect(lineRects.count == 2)
+    #expect(lineRects[0].minY == 0)
+    #expect(lineRects[0].height == 20)
+    #expect(lineRects[1].minY == 20)
+    #expect(lineRects[1].height == 20)
+
+    // Hit testing and selection rects map accurately onto both 20pt visual line boxes.
+    let firstLineHit = CGPoint(x: lineRects[0].minX + 4, y: lineRects[0].midY)
+    let secondLineHit = CGPoint(x: lineRects[1].minX + 4, y: lineRects[1].midY)
+    #expect(layout.containsText(at: firstLineHit, origin: .zero))
+    #expect(layout.containsText(at: secondLineHit, origin: .zero))
+    let secondOffset = layout.utf16Offset(at: secondLineHit, origin: .zero)
+    #expect(secondOffset >= ("First Line\n" as NSString).length)
+    let selectionRects = layout.selectionRects(
+        forUTF16Range: NSRange(location: 0, length: twoLines.length),
+        at: .zero
+    )
+    #expect(selectionRects.count == 2)
+    #expect(selectionRects.allSatisfy { $0.height == 20 })
 }
 
 private func attributedFont(_ attributed: NSAttributedString) throws -> NSFont {
