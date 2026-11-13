@@ -6,8 +6,10 @@ Status: Active
 
 - The final macOS bundle identifier is `com.cueseeker.app`.
 - The application URL scheme is `cueseeker`.
-- The preferences suite remains `com.cueseeker.shared`; changing the bundle
-  identifier must not split or reset local application state.
+- Preferences suites remain environment-scoped (`com.cueseeker.release` for
+  Release builds and `com.cueseeker.debug` for Debug builds) rather than tied
+  to `CFBundleIdentifier`; changing the bundle identifier must not split or
+  reset local application state.
 
 ## Supported Commands
 
@@ -79,8 +81,8 @@ Session to Search and replaces its query rather than creating another Session.
 ## Optional Direct Playback
 
 Settings exposes a URL Scheme category with a `Play First Search Result`
-toggle. The toggle is persisted in the shared preferences suite and defaults to
-off.
+toggle. The toggle is persisted in the active build environment's preferences
+suite and defaults to off.
 
 When on, URL Scheme search uses the same non-debounced `startSearch` pipeline
 and the same `searchVisiblePage` request with the standard 100-row first-page

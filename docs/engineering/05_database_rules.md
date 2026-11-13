@@ -28,13 +28,13 @@ The final database file location must be documented before production user data 
 
 Rules:
 
-- The database must live in an app-owned local storage location.
+- The database must live in an app-owned local storage location isolated by build configuration:
+  - Release builds store `CueSeeker.sqlite` (along with `Covers/` and `WebDAVSubtitleCache/`) under `~/Library/Application Support/CueSeeker/release/`.
+  - Debug builds store `CueSeeker.sqlite` (along with `Covers/` and `WebDAVSubtitleCache/`) under `~/Library/Application Support/CueSeeker/debug/`.
 - The database must not be stored inside the source repository.
 - The database must not be stored inside user-selected subtitle folders.
-- The app must have a clear distinction between production database files and test fixture database files.
+- The app must have a clear distinction between production/debug database files and automated test database files; unit tests use per-process temporary directories cleaned up at process exit and must never read or write `release/` or `debug/`.
 - If sandboxing is enabled, the location must be compatible with macOS sandbox container rules.
-
-The exact path may be finalized with the native app project setup.
 
 ## 3.1 SQLite Connection And Locking
 

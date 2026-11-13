@@ -1,4 +1,5 @@
 import CoreText
+import CueSeekerCore
 import Foundation
 
 struct ASSFontAliasRecord: Sendable {
@@ -128,14 +129,21 @@ enum ASSFontAliasEnvironmentCache {
         try data.write(to: cacheURL, options: .atomic)
     }
 
-    static func defaultCacheURL() -> URL {
-        let baseDirectory = FileManager.default.urls(
-            for: .cachesDirectory,
-            in: .userDomainMask
-        ).first ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches")
+    static func defaultCacheURL(
+        for configuration: AppBuildConfiguration = .current,
+        baseCachesDirectoryURL: URL? = nil
+    ) -> URL {
+        let environmentCachesDirectory: URL
+        if ApplicationInfo.isRunningInUnitTestProcess && baseCachesDirectoryURL == nil {
+            environmentCachesDirectory = ApplicationInfo.unitTestCachesDirectoryURL
+        } else {
+            environmentCachesDirectory = ApplicationInfo.cachesDirectoryURL(
+                for: configuration,
+                baseCachesDirectoryURL: baseCachesDirectoryURL
+            )
+        }
 
-        return baseDirectory
-            .appendingPathComponent("CueSeeker", isDirectory: true)
+        return environmentCachesDirectory
             .appendingPathComponent("ASSFontAliasResolver", isDirectory: true)
             .appendingPathComponent("font-environment-v\(algorithmVersion).json")
     }

@@ -437,6 +437,30 @@ func assPlaybackFontIntentProviderLoadsIndexedFontNames() throws {
 }
 
 @Test
+func assFontAliasEnvironmentCacheDefaultURLSeparatesDebugReleaseAndUnitTests() {
+    let fakeCaches = URL(fileURLWithPath: "/Users/testuser/Library/Caches", isDirectory: true)
+    let version = ASSFontAliasEnvironmentCache.algorithmVersion
+    #expect(
+        ASSFontAliasEnvironmentCache.defaultCacheURL(
+            for: .debug,
+            baseCachesDirectoryURL: fakeCaches
+        ).path == "/Users/testuser/Library/Caches/CueSeeker/debug/ASSFontAliasResolver/font-environment-v\(version).json"
+    )
+    #expect(
+        ASSFontAliasEnvironmentCache.defaultCacheURL(
+            for: .release,
+            baseCachesDirectoryURL: fakeCaches
+        ).path == "/Users/testuser/Library/Caches/CueSeeker/release/ASSFontAliasResolver/font-environment-v\(version).json"
+    )
+    #expect(
+        ASSFontAliasEnvironmentCache.defaultCacheURL()
+            .standardizedFileURL
+            .path
+            .hasPrefix(ApplicationInfo.unitTestCachesDirectoryURL.standardizedFileURL.path)
+    )
+}
+
+@Test
 func assFontAliasEnvironmentCacheReusesOnlyMatchingFontSnapshot() throws {
     let directory = try temporaryPlaybackTestDirectory()
     defer {

@@ -185,9 +185,9 @@ func overviewActionBarLayoutWrapsStatusBeforeShrinkingSearchField() {
 @Test
 func libraryAndExcerptOverviewStoresFilterSortPersistAndFreezeUntilReappearance() throws {
     let suiteName = "CueSeekerTests.OverviewSearchAndSort.\(UUID().uuidString)"
-    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    let defaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     defer {
-        defaults.removePersistentDomain(forName: suiteName)
+        defaults.removePersistentDomainAndPlist(forName: suiteName)
     }
 
     let libraryStore = LibraryStore(

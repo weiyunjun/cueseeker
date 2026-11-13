@@ -3,11 +3,6 @@ import Security
 import CueSeekerCore
 
 enum ApplicationPersistence {
-    private static let legacyDomainNames = [
-        ApplicationInfo.bundleIdentifier,
-        ApplicationInfo.name
-    ]
-    private static let migrationKey = "sharedPersistenceDomainMigrationCompleted"
     private static let obsoleteFeaturePreferenceKeys = [
         "aiChunkingEnabled",
         "aiChunkingTranslationLanguage",
@@ -18,39 +13,21 @@ enum ApplicationPersistence {
         "hasCompletedFileOnboarding"
     ]
 
-    static func sharedUserDefaults() -> UserDefaults {
+    static func sharedUserDefaults(
+        for configuration: AppBuildConfiguration = .current
+    ) -> UserDefaults {
         if ApplicationInfo.isRunningInUnitTestProcess {
-            return ApplicationInfo.defaultSharedUserDefaults()
+            return ApplicationInfo.defaultSharedUserDefaults(for: configuration)
         }
         guard let sharedDefaults = UserDefaults(
-            suiteName: ApplicationInfo.preferencesSuiteIdentifier
+            suiteName: ApplicationInfo.preferencesSuiteIdentifier(for: configuration)
         ) else {
             removeObsoleteFeatureState(from: .standard)
             return .standard
         }
 
-        let legacyDomains = legacyDomainNames.map {
-            UserDefaults.standard.persistentDomain(forName: $0) ?? [:]
-        }
-        migrateLegacyDefaultsIfNeeded(legacyDomains, into: sharedDefaults)
         removeObsoleteFeatureState(from: sharedDefaults)
         return sharedDefaults
-    }
-
-    static func migrateLegacyDefaultsIfNeeded(
-        _ legacyDomains: [[String: Any]],
-        into sharedDefaults: UserDefaults
-    ) {
-        guard !sharedDefaults.bool(forKey: migrationKey) else {
-            return
-        }
-
-        for legacyValues in legacyDomains {
-            for (key, value) in legacyValues where sharedDefaults.object(forKey: key) == nil {
-                sharedDefaults.set(value, forKey: key)
-            }
-        }
-        sharedDefaults.set(true, forKey: migrationKey)
     }
 
     static func removeObsoleteFeatureState(

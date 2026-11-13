@@ -6,6 +6,15 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Release and Debug builds now keep separate local databases, covers, remote
+  subtitle caches, system font-environment caches, and preferences suites
+  (`release/` vs `debug/` under `Application Support/CueSeeker` and
+  `Caches/CueSeeker`, and `com.cueseeker.release` vs `com.cueseeker.debug`),
+  and obsolete legacy preference domain auto-merging has been removed. Each
+  build environment uses its own instance lock file so packaged Release and
+  command-line Debug builds can run concurrently while duplicate launches
+  within the same environment activate the running window and exit.
+
 - A video with several subtitles can now switch between them on the playback
   page: the More menu lists Audio Track, Subtitle, Default Audio Track and
   Default Subtitle, naming each subtitle by its last two extensions at most.

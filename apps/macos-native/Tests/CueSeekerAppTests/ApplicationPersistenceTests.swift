@@ -1,39 +1,93 @@
+import CueSeekerCore
 import Foundation
 import Testing
 @testable import CueSeekerApp
 
 @Test
-func sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues() {
-    let suiteName = "ApplicationPersistenceTests-\(UUID().uuidString)"
-    let sharedDefaults = UserDefaults.temporary(suiteName: suiteName)!
+func defaultDatabaseAndCoverDirectoriesSeparateDebugReleaseAndUnitTests() {
+    let fakeAppSupport = URL(
+        fileURLWithPath: "/Users/testuser/Library/Application Support",
+        isDirectory: true
+    )
+    let debugDatabaseURL = AppCoordinator.defaultDatabaseURL(
+        for: .debug,
+        baseApplicationSupportDirectoryURL: fakeAppSupport
+    )
+    let releaseDatabaseURL = AppCoordinator.defaultDatabaseURL(
+        for: .release,
+        baseApplicationSupportDirectoryURL: fakeAppSupport
+    )
+
+    #expect(debugDatabaseURL.path == "/Users/testuser/Library/Application Support/CueSeeker/debug/CueSeeker.sqlite")
+    #expect(
+        debugDatabaseURL.deletingLastPathComponent().appendingPathComponent("Covers", isDirectory: true).path
+            == "/Users/testuser/Library/Application Support/CueSeeker/debug/Covers"
+    )
+    #expect(releaseDatabaseURL.path == "/Users/testuser/Library/Application Support/CueSeeker/release/CueSeeker.sqlite")
+    #expect(
+        releaseDatabaseURL.deletingLastPathComponent().appendingPathComponent("Covers", isDirectory: true).path
+            == "/Users/testuser/Library/Application Support/CueSeeker/release/Covers"
+    )
+
+    let unitTestDatabaseURL = AppCoordinator.defaultDatabaseURL()
+    #expect(
+        unitTestDatabaseURL.standardizedFileURL.path.hasPrefix(
+            ApplicationInfo.unitTestApplicationSupportDirectoryURL.standardizedFileURL.path
+        )
+    )
+}
+
+@Test
+func singleInstanceGuardAllowsParallelEnvironmentsAndBlocksDuplicateSameEnvironment() throws {
+    let tempRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("SingleInstanceGuardTests-\(UUID().uuidString)", isDirectory: true)
     defer {
-        sharedDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        try? FileManager.default.removeItem(at: tempRoot)
     }
 
-    sharedDefaults.set("shared", forKey: "existing")
-    ApplicationPersistence.migrateLegacyDefaultsIfNeeded(
-        [
-            [
-                "existing": "packaged",
-                "workbenchPanelMode": "excerpt"
-            ],
-            [
-                "existing": "debug",
-                "selectedFolderPaths": ["/tmp/Library"]
-            ]
-        ],
-        into: sharedDefaults
+    let releaseDirectory = ApplicationInfo.applicationSupportDirectoryURL(
+        for: .release,
+        baseApplicationSupportDirectoryURL: tempRoot
+    )
+    let debugDirectory = ApplicationInfo.applicationSupportDirectoryURL(
+        for: .debug,
+        baseApplicationSupportDirectoryURL: tempRoot
     )
 
-    #expect(sharedDefaults.string(forKey: "existing") == "shared")
-    #expect(sharedDefaults.string(forKey: "workbenchPanelMode") == "excerpt")
-    #expect(sharedDefaults.stringArray(forKey: "selectedFolderPaths") == ["/tmp/Library"])
+    let firstRelease = SingleInstanceGuard.acquireLock(in: releaseDirectory, currentPID: 1001)
+    guard case .acquired(let firstReleaseHandle) = firstRelease else {
+        Issue.record("Expected initial release lock acquisition to succeed")
+        return
+    }
+    #expect(firstReleaseHandle != nil)
 
-    ApplicationPersistence.migrateLegacyDefaultsIfNeeded(
-        [["selectedFolderPaths": ["/tmp/Changed"]]],
-        into: sharedDefaults
-    )
-    #expect(sharedDefaults.stringArray(forKey: "selectedFolderPaths") == ["/tmp/Library"])
+    let firstDebug = SingleInstanceGuard.acquireLock(in: debugDirectory, currentPID: 2002)
+    guard case .acquired(let firstDebugHandle) = firstDebug else {
+        Issue.record("Expected debug lock acquisition to coexist with release lock")
+        return
+    }
+    #expect(firstDebugHandle != nil)
+    defer { firstDebugHandle?.release() }
+
+    let duplicateRelease = SingleInstanceGuard.acquireLock(in: releaseDirectory, currentPID: 1003)
+    switch duplicateRelease {
+    case .alreadyRunning(let holderPID):
+        #expect(holderPID == 1001)
+    case .acquired(let unexpectedHandle):
+        unexpectedHandle?.release()
+        Issue.record("Expected second release lock acquisition to report alreadyRunning")
+    }
+
+    firstReleaseHandle?.release()
+
+    let reacquiredRelease = SingleInstanceGuard.acquireLock(in: releaseDirectory, currentPID: 1004)
+    switch reacquiredRelease {
+    case .acquired(let reacquiredHandle):
+        #expect(reacquiredHandle != nil)
+        reacquiredHandle?.release()
+    case .alreadyRunning(let holderPID):
+        Issue.record("Expected release lock to succeed after previous handle released, got PID \(String(describing: holderPID))")
+    }
 }
 
 @Test

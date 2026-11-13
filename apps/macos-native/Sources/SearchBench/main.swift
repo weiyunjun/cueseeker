@@ -122,13 +122,26 @@ func median(_ values: [Double]) -> Double {
     return sorted[sorted.count / 2]
 }
 
-func resolveSelectedFolders() -> [URL]? {
-    guard let sharedDefaults = UserDefaults(suiteName: "com.cueseeker.shared") else {
+func resolveSelectedFolders(for dbPath: URL) -> [URL]? {
+    let parentDirectoryName = dbPath.standardizedFileURL
+        .deletingLastPathComponent()
+        .lastPathComponent
+    let configuration: AppBuildConfiguration
+    switch parentDirectoryName {
+    case AppBuildConfiguration.debug.rawValue:
+        configuration = .debug
+    case AppBuildConfiguration.release.rawValue:
+        configuration = .release
+    default:
+        configuration = .current
+    }
+    let suiteName = ApplicationInfo.preferencesSuiteIdentifier(for: configuration)
+    guard let sharedDefaults = UserDefaults(suiteName: suiteName) else {
         return nil
     }
     let paths = sharedDefaults.stringArray(forKey: "selectedFolderPaths") ?? []
     guard !paths.isEmpty else { return nil }
-    return paths.map { URL(fileURLWithPath: $0).standardizedFileURL }
+    return paths.map { URL.fromMediaPath($0) }
 }
 
 func makeUncachedDatabaseSnapshot(from sourceURL: URL) throws -> URL {
@@ -322,7 +335,7 @@ let languageFilter = CommandLine.arguments
 if isHeadlessCold {
     try DatabaseBootstrap.prepare(at: dbPath)
     let standardQueries = ["大丈夫", "今日", "の"]
-    let folders = resolveSelectedFolders()
+    let folders = resolveSelectedFolders(for: dbPath)
     print("== SearchBench Headless Full Chain True-Cold Benchmark ==")
     print("DB:               \(dbPath.path)")
     print("Selected folders: \(folders?.map(\.path).joined(separator: ", ") ?? "all (no folder scope)")")

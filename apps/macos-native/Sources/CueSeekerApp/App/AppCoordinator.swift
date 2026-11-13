@@ -1206,15 +1206,20 @@ final class AppCoordinator: ObservableObject {
             || result.clearedCueChangeNotices
     }
 
-    static func defaultDatabaseURL() -> URL {
-        let baseDirectory = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first ?? FileManager.default.homeDirectoryForCurrentUser
-
-        return baseDirectory
-            .appendingPathComponent(ApplicationInfo.name, isDirectory: true)
-            .appendingPathComponent("CueSeeker.sqlite")
+    nonisolated static func defaultDatabaseURL(
+        for configuration: AppBuildConfiguration = .current,
+        baseApplicationSupportDirectoryURL: URL? = nil
+    ) -> URL {
+        if ApplicationInfo.isRunningInUnitTestProcess && baseApplicationSupportDirectoryURL == nil {
+            return ApplicationInfo.unitTestApplicationSupportDirectoryURL
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+                .appendingPathComponent("CueSeeker.sqlite")
+        }
+        return ApplicationInfo.applicationSupportDirectoryURL(
+            for: configuration,
+            baseApplicationSupportDirectoryURL: baseApplicationSupportDirectoryURL
+        )
+        .appendingPathComponent("CueSeeker.sqlite")
     }
 
     static func prepareDatabaseDirectory(for databaseURL: URL) throws {

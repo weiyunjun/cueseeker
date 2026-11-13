@@ -544,8 +544,8 @@ struct TaskCardMenuTests {
         )
 
         let suiteName = "CueSeekerTaskCardSelectionTests-\(UUID().uuidString)"
-        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
         let localization = AppLocalizationStore(
             language: .english,
             userDefaults: userDefaults,

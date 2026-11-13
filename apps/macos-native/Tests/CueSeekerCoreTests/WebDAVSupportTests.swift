@@ -370,44 +370,56 @@ struct WebDAVSupportTests {
     }
 
     @Test
-    func configurationStoreMigratesLegacyDomainsOnceIntoSharedDefaults() throws {
-        let suiteName = "CueSeeker.WebDAVMigrationTests.\(UUID().uuidString)"
-        let sharedDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
-        defer { sharedDefaults.removePersistentDomainAndPlist(forName: suiteName) }
+    func subtitleCacheAndConfigurationStoreIsolateDebugReleaseAndUnitTests() throws {
+        let fakeAppSupport = URL(
+            fileURLWithPath: "/Users/testuser/Library/Application Support",
+            isDirectory: true
+        )
+        #expect(
+            WebDAVSubtitleCache.defaultCacheDirectoryURL(
+                for: .debug,
+                baseApplicationSupportDirectoryURL: fakeAppSupport
+            ).path == "/Users/testuser/Library/Application Support/CueSeeker/debug/WebDAVSubtitleCache"
+        )
+        #expect(
+            WebDAVSubtitleCache.defaultCacheDirectoryURL(
+                for: .release,
+                baseApplicationSupportDirectoryURL: fakeAppSupport
+            ).path == "/Users/testuser/Library/Application Support/CueSeeker/release/WebDAVSubtitleCache"
+        )
+        #expect(
+            WebDAVSubtitleCache.defaultCacheDirectoryURL().standardizedFileURL
+                == ApplicationInfo.unitTestSubtitleCacheDirectoryURL.standardizedFileURL
+        )
 
-        let legacyConfig = WebDAVRootConfig(
+        let debugSuite = "CueSeeker.WebDAVDebugSuite.\(UUID().uuidString)"
+        let releaseSuite = "CueSeeker.WebDAVReleaseSuite.\(UUID().uuidString)"
+        let debugDefaults = try #require(UserDefaults.temporary(suiteName: debugSuite))
+        let releaseDefaults = try #require(UserDefaults.temporary(suiteName: releaseSuite))
+        defer {
+            debugDefaults.removePersistentDomainAndPlist(forName: debugSuite)
+            releaseDefaults.removePersistentDomainAndPlist(forName: releaseSuite)
+        }
+
+        let debugStore = WebDAVConfigurationStore(userDefaults: debugDefaults)
+        let releaseStore = WebDAVConfigurationStore(userDefaults: releaseDefaults)
+        let debugConfig = WebDAVRootConfig(
             rootPath: "http://192.168.1.173:5244/dav/baidu/NieR",
             davRootPath: "http://192.168.1.173:5244/dav/baidu/NieR",
-            name: "NieR Baidu",
+            name: "NieR Debug",
             address: "http://192.168.1.173:5244/dav/baidu/NieR",
             username: "alist",
             password: "secret"
         )
-        let legacyData = try JSONEncoder().encode([legacyConfig])
-        let legacyDomains: [[String: Any]] = [
-            ["webdavRootConfigs": legacyData]
-        ]
+        debugStore.save(debugConfig)
 
-        let firstStore = WebDAVConfigurationStore(
-            userDefaults: sharedDefaults,
-            legacyDomains: legacyDomains
-        )
-        let migrated = try #require(
-            firstStore.matchingConfig(
+        #expect(
+            debugStore.matchingConfig(
                 forMediaPath: "http://192.168.1.173:5244/dav/baidu/NieR/Episode 01.mkv"
-            )
-        )
-        #expect(migrated.name == "NieR Baidu")
-        #expect(migrated.basicAuthorizationValue == legacyConfig.basicAuthorizationValue)
-
-        // Removing the config in the shared store should not resurrect it from legacy domains on next init
-        firstStore.remove(forRootPath: legacyConfig.rootPath)
-        let secondStore = WebDAVConfigurationStore(
-            userDefaults: sharedDefaults,
-            legacyDomains: legacyDomains
+            )?.name == "NieR Debug"
         )
         #expect(
-            secondStore.matchingConfig(
+            releaseStore.matchingConfig(
                 forMediaPath: "http://192.168.1.173:5244/dav/baidu/NieR/Episode 01.mkv"
             ) == nil
         )

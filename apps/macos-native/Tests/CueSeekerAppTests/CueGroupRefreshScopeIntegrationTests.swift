@@ -842,9 +842,9 @@ struct CueGroupRefreshScopeIntegrationTests {
     @Test
     func openingSearchResultUnderLargeOrderedCueListResolvesPlaylistAndNavigationOnDemand() throws {
         let defaultsSuite = "CueSeekerAppTests.LargeSearchPlayback-\(UUID().uuidString)"
-        let userDefaults = try #require(UserDefaults(suiteName: defaultsSuite))
+        let userDefaults = try #require(UserDefaults.temporary(suiteName: defaultsSuite))
         defer {
-            userDefaults.removePersistentDomain(forName: defaultsSuite)
+            userDefaults.removePersistentDomainAndPlist(forName: defaultsSuite)
         }
         let tempRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("CueSeekerLargeSearchPlayback-\(UUID().uuidString)")
@@ -932,9 +932,9 @@ struct CueGroupRefreshScopeIntegrationTests {
     @Test
     func multiEpisodePlaybackMetadataCacheRetainsVisitedVideosAndPersistentCueContentDatabase() throws {
         let defaultsSuite = "CueSeekerAppTests.MultiEpisodeMetadataCache-\(UUID().uuidString)"
-        let userDefaults = try #require(UserDefaults(suiteName: defaultsSuite))
+        let userDefaults = try #require(UserDefaults.temporary(suiteName: defaultsSuite))
         defer {
-            userDefaults.removePersistentDomain(forName: defaultsSuite)
+            userDefaults.removePersistentDomainAndPlist(forName: defaultsSuite)
         }
         let tempRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("CueSeekerMultiEpisodeCache-\(UUID().uuidString)")

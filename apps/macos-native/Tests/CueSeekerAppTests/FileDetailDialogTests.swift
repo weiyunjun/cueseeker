@@ -618,12 +618,12 @@ struct FileDetailDialogTests {
     @Test
     func openingFileDetailDialogIsolatesLibraryStoreAndSynchronouslyFreezesDialogLayer() throws {
         let suiteName = "CueSeekerFileDetailIsolationTests.\(UUID().uuidString)"
-        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
         let tempRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("CueSeekerFileDetailIsolation-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
         defer {
-            userDefaults.removePersistentDomain(forName: suiteName)
+            userDefaults.removePersistentDomainAndPlist(forName: suiteName)
             try? FileManager.default.removeItem(at: tempRoot)
         }
 

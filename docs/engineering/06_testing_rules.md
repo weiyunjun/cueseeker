@@ -228,7 +228,7 @@ All search benchmarks must run in headless mode without launching the App window
    - **Pure Backend 1st Screen Avg** / **Pure Backend Full Avg** (excluding debounce, decomposed into **DB Query Avg** and **MainActor Commit Avg**).
 4. **Standard Command**:
    ```bash
-   swift run --package-path apps/macos-native -c release SearchBench "$HOME/Library/Application Support/CueSeeker/CueSeeker.sqlite" --headless-cold
+   swift run --package-path apps/macos-native -c release SearchBench "$HOME/Library/Application Support/CueSeeker/release/CueSeeker.sqlite" --headless-cold
    ```
 
 #### Baseline (1.0 GB Database, Schema 55, 76,817 `の` Cues, Library Scope: `/Volumes/Seagate/影视`)

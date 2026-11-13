@@ -22,7 +22,7 @@ class CueSeekerWindow: NSWindow {
     private var modalTrackingEventMonitor: Any?
 
     static var activeKeyWindow: NSWindow? {
-        NSApp.keyWindow ?? NSApp.mainWindow
+        NSApp?.keyWindow ?? NSApp?.mainWindow
     }
 
     var shouldPreserveCurrentFocusOnBecomeKey: Bool {

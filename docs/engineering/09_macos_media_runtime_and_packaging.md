@@ -133,10 +133,19 @@ CueSeeker.app/
 ```
 
 The final bundle identifier is `com.cueseeker.app`. Application data remains
-independent of this identifier: preferences use `com.cueseeker.shared`, and the
-database remains under `Application Support/CueSeeker`. A future bundle
-identifier change requires the release-rule review described in
-`docs/engineering/07_release_rules.md`.
+independent of this identifier and is symmetrically isolated by build
+configuration: Release builds use preferences suite `com.cueseeker.release`,
+`~/Library/Application Support/CueSeeker/release/`, and
+`~/Library/Caches/CueSeeker/release/`; Debug builds use preferences suite
+`com.cueseeker.debug`, `~/Library/Application Support/CueSeeker/debug/`, and
+`~/Library/Caches/CueSeeker/debug/`. Logs remain under
+`~/Library/Application Support/CueSeeker/logs/release/` and
+`~/Library/Application Support/CueSeeker/logs/debug/`. Each build environment
+maintains its own exclusive file lock (`CueSeeker.instance.lock`) inside its
+Application Support subdirectory so Release and Debug can run concurrently
+while duplicate launches within the same environment activate the running
+window and exit. A future bundle identifier change requires the release-rule
+review described in `docs/engineering/07_release_rules.md`.
 
 The packaging workflow must support ad-hoc signing for local validation. A
 future distribution identity may be supplied without rebuilding the media

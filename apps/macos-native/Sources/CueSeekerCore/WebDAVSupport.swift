@@ -410,31 +410,17 @@ public final class WebDAVConfigurationStore: @unchecked Sendable {
     public static let shared = WebDAVConfigurationStore()
 
     private static let defaultsKey = "webdavRootConfigs"
-    private static let legacyMigrationKey = "webdavRootConfigsLegacyMigrationCompleted"
-    private static let legacyDomainNames = [
-        ApplicationInfo.bundleIdentifier,
-        ApplicationInfo.name
-    ]
     private let lock = NSLock()
     private let userDefaults: UserDefaults
     private var configsByRootPath: [String: WebDAVRootConfig]
 
     public init(
-        userDefaults: UserDefaults? = nil,
-        legacyDomains: [[String: Any]]? = nil
+        userDefaults: UserDefaults? = nil
     ) {
         let resolvedDefaults = userDefaults ?? ApplicationInfo.defaultSharedUserDefaults()
         self.userDefaults = resolvedDefaults
-        let resolvedLegacyDomains = legacyDomains ?? (
-            (userDefaults == nil && !ApplicationInfo.isRunningInUnitTestProcess)
-                ? Self.legacyDomainNames.map {
-                    UserDefaults.standard.persistentDomain(forName: $0) ?? [:]
-                }
-                : []
-        )
-        self.configsByRootPath = Self.loadConfigs(
-            from: resolvedDefaults,
-            legacyDomains: resolvedLegacyDomains
+        self.configsByRootPath = Self.decodeConfigs(
+            from: resolvedDefaults.data(forKey: Self.defaultsKey)
         )
     }
 
@@ -559,34 +545,6 @@ public final class WebDAVConfigurationStore: @unchecked Sendable {
         userDefaults.set(data, forKey: Self.defaultsKey)
     }
 
-    private static func loadConfigs(
-        from userDefaults: UserDefaults,
-        legacyDomains: [[String: Any]] = []
-    ) -> [String: WebDAVRootConfig] {
-        var result = decodeConfigs(from: userDefaults.data(forKey: defaultsKey))
-
-        if !legacyDomains.isEmpty && !userDefaults.bool(forKey: legacyMigrationKey) {
-            var didMergeLegacy = false
-            for domain in legacyDomains {
-                guard let legacyData = domain[defaultsKey] as? Data else {
-                    continue
-                }
-                let legacyConfigs = decodeConfigs(from: legacyData)
-                for (key, config) in legacyConfigs where result[key] == nil {
-                    result[key] = config
-                    didMergeLegacy = true
-                }
-            }
-            if didMergeLegacy,
-               let encoded = try? JSONEncoder().encode(Array(result.values)) {
-                userDefaults.set(encoded, forKey: defaultsKey)
-            }
-            userDefaults.set(true, forKey: legacyMigrationKey)
-        }
-
-        return result
-    }
-
     private static func decodeConfigs(from data: Data?) -> [String: WebDAVRootConfig] {
         guard let data,
               let decoded = try? JSONDecoder().decode([WebDAVRootConfig].self, from: data) else {
@@ -618,15 +576,20 @@ public final class WebDAVSubtitleCache: @unchecked Sendable {
         self.cacheDirectoryURL = cacheDirectoryURL ?? Self.defaultCacheDirectoryURL(fileManager: fileManager)
     }
 
-    private static func defaultCacheDirectoryURL(fileManager: FileManager) -> URL {
-        if ApplicationInfo.isRunningInUnitTestProcess {
+    public static func defaultCacheDirectoryURL(
+        for configuration: AppBuildConfiguration = .current,
+        baseApplicationSupportDirectoryURL: URL? = nil,
+        fileManager: FileManager = .default
+    ) -> URL {
+        if ApplicationInfo.isRunningInUnitTestProcess && baseApplicationSupportDirectoryURL == nil {
             return ApplicationInfo.unitTestSubtitleCacheDirectoryURL
         }
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSTemporaryDirectory())
-        return appSupport
-            .appendingPathComponent("CueSeeker", isDirectory: true)
-            .appendingPathComponent("WebDAVSubtitleCache", isDirectory: true)
+        return ApplicationInfo.applicationSupportDirectoryURL(
+            for: configuration,
+            baseApplicationSupportDirectoryURL: baseApplicationSupportDirectoryURL,
+            fileManager: fileManager
+        )
+        .appendingPathComponent("WebDAVSubtitleCache", isDirectory: true)
     }
 
     public func cachedFileURL(for remoteURL: URL) -> URL {
