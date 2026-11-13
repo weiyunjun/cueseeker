@@ -389,12 +389,10 @@ extension SubtitleTableView.Coordinator {
     }
 
     func cueTextColors(for model: SubtitleTableRow) -> (primary: NSColor, extra: NSColor) {
-        (
-            primary: model.cueState.isUnavailable
-                ? WorkbenchRedesignColors.NS.textMuted
-                : WorkbenchRedesignColors.NS.textSecondary,
-            extra: WorkbenchRedesignColors.NS.textSecondary
-        )
+        let color = model.cueState.isUnavailable
+            ? WorkbenchRedesignColors.NS.textMuted
+            : WorkbenchRedesignColors.NS.textSecondary
+        return (primary: color, extra: color)
     }
 
     func isCuesCellHovered(row: Int, isUnavailable: Bool) -> Bool {

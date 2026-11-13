@@ -5371,7 +5371,7 @@ func subtitleTablePrimaryCueUsesSecondaryTextColorWithMatchingHoverUnderlineAndP
             primaryCueID: 2,
             displayTitle: "Episode 2",
             primaryCueText: "Unavailable primary cue",
-            cueGroupTexts: ["Unavailable primary cue"],
+            cueGroupTexts: ["Unavailable primary cue", "Unavailable extra cue"],
             primaryGroupIndex: 0,
             cueState: .unavailable(.videoMissing)
         ),
@@ -5441,9 +5441,14 @@ func subtitleTablePrimaryCueUsesSecondaryTextColorWithMatchingHoverUnderlineAndP
         #expect(!fixture.coordinator.isCellHoveredForTesting(row: 1, columnID: "cues"))
 
         let unavailableStyles = fixture.coordinator.cueTextVisualStylesForTesting(row: 1)
-        #expect(unavailableStyles.count == 1)
+        #expect(unavailableStyles.count == expectedFragmentCount)
         #expect(unavailableStyles[0].text == "Unavailable primary cue")
-        #expect(unavailableStyles[0].foregroundColor === WorkbenchRedesignColors.NS.textMuted)
-        #expect(unavailableStyles[0].hoverUnderlineColor == nil)
+        if showsCueGroup {
+            #expect(unavailableStyles[1].text == "Unavailable extra cue")
+        }
+        for style in unavailableStyles {
+            #expect(style.foregroundColor === WorkbenchRedesignColors.NS.textMuted)
+            #expect(style.hoverUnderlineColor == nil)
+        }
     }
 }
