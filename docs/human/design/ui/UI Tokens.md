@@ -587,8 +587,14 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - `--duration-dialog-motion`: `0.27s`
 - `--duration-dialog-fade-in`: `0.12s`
+- `--duration-dialog-fade-out`: `0.22s`
+- `--duration-dialog-reduce-motion`: `0.18s`
 - `--distance-dialog-motion`: `34px`
-- `--easing-dialog-motion`: `cubic-bezier(0.4, 0.2, 0.58, 1)`
+- `--easing-dialog-enter`: `cubic-bezier(0.4, 0.2, 0.58, 1)`
+- `--easing-dialog-exit`: `cubic-bezier(0.42, 0, 0.58, 1)`
+- `--easing-dialog-fade-in`: `cubic-bezier(0, 0, 0.58, 1)`
+- `--easing-dialog-fade-out`: `cubic-bezier(0.42, 0, 0.58, 1)`
+- `--easing-dialog-scrim`: `cubic-bezier(0.42, 0, 0.58, 1)`
 
 ### Spinner Motion
 

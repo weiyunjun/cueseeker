@@ -579,7 +579,7 @@
 
 - Scrim
   - Color：`--color-dialog-scrim`
-  - 覆盖整个窗口，红绿灯除外；系统文件选择框与系统警告框打开期间改由系统压暗
+  - 覆盖整个窗口，红绿灯除外；系统文件选择框与系统警告框打开期间退让为系统压暗，并在开始收起时同步恢复淡入，保持背景压暗连续
 - Container
   - Placement：窗口正中
   - Background：`--color-bg-dialog`
@@ -604,9 +604,11 @@
 
 ##### Motion
 
-- 打开：历时 `--duration-dialog-motion`。Scrim 线性淡入；Container 从上方 `--distance-dialog-motion` 处按 `--easing-dialog-motion` 滑入，`--duration-dialog-fade-in` 内完全显示
-- 关闭：历时 `--duration-dialog-motion`。Scrim 线性淡出；Container 按同一曲线反向滑回上方，全程淡出
-- Container 连同阴影与边线整体淡入淡出
+- 打开：历时 `--duration-dialog-motion`。Scrim 按 `--easing-dialog-scrim` 淡入；Container 从上方 `--distance-dialog-motion` 处按 `--easing-dialog-enter` 滑入，并在 `--duration-dialog-fade-in` 内按 `--easing-dialog-fade-in` 淡入至完全显示
+- 关闭：历时 `--duration-dialog-motion`。Scrim 按 `--easing-dialog-scrim` 淡出；Container 按 `--easing-dialog-exit` 反向滑回上方 `--distance-dialog-motion` 处，并在 `--duration-dialog-fade-out` 内按 `--easing-dialog-fade-out` 淡出
+- 叠加同步：Scrim（含系统面板交替时的显隐与 `Covered` 遮罩）均按 `--easing-dialog-scrim` 历时 `--duration-dialog-motion` 平滑过渡
+- 减少动态效果：系统开启 Reduce Motion 时，Scrim 与 Container 统一退化为历时 `--duration-dialog-reduce-motion` 的原位纯淡入淡出，不发生位移
+- Container 连同阴影、边线与内部内容保持整体统一过渡
 
 ##### States
 
