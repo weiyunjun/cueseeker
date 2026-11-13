@@ -13,7 +13,7 @@ enum SubtitleTableCueStyle: Sendable {
 
     var fontWeight: NSFont.Weight {
         switch self {
-        case .primary: .regular
+        case .primary: .medium
         case .extra: .regular
         }
     }
@@ -42,7 +42,7 @@ enum SubtitleTableCueStyle: Sendable {
 }
 
 enum SubtitleTableCueGeometry {
-    static let styleRevision = 3
+    static let styleRevision = 4
     static let minimumRowHeight = WorkbenchControlMetrics.redesignTableRowMinHeight
     static let rowPaddingY = WorkbenchControlMetrics.redesignTableRowPaddingY
     static let cueGroupGap = WorkbenchControlMetrics.redesignTableCueGroupGap

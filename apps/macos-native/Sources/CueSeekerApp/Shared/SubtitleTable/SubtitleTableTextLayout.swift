@@ -130,7 +130,7 @@ enum SubtitleTableText {
         case .primaryContent:
             return NSFont.systemFont(
                 ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
-                weight: .regular
+                weight: .medium
             )
         case .secondaryContext:
             return NSFont.systemFont(

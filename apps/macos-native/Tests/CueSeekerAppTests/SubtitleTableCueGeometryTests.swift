@@ -162,7 +162,7 @@ func subtitleCueVisualLineCountHasNoSoftWrapLimit() {
 @Test
 func subtitleCueTypographyUsesDocumentedPrimaryAndExtraStyles() {
     #expect(SubtitleTableCueStyle.primary.fontSize == 14)
-    #expect(SubtitleTableCueStyle.primary.fontWeight == .regular)
+    #expect(SubtitleTableCueStyle.primary.fontWeight == .medium)
     #expect(SubtitleTableCueStyle.primary.lineHeight == 24)
     #expect(SubtitleTableCueStyle.extra.fontSize == 12)
     #expect(SubtitleTableCueStyle.extra.fontWeight == .regular)

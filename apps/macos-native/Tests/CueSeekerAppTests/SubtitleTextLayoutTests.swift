@@ -96,7 +96,7 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
     #expect(fontWeight(secondaryFont) == fontWeight(metadataFont))
     #expect(primaryFont.fontDescriptor == NSFont.systemFont(
         ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
-        weight: .regular
+        weight: .medium
     ).fontDescriptor)
     #expect(secondaryFont.fontDescriptor == NSFont.systemFont(
         ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
