@@ -190,6 +190,156 @@ final class CASSRenderingProbeTests: XCTestCase {
         }
     }
 
+    func testEmptyFontsSectionAndCommentsReusePooledEngineWhileEmbeddedFontDataIsolates() throws {
+        SFXASSRenderer.resetFontEnvironmentPoolForTesting()
+        defer { SFXASSRenderer.resetFontEnvironmentPoolForTesting() }
+
+        SFXASSRenderer.warmUpFontEnvironment()
+        XCTAssertEqual(SFXASSRenderer.engineInitializationCountForTesting(), 1)
+
+        let bomAndEmptyFontsBeforeEvents = "\u{feff}" + """
+        [Script Info]
+        ScriptType: v4.00+
+        PlayResX: 640
+        PlayResY: 360
+
+        [V4+ Styles]
+        Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+        Style: Default,Helvetica,34,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,24,1
+
+        [fonts]
+        ; comment inside empty fonts section
+        !: legacy metadata comment
+          
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:00.10,0:00:02.00,Default,,0,0,0,,Empty Fonts Test
+
+        [Fonts]
+        ; trailing placeholder section
+        """
+
+        let session1 = try SFXASSRendererSession(
+            assScript: bomAndEmptyFontsBeforeEvents,
+            sourceIdentifier: "empty-fonts-test.ass",
+            frameWidth: 640,
+            frameHeight: 360
+        )
+        let frame1 = try session1.renderFrame(atTimestampMilliseconds: 500)
+        XCTAssertGreaterThan(frame1.imageCount, 0)
+        XCTAssertGreaterThan(nonTransparentPixelCount(in: frame1.rgbaData), 0)
+        session1.close()
+        XCTAssertEqual(SFXASSRenderer.engineInitializationCountForTesting(), 1)
+
+        let embeddedFontsScript = """
+        [Script Info]
+        ScriptType: v4.00+
+        PlayResX: 640
+        PlayResY: 360
+
+        [V4+ Styles]
+        Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+        Style: Default,Helvetica,34,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,24,1
+
+        [Fonts]
+        fontname: EmbeddedDummy.ttf
+        !!
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:00.10,0:00:02.00,Default,,0,0,0,,Embedded Fonts Test
+        """
+
+        let session2 = try SFXASSRendererSession(
+            assScript: embeddedFontsScript,
+            sourceIdentifier: "embedded-fonts-test.ass",
+            frameWidth: 640,
+            frameHeight: 360
+        )
+        let frame2 = try session2.renderFrame(atTimestampMilliseconds: 500)
+        XCTAssertGreaterThan(frame2.imageCount, 0)
+        session2.close()
+        XCTAssertEqual(SFXASSRenderer.engineInitializationCountForTesting(), 2)
+
+        let session3 = try SFXASSRendererSession(
+            assScript: bomAndEmptyFontsBeforeEvents,
+            sourceIdentifier: "empty-fonts-after-embedded.ass",
+            frameWidth: 640,
+            frameHeight: 360
+        )
+        let frame3 = try session3.renderFrame(atTimestampMilliseconds: 500)
+        XCTAssertGreaterThan(frame3.imageCount, 0)
+        session3.close()
+        XCTAssertEqual(SFXASSRenderer.engineInitializationCountForTesting(), 2)
+    }
+
+    func testInvalidateFontEnvironmentPoolRetiresBorrowedSessionAndRebuildsNextGeneration() throws {
+        SFXASSRenderer.resetFontEnvironmentPoolForTesting()
+        defer { SFXASSRenderer.resetFontEnvironmentPoolForTesting() }
+
+        SFXASSRenderer.warmUpFontEnvironment()
+        XCTAssertEqual(SFXASSRenderer.engineInitializationCountForTesting(), 1)
+
+        let script = """
+        [Script Info]
+        ScriptType: v4.00+
+        PlayResX: 640
+        PlayResY: 360
+
+        [V4+ Styles]
+        Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+        Style: Default,Helvetica,34,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,24,1
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:00.10,0:00:02.00,Default,,0,0,0,,Pool Generation Test
+        """
+
+        let session1 = try SFXASSRendererSession(
+            assScript: script,
+            sourceIdentifier: "pool-gen-1.ass",
+            frameWidth: 640,
+            frameHeight: 360
+        )
+
+        SFXASSRenderer.invalidateFontEnvironmentPool()
+
+        // Active borrowed session continues rendering smoothly.
+        let frame1 = try session1.renderFrame(atTimestampMilliseconds: 500)
+        XCTAssertGreaterThan(frame1.imageCount, 0)
+        XCTAssertGreaterThan(nonTransparentPixelCount(in: frame1.rgbaData), 0)
+        XCTAssertEqual(SFXASSRenderer.engineInitializationCountForTesting(), 1)
+
+        // Closing stale session destroys it without returning to pool; next checkout creates +1 new-gen engine.
+        session1.close()
+
+        let session2 = try SFXASSRendererSession(
+            assScript: script,
+            sourceIdentifier: "pool-gen-2.ass",
+            frameWidth: 1280,
+            frameHeight: 720
+        )
+        session2.updateFrameWidth(640, frameHeight: 360)
+        let frame2 = try session2.renderFrame(atTimestampMilliseconds: 500)
+        XCTAssertEqual(frame2.width, 640)
+        XCTAssertEqual(frame2.height, 360)
+        XCTAssertGreaterThan(frame2.imageCount, 0)
+        XCTAssertEqual(SFXASSRenderer.engineInitializationCountForTesting(), 2)
+        session2.close()
+
+        // Following checkout reuses the newly pooled generation engine with zero extra initializations.
+        let session3 = try SFXASSRendererSession(
+            assScript: script,
+            sourceIdentifier: "pool-gen-3.ass",
+            frameWidth: 640,
+            frameHeight: 360
+        )
+        let frame3 = try session3.renderFrame(atTimestampMilliseconds: 500)
+        XCTAssertGreaterThan(frame3.imageCount, 0)
+        XCTAssertEqual(SFXASSRenderer.engineInitializationCountForTesting(), 2)
+        session3.close()
+    }
+
     private func nonTransparentPixelCount(in data: Data) -> Int {
         var count = 0
         var index = 3

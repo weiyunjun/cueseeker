@@ -204,7 +204,19 @@ static SFXASSEngineContext gSFXASSEnginePool[kSFXASSEnginePoolCapacity];
 static NSUInteger gSFXASSEnginePoolCount = 0;
 static BOOL gSFXASSIsWarmingUp = NO;
 static BOOL gSFXASSHasCompletedWarmup = NO;
+static NSUInteger gSFXASSEnginePoolGeneration = 0;
 static NSUInteger gSFXASSEngineInitCountForTesting = 0;
+
+static inline void SFXApplyASSRendererFrameSize(
+    ASS_Renderer *renderer,
+    NSInteger frameWidth,
+    NSInteger frameHeight
+) {
+    int safeWidth = (int)MAX(1, MIN((NSInteger)INT_MAX, frameWidth));
+    int safeHeight = (int)MAX(1, MIN((NSInteger)INT_MAX, frameHeight));
+    ass_set_frame_size(renderer, safeWidth, safeHeight);
+    ass_set_storage_size(renderer, safeWidth, safeHeight);
+}
 
 static BOOL SFXCreateASSEngineContext(
     BOOL extractEmbeddedFonts,
@@ -230,10 +242,7 @@ static BOOL SFXCreateASSEngineContext(
         return NO;
     }
 
-    int safeWidth = (int)MAX(1, MIN((NSInteger)INT_MAX, initialWidth));
-    int safeHeight = (int)MAX(1, MIN((NSInteger)INT_MAX, initialHeight));
-    ass_set_frame_size(renderer, safeWidth, safeHeight);
-    ass_set_storage_size(renderer, safeWidth, safeHeight);
+    SFXApplyASSRendererFrameSize(renderer, initialWidth, initialHeight);
     ass_set_cache_limits(renderer, kSFXASSMaxCachedGlyphs, kSFXASSMaxBitmapCacheMegabytes);
     ass_set_fonts(renderer, NULL, "Helvetica", ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
 
@@ -248,17 +257,14 @@ static BOOL SFXCreateASSEngineContext(
 
 static void SFXWarmUpASSFontEnvironment(void) {
     pthread_mutex_lock(&gSFXASSEnginePoolMutex);
+    while (gSFXASSIsWarmingUp) {
+        pthread_cond_wait(&gSFXASSEnginePoolCond, &gSFXASSEnginePoolMutex);
+    }
     if (gSFXASSHasCompletedWarmup || gSFXASSEnginePoolCount > 0) {
         pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
         return;
     }
-    if (gSFXASSIsWarmingUp) {
-        while (gSFXASSIsWarmingUp) {
-            pthread_cond_wait(&gSFXASSEnginePoolCond, &gSFXASSEnginePoolMutex);
-        }
-        pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
-        return;
-    }
+    NSUInteger warmupGeneration = gSFXASSEnginePoolGeneration;
     gSFXASSIsWarmingUp = YES;
     pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
 
@@ -268,13 +274,15 @@ static void SFXWarmUpASSFontEnvironment(void) {
 
     pthread_mutex_lock(&gSFXASSEnginePoolMutex);
     if (created && library != NULL && renderer != NULL) {
-        gSFXASSHasCompletedWarmup = YES;
-        if (gSFXASSEnginePoolCount < kSFXASSEnginePoolCapacity) {
-            gSFXASSEnginePool[gSFXASSEnginePoolCount].library = library;
-            gSFXASSEnginePool[gSFXASSEnginePoolCount].renderer = renderer;
-            gSFXASSEnginePoolCount += 1;
-            library = NULL;
-            renderer = NULL;
+        if (warmupGeneration == gSFXASSEnginePoolGeneration) {
+            gSFXASSHasCompletedWarmup = YES;
+            if (gSFXASSEnginePoolCount < kSFXASSEnginePoolCapacity) {
+                gSFXASSEnginePool[gSFXASSEnginePoolCount].library = library;
+                gSFXASSEnginePool[gSFXASSEnginePoolCount].renderer = renderer;
+                gSFXASSEnginePoolCount += 1;
+                library = NULL;
+                renderer = NULL;
+            }
         }
     }
     gSFXASSIsWarmingUp = NO;
@@ -289,6 +297,33 @@ static void SFXWarmUpASSFontEnvironment(void) {
     }
 }
 
+static void SFXInvalidateASSFontEnvironmentPool(void) {
+    SFXASSEngineContext toDestroy[kSFXASSEnginePoolCapacity];
+    NSUInteger destroyCount = 0;
+
+    pthread_mutex_lock(&gSFXASSEnginePoolMutex);
+    gSFXASSEnginePoolGeneration += 1;
+    gSFXASSHasCompletedWarmup = NO;
+    destroyCount = gSFXASSEnginePoolCount;
+    for (NSUInteger i = 0; i < destroyCount; i++) {
+        toDestroy[i] = gSFXASSEnginePool[i];
+        gSFXASSEnginePool[i].library = NULL;
+        gSFXASSEnginePool[i].renderer = NULL;
+    }
+    gSFXASSEnginePoolCount = 0;
+    pthread_cond_broadcast(&gSFXASSEnginePoolCond);
+    pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
+
+    for (NSUInteger i = 0; i < destroyCount; i++) {
+        if (toDestroy[i].renderer != NULL) {
+            ass_renderer_done(toDestroy[i].renderer);
+        }
+        if (toDestroy[i].library != NULL) {
+            ass_library_done(toDestroy[i].library);
+        }
+    }
+}
+
 static BOOL SFXCheckoutASSEngineContext(
     BOOL dedicatedWithEmbeddedFonts,
     NSInteger frameWidth,
@@ -296,21 +331,25 @@ static BOOL SFXCheckoutASSEngineContext(
     ASS_Library **outLibrary,
     ASS_Renderer **outRenderer,
     BOOL *outUsesPool,
+    NSUInteger *outPoolGeneration,
     NSError **error
 ) {
     if (dedicatedWithEmbeddedFonts) {
         *outUsesPool = NO;
+        *outPoolGeneration = 0;
         return SFXCreateASSEngineContext(YES, frameWidth, frameHeight, outLibrary, outRenderer, error);
     }
 
     *outUsesPool = YES;
     ASS_Library *library = NULL;
     ASS_Renderer *renderer = NULL;
+    NSUInteger checkedOutGeneration = 0;
 
     pthread_mutex_lock(&gSFXASSEnginePoolMutex);
     while (gSFXASSIsWarmingUp && gSFXASSEnginePoolCount == 0) {
         pthread_cond_wait(&gSFXASSEnginePoolCond, &gSFXASSEnginePoolMutex);
     }
+    checkedOutGeneration = gSFXASSEnginePoolGeneration;
     if (gSFXASSEnginePoolCount > 0) {
         gSFXASSEnginePoolCount -= 1;
         library = gSFXASSEnginePool[gSFXASSEnginePoolCount].library;
@@ -321,37 +360,43 @@ static BOOL SFXCheckoutASSEngineContext(
     pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
 
     if (library != NULL && renderer != NULL) {
-        ass_set_frame_size(renderer, (int)frameWidth, (int)frameHeight);
-        ass_set_storage_size(renderer, (int)frameWidth, (int)frameHeight);
+        SFXApplyASSRendererFrameSize(renderer, frameWidth, frameHeight);
         *outLibrary = library;
         *outRenderer = renderer;
+        *outPoolGeneration = checkedOutGeneration;
         return YES;
     }
 
     if (!SFXCreateASSEngineContext(NO, frameWidth, frameHeight, &library, &renderer, error)) {
+        *outPoolGeneration = 0;
         return NO;
     }
 
     pthread_mutex_lock(&gSFXASSEnginePoolMutex);
-    gSFXASSHasCompletedWarmup = YES;
+    if (checkedOutGeneration == gSFXASSEnginePoolGeneration) {
+        gSFXASSHasCompletedWarmup = YES;
+    }
     pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
 
     *outLibrary = library;
     *outRenderer = renderer;
+    *outPoolGeneration = checkedOutGeneration;
     return YES;
 }
 
 static void SFXReturnOrDestroyASSEngineContext(
     ASS_Library * _Nullable library,
     ASS_Renderer * _Nullable renderer,
-    BOOL usesPool
+    BOOL usesPool,
+    NSUInteger poolGeneration
 ) {
     if (library == NULL && renderer == NULL) {
         return;
     }
     if (usesPool && library != NULL && renderer != NULL) {
         pthread_mutex_lock(&gSFXASSEnginePoolMutex);
-        if (gSFXASSEnginePoolCount < kSFXASSEnginePoolCapacity) {
+        if (poolGeneration == gSFXASSEnginePoolGeneration
+            && gSFXASSEnginePoolCount < kSFXASSEnginePoolCapacity) {
             gSFXASSEnginePool[gSFXASSEnginePoolCount].library = library;
             gSFXASSEnginePool[gSFXASSEnginePoolCount].renderer = renderer;
             gSFXASSEnginePoolCount += 1;
@@ -373,6 +418,13 @@ static BOOL SFXBytesContainEmbeddedFontsSection(const char *bytes, size_t length
         return NO;
     }
     size_t pos = 0;
+    if (length >= 3
+        && (unsigned char)bytes[0] == 0xEF
+        && (unsigned char)bytes[1] == 0xBB
+        && (unsigned char)bytes[2] == 0xBF) {
+        pos = 3;
+    }
+    BOOL inFontsSection = NO;
     while (pos < length) {
         const char *lineStart = bytes + pos;
         const char *newline = (const char *)memchr(lineStart, '\n', length - pos);
@@ -382,12 +434,35 @@ static BOOL SFXBytesContainEmbeddedFontsSection(const char *bytes, size_t length
         while (trimmed < lineEnd && (*trimmed == ' ' || *trimmed == '\t')) {
             trimmed++;
         }
+        if ((size_t)(lineEnd - trimmed) >= 3
+            && (unsigned char)trimmed[0] == 0xEF
+            && (unsigned char)trimmed[1] == 0xBB
+            && (unsigned char)trimmed[2] == 0xBF) {
+            trimmed += 3;
+            while (trimmed < lineEnd && (*trimmed == ' ' || *trimmed == '\t')) {
+                trimmed++;
+            }
+        }
         const char *contentEnd = lineEnd;
         while (contentEnd > trimmed
                && (contentEnd[-1] == ' ' || contentEnd[-1] == '\t' || contentEnd[-1] == '\r' || contentEnd[-1] == '\n')) {
             contentEnd--;
         }
-        if ((size_t)(contentEnd - trimmed) == 7 && strncasecmp(trimmed, "[Fonts]", 7) == 0) {
+        size_t trimmedLen = (size_t)(contentEnd - trimmed);
+        if (trimmedLen == 0) {
+            pos += lineLen;
+            continue;
+        }
+        if (trimmed[0] == ';' || (trimmedLen >= 2 && trimmed[0] == '!' && trimmed[1] == ':')) {
+            pos += lineLen;
+            continue;
+        }
+        if (trimmed[0] == '[' && trimmed[trimmedLen - 1] == ']') {
+            inFontsSection = (trimmedLen == 7 && strncasecmp(trimmed, "[Fonts]", 7) == 0);
+            pos += lineLen;
+            continue;
+        }
+        if (inFontsSection) {
             return YES;
         }
         pos += lineLen;
@@ -1079,6 +1154,7 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     ASS_Renderer *_renderer;
     ASS_Track *_track;
     BOOL _usesPooledEngine;
+    NSUInteger _enginePoolGeneration;
     BOOL _ownsMappedFile;
     NSData *_scriptUTF8Data;
     const char *_mappedScriptBytes;
@@ -1147,7 +1223,7 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     }
 
     BOOL hasEmbeddedFonts = SFXBytesContainEmbeddedFontsSection(_mappedScriptBytes, _mappedScriptLength);
-    if (!SFXCheckoutASSEngineContext(hasEmbeddedFonts, frameWidth, frameHeight, &_library, &_renderer, &_usesPooledEngine, error)) {
+    if (!SFXCheckoutASSEngineContext(hasEmbeddedFonts, frameWidth, frameHeight, &_library, &_renderer, &_usesPooledEngine, &_enginePoolGeneration, error)) {
         [self cleanup];
         return nil;
     }
@@ -1196,7 +1272,7 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     _ownsMappedFile = NO;
 
     BOOL hasEmbeddedFonts = SFXBytesContainEmbeddedFontsSection(_mappedScriptBytes, _mappedScriptLength);
-    if (!SFXCheckoutASSEngineContext(hasEmbeddedFonts, frameWidth, frameHeight, &_library, &_renderer, &_usesPooledEngine, error)) {
+    if (!SFXCheckoutASSEngineContext(hasEmbeddedFonts, frameWidth, frameHeight, &_library, &_renderer, &_usesPooledEngine, &_enginePoolGeneration, error)) {
         [self cleanup];
         return nil;
     }
@@ -1249,7 +1325,7 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
         return nil;
     }
 
-    if (!SFXCheckoutASSEngineContext(NO, frameWidth, frameHeight, &_library, &_renderer, &_usesPooledEngine, error)) {
+    if (!SFXCheckoutASSEngineContext(NO, frameWidth, frameHeight, &_library, &_renderer, &_usesPooledEngine, &_enginePoolGeneration, error)) {
         [self cleanup];
         return nil;
     }
@@ -1771,10 +1847,7 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     if (_frameWidth == frameWidth && _frameHeight == frameHeight) {
         return YES;
     }
-    int safeWidth = (int)MAX(1, MIN((NSInteger)INT_MAX, frameWidth));
-    int safeHeight = (int)MAX(1, MIN((NSInteger)INT_MAX, frameHeight));
-    ass_set_frame_size(_renderer, safeWidth, safeHeight);
-    ass_set_storage_size(_renderer, safeWidth, safeHeight);
+    SFXApplyASSRendererFrameSize(_renderer, frameWidth, frameHeight);
     _frameWidth = frameWidth;
     _frameHeight = frameHeight;
     _hasRenderedCroppedFrame = NO;
@@ -1825,10 +1898,12 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
         ASS_Library *library = _library;
         ASS_Renderer *renderer = _renderer;
         BOOL usesPool = _usesPooledEngine;
+        NSUInteger enginePoolGeneration = _enginePoolGeneration;
         _library = NULL;
         _renderer = NULL;
         _usesPooledEngine = NO;
-        SFXReturnOrDestroyASSEngineContext(library, renderer, usesPool);
+        _enginePoolGeneration = 0;
+        SFXReturnOrDestroyASSEngineContext(library, renderer, usesPool, enginePoolGeneration);
     }
 }
 
@@ -1846,6 +1921,10 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
 
 + (void)warmUpFontEnvironment {
     SFXWarmUpASSFontEnvironment();
+}
+
++ (void)invalidateFontEnvironmentPool {
+    SFXInvalidateASSFontEnvironmentPool();
 }
 
 + (NSUInteger)engineInitializationCountForTesting {
@@ -1871,6 +1950,7 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     }
     gSFXASSEnginePoolCount = 0;
     gSFXASSHasCompletedWarmup = NO;
+    gSFXASSEnginePoolGeneration += 1;
     gSFXASSEngineInitCountForTesting = 0;
     pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
 

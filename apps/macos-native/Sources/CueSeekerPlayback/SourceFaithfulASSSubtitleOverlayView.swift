@@ -361,7 +361,7 @@ private final class ValidatedASSOffsetIndexMemoryCache: @unchecked Sendable {
 }
 
 private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
-    private let queue = DispatchQueue(label: "CueSeeker.SourceFaithfulASSRenderer")
+    private let queue: DispatchQueue
     private let invalidationLock = NSLock()
     private var invalidated = false
     private var session: SFXASSRendererSession?
@@ -372,6 +372,10 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private var frameWidth = 0
     private var frameHeight = 0
     private var requestedFontNames: [String]?
+
+    init(queue: DispatchQueue) {
+        self.queue = queue
+    }
 
     func load(
         source: PlaybackSubtitleSource,
@@ -788,7 +792,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var nextRenderSequence: UInt = 0
     private let subtitleContainerLayer = CALayer()
     private var subtitleSurfaceLayer: CALayer?
-    private var rendererWorker = SourceFaithfulASSRendererWorker()
+    private let workerQueue: DispatchQueue
+    private var rendererWorker: SourceFaithfulASSRendererWorker
     private(set) var rendererLoadCountForTesting = 0
     private(set) var rendererInPlaceResizeCountForTesting = 0
 
@@ -801,6 +806,9 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     override init(frame frameRect: NSRect) {
+        let workerQueue = DispatchQueue(label: "CueSeeker.SourceFaithfulASSRenderer")
+        self.workerQueue = workerQueue
+        self.rendererWorker = SourceFaithfulASSRendererWorker(queue: workerQueue)
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
@@ -1574,9 +1582,9 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     private func replaceRendererWorker() {
         let previousWorker = rendererWorker
-        rendererWorker = SourceFaithfulASSRendererWorker()
-        generation = nil
         previousWorker.invalidate()
+        rendererWorker = SourceFaithfulASSRendererWorker(queue: workerQueue)
+        generation = nil
     }
 
     private func updatePresentation(for renderedFrame: ASSRenderedFrame) {

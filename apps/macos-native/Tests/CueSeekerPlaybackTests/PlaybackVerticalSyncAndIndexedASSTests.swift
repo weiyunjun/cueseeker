@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 @testable import CueSeekerPlayback
 import CueSeekerCore
 import Foundation
@@ -503,6 +504,8 @@ extension PlaybackSubtitleFirstFrameTelemetryTests {
         let tempDir = try makeVerticalSyncTempDirectory()
         let scopeToken = tempDir.lastPathComponent
         defer {
+            ASSFontAliasResolver.shared.resetForTesting()
+            PlaybackPlayer.resetASSEnginePoolForTesting()
             ASSIndexedPartialLoadDiagnostics.resetForTesting()
             PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
             try? FileManager.default.removeItem(at: tempDir)
@@ -792,6 +795,8 @@ extension PlaybackSubtitleFirstFrameTelemetryTests {
         let ffmpegURL = try #require(verticalSyncTestFFmpegURL())
         let tempDir = try makeVerticalSyncTempDirectory()
         defer {
+            ASSFontAliasResolver.shared.resetForTesting()
+            PlaybackPlayer.resetASSEnginePoolForTesting()
             ASSIndexedPartialLoadDiagnostics.resetForTesting()
             PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
             try? FileManager.default.removeItem(at: tempDir)
@@ -906,8 +911,8 @@ extension PlaybackSubtitleFirstFrameTelemetryTests {
         #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 1)
         #expect(ASSFontAliasResolver.shared.snapshotScanCountForTesting == 1)
 
-        // Switching to Episode 2 returns Episode 1's engine to the pool and checks it right back out (still count == 1)
-        // or at most uses a second pooled slot during simultaneous overlap, never re-scanning system fonts!
+        // Switching to Episode 2 deterministically serializes old-worker teardown before new-worker checkout,
+        // so the warmed pooled engine is always reused with zero concurrent second-slot cold initialization.
         let ep2Gen = try player.open(
             PlaybackRequest(
                 videoURL: videoTwoURL,
@@ -925,10 +930,9 @@ extension PlaybackSubtitleFirstFrameTelemetryTests {
         }
         #expect(delegateSpy.commit(forGeneration: ep2Gen)?.hasASSVisibleSurface == true)
         #expect(ASSFontAliasResolver.shared.snapshotScanCountForTesting == 1)
-        let engineCountAfterEp2 = PlaybackPlayer.assEngineInitializationCountForTesting
-        #expect(engineCountAfterEp2 <= 2)
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 1)
 
-        // Manual subtitle switch + returning to Episode 1 reuses the 2-slot engine pool with zero additional engine initializations!
+        // Manual subtitle switch + returning to Episode 1 continues reusing the exact single pooled engine.
         try player.setPaused(true)
         player.loadSubtitleSource(
             PlaybackSubtitleSource(url: assEp1AltURL, format: .ass, matchedVideoURL: videoTwoURL, initialTimestampMilliseconds: 300)
@@ -936,6 +940,7 @@ extension PlaybackSubtitleFirstFrameTelemetryTests {
         try await waitForVerticalSyncCondition {
             container.currentASSSubtitleFrame()?.surface != nil
         }
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 1)
         let ep1ReturnGen = try player.open(
             PlaybackRequest(
                 videoURL: videoOneURL,
@@ -952,7 +957,7 @@ extension PlaybackSubtitleFirstFrameTelemetryTests {
             delegateSpy.commit(forGeneration: ep1ReturnGen) != nil
         }
         #expect(delegateSpy.commit(forGeneration: ep1ReturnGen)?.hasASSVisibleSurface == true)
-        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == engineCountAfterEp2)
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 1)
         #expect(ASSFontAliasResolver.shared.snapshotScanCountForTesting == 1)
     }
 
@@ -1143,6 +1148,8 @@ extension PlaybackSubtitleFirstFrameTelemetryTests {
         let tempDir = try makeVerticalSyncTempDirectory()
         let scopeToken = tempDir.lastPathComponent
         defer {
+            ASSFontAliasResolver.shared.resetForTesting()
+            PlaybackPlayer.resetASSEnginePoolForTesting()
             ASSIndexedPartialLoadDiagnostics.resetForTesting()
             PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
             try? FileManager.default.removeItem(at: tempDir)
@@ -1326,6 +1333,8 @@ extension PlaybackSubtitleFirstFrameTelemetryTests {
         let tempDir = try makeVerticalSyncTempDirectory()
         let scopeToken = tempDir.lastPathComponent
         defer {
+            ASSFontAliasResolver.shared.resetForTesting()
+            PlaybackPlayer.resetASSEnginePoolForTesting()
             ASSIndexedPartialLoadDiagnostics.resetForTesting()
             PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
             try? FileManager.default.removeItem(at: tempDir)
@@ -1468,6 +1477,367 @@ extension PlaybackSubtitleFirstFrameTelemetryTests {
             let fallbackWindowTwoSurface = try #require(container.currentASSSubtitleFrame()?.surface)
             #expect(fallbackWindowTwoSurface.width > 0 && fallbackWindowTwoSurface.height > 0)
         }
+    }
+
+    @Test
+    @MainActor
+    func rapidConsecutiveEpisodeOpensDeterministicallyReuseWarmedEngine() async throws {
+        let ffmpegURL = try #require(verticalSyncTestFFmpegURL())
+        let tempDir = try makeVerticalSyncTempDirectory()
+        defer {
+            ASSFontAliasResolver.shared.resetForTesting()
+            PlaybackPlayer.resetASSEnginePoolForTesting()
+            ASSIndexedPartialLoadDiagnostics.resetForTesting()
+            PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        ASSFontAliasResolver.shared.resetForTesting()
+        PlaybackPlayer.resetASSEnginePoolForTesting()
+        PlaybackPlayer.warmUpSubtitleEnvironment()
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 1)
+        #expect(ASSFontAliasResolver.shared.snapshotScanCountForTesting == 1)
+
+        let episodeCount = 5
+        var episodes: [(videoURL: URL, assURL: URL)] = []
+        for idx in 1...episodeCount {
+            let videoURL = tempDir.appendingPathComponent("rapid-ep\(idx).mkv")
+            let assURL = tempDir.appendingPathComponent("rapid-ep\(idx).ass")
+            try makeVerticalSyncTestVideo(at: videoURL, ffmpegURL: ffmpegURL, frameRate: "24", durationSeconds: 2)
+            try writeVerticalSyncASSSubtitle(
+                at: assURL,
+                cues: [(start: "0:00:00.05", end: "0:00:01.80", text: "Rapid Jump Episode \(idx)")]
+            )
+            episodes.append((videoURL: videoURL, assURL: assURL))
+        }
+
+        let player = PlaybackPlayer()
+        player.setVolume(0)
+        defer { try? player.stop() }
+        player.decodeMode = .software
+        let container = try #require(player.renderView as? PlaybackRenderContainerView)
+        container.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
+        let delegateSpy = VerticalSyncPlayerDelegateSpy(container: container)
+        player.delegate = delegateSpy
+
+        var lastGeneration: UInt = 0
+        for episode in episodes {
+            lastGeneration = try player.open(
+                PlaybackRequest(
+                    videoURL: episode.videoURL,
+                    startMilliseconds: 300,
+                    subtitleSource: PlaybackSubtitleSource(
+                        url: episode.assURL,
+                        format: .ass,
+                        matchedVideoURL: episode.videoURL,
+                        initialTimestampMilliseconds: 300
+                    )
+                )
+            )
+        }
+
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: lastGeneration) != nil
+        }
+        #expect(delegateSpy.commit(forGeneration: lastGeneration)?.hasASSVisibleSurface == true)
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 1)
+        #expect(ASSFontAliasResolver.shared.snapshotScanCountForTesting == 1)
+    }
+
+    @Test
+    @MainActor
+    func fullFallbackEmptyFontsSectionReusesPoolWhileEmbeddedFontsIsolateWithoutPollutingPool() async throws {
+        let ffmpegURL = try #require(verticalSyncTestFFmpegURL())
+        let tempDir = try makeVerticalSyncTempDirectory()
+        defer {
+            ASSFontAliasResolver.shared.resetForTesting()
+            PlaybackPlayer.resetASSEnginePoolForTesting()
+            ASSIndexedPartialLoadDiagnostics.resetForTesting()
+            PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        ASSFontAliasResolver.shared.resetForTesting()
+        PlaybackPlayer.resetASSEnginePoolForTesting()
+        PlaybackPlayer.warmUpSubtitleEnvironment()
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 1)
+        #expect(ASSFontAliasResolver.shared.snapshotScanCountForTesting == 1)
+
+        let videoOneURL = tempDir.appendingPathComponent("fonts-empty.mkv")
+        let videoTwoURL = tempDir.appendingPathComponent("fonts-embedded.mkv")
+        let videoThreeURL = tempDir.appendingPathComponent("fonts-normal.mkv")
+        try makeVerticalSyncTestVideo(at: videoOneURL, ffmpegURL: ffmpegURL, frameRate: "24", durationSeconds: 2)
+        try makeVerticalSyncTestVideo(at: videoTwoURL, ffmpegURL: ffmpegURL, frameRate: "24", durationSeconds: 2)
+        try makeVerticalSyncTestVideo(at: videoThreeURL, ffmpegURL: ffmpegURL, frameRate: "24", durationSeconds: 2)
+
+        let emptyFontsASSURL = tempDir.appendingPathComponent("empty-fonts-placeholder.ass")
+        let emptyFontsScript = """
+        [Script Info]
+        ScriptType: v4.00+
+        PlayResX: 640
+        PlayResY: 360
+
+        [V4+ Styles]
+        Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+        Style: Default,Helvetica,34,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,24,1
+
+        [Fonts]
+        ; empty section before Events
+        !: legacy template comment
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:00.10,0:00:01.80,Default,,0,0,0,,Empty Fonts Placeholder Visible
+
+        [Fonts]
+        ; trailing empty section at EOF
+        !: ignored comment line
+          
+        """
+        try emptyFontsScript.write(to: emptyFontsASSURL, atomically: true, encoding: .utf8)
+
+        let embeddedFontsASSURL = tempDir.appendingPathComponent("real-embedded-fonts.ass")
+        let embeddedFontsScript = """
+        [Script Info]
+        ScriptType: v4.00+
+        PlayResX: 640
+        PlayResY: 360
+
+        [V4+ Styles]
+        Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+        Style: Default,Helvetica,34,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,24,1
+
+        [Fonts]
+        fontname: TestEmbeddedPlaceholder.ttf
+        !!
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:00.10,0:00:01.80,Default,,0,0,0,,Embedded Fonts Isolated Visible
+        """
+        try embeddedFontsScript.write(to: embeddedFontsASSURL, atomically: true, encoding: .utf8)
+
+        let normalASSURL = tempDir.appendingPathComponent("normal-after-embedded.ass")
+        try writeVerticalSyncASSSubtitle(
+            at: normalASSURL,
+            cues: [(start: "0:00:00.10", end: "0:00:01.80", text: "Normal Reuse After Embedded")]
+        )
+
+        let player = PlaybackPlayer()
+        player.setVolume(0)
+        defer { try? player.stop() }
+        player.decodeMode = .software
+        let container = try #require(player.renderView as? PlaybackRenderContainerView)
+        container.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
+        let delegateSpy = VerticalSyncPlayerDelegateSpy(container: container)
+        player.delegate = delegateSpy
+
+        // 1. Empty [Fonts] section on full-fallback path (no renderCacheProvider) must still reuse the warmed pooled engine (count == 1).
+        let emptySource = PlaybackSubtitleSource(
+            url: emptyFontsASSURL,
+            format: .ass,
+            matchedVideoURL: videoOneURL,
+            initialTimestampMilliseconds: 300
+        )
+        #expect(emptySource.renderCacheProvider == nil)
+        let emptyGen = try player.open(
+            PlaybackRequest(
+                videoURL: videoOneURL,
+                startMilliseconds: 300,
+                subtitleSource: emptySource
+            )
+        )
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: emptyGen) != nil
+        }
+        #expect(delegateSpy.commit(forGeneration: emptyGen)?.hasASSVisibleSurface == true)
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 1)
+
+        // 2. Non-empty [Fonts] payload must bypass the shared pool and allocate a dedicated engine (+1 -> 2).
+        let embeddedGen = try player.open(
+            PlaybackRequest(
+                videoURL: videoTwoURL,
+                startMilliseconds: 300,
+                subtitleSource: PlaybackSubtitleSource(
+                    url: embeddedFontsASSURL,
+                    format: .ass,
+                    matchedVideoURL: videoTwoURL,
+                    initialTimestampMilliseconds: 300
+                )
+            )
+        )
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: embeddedGen) != nil
+        }
+        #expect(delegateSpy.commit(forGeneration: embeddedGen)?.hasASSVisibleSurface == true)
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 2)
+
+        // 3. Subsequent normal ASS destroys the dedicated engine cleanly and reuses the unpolluted pooled engine (still 2).
+        let normalGen = try player.open(
+            PlaybackRequest(
+                videoURL: videoThreeURL,
+                startMilliseconds: 300,
+                subtitleSource: PlaybackSubtitleSource(
+                    url: normalASSURL,
+                    format: .ass,
+                    matchedVideoURL: videoThreeURL,
+                    initialTimestampMilliseconds: 300
+                )
+            )
+        )
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: normalGen) != nil
+        }
+        #expect(delegateSpy.commit(forGeneration: normalGen)?.hasASSVisibleSurface == true)
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 2)
+    }
+
+    @Test
+    @MainActor
+    func fontEnvironmentInvalidationRetiresBorrowedEngineAndRebuildsCleanPoolOnNextOpen() async throws {
+        let ffmpegURL = try #require(verticalSyncTestFFmpegURL())
+        let tempDir = try makeVerticalSyncTempDirectory()
+        defer {
+            ASSFontAliasResolver.shared.resetForTesting()
+            PlaybackPlayer.resetASSEnginePoolForTesting()
+            ASSIndexedPartialLoadDiagnostics.resetForTesting()
+            PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        ASSFontAliasResolver.shared.resetForTesting()
+        PlaybackPlayer.resetASSEnginePoolForTesting()
+        PlaybackPlayer.warmUpSubtitleEnvironment()
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 1)
+        #expect(ASSFontAliasResolver.shared.snapshotScanCountForTesting == 1)
+
+        let videoOneURL = tempDir.appendingPathComponent("invalidate-ep1.mkv")
+        let videoTwoURL = tempDir.appendingPathComponent("invalidate-ep2.mkv")
+        let videoThreeURL = tempDir.appendingPathComponent("invalidate-ep3.mkv")
+        try makeVerticalSyncTestVideo(at: videoOneURL, ffmpegURL: ffmpegURL, frameRate: "24", durationSeconds: 3)
+        try makeVerticalSyncTestVideo(at: videoTwoURL, ffmpegURL: ffmpegURL, frameRate: "24", durationSeconds: 3)
+        try makeVerticalSyncTestVideo(at: videoThreeURL, ffmpegURL: ffmpegURL, frameRate: "24", durationSeconds: 3)
+
+        let assEp1URL = tempDir.appendingPathComponent("invalidate-ep1.ass")
+        let assEp2URL = tempDir.appendingPathComponent("invalidate-ep2.ass")
+        let assEp3URL = tempDir.appendingPathComponent("invalidate-ep3.ass")
+        try writeVerticalSyncASSSubtitle(
+            at: assEp1URL,
+            cues: [(start: "0:00:00.10", end: "0:00:02.80", text: "Invalidation Episode 1")]
+        )
+        try writeVerticalSyncASSSubtitle(
+            at: assEp2URL,
+            cues: [(start: "0:00:00.10", end: "0:00:02.80", text: "Invalidation Episode 2")]
+        )
+        try writeVerticalSyncASSSubtitle(
+            at: assEp3URL,
+            cues: [(start: "0:00:00.10", end: "0:00:02.80", text: "Invalidation Episode 3")]
+        )
+
+        let player = PlaybackPlayer()
+        player.setVolume(0)
+        defer { try? player.stop() }
+        player.decodeMode = .software
+        let container = try #require(player.renderView as? PlaybackRenderContainerView)
+        container.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
+        let delegateSpy = VerticalSyncPlayerDelegateSpy(container: container)
+        player.delegate = delegateSpy
+
+        // 1. Open Episode 1 (borrows the warmed pooled engine).
+        let ep1Gen = try player.open(
+            PlaybackRequest(
+                videoURL: videoOneURL,
+                startMilliseconds: 300,
+                subtitleSource: PlaybackSubtitleSource(
+                    url: assEp1URL,
+                    format: .ass,
+                    matchedVideoURL: videoOneURL,
+                    initialTimestampMilliseconds: 300
+                )
+            )
+        )
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: ep1Gen) != nil
+        }
+        #expect(delegateSpy.commit(forGeneration: ep1Gen)?.hasASSVisibleSurface == true)
+
+        // 2. Refreshing an isolated non-shared resolver must NOT invalidate the shared renderer pool.
+        let isolatedResolver = ASSFontAliasResolver(observeSystemFontChanges: false)
+        isolatedResolver.warmUp()
+        isolatedResolver.markEnvironmentNeedsRefresh()
+
+        let ep2Gen = try player.open(
+            PlaybackRequest(
+                videoURL: videoTwoURL,
+                startMilliseconds: 300,
+                subtitleSource: PlaybackSubtitleSource(
+                    url: assEp2URL,
+                    format: .ass,
+                    matchedVideoURL: videoTwoURL,
+                    initialTimestampMilliseconds: 300
+                )
+            )
+        )
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: ep2Gen) != nil
+        }
+        #expect(delegateSpy.commit(forGeneration: ep2Gen)?.hasASSVisibleSurface == true)
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 1)
+        #expect(ASSFontAliasResolver.shared.snapshotScanCountForTesting == 1)
+
+        // 3. While Episode 2 holds the borrowed pooled engine, broadcast a system font registration change.
+        NotificationCenter.default.post(
+            name: NSNotification.Name(kCTFontManagerRegisteredFontsChangedNotification as String),
+            object: nil
+        )
+
+        // Active Episode 2 continues rendering cleanly with its checked-out old-generation engine.
+        let ep2SeekGen = try player.seek(toMilliseconds: 1_200, pauseAfterFirstFrame: true)
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: ep2SeekGen) != nil
+        }
+        #expect(delegateSpy.commit(forGeneration: ep2SeekGen)?.hasASSVisibleSurface == true)
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 1)
+
+        // 4. Opening Episode 3 destroys Episode 2's stale engine on close and builds exactly +1 fresh generation engine.
+        let ep3Gen = try player.open(
+            PlaybackRequest(
+                videoURL: videoThreeURL,
+                startMilliseconds: 300,
+                subtitleSource: PlaybackSubtitleSource(
+                    url: assEp3URL,
+                    format: .ass,
+                    matchedVideoURL: videoThreeURL,
+                    initialTimestampMilliseconds: 300
+                )
+            )
+        )
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: ep3Gen) != nil
+        }
+        #expect(delegateSpy.commit(forGeneration: ep3Gen)?.hasASSVisibleSurface == true)
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 2)
+        #expect(ASSFontAliasResolver.shared.snapshotScanCountForTesting == 2)
+
+        // 5. Subsequent switch back to Episode 1 reuses the newly created pooled generation without extra init.
+        let ep1ReuseGen = try player.open(
+            PlaybackRequest(
+                videoURL: videoOneURL,
+                startMilliseconds: 300,
+                subtitleSource: PlaybackSubtitleSource(
+                    url: assEp1URL,
+                    format: .ass,
+                    matchedVideoURL: videoOneURL,
+                    initialTimestampMilliseconds: 300
+                )
+            )
+        )
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: ep1ReuseGen) != nil
+        }
+        #expect(delegateSpy.commit(forGeneration: ep1ReuseGen)?.hasASSVisibleSurface == true)
+        #expect(PlaybackPlayer.assEngineInitializationCountForTesting == 2)
+        #expect(ASSFontAliasResolver.shared.snapshotScanCountForTesting == 2)
     }
 }
 

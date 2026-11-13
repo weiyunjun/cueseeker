@@ -109,6 +109,7 @@ typedef NSArray<NSString *> * _Nullable (^SFXASSWindowEventLinesProviderBlock)(
 + (NSString *)libassVersionString;
 
 + (void)warmUpFontEnvironment;
++ (void)invalidateFontEnvironmentPool;
 + (NSUInteger)engineInitializationCountForTesting;
 + (void)resetFontEnvironmentPoolForTesting;
 

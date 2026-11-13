@@ -1,3 +1,4 @@
+import CASSRendering
 import CoreText
 import CueSeekerCore
 import Foundation
@@ -637,17 +638,33 @@ enum ASSFontAliasRewriter {
 }
 
 final class ASSFontAliasResolver: @unchecked Sendable {
-    static let shared = ASSFontAliasResolver()
+    static let shared = ASSFontAliasResolver(
+        observeSystemFontChanges: true,
+        invalidatesSharedRendererPool: true
+    )
 
     private let condition = NSCondition()
+    private let invalidatesSharedRendererPool: Bool
     private var cachedTable: (snapshot: ASSInstalledFontEnvironmentSnapshot, table: ASSFontAliasTable)?
     private var isBuilding = false
     private var needsEnvironmentRefresh = true
+    private var environmentGeneration: UInt64 = 0
     private var snapshotScanCount = 0
     private var tableBuildCount = 0
     private var fontChangeObserver: NSObjectProtocol?
 
-    init(observeSystemFontChanges: Bool = true) {
+    convenience init(observeSystemFontChanges: Bool = true) {
+        self.init(
+            observeSystemFontChanges: observeSystemFontChanges,
+            invalidatesSharedRendererPool: false
+        )
+    }
+
+    private init(
+        observeSystemFontChanges: Bool,
+        invalidatesSharedRendererPool: Bool
+    ) {
+        self.invalidatesSharedRendererPool = invalidatesSharedRendererPool
         if observeSystemFontChanges {
             let notificationName = NSNotification.Name(
                 kCTFontManagerRegisteredFontsChangedNotification as String
@@ -675,7 +692,12 @@ final class ASSFontAliasResolver: @unchecked Sendable {
     func markEnvironmentNeedsRefresh() {
         condition.lock()
         needsEnvironmentRefresh = true
+        environmentGeneration &+= 1
+        let shouldInvalidateSharedPool = invalidatesSharedRendererPool
         condition.unlock()
+        if shouldInvalidateSharedPool {
+            SFXASSRenderer.invalidateFontEnvironmentPool()
+        }
     }
 
     func resetForTesting() {
@@ -685,6 +707,7 @@ final class ASSFontAliasResolver: @unchecked Sendable {
         }
         cachedTable = nil
         needsEnvironmentRefresh = true
+        environmentGeneration &+= 1
         snapshotScanCount = 0
         tableBuildCount = 0
         condition.unlock()
@@ -720,16 +743,15 @@ final class ASSFontAliasResolver: @unchecked Sendable {
             condition.unlock()
             return cachedTable.table
         }
-        if isBuilding {
-            while isBuilding {
-                condition.wait()
-            }
-            if let cachedTable {
-                condition.unlock()
-                return cachedTable.table
-            }
+        while isBuilding {
+            condition.wait()
+        }
+        if !needsEnvironmentRefresh, let cachedTable {
+            condition.unlock()
+            return cachedTable.table
         }
         isBuilding = true
+        let buildGeneration = environmentGeneration
         let previousCached = cachedTable
         condition.unlock()
 
@@ -750,7 +772,9 @@ final class ASSFontAliasResolver: @unchecked Sendable {
             tableBuildCount += 1
         }
         cachedTable = (snapshot: installedFontSnapshot, table: resolvedTable)
-        needsEnvironmentRefresh = false
+        if buildGeneration == environmentGeneration {
+            needsEnvironmentRefresh = false
+        }
         isBuilding = false
         condition.broadcast()
         condition.unlock()
