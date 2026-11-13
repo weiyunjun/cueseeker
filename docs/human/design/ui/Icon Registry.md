@@ -42,7 +42,7 @@
 | `caret-down` | Regular | 已展开、下拉 | Library File Tree 展开态；File Info / 文件切换触发器，16px |
 | `sidebar-simple` | Regular | 折叠、展开 Sidebar | Sidebar Toggle |
 | `arrow-left` | Regular | 返回上一级 | Command Panel Secondary / Back Action |
-| `arrow-right` | Regular | 送往列表 | 表格行菜单 / Save to Excerpt List、Move to ...、Duplicate to ...；Search / Excerpt Toolbar / Save to Excerpt List、Move to ...、Duplicate to ... |
+| `arrow-right` | Regular | 送往列表 | 表格行菜单 / Save to Excerpt List、Move to、Duplicate to；Search / Excerpt Toolbar / Save to Excerpt List、Move to、Duplicate to |
 | `x` | Regular | 关闭、清除、移除 | Icon Button / Inline Clear；Icon Button / Dialog Close；Task Card / Remove Action；Export to Anki Dialog / Card Item Remove，12px |
 | `check` | Regular | 已选 | Radio Menu Item |
 | `magnifying-glass` | Regular | 搜索 | Search Field；Sidebar Item / Search；Player Topbar、Playback Topbar / Command Panel Entry；Command Panel Root / Search Action；Playback Overlay 选中文字菜单 / Search Selected Text |
@@ -67,12 +67,12 @@
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `folder-plus` | Regular | 添加文件夹 | File Page / Add Folder；Task Card / Add Folder |
-| `folder-minus` | Regular | 移除文件夹 | File Page / Root Folder Card 菜单 / Remove This Folder；Task Card / Remove Folder |
+| `folder-minus` | Regular | 移除文件夹 | File Page / Root Folder Card 菜单 / Remove Folder；Task Card / Remove Folder |
 | `folder-webdav` | Regular | WebDAV 文件夹 | File Page / Add Folder 菜单 / WebDAV Folder；File Page / WebDAV 文件夹卡片 |
 | `folder-smb` | Regular | SMB 文件夹 | File Page / Add Folder 菜单 / SMB Folder；File Page / SMB 文件夹卡片 |
 | `folder-ftp` | Regular | FTP 文件夹 | File Page / Add Folder 菜单 / FTP Folder；File Page / FTP 文件夹卡片 |
 | `folder-nfs` | Regular | NFS 文件夹 | File Page / Add Folder 菜单 / NFS Folder；File Page / NFS 文件夹卡片 |
-| `arrow-clockwise` | Regular | 重新索引 | File Page / Index All、Root Folder Card 菜单 / Index This Folder |
+| `arrow-clockwise` | Regular | 重新索引 | File Page / Index All、Root Folder Card 菜单 / Index Folder |
 | `minus-circle` | Regular | 移除 | Task Card 菜单 / Remove Task |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |
 | `stack` | Regular | 剧集 | Library File Tree / Display Title |
@@ -95,8 +95,7 @@
 
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
-| `pencil-simple` | Regular | 重命名、编辑封面 | File Page 菜单 / Rename This Folder、Rename Files；Cover / Editor Action |
-| `note-pencil` | Regular | 编辑 | Excerpt List 卡片菜单 / Edit List |
+| `pencil-simple` | Regular | 重命名、编辑 | File Page 菜单 / Rename Folder、Rename Files；媒体封面卡片与 Cover Summary 菜单 / Edit Cover；Excerpt List 卡片与 Cover Summary 菜单 / Edit List；Cover / Editor Action |
 | `plus` | Regular | 新建、添加、增加 | Excerpt List Overview / New List；Export to Anki Dialog / Add Card Item，16px；Player Cue Queue Control Bar / Increase Gap，14px |
 | `minus` | Regular | 减少 | Player Cue Queue Control Bar / Decrease Gap，14px |
 | `list-checks` | Regular | 选择模式 | 预留，暂无使用位置 |
@@ -105,7 +104,7 @@
 | `images-square` | Regular | 截图组 | 预留，暂无使用位置 |
 | `trash` | Regular | 删除 | Excerpt List 卡片菜单 / Delete List；Task Card / Delete Action |
 | `copy` | Regular | 复制 | Search / Excerpt Toolbar / Copy Table；表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Playback Overlay 选中文字菜单 / Copy Selected Text；Toast（复制） |
-| `export` | Regular | 导出、更换封面 | Search / Excerpt Toolbar / Export to Anki；Library 卡片菜单 / Change Cover；Toast（导出长截图） |
+| `export` | Regular | 导出 | Search / Excerpt Toolbar / Export to Anki；Toast（导出长截图） |
 | `link-simple` | Regular | 链接 | Search / Excerpt Toolbar / Copy Deep Links；表格行菜单 / Copy Deep Link；Anki 卡片 / Deep Link，20px |
 | `info` | Regular | 简介、详情 | File Page 卡片菜单 / Get Info；Task Card 菜单 / Get Info |
 | `dots-three` | Regular | 更多 | 表格行 / More；File Page 卡片 / More；Task Card / More；Cover Summary / More |

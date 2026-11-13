@@ -407,18 +407,18 @@
 - 所在位置：Search Toolbar（Select Mode 第二行）
 
 ### 29.2 批量选择移动到摘录列表按钮（Toolbar Move to Excerpt List Button）
-- 英文：Move to ...
-- 简体中文：移动到...
-- 繁体中文：移動至...
+- 英文：Move to
+- 简体中文：移动到
+- 繁体中文：移動至
 - 快捷键：`M`（固定键位）
 - 触发延迟：1秒
 - Scenario ID：toolbar.selection.move-to-excerpt
 - 所在位置：Excerpt Toolbar（Select Mode 第二行）
 
 ### 29.3 批量选择复制到摘录列表按钮（Toolbar Duplicate to Excerpt List Button）
-- 英文：Duplicate to ...
-- 简体中文：复制到...
-- 繁体中文：複製至...
+- 英文：Duplicate to
+- 简体中文：复制到
+- 繁体中文：複製至
 - 快捷键：`C`（固定键位）
 - 触发延迟：1秒
 - Scenario ID：toolbar.selection.duplicate-to-excerpt

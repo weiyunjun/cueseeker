@@ -365,7 +365,7 @@
 - 按本地自然日凌晨 `00:00` 划分为 `Last 7 Days`、`Last 30 Days`、`Earlier`、`Never Played` 四个分组，仅展示非空分组；分组标题左边缘与未 Hover 时的卡片封面左边缘齐平。
 - `Excerpt Lists` 收录全部已存在的摘录集（仅在无任何摘录集时展示 Empty State），按历史实际播放时间归组，曾播放过的摘录集不因列表清空或摘录全部失效而改变分组；打开无有效摘录的摘录集时拦截并弹出右下角 `No Available Excerpts` Toast（持续 3 秒），不进入播放且不更新最近播放时间。
 - `Never Played`：Videos 收录无播放记录的文件夹（默认展示 `EP01`，按文件夹名称升序）；Excerpt Lists 收录从未实际播放过的摘录集（按创建时间正序，有有效摘录时从第 1 条有效字幕播放）。
-- 空状态（保留顶栏 `Videos` / `Excerpt Lists` 切换标签）：当前子标签无可显示记录时，若 `File` 无任何已入库文件夹则居中显示带 `Go to File` 按钮的 Empty State（图标 `folder-hint`，文案 `Add a folder to get started.`）；若已有已入库文件夹则分别居中显示图标 `video` 或 `excerpt` 的 Empty State。
+- 空状态（保留顶栏 `Videos` / `Excerpt Lists` 切换标签）：当前子标签无可显示记录时，若 `File` 无任何已入库文件夹则居中显示带 `Go to File` 按钮的 Empty State（图标 `folder-hint`，文案 `Add a folder to get started.`）；若已有已入库文件夹则分别居中显示图标 `video`（文案 `No recent videos yet.`）或 `excerpt`（文案 `No recent excerpt lists yet.`）的 Empty State。
 
 #### Sizes
 
@@ -428,7 +428,7 @@
 
 - Page Layout：Workbench Titled Page Layout
 - Action Bar 保持 `--spacing-8` 边距，文件夹网格使用 `--padding-workbench-media-card-grid-inline`。
-- Action Bar：左对齐，从左到右依次为搜索框（占位提示 `Search folders...`，进入页面不自动聚焦，输入内容在 App 运行期间保留、清除或重启后清空，实时匹配文件夹名称）、排序按钮（图标为 `funnel-simple`，文字为当前选中的排序方式）、文件夹数量（`xx folders`，样式同 Workbench Status Indicator，随搜索结果实时变化）。
+- Action Bar：左对齐，从左到右依次为搜索框（占位提示 `Search folders`，进入页面不自动聚焦，输入内容在 App 运行期间保留、清除或重启后清空，实时匹配文件夹名称）、排序按钮（图标为 `funnel-simple`，文字为当前选中的排序方式）、文件夹数量（`xx folders`，样式同 Workbench Status Indicator，随搜索结果实时变化）。
 - 搜索框宽度与换行规则：搜索框常规宽度固定为 `--width-overview-search-field`，最小宽度为 `--min-width-overview-search-field`。当单行可用宽度不足以在保持搜索框 `--width-overview-search-field` 的前提下容纳右侧统计文本时，统计文本自动换至第二行靠左显示（行间距 `--spacing-2`）；仅在统计文本已换行后第一行仍放不下搜索框与按钮时，搜索框才向 `--min-width-overview-search-field` 收缩。
 - 排序菜单：Radio Menu，与排序按钮左边缘对齐，选项为默认排序、最晚入库、最早入库。
 - 排序规则：默认按文件夹名称升序；最晚入库/最早入库按首次入库时间（最早被索引文件的时间）排序，相同时间按文件夹名称升序。排序选择持久化保存。
@@ -618,8 +618,8 @@
   - `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px）默认隐藏，仅在卡片 Hover 或该卡片菜单打开时显示；Hover 按钮自身及通过该按钮打开菜单时底色为 `--color-row-selected`，Pressed 底色为 `--color-row-action-bg-pressed`（按住该按钮时卡片自身维持 Hover 背景色）。
   - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDAV Folder`（`folder-webdav`）+ `SMB Folder`（`folder-smb`）+ `FTP Folder`（`folder-ftp`）+ `NFS Folder`（`folder-nfs`）
   - 卡片弹出菜单（支持左键点击 `dots-three` 按钮或在卡片任意区域右键弹出，单集分组顶部标题栏除外；右键打开菜单期间卡片保持 Hover 背景，`dots-three` 按钮不进入 `Open` 状态）：
-    - Root Folder Card：`Get Info`（Neutral）+ `Rename This Folder`（Neutral）+ `Index This Folder`（Neutral）+ `Remove This Folder`（Destructive 警告项）
-    - Subfolder Card：`Get Info`（Neutral）+ `Rename This Folder`（Neutral）
+    - Root Folder Card：`Get Info`（Neutral）+ `Rename Folder`（Neutral）+ `Index Folder`（Neutral）+ `Remove Folder`（Destructive 警告项）
+    - Subfolder Card：`Get Info`（Neutral）+ `Rename Folder`（Neutral）
     - Video / Subtitle File Card：`Get Info`（Neutral）+ `Rename Files`（Neutral）
 
 ## 3.5 Search and Excerpt
@@ -643,7 +643,7 @@
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- Action Bar 保持 `--spacing-8` 边距，左对齐，从左到右依次为搜索框（占位提示 `Search excerpt lists...`，进入页面不自动聚焦，输入内容在 App 运行期间保留、清除或重启后清空，仅实时匹配摘录集名称）、排序按钮（图标为 `funnel-simple`，文字为当前选中的排序方式）、新建按钮（Neutral，带 `plus` 图标）、统计文本（`xx lists  yy cues`，样式同 Workbench Status Indicator，随搜索结果实时变化并跨匹配摘录集去重，其中 `yy cues` 与卡片封面徽章仅统计有效字幕）；卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面左边缘与搜索框左边缘齐平。
+- Action Bar 保持 `--spacing-8` 边距，左对齐，从左到右依次为搜索框（占位提示 `Search excerpt lists`，进入页面不自动聚焦，输入内容在 App 运行期间保留、清除或重启后清空，仅实时匹配摘录集名称）、排序按钮（图标为 `funnel-simple`，文字为当前选中的排序方式）、新建按钮（Neutral，带 `plus` 图标）、统计文本（`xx lists  yy cues`，样式同 Workbench Status Indicator，随搜索结果实时变化并跨匹配摘录集去重，其中 `yy cues` 与卡片封面徽章仅统计有效字幕）；卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面左边缘与搜索框左边缘齐平。
 - 搜索框宽度与统计文本换行规则同 `L-04.1 Library Overview Layout`。
 - 空状态：没有任何摘录集时隐藏 Action Bar（并清空残留搜索词）——若 `File` 同时无任何已入库文件夹，正文居中显示带 `Go to File` 按钮的 Empty State（图标 `folder-hint`，文案 `Add a folder to get started.`）；若已有已入库文件夹，正文居中显示带 `+ New List` 按钮的 Empty State（图标 `excerpt-hint`，文案 `Create an excerpt list to collect excerpts.`）。有摘录集但搜索无匹配结果时保留 Action Bar，下方居中显示 Empty State（图标 `search-no-results`）。
 
@@ -743,11 +743,11 @@
 #### Structure
 
 1. Default：
-   - Row 1：从左到右依次为 Search Field（自适应撑满整行剩余宽度）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Sort Trigger（图标为 `funnel-simple`，文字为当前选中的排序方式；点击展开与按钮左边缘对齐的 Radio Menu）
+   - Row 1：从左到右依次为 Search Field（Search 页占位提示 `Search cues`，Excerpt 详情页占位提示 `Search excerpts`；自适应撑满整行剩余宽度）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Sort Trigger（图标为 `funnel-simple`，文字为当前选中的排序方式；点击展开与按钮左边缘对齐的 Radio Menu）
    - Row 2（与下方表格左外框左对齐）：Result Count（Search 为 `xx results`，未输入搜索词时不显示；Excerpt 为 `xx excerpts`，仅统计有效台词）
 2. Select Mode：
    - Row 1（与下方表格等宽，左侧与表格左外框对齐）：从左到右依次为 Selected Count（`xx / yy rows selected`，可选行数不含 Unavailable 行，样式同 Result Count 且保持完整显示不截断）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`，宽度不足时优先缩减并尾部省略 `...`）、靠右对齐表格右外框的 `Exit Selection` 按钮（Button / Destructive，带 18px `sign-out` 图标）
-   - Row 2（与下方表格左外框左对齐，单行空间不足时自动换行）：前 3 个通用 Neutral 按钮从左到右固定为 `Export to Anki`（图标 `export`，快捷键 `A`）、`Copy Deep Links`（图标 `link-simple`，快捷键 `D`）、`Copy Table`（图标 `copy`，快捷键 `T`）；Search 表格其后接 `Save to Excerpt List`（Neutral，图标 `arrow-right`，快捷键 `S`），Excerpt 表格其后依次接 `Move to ...`（Neutral，图标 `arrow-right`，快捷键 `M`）、`Duplicate to ...`（Neutral，图标 `arrow-right`，快捷键 `C`）、`Remove Excerpt`（Destructive，图标 `bookmark-simple`，快捷键 `R`）
+   - Row 2（与下方表格左外框左对齐，单行空间不足时自动换行）：前 3 个通用 Neutral 按钮从左到右固定为 `Export to Anki`（图标 `export`，快捷键 `A`）、`Copy Deep Links`（图标 `link-simple`，快捷键 `D`）、`Copy Table`（图标 `copy`，快捷键 `T`）；Search 表格其后接 `Save to Excerpt List`（Neutral，图标 `arrow-right`，快捷键 `S`），Excerpt 表格其后依次接 `Move to`（Neutral，图标 `arrow-right`，快捷键 `M`）、`Duplicate to`（Neutral，图标 `arrow-right`，快捷键 `C`）、`Remove Excerpt`（Destructive，图标 `bookmark-simple`，快捷键 `R`）
 
 #### Components
 
@@ -839,7 +839,7 @@
 #### States
 
 - No Folders（仅 Search）：`File` 无任何已入库文件夹时隐藏页内 Toolbar 与表头，整页居中展示带 `Go to File` 按钮的 Empty State（图标 `folder-hint`，文案 `Add a folder to get started.`）
-- Empty Query：Search 已有已入库文件夹但未输入搜索词，表头隐藏，正文居中展示 Empty State（图标 `search-hint`）
+- Empty Query：Search 已有已入库文件夹但未输入搜索词，表头隐藏，正文居中展示 Empty State（图标 `search-hint`，文案 `Enter keywords to search cues.`）
 - Calculating
 - Results：有数据，正常展示表头与数据行
 - Select Mode
@@ -1242,7 +1242,7 @@
 - Current
 - Completed
 - Incomplete
-- Empty：各标签页为空时独立在列表可视区域居中展示 Empty State（图标 `task-tray`）
+- Empty：各标签页为空时独立在列表可视区域居中展示 Empty State（图标 `task-tray`；文案依次为 `No tasks running or waiting.`、`No completed tasks yet.`、`No incomplete tasks.`）
 
 ### L-06.10 Task Card Layout
 

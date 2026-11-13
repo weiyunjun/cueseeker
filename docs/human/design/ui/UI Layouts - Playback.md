@@ -435,7 +435,7 @@
 
 #### Structure / Empty Query
 
-1. Search Field
+1. Search Field（占位提示 `Search cues`）
 2. Option List
    1. Recent Videos
    2. Recent Excerpt Lists
@@ -516,9 +516,9 @@
 #### Variants
 
 - Recent Videos
-  - Content：Recent Watching Card Grid（按 Recent Layout 时间分组展示；无记录时，若 `File` 无任何已入库文件夹则居中展示带 `Go to File` 按钮的 `folder-hint` Empty State，点击退出播放页并进入工作台 `File` 一级界面；否则居中展示图标 `video` 的 Empty State）
+  - Content：Recent Watching Card Grid（按 Recent Layout 时间分组展示；无记录时，若 `File` 无任何已入库文件夹则居中展示带 `Go to File` 按钮的 `folder-hint` Empty State，点击退出播放页并进入工作台 `File` 一级界面；否则居中展示图标 `video` 的 Empty State，文案 `No recent videos yet.`）
 - Recent Excerpt Lists
-  - Content：Excerpt List Card Grid（按 Recent Layout 时间分组展示；无摘录集时，若 `File` 无任何已入库文件夹则居中展示带 `Go to File` 按钮的 `folder-hint` Empty State，点击退出播放页并进入工作台 `File` 一级界面；否则居中展示图标 `excerpt` 的 Empty State）
+  - Content：Excerpt List Card Grid（按 Recent Layout 时间分组展示；无摘录集时，若 `File` 无任何已入库文件夹则居中展示带 `Go to File` 按钮的 `folder-hint` Empty State，点击退出播放页并进入工作台 `File` 一级界面；否则居中展示图标 `excerpt` 的 Empty State，文案 `No recent excerpt lists yet.`）
 - Search Results
   - Header：右侧依次为 Filter Trigger、Sort Trigger，样式与交互同 Search / Excerpt Toolbar Layout 的 Search
   - Content：Command Panel Search Results Layout
