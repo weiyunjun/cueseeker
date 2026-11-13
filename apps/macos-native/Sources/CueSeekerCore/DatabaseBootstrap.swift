@@ -20,7 +20,7 @@ public struct DatabaseBootstrapResult: Equatable, Sendable {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 66
+    public static let currentSchemaVersion = 67
 
     @discardableResult
     public static func prepare(at path: URL) throws -> DatabaseBootstrapResult {
@@ -88,6 +88,7 @@ extension DatabaseBootstrap {
                 || previousVersion == 63
                 || previousVersion == 64
                 || previousVersion == 65
+                || previousVersion == 66
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             AppLogger.shared.error(
@@ -244,6 +245,9 @@ extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 65 {
             try migrateSchema65To66(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 66 {
+            try migrateSchema66To67(on: database)
             return false
         }
         guard previousVersion == 0 else {
@@ -577,6 +581,8 @@ extension DatabaseBootstrap {
                 FOREIGN KEY(video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
             );
 
+            \(assEventOffsetIndexesTableSQL)
+
             CREATE TABLE IF NOT EXISTS library_playback_history (
                 video_file_id INTEGER PRIMARY KEY,
                 position_ms INTEGER NOT NULL,
@@ -778,6 +784,22 @@ extension DatabaseBootstrap {
             language_code TEXT NOT NULL,
             PRIMARY KEY(cue_id, language_code),
             FOREIGN KEY(cue_id) REFERENCES subtitle_cue_lines(id) ON DELETE CASCADE
+        );
+        """
+
+    static let assEventOffsetIndexesTableSQL = """
+        CREATE TABLE IF NOT EXISTS ass_event_offset_indexes (
+            subtitle_file_id INTEGER PRIMARY KEY,
+            algorithm_version INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            file_size INTEGER,
+            modified_at REAL,
+            encoding TEXT,
+            header_text TEXT,
+            event_count INTEGER NOT NULL DEFAULT 0,
+            compressed_events BLOB,
+            indexed_at TEXT NOT NULL,
+            FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
         );
         """
 

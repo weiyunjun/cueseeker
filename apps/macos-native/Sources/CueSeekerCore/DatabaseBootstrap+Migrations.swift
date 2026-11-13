@@ -596,6 +596,21 @@ extension DatabaseBootstrap {
         }
     }
 
+    /// Schema 67 adds `ass_event_offset_indexes` for compact binary ASS/SSA
+    /// event byte-offset indexes built during Index. Existing databases upgrade
+    /// in place without scanning media files; existing ASS/SSA subtitles backfill
+    /// their offset index on the next Index run.
+    static func migrateSchema66To67(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                \(assEventOffsetIndexesTableSQL)
+                PRAGMA user_version = 67;
+                """
+            )
+        }
+    }
+
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(

@@ -34,7 +34,17 @@ func migratesFreshDatabaseToCurrentSchemaVersion() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 67)
     #expect(try !sqliteTableExists("ass_render_segments", databaseURL: databaseURL))
+    #expect(try sqliteTableExists("ass_event_offset_indexes", databaseURL: databaseURL))
+    #expect(try sqliteColumnNames(in: "ass_event_offset_indexes", databaseURL: databaseURL) == Set([
+        "subtitle_file_id", "algorithm_version", "status", "file_size",
+        "modified_at", "encoding", "header_text", "event_count",
+        "compressed_events", "indexed_at"
+    ]))
+    #expect(try sqliteForeignKeyTables(in: "ass_event_offset_indexes", databaseURL: databaseURL) == [
+        "subtitle_files"
+    ])
 }
 
 @Test
@@ -1343,7 +1353,17 @@ func migratesSchema58ByDroppingASSRenderSegmentsTable() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 67)
     #expect(try !sqliteTableExists("ass_render_segments", databaseURL: databaseURL))
+    #expect(try sqliteTableExists("ass_event_offset_indexes", databaseURL: databaseURL))
+    #expect(try sqliteColumnNames(in: "ass_event_offset_indexes", databaseURL: databaseURL) == Set([
+        "subtitle_file_id", "algorithm_version", "status", "file_size",
+        "modified_at", "encoding", "header_text", "event_count",
+        "compressed_events", "indexed_at"
+    ]))
+    #expect(try sqliteForeignKeyTables(in: "ass_event_offset_indexes", databaseURL: databaseURL) == [
+        "subtitle_files"
+    ])
 }
 
 @Test
@@ -1590,7 +1610,7 @@ func schema65UpgradesTo66WithTaskRecordFailedCountColumn() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 66)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     let columns = try sqliteColumnNames(in: "task_records", databaseURL: databaseURL)
     #expect(columns.contains("failed_count"))
     #expect(
@@ -1605,5 +1625,104 @@ func schema65UpgradesTo66WithTaskRecordFailedCountColumn() throws {
             sql: "SELECT CAST(failed_count AS TEXT) FROM task_records WHERE file_name = 'Incomplete.apkg';"
         ) == "10"
     )
+}
+
+@Test
+func schema66UpgradesTo67PreservingAllLibrariesAndUserStateWithoutScanningMediaFiles() throws {
+    let tempSupportRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerSchema67Migration-\(UUID().uuidString)", isDirectory: true)
+    defer {
+        try? FileManager.default.removeItem(at: tempSupportRoot)
+    }
+
+    for environment in ["debug", "release"] {
+        let envDir = tempSupportRoot.appendingPathComponent(environment, isDirectory: true)
+        try FileManager.default.createDirectory(at: envDir, withIntermediateDirectories: true)
+        let databaseURL = envDir.appendingPathComponent("CueSeeker.sqlite")
+
+        try DatabaseBootstrap.prepare(at: databaseURL)
+        try executeDatabaseTestSQLite(
+            at: databaseURL,
+            """
+            DROP TABLE ass_event_offset_indexes;
+
+            INSERT INTO search_paths(id, type, path, last_successful_index_at, created_at, updated_at)
+            VALUES (1, 'local', '/UnmountedDisk/MediaLibrary', '2026-11-01T00:00:00Z', '2026-10-01T00:00:00Z', '2026-11-01T00:00:00Z');
+
+            INSERT INTO library_root_folders(path, created_at, updated_at)
+            VALUES ('/UnmountedDisk/MediaLibrary', '2026-10-01T00:00:00Z', '2026-11-01T00:00:00Z');
+
+            INSERT INTO library_folders(id, library_id, relative_path, created_at, updated_at)
+            VALUES (10, 1, 'Anime Show', '2026-10-01T00:00:00Z', '2026-11-01T00:00:00Z');
+
+            INSERT INTO video_files(id, library_id, folder_id, relative_path, path, video_name, display_title, file_size, modified_at, duration)
+            VALUES (100, 1, 10, 'Anime Show/EP01.mkv', '/UnmountedDisk/MediaLibrary/Anime Show/EP01.mkv', 'EP01.mkv', 'Anime Show - 01', 104857600, 1700000000.0, 1440.0);
+
+            INSERT INTO subtitle_files(id, library_id, folder_id, relative_path, subtitle_path, format, file_size, modified_at, raw_cue_count, encoding, indexed_at, index_algorithm_version)
+            VALUES (200, 1, 10, 'Anime Show/EP01.ass', '/UnmountedDisk/MediaLibrary/Anime Show/EP01.ass', 'ass', 52428800, 1700000000.0, 50000, 'UTF-8', '2026-11-01T00:00:00Z', \(SubtitleCueIndexingRules.algorithmVersion));
+
+            INSERT INTO subtitle_video_matches(subtitle_file_id, video_file_id, match_method, confidence, is_active)
+            VALUES (200, 100, 'same-directory-basename', 1.0, 1);
+
+            INSERT INTO subtitle_cue_groups(id, subtitle_file_id, subtitle_path, seq, start_time, end_time, start_ms, end_ms, time_range, search_content, line_count)
+            VALUES (300, 200, '/UnmountedDisk/MediaLibrary/Anime Show/EP01.ass', 1, '0:00:01.00', '0:00:03.00', 1000, 3000, '00:01 - 00:03', '時は来た', 1);
+
+            INSERT INTO subtitle_cue_lines(id, subtitle_file_id, cue_group_id, fts_rowid, language_mask, event_index, source_format, source_style, start_time, end_time, start_ms, end_ms, duration_ms, character_width, content, display_order)
+            VALUES (400, 200, 300, 1, 2, 0, 'ass', 'Default', '0:00:01.00', '0:00:03.00', 1000, 3000, 2000, 8, '時は来た', 0);
+
+            INSERT INTO excerpt_lists(id, name, normalized_name, description, cover_path, created_at)
+            VALUES (1, 'Default', 'default', 'Kept list', '/Covers/list.jpg', '2026-10-02T00:00:00Z');
+
+            INSERT INTO excerpts(id, list_id, cue_id, created_at)
+            VALUES (500, 1, 400, '2026-10-03T00:00:00Z');
+
+            INSERT INTO library_playback_history(video_file_id, position_ms, duration, started_at, updated_at)
+            VALUES (100, 125000, 1440.0, '2026-10-04T00:00:00Z', '2026-10-04T00:10:00Z');
+
+            INSERT INTO library_watch_states(video_file_id, state, updated_at)
+            VALUES (100, 'watching', '2026-10-04T00:10:00Z');
+
+            INSERT INTO user_video_covers(video_file_id, display_cover_path, updated_at)
+            VALUES (100, '/Covers/custom_video.jpg', '2026-10-05T00:00:00Z');
+
+            INSERT INTO user_folder_covers(folder_path, folder_id, display_cover_path, updated_at)
+            VALUES ('/UnmountedDisk/MediaLibrary/Anime Show', 10, '/Covers/custom_folder.jpg', '2026-10-05T00:00:00Z');
+
+            INSERT INTO task_records(id, kind, file_name, folder_path, item_count, state, created_at, state_changed_at, failed_count)
+            VALUES (600, 'anki_export', 'Anime.apkg', '/Exports', 5, 'completed', '2026-10-06T00:00:00Z', '2026-10-06T00:01:00Z', 0);
+
+            PRAGMA user_version = 66;
+            """
+        )
+
+        let bootstrapResult = try DatabaseBootstrap.prepare(at: databaseURL)
+
+        #expect(!bootstrapResult.didCreateSchema)
+        #expect(try sqliteSchemaVersion(at: databaseURL) == 67)
+        #expect(try sqliteTableExists("ass_event_offset_indexes", databaseURL: databaseURL))
+        #expect(try sqliteRowCount(in: "ass_event_offset_indexes", databaseURL: databaseURL) == 0)
+
+        // All indexed media, Excerpts, watch states, covers, and task records survive untouched.
+        #expect(try sqliteRowCount(in: "search_paths", databaseURL: databaseURL) == 1)
+        #expect(try sqliteRowCount(in: "video_files", databaseURL: databaseURL) == 1)
+        #expect(try sqliteRowCount(in: "subtitle_files", databaseURL: databaseURL) == 1)
+        #expect(try sqliteRowCount(in: "subtitle_cue_lines", databaseURL: databaseURL) == 1)
+        #expect(try sqliteRowCount(in: "excerpts", databaseURL: databaseURL) == 1)
+        #expect(try sqliteRowCount(in: "library_playback_history", databaseURL: databaseURL) == 1)
+        #expect(try sqliteRowCount(in: "library_watch_states", databaseURL: databaseURL) == 1)
+        #expect(try sqliteRowCount(in: "user_video_covers", databaseURL: databaseURL) == 1)
+        #expect(try sqliteRowCount(in: "user_folder_covers", databaseURL: databaseURL) == 1)
+        #expect(try sqliteRowCount(in: "task_records", databaseURL: databaseURL) == 1)
+
+        // Pre-upgrade ASS subtitle cleanly reports offset index unavailable until Index runs.
+        let playbackDB = try PlaybackSubtitleDatabase(path: databaseURL)
+        let preIndexedSubtitleURL = URL(fileURLWithPath: "/UnmountedDisk/MediaLibrary/Anime Show/EP01.ass")
+        let validated = try playbackDB.validatedASSEventOffsetIndex(
+            forSubtitleFile: preIndexedSubtitleURL,
+            actualFileSize: 52_428_800,
+            actualModifiedAt: Date(timeIntervalSince1970: 1_700_000_000.0)
+        )
+        #expect(validated == nil)
+    }
 }
 

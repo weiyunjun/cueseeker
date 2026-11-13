@@ -50,6 +50,7 @@ struct PreparedSubtitleIndexFile: Sendable {
     let format: SubtitleFormat
     let cueGroups: [SubtitleCueGroup]
     let assFontReferences: [ASSFontReferenceIntent]
+    let assEventOffsetIndex: PreparedASSEventOffsetIndex?
     let fileSize: Int64?
     let modifiedAt: Date?
     let rawCueCount: Int?
@@ -150,11 +151,19 @@ struct PreparedSubtitleRawCueCountRefresh: Sendable {
     let encoding: String
 }
 
+struct PreparedASSEventOffsetIndexRefresh: Sendable {
+    let subtitleFile: URL
+    let fileSize: Int64?
+    let modifiedAt: Date?
+    let index: PreparedASSEventOffsetIndex
+}
+
 struct PreparedLibraryIndex: Sendable {
     let folder: URL
     let changedFiles: [PreparedSubtitleIndexFile]
     let bindingRefreshes: [PreparedSubtitleBindingRefresh]
     let rawCueCountRefreshes: [PreparedSubtitleRawCueCountRefresh]
+    let assEventOffsetIndexRefreshes: [PreparedASSEventOffsetIndexRefresh]
     let missingVideoSubtitleFiles: [URL]
     let keptSubtitlePaths: Set<String>
 
@@ -163,6 +172,7 @@ struct PreparedLibraryIndex: Sendable {
         changedFiles: [PreparedSubtitleIndexFile],
         bindingRefreshes: [PreparedSubtitleBindingRefresh],
         rawCueCountRefreshes: [PreparedSubtitleRawCueCountRefresh] = [],
+        assEventOffsetIndexRefreshes: [PreparedASSEventOffsetIndexRefresh] = [],
         missingVideoSubtitleFiles: [URL],
         keptSubtitlePaths: Set<String>
     ) {
@@ -170,6 +180,7 @@ struct PreparedLibraryIndex: Sendable {
         self.changedFiles = changedFiles
         self.bindingRefreshes = bindingRefreshes
         self.rawCueCountRefreshes = rawCueCountRefreshes
+        self.assEventOffsetIndexRefreshes = assEventOffsetIndexRefreshes
         self.missingVideoSubtitleFiles = missingVideoSubtitleFiles
         self.keptSubtitlePaths = keptSubtitlePaths
     }
@@ -341,14 +352,18 @@ public struct SubtitleIndexer {
         var changedFiles: [PreparedSubtitleIndexFile] = []
         var bindingRefreshes: [PreparedSubtitleBindingRefresh] = []
         var rawCueCountRefreshes: [PreparedSubtitleRawCueCountRefresh] = []
+        var assEventOffsetIndexRefreshes: [PreparedASSEventOffsetIndexRefresh] = []
         var missingVideoSubtitleFiles: [URL] = []
 
         enum Stage2WorkItem {
-            case rawCueCountRefresh(
+            case supplementalMetadataRefresh(
                 subtitleFile: URL,
                 videoFile: URL,
                 metadata: SubtitleFileMetadata,
-                videoObservation: SubtitleFileObservation?
+                observation: SubtitleFileObservation,
+                videoObservation: SubtitleFileObservation?,
+                refreshRawCueCountAndEncoding: Bool,
+                refreshASSEventOffsetIndex: Bool
             )
             case fullIndex(
                 subtitleFile: URL,
@@ -414,7 +429,19 @@ public struct SubtitleIndexer {
                     modifiedAt: observation.modifiedAt
                )
             {
-                if metadata.rawCueCount != nil, metadata.encoding != nil {
+                let needsRawCueCountOrEncoding =
+                    metadata.rawCueCount == nil || metadata.encoding == nil
+                let needsASSEventOffsetIndex: Bool
+                if metadata.subtitleFormat.usesASSSemantics {
+                    needsASSEventOffsetIndex = try !playbackDatabase.hasCurrentASSEventOffsetIndex(
+                        forSubtitleFile: subtitleFile,
+                        fileSize: observation.fileSize,
+                        modifiedAt: observation.modifiedAt
+                    )
+                } else {
+                    needsASSEventOffsetIndex = false
+                }
+                if !needsRawCueCountOrEncoding, !needsASSEventOffsetIndex {
                     keptSubtitlePaths.insert(subtitleMediaPath)
                     if isWebDAV {
                         let cachedURL = WebDAVSubtitleCache.shared.cachedFileURL(for: subtitleFile)
@@ -440,11 +467,14 @@ public struct SubtitleIndexer {
                     result.skippedUnchangedSubtitleFiles += 1
                 } else {
                     workItems.append(
-                        .rawCueCountRefresh(
+                        .supplementalMetadataRefresh(
                             subtitleFile: subtitleFile,
                             videoFile: videoFile,
                             metadata: metadata,
-                            videoObservation: videoObservation
+                            observation: observation,
+                            videoObservation: videoObservation,
+                            refreshRawCueCountAndEncoding: needsRawCueCountOrEncoding,
+                            refreshASSEventOffsetIndex: needsASSEventOffsetIndex
                         )
                     )
                 }
@@ -468,11 +498,14 @@ public struct SubtitleIndexer {
             defer { onProgress?(offset + 1, workItems.count) }
 
             switch item {
-            case let .rawCueCountRefresh(
+            case let .supplementalMetadataRefresh(
                 subtitleFile,
                 videoFile,
                 metadata,
-                videoObservation
+                observation,
+                videoObservation,
+                refreshRawCueCountAndEncoding,
+                refreshASSEventOffsetIndex
             ):
                 let subtitleMediaPath = subtitleFile.mediaPath
                 let format =
@@ -484,7 +517,9 @@ public struct SubtitleIndexer {
                     if isWebDAV {
                         let cachedURL = WebDAVSubtitleCache.shared.cachedFileURL(for: subtitleFile)
                         if FileManager.default.fileExists(atPath: cachedURL.path),
-                           let cachedData = try? Data(contentsOf: cachedURL) {
+                           let cachedData = try? Data(contentsOf: cachedURL),
+                           observation.fileSize == nil || Int64(cachedData.count) == observation.fileSize
+                        {
                             data = cachedData
                         } else {
                             let loadedData = try loadSubtitleData(subtitleFile)
@@ -506,10 +541,12 @@ public struct SubtitleIndexer {
 
                 let contents: String
                 let encodingName: String
+                let resolvedEncoding: String.Encoding
                 do {
-                    let decoded = try SubtitleTextDecoder.decodeWithEncoding(data, format: format)
+                    let decoded = try SubtitleTextDecoder.decodeWithResolvedEncoding(data, format: format)
                     contents = decoded.contents
                     encodingName = decoded.encodingName
+                    resolvedEncoding = decoded.encoding
                 } catch {
                     recordFileFailure(
                         subtitleFile,
@@ -520,14 +557,58 @@ public struct SubtitleIndexer {
                     continue
                 }
 
-                let rawCueCount = SubtitleRawCueCounter.count(in: contents, format: format)
-                rawCueCountRefreshes.append(
-                    PreparedSubtitleRawCueCountRefresh(
-                        subtitleFile: subtitleFile,
-                        rawCueCount: rawCueCount,
-                        encoding: encodingName
+                if refreshASSEventOffsetIndex, !isWebDAV {
+                    let finalObservation: SubtitleFileObservation
+                    do {
+                        finalObservation = try SubtitleFileObservation.capture(subtitleFile)
+                    } catch {
+                        recordFileFailure(
+                            subtitleFile,
+                            reason: "Subtitle metadata could not be revalidated.",
+                            result: &result,
+                            keptSubtitlePaths: &keptSubtitlePaths
+                        )
+                        continue
+                    }
+                    guard finalObservation == observation else {
+                        recordFileFailure(
+                            subtitleFile,
+                            reason: "Subtitle file changed while it was being indexed.",
+                            result: &result,
+                            keptSubtitlePaths: &keptSubtitlePaths
+                        )
+                        continue
+                    }
+                }
+
+                if refreshRawCueCountAndEncoding {
+                    let rawCueCount = SubtitleRawCueCounter.count(in: contents, format: format)
+                    rawCueCountRefreshes.append(
+                        PreparedSubtitleRawCueCountRefresh(
+                            subtitleFile: subtitleFile,
+                            rawCueCount: rawCueCount,
+                            encoding: encodingName
+                        )
                     )
-                )
+                }
+
+                if refreshASSEventOffsetIndex {
+                    let offsetIndex = ASSEventOffsetIndexer.build(
+                        from: data,
+                        format: format,
+                        encoding: resolvedEncoding,
+                        encodingName: encodingName
+                    )
+                    assEventOffsetIndexRefreshes.append(
+                        PreparedASSEventOffsetIndexRefresh(
+                            subtitleFile: subtitleFile,
+                            fileSize: observation.fileSize,
+                            modifiedAt: observation.modifiedAt,
+                            index: offsetIndex
+                        )
+                    )
+                }
+
                 keptSubtitlePaths.insert(subtitleMediaPath)
                 if videoBindingNeedsRefresh(
                     metadata: metadata,
@@ -571,10 +652,12 @@ public struct SubtitleIndexer {
 
                 let contents: String
                 let encodingName: String
+                let resolvedEncoding: String.Encoding
                 do {
-                    let decoded = try SubtitleTextDecoder.decodeWithEncoding(data, format: format)
+                    let decoded = try SubtitleTextDecoder.decodeWithResolvedEncoding(data, format: format)
                     contents = decoded.contents
                     encodingName = decoded.encodingName
+                    resolvedEncoding = decoded.encoding
                 } catch {
                     recordFileFailure(
                         subtitleFile,
@@ -587,6 +670,7 @@ public struct SubtitleIndexer {
 
                 let cueGroups: [SubtitleCueGroup]
                 var assFontReferences: [ASSFontReferenceIntent] = []
+                var assEventOffsetIndex: PreparedASSEventOffsetIndex?
                 do {
                     switch format {
                     case .srt, .vtt:
@@ -594,6 +678,12 @@ public struct SubtitleIndexer {
                     case .ass, .ssa:
                         cueGroups = try ASSParser.parseCueGroupsForIndexing(contents, format: format)
                         assFontReferences = ASSFontIntentExtractor.references(from: contents)
+                        assEventOffsetIndex = ASSEventOffsetIndexer.build(
+                            from: data,
+                            format: format,
+                            encoding: resolvedEncoding,
+                            encodingName: encodingName
+                        )
                     }
                 } catch {
                     recordFileFailure(
@@ -646,6 +736,7 @@ public struct SubtitleIndexer {
                         format: format,
                         cueGroups: cueGroups,
                         assFontReferences: assFontReferences,
+                        assEventOffsetIndex: assEventOffsetIndex,
                         fileSize: observation.fileSize,
                         modifiedAt: observation.modifiedAt,
                         rawCueCount: rawCueCount,
@@ -677,6 +768,7 @@ public struct SubtitleIndexer {
                 changedFiles: changedFiles,
                 bindingRefreshes: bindingRefreshes,
                 rawCueCountRefreshes: rawCueCountRefreshes,
+                assEventOffsetIndexRefreshes: assEventOffsetIndexRefreshes,
                 missingVideoSubtitleFiles: missingVideoSubtitleFiles,
                 keptSubtitlePaths: keptSubtitlePaths
             )

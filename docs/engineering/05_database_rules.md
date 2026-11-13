@@ -119,13 +119,13 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The implemented schema version is `37`.
+- The implemented schema version is `67`.
 - Schema version `33` adds durable user-selected video and folder cover
   overrides.
 - Schema `33` is the minimum supported native database and the baseline for the
   database architecture decomposition. Native schemas `1...32` are no longer
   opened or migrated by the active app.
-- Version `0` creates the complete current schema. Versions `33` through `36`
+- Version `0` creates the complete current schema. Versions `33` through `66`
   migrate forward to the current schema. Any unsupported lower version or
   version greater than the current implementation must be rejected without
   changing its `user_version`.
@@ -195,6 +195,13 @@ Current mechanism:
   migration permanently clears legacy Shiori Tag data while preserving Shiori
   relations and canonical Cue data; fresh databases do not create those
   tables or their indexes.
+- Schema version `67` adds `ass_event_offset_indexes` as rebuildable derived
+  index data keyed by `subtitle_file_id` (`REFERENCES subtitle_files(id) ON DELETE CASCADE`).
+  It stores normalized initialization header text, resolved encoding, status
+  (`ready` or `ineligible`), file fingerprint (`algorithm_version`, `file_size`,
+  `modified_at`), and zlib-compressed packed binary ASS/SSA event byte-offset
+  records populated strictly during `Index` and validated read-only at query
+  time without touching external media files during schema migration.
 
 ## 5. Migration Rules
 
@@ -240,8 +247,8 @@ Destructive migrations:
 Derived index decoupling:
 
 - Search paths, subtitle files, video files, cue groups, cue lines, FTS rows,
-  ASS render segments, ASS font-resource manifests, and Library presentation
-  metadata are rebuildable local index data.
+  ASS render segments, ASS binary event offset indexes, ASS font-resource
+  manifests, and Library presentation metadata are rebuildable local index data.
 - Library presentation metadata should be materialized during indexing or
   explicit Library refresh. App startup should read it as a snapshot and must
   not derive folder grouping, display titles, or row order from subtitle/video

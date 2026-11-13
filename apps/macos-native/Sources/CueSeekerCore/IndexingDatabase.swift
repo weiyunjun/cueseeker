@@ -87,6 +87,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                     format: file.format,
                     cueGroups: file.cueGroups,
                     assFontReferences: file.assFontReferences,
+                    assEventOffsetIndex: file.assEventOffsetIndex,
                     fileSize: file.fileSize,
                     modifiedAt: file.modifiedAt,
                     rawCueCount: file.rawCueCount,
@@ -150,6 +151,20 @@ public final class IndexingDatabase: @unchecked Sendable {
                 try statement.bind(refresh.encoding, at: 2)
                 try statement.bind(refresh.subtitleFile.mediaPath, at: 3)
                 try statement.run()
+            }
+
+            for refresh in index.assEventOffsetIndexRefreshes {
+                guard let subtitleFile = try subtitleFileRecord(path: refresh.subtitleFile.mediaPath) else {
+                    throw SQLiteDatabaseError.stepFailed(
+                        "Subtitle binding disappeared before index publication."
+                    )
+                }
+                try upsertASSEventOffsetIndex(
+                    subtitleFileID: subtitleFile.id,
+                    fileSize: refresh.fileSize,
+                    modifiedAt: refresh.modifiedAt,
+                    index: refresh.index
+                )
             }
 
             let removal = try removeIndexedDataInCurrentTransaction(
@@ -558,6 +573,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         format: SubtitleFormat,
         cueGroups: [SubtitleCueGroup],
         assFontReferences: [ASSFontReferenceIntent],
+        assEventOffsetIndex: PreparedASSEventOffsetIndex? = nil,
         fileSize: Int64?,
         modifiedAt: Date?,
         rawCueCount: Int? = nil,
@@ -614,6 +630,14 @@ public final class IndexingDatabase: @unchecked Sendable {
             )
             for reference in assFontReferences {
                 try insertASSFontReference(subtitleFileID: subtitleFileID, reference: reference)
+            }
+            if let assEventOffsetIndex {
+                try upsertASSEventOffsetIndex(
+                    subtitleFileID: subtitleFileID,
+                    fileSize: fileSize,
+                    modifiedAt: modifiedAt,
+                    index: assEventOffsetIndex
+                )
             }
         }
 
@@ -1296,6 +1320,23 @@ public final class IndexingDatabase: @unchecked Sendable {
             )
             try deleteASSFontResources.run()
 
+            let deleteASSEventOffsetIndexes = try database.prepare(
+                """
+                DELETE FROM ass_event_offset_indexes
+                WHERE subtitle_file_id IN (
+                    SELECT sf.id
+                    FROM subtitle_files sf
+                    WHERE (\(prefixCondition)) \(keepCondition)
+                );
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deleteASSEventOffsetIndexes,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deleteASSEventOffsetIndexes.run()
+
             let deletePlaybackFinishMetadata = try database.prepare(
                 """
                 DELETE FROM subtitle_playback_finish_metadata
@@ -1732,6 +1773,18 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
     }
 
+    private func bindOptional(
+        _ value: Data?,
+        to statement: SQLiteStatement,
+        at index: Int32
+    ) throws {
+        if let value {
+            try statement.bind(value, at: index)
+        } else {
+            try statement.bindNull(at: index)
+        }
+    }
+
     func boundResourceRecord(
         sql: String,
         value: String
@@ -2155,6 +2208,43 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.run()
     }
 
+    private func upsertASSEventOffsetIndex(
+        subtitleFileID: Int64,
+        fileSize: Int64?,
+        modifiedAt: Date?,
+        index: PreparedASSEventOffsetIndex
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT OR REPLACE INTO ass_event_offset_indexes(
+                subtitle_file_id,
+                algorithm_version,
+                status,
+                file_size,
+                modified_at,
+                encoding,
+                header_text,
+                event_count,
+                compressed_events,
+                indexed_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
+        )
+
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(index.algorithmVersion, at: 2)
+        try statement.bind(index.status.rawValue, at: 3)
+        try bindOptional(fileSize, to: statement, at: 4)
+        try bindOptional(modifiedAt?.timeIntervalSince1970, to: statement, at: 5)
+        try bindOptional(index.encodingName, to: statement, at: 6)
+        try bindOptional(index.headerText, to: statement, at: 7)
+        try statement.bind(index.eventCount, at: 8)
+        try bindOptional(index.compressedEvents, to: statement, at: 9)
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 10)
+        try statement.run()
+    }
+
     private func deleteIndexedSubtitlePath(
         _ subtitlePath: String,
         preserveFileIdentity: Bool = false,
@@ -2272,6 +2362,19 @@ public final class IndexingDatabase: @unchecked Sendable {
         )
         try deleteASSFontResources.bind(subtitlePath, at: 1)
         try deleteASSFontResources.run()
+
+        let deleteASSEventOffsetIndexes = try database.prepare(
+            """
+            DELETE FROM ass_event_offset_indexes
+            WHERE subtitle_file_id IN (
+                SELECT id
+                FROM subtitle_files
+                WHERE subtitle_path = ?
+            );
+            """
+        )
+        try deleteASSEventOffsetIndexes.bind(subtitlePath, at: 1)
+        try deleteASSEventOffsetIndexes.run()
 
         let deletePlaybackFinishMetadata = try database.prepare(
             """

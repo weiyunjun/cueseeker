@@ -4,6 +4,16 @@ public protocol PlaybackSubtitleRenderCacheProviding: Sendable {
     var cacheScopeID: String { get }
     func hasCurrentASSFontReferenceManifest(forSubtitleFile subtitleFile: URL) throws -> Bool
     func assFontReferences(forSubtitleFile subtitleFile: URL) throws -> [ASSFontReference]
+    func validatedASSEventOffsetIndex(forSubtitleFile subtitleFile: URL) throws -> ASSEventOffsetIndex?
+    func validatedASSEventOffsetIndex(
+        forSubtitleFile subtitleFile: URL,
+        actualFileSize: Int64,
+        actualModifiedAt: Date
+    ) throws -> ASSEventOffsetIndex?
+    func assEventByteRanges(
+        forSubtitleFile subtitleFile: URL,
+        inMilliseconds windowMilliseconds: Range<Int>
+    ) throws -> [ASSEventByteRange]?
 }
 
 public struct PlaybackSubtitleRenderCacheReader: PlaybackSubtitleRenderCacheProviding, Equatable, Sendable {
@@ -25,6 +35,37 @@ public struct PlaybackSubtitleRenderCacheReader: PlaybackSubtitleRenderCacheProv
     public func assFontReferences(forSubtitleFile subtitleFile: URL) throws -> [ASSFontReference] {
         try PlaybackSubtitleDatabase(path: databaseURL)
             .assFontReferences(forSubtitleFile: subtitleFile)
+    }
+
+    public func validatedASSEventOffsetIndex(
+        forSubtitleFile subtitleFile: URL
+    ) throws -> ASSEventOffsetIndex? {
+        try PlaybackSubtitleDatabase(path: databaseURL)
+            .validatedASSEventOffsetIndex(forSubtitleFile: subtitleFile)
+    }
+
+    public func validatedASSEventOffsetIndex(
+        forSubtitleFile subtitleFile: URL,
+        actualFileSize: Int64,
+        actualModifiedAt: Date
+    ) throws -> ASSEventOffsetIndex? {
+        try PlaybackSubtitleDatabase(path: databaseURL)
+            .validatedASSEventOffsetIndex(
+                forSubtitleFile: subtitleFile,
+                actualFileSize: actualFileSize,
+                actualModifiedAt: actualModifiedAt
+            )
+    }
+
+    public func assEventByteRanges(
+        forSubtitleFile subtitleFile: URL,
+        inMilliseconds windowMilliseconds: Range<Int>
+    ) throws -> [ASSEventByteRange]? {
+        try PlaybackSubtitleDatabase(path: databaseURL)
+            .assEventByteRanges(
+                forSubtitleFile: subtitleFile,
+                inMilliseconds: windowMilliseconds
+            )
     }
 }
 
@@ -202,6 +243,156 @@ public final class PlaybackSubtitleDatabase: PlaybackSubtitleRenderCacheProvidin
         }
 
         return references
+    }
+
+    public func hasCurrentASSEventOffsetIndex(
+        forSubtitleFile subtitleFile: URL,
+        fileSize: Int64?,
+        modifiedAt: Date?
+    ) throws -> Bool {
+        guard let modifiedAt else {
+            return false
+        }
+        for candidatePath in Self.candidateSubtitleMediaPaths(for: subtitleFile) {
+            let statement = try database.prepare(
+                """
+                SELECT idx.algorithm_version, idx.file_size, idx.modified_at
+                FROM ass_event_offset_indexes idx
+                JOIN subtitle_files sf ON sf.id = idx.subtitle_file_id
+                WHERE sf.subtitle_path = ?
+                LIMIT 1;
+                """
+            )
+            try statement.bind(candidatePath, at: 1)
+            guard try statement.step() else {
+                continue
+            }
+            let storedAlgorithmVersion = statement.intColumn(0)
+            let storedFileSize = statement.nullableInt64Column(1)
+            guard storedAlgorithmVersion == ASSEventOffsetIndexer.currentAlgorithmVersion,
+                  storedFileSize == fileSize,
+                  let storedModifiedAt = statement.nullableDoubleColumn(2),
+                  abs(storedModifiedAt - modifiedAt.timeIntervalSince1970) < 0.001
+            else {
+                return false
+            }
+            return true
+        }
+        return false
+    }
+
+    public func validatedASSEventOffsetIndex(
+        forSubtitleFile subtitleFile: URL
+    ) throws -> ASSEventOffsetIndex? {
+        guard !subtitleFile.isRemoteMediaURL else {
+            return nil
+        }
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: subtitleFile.path),
+              let actualFileSize = (attributes[.size] as? NSNumber)?.int64Value,
+              let actualModifiedAt = attributes[.modificationDate] as? Date
+        else {
+            return nil
+        }
+        return try validatedASSEventOffsetIndex(
+            forSubtitleFile: subtitleFile,
+            actualFileSize: actualFileSize,
+            actualModifiedAt: actualModifiedAt
+        )
+    }
+
+    public func validatedASSEventOffsetIndex(
+        forSubtitleFile subtitleFile: URL,
+        actualFileSize: Int64,
+        actualModifiedAt: Date
+    ) throws -> ASSEventOffsetIndex? {
+        for candidatePath in Self.candidateSubtitleMediaPaths(for: subtitleFile) {
+            let statement = try database.prepare(
+                """
+                SELECT sf.subtitle_path, idx.algorithm_version, idx.status,
+                       idx.file_size, idx.modified_at, idx.encoding,
+                       idx.header_text, idx.event_count, idx.compressed_events
+                FROM ass_event_offset_indexes idx
+                JOIN subtitle_files sf ON sf.id = idx.subtitle_file_id
+                WHERE sf.subtitle_path = ?
+                LIMIT 1;
+                """
+            )
+            try statement.bind(candidatePath, at: 1)
+            guard try statement.step() else {
+                continue
+            }
+            let storedSubtitlePath = statement.stringColumn(0)
+            let algorithmVersion = statement.intColumn(1)
+            let status = statement.stringColumn(2)
+            guard algorithmVersion == ASSEventOffsetIndexer.currentAlgorithmVersion,
+                  status == ASSEventOffsetIndexStatus.ready.rawValue,
+                  let storedFileSize = statement.nullableInt64Column(3),
+                  storedFileSize == actualFileSize,
+                  let storedModifiedAt = statement.nullableDoubleColumn(4),
+                  abs(storedModifiedAt - actualModifiedAt.timeIntervalSince1970) < 0.001,
+                  let encodingName = statement.nullableStringColumn(5),
+                  !encodingName.isEmpty,
+                  SubtitleTextDecoder.stringEncoding(named: encodingName) != nil,
+                  let headerText = statement.nullableStringColumn(6),
+                  !headerText.isEmpty,
+                  let compressedEvents = statement.nullableBlobColumn(8)
+            else {
+                return nil
+            }
+            let eventCount = statement.intColumn(7)
+            guard eventCount > 0,
+                  let events = try? ASSEventOffsetIndexer.decompressAndUnpackEvents(
+                      compressedEvents,
+                      expectedCount: eventCount
+                  ),
+                  events.count == eventCount
+            else {
+                return nil
+            }
+            return ASSEventOffsetIndex(
+                subtitlePath: storedSubtitlePath,
+                algorithmVersion: algorithmVersion,
+                fileSize: storedFileSize,
+                modifiedAt: Date(timeIntervalSince1970: storedModifiedAt),
+                encodingName: encodingName,
+                headerText: headerText,
+                events: events
+            )
+        }
+        return nil
+    }
+
+    public func assEventByteRanges(
+        forSubtitleFile subtitleFile: URL,
+        inMilliseconds windowMilliseconds: Range<Int>
+    ) throws -> [ASSEventByteRange]? {
+        try validatedASSEventOffsetIndex(forSubtitleFile: subtitleFile)?
+            .overlappingEvents(in: windowMilliseconds)
+    }
+
+    public func assEventByteRanges(
+        forSubtitleFile subtitleFile: URL,
+        actualFileSize: Int64,
+        actualModifiedAt: Date,
+        inMilliseconds windowMilliseconds: Range<Int>
+    ) throws -> [ASSEventByteRange]? {
+        try validatedASSEventOffsetIndex(
+            forSubtitleFile: subtitleFile,
+            actualFileSize: actualFileSize,
+            actualModifiedAt: actualModifiedAt
+        )?.overlappingEvents(in: windowMilliseconds)
+    }
+
+    private static func candidateSubtitleMediaPaths(for subtitleFile: URL) -> [String] {
+        let primary = subtitleFile.mediaPath
+        guard !subtitleFile.isRemoteMediaURL else {
+            return [primary]
+        }
+        let resolved = subtitleFile.resolvingSymlinksInPath().mediaPath
+        if resolved != primary {
+            return [primary, resolved]
+        }
+        return [primary]
     }
 
     private static func decodePrimaryStyles(from json: String) throws -> [String] {

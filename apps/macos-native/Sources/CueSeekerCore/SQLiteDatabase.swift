@@ -341,6 +341,28 @@ final class SQLiteStatement {
         }
     }
 
+    func bind(_ value: Data, at index: Int32) throws {
+        try database.withConnectionLock {
+            let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+            let result = value.withUnsafeBytes { rawBuffer -> Int32 in
+                if let baseAddress = rawBuffer.baseAddress, !rawBuffer.isEmpty {
+                    return sqlite3_bind_blob(
+                        statement,
+                        index,
+                        baseAddress,
+                        Int32(rawBuffer.count),
+                        transient
+                    )
+                }
+                var emptyByte: UInt8 = 0
+                return sqlite3_bind_blob(statement, index, &emptyByte, 0, transient)
+            }
+            guard result == SQLITE_OK else {
+                throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+            }
+        }
+    }
+
     func bindNull(at index: Int32) throws {
         try database.withConnectionLock {
             guard sqlite3_bind_null(statement, index) == SQLITE_OK else {
@@ -448,6 +470,22 @@ final class SQLiteStatement {
             }
 
             return stringColumn(index)
+        }
+    }
+
+    func nullableBlobColumn(_ index: Int32) -> Data? {
+        database.withConnectionLock {
+            guard sqlite3_column_type(statement, index) != SQLITE_NULL else {
+                return nil
+            }
+
+            let pointer = sqlite3_column_blob(statement, index)
+            let byteCount = Int(sqlite3_column_bytes(statement, index))
+            guard byteCount > 0, let pointer else {
+                return Data()
+            }
+
+            return Data(bytes: pointer, count: byteCount)
         }
     }
 }
