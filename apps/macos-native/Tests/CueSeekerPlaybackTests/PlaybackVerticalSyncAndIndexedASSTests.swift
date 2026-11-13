@@ -955,6 +955,520 @@ extension PlaybackSubtitleFirstFrameTelemetryTests {
         #expect(PlaybackPlayer.assEngineInitializationCountForTesting == engineCountAfterEp2)
         #expect(ASSFontAliasResolver.shared.snapshotScanCountForTesting == 1)
     }
+
+    @Test
+    @MainActor
+    func playingManualSubtitleSwitchWithAnimatedASSPresentsWithoutStarvationOrBlankFlashAndKeepsOldFormatLive() async throws {
+        let ffmpegURL = try #require(verticalSyncTestFFmpegURL())
+        let tempDir = try makeVerticalSyncTempDirectory()
+        let scopeToken = tempDir.lastPathComponent
+        defer {
+            ASSIndexedPartialLoadDiagnostics.resetForTesting()
+            SRTSubtitleOverlayView.artificialLoadDelaySecondsForTesting = 0
+            SRTSubtitleOverlayView.artificialLoadDelayPathSubstringForTesting = nil
+            PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let videoURL = tempDir.appendingPathComponent("playing-switch-\(scopeToken).mkv")
+        try makeVerticalSyncTestVideo(
+            at: videoURL,
+            ffmpegURL: ffmpegURL,
+            frameRate: "30",
+            durationSeconds: 8,
+            videoSize: "320x180"
+        )
+
+        let srtURL = tempDir.appendingPathComponent("dense-\(scopeToken).srt")
+        var denseSRTCues: [(index: Int, start: String, end: String, text: String)] = []
+        for idx in 0..<85 {
+            let startMs = idx * 90
+            let endMs = startMs + 90
+            let sSec = startMs / 1_000
+            let sRem = startMs % 1_000
+            let eSec = endMs / 1_000
+            let eRem = endMs % 1_000
+            denseSRTCues.append((
+                index: idx + 1,
+                start: String(format: "00:00:%02d,%03d", sSec, sRem),
+                end: String(format: "00:00:%02d,%03d", eSec, eRem),
+                text: "Live SRT Tick \(idx)"
+            ))
+        }
+        try writeVerticalSyncSRTSubtitle(at: srtURL, cues: denseSRTCues)
+
+        let animatedASSOneURL = tempDir.appendingPathComponent("animated-one-\(scopeToken).ass")
+        let animatedASSTwoURL = tempDir.appendingPathComponent("animated-two-\(scopeToken).ass")
+        try writeVerticalSyncASSSubtitle(
+            at: animatedASSOneURL,
+            cues: [
+                (
+                    start: "0:00:00.00",
+                    end: "0:00:07.80",
+                    text: "{\\fad(300,300)\\move(40,320,580,320)}Animated ASS Track One"
+                )
+            ]
+        )
+        try writeVerticalSyncASSSubtitle(
+            at: animatedASSTwoURL,
+            cues: [
+                (
+                    start: "0:00:00.00",
+                    end: "0:00:07.80",
+                    text: "{\\fad(300,300)\\move(580,80,40,80)}Animated ASS Track Two"
+                )
+            ]
+        )
+
+        let player = PlaybackPlayer()
+        player.setVolume(0)
+        defer { try? player.stop() }
+        player.decodeMode = .software
+        let container = try #require(player.renderView as? PlaybackRenderContainerView)
+        container.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
+        let delegateSpy = VerticalSyncPlayerDelegateSpy(container: container)
+        player.delegate = delegateSpy
+
+        let openGen = try player.open(
+            PlaybackRequest(
+                videoURL: videoURL,
+                startMilliseconds: 50,
+                subtitleSource: PlaybackSubtitleSource(
+                    url: srtURL,
+                    format: .srt,
+                    matchedVideoURL: videoURL,
+                    initialTimestampMilliseconds: 50
+                ),
+                expectedVideoSize: CGSize(width: 320, height: 180)
+            )
+        )
+        try await waitForVerticalSyncCondition {
+            delegateSpy.commit(forGeneration: openGen) != nil
+        }
+        #expect(!player.isPausedState())
+        #expect(container.hasDisplayedSubtitleImageForTesting)
+
+        // 1. SRT -> Animated ASS #1 while actively playing (NO pause!):
+        //    Old SRT must keep advancing live during background ASS load, never flash blank, and ASS #1 must commit promptly without chasing-clock starvation.
+        ASSIndexedPartialLoadDiagnostics.scopedPathSubstringForTesting = scopeToken
+        ASSIndexedPartialLoadDiagnostics.artificialLoadDelaySecondsForTesting = 0.24
+        let initialSRTImage = try #require(container.currentSRTSubtitleImage())
+        player.loadSubtitleSource(
+            PlaybackSubtitleSource(
+                url: animatedASSOneURL,
+                format: .ass,
+                matchedVideoURL: videoURL
+            )
+        )
+        #expect(player.hasPendingManualSubtitleSwitchForTesting)
+
+        var sawLiveSRTAdvanceDuringStaging = false
+        let switch1Deadline = CACurrentMediaTime() + 1.5
+        while player.hasPendingManualSubtitleSwitchForTesting && CACurrentMediaTime() < switch1Deadline {
+            #expect(!player.isPausedState())
+            #expect(container.hasDisplayedSubtitleImageForTesting)
+            if let currentSRT = container.currentSRTSubtitleImage(), currentSRT !== initialSRTImage {
+                sawLiveSRTAdvanceDuringStaging = true
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        #expect(!player.hasPendingManualSubtitleSwitchForTesting)
+        #expect(sawLiveSRTAdvanceDuringStaging)
+        #expect(container.hasDisplayedSubtitleImageForTesting)
+        #expect(container.currentSRTSubtitleImage() == nil)
+        let assOneSurface = try #require(container.currentASSSubtitleFrame()?.surface)
+        #expect(assOneSurface.destinationY > 90)
+
+        // 2. Animated ASS #1 -> Animated ASS #2 while actively playing:
+        ASSIndexedPartialLoadDiagnostics.artificialLoadDelaySecondsForTesting = 0.14
+        player.loadSubtitleSource(
+            PlaybackSubtitleSource(
+                url: animatedASSTwoURL,
+                format: .ass,
+                matchedVideoURL: videoURL
+            )
+        )
+        #expect(player.hasPendingManualSubtitleSwitchForTesting)
+
+        let switch2Deadline = CACurrentMediaTime() + 1.5
+        while player.hasPendingManualSubtitleSwitchForTesting && CACurrentMediaTime() < switch2Deadline {
+            #expect(!player.isPausedState())
+            #expect(container.hasDisplayedSubtitleImageForTesting)
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        #expect(!player.hasPendingManualSubtitleSwitchForTesting)
+        #expect(container.hasDisplayedSubtitleImageForTesting)
+        let assTwoFrame = try #require(container.currentASSSubtitleFrame())
+        let assTwoSurface = try #require(assTwoFrame.surface)
+        #expect(assTwoSurface.destinationY < 90)
+        ASSIndexedPartialLoadDiagnostics.artificialLoadDelaySecondsForTesting = 0
+
+        // 3. Animated ASS #2 -> SRT while actively playing:
+        //    Old animated ASS must continue advancing timestamps live while SRT loads, then swap atomically with zero blank flash.
+        SRTSubtitleOverlayView.artificialLoadDelayPathSubstringForTesting = scopeToken
+        SRTSubtitleOverlayView.artificialLoadDelaySecondsForTesting = 0.24
+        let assTimestampAtSwitch3Start = assTwoFrame.timestampMilliseconds
+        player.loadSubtitleSource(
+            PlaybackSubtitleSource(
+                url: srtURL,
+                format: .srt,
+                matchedVideoURL: videoURL
+            )
+        )
+        #expect(player.hasPendingManualSubtitleSwitchForTesting)
+
+        var sawLiveASSAdvanceDuringStaging = false
+        let switch3Deadline = CACurrentMediaTime() + 1.5
+        while player.hasPendingManualSubtitleSwitchForTesting && CACurrentMediaTime() < switch3Deadline {
+            #expect(!player.isPausedState())
+            #expect(container.hasDisplayedSubtitleImageForTesting)
+            if let liveASSFrame = container.currentASSSubtitleFrame(),
+               liveASSFrame.timestampMilliseconds > assTimestampAtSwitch3Start {
+                sawLiveASSAdvanceDuringStaging = true
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        #expect(!player.hasPendingManualSubtitleSwitchForTesting)
+        #expect(sawLiveASSAdvanceDuringStaging)
+        #expect(container.hasDisplayedSubtitleImageForTesting)
+        #expect(container.currentSRTSubtitleImage() != nil)
+        #expect(container.currentASSSubtitleFrame() == nil)
+        #expect(!player.isPausedState())
+    }
+
+    @Test
+    @MainActor
+    func crossResolutionNewVideoOpenAvoidsStalePreviousVideoSizeAndResizesASSSessionInPlace() async throws {
+        let ffmpegURL = try #require(verticalSyncTestFFmpegURL())
+        let tempDir = try makeVerticalSyncTempDirectory()
+        let scopeToken = tempDir.lastPathComponent
+        defer {
+            ASSIndexedPartialLoadDiagnostics.resetForTesting()
+            PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let video640URL = tempDir.appendingPathComponent("video-640x360-\(scopeToken).mkv")
+        let video480URL = tempDir.appendingPathComponent("video-480x270-\(scopeToken).mkv")
+        try makeVerticalSyncTestVideo(
+            at: video640URL,
+            ffmpegURL: ffmpegURL,
+            frameRate: "24",
+            durationSeconds: 4,
+            videoSize: "640x360"
+        )
+        try makeVerticalSyncTestVideo(
+            at: video480URL,
+            ffmpegURL: ffmpegURL,
+            frameRate: "24",
+            durationSeconds: 4,
+            videoSize: "480x270"
+        )
+
+        let srt640URL = tempDir.appendingPathComponent("sub-640-\(scopeToken).srt")
+        let srt480ExpectedURL = tempDir.appendingPathComponent("sub-480-expected-\(scopeToken).srt")
+        let srt480UnknownURL = tempDir.appendingPathComponent("sub-480-unknown-\(scopeToken).srt")
+        for (url, label) in [
+            (srt640URL, "SRT 640"),
+            (srt480ExpectedURL, "SRT 480 Expected"),
+            (srt480UnknownURL, "SRT 480 Unknown")
+        ] {
+            try writeVerticalSyncSRTSubtitle(
+                at: url,
+                cues: [(index: 1, start: "00:00:00,000", end: "00:00:03,500", text: label)]
+            )
+        }
+
+        let ass640URL = tempDir.appendingPathComponent("sub-640-\(scopeToken).ass")
+        let ass480UnknownURL = tempDir.appendingPathComponent("sub-480-unknown-\(scopeToken).ass")
+        let assInPlaceResizeURL = tempDir.appendingPathComponent("sub-inplace-resize-\(scopeToken).ass")
+        for (url, label) in [
+            (ass640URL, "ASS 640"),
+            (ass480UnknownURL, "ASS 480 Unknown"),
+            (assInPlaceResizeURL, "ASS In-Place Resize")
+        ] {
+            try writeVerticalSyncASSSubtitle(
+                at: url,
+                cues: [(start: "0:00:00.00", end: "0:00:03.50", text: label)]
+            )
+        }
+
+        ASSIndexedPartialLoadDiagnostics.scopedPathSubstringForTesting = scopeToken
+
+        let player = PlaybackPlayer()
+        player.setVolume(0)
+        defer { try? player.stop() }
+        player.decodeMode = .software
+        let container = try #require(player.renderView as? PlaybackRenderContainerView)
+        container.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
+        let delegateSpy = VerticalSyncPlayerDelegateSpy(container: container)
+        player.delegate = delegateSpy
+
+        // 1. SRT: 640x360 -> 480x270 with expectedVideoSize builds layout exactly once per open (no stale 640x360 layout).
+        let srtGen1 = try player.open(
+            PlaybackRequest(
+                videoURL: video640URL,
+                startMilliseconds: 200,
+                subtitleSource: PlaybackSubtitleSource(url: srt640URL, format: .srt, matchedVideoURL: video640URL, initialTimestampMilliseconds: 200),
+                expectedVideoSize: CGSize(width: 640, height: 360)
+            )
+        )
+        try await waitForVerticalSyncCondition { delegateSpy.commit(forGeneration: srtGen1) != nil }
+        let srtOverlay = try #require(container.srtOverlayViewForTesting)
+        #expect(srtOverlay.layoutBuildCountForTesting == 1)
+
+        let srtGen2 = try player.open(
+            PlaybackRequest(
+                videoURL: video480URL,
+                startMilliseconds: 200,
+                subtitleSource: PlaybackSubtitleSource(url: srt480ExpectedURL, format: .srt, matchedVideoURL: video480URL, initialTimestampMilliseconds: 200),
+                expectedVideoSize: CGSize(width: 480, height: 270)
+            )
+        )
+        try await waitForVerticalSyncCondition { delegateSpy.commit(forGeneration: srtGen2) != nil }
+        #expect(srtOverlay.layoutBuildCountForTesting == 2)
+        #expect(container.currentSRTSubtitleImage() != nil)
+
+        // 2. SRT: 480x270 -> 640x360 -> 480x270 WITHOUT expectedVideoSize waits for actual first frame size instead of laying out twice.
+        let srtGen3 = try player.open(
+            PlaybackRequest(
+                videoURL: video640URL,
+                startMilliseconds: 200,
+                subtitleSource: PlaybackSubtitleSource(url: srt640URL, format: .srt, matchedVideoURL: video640URL, initialTimestampMilliseconds: 200),
+                expectedVideoSize: CGSize(width: 640, height: 360)
+            )
+        )
+        try await waitForVerticalSyncCondition { delegateSpy.commit(forGeneration: srtGen3) != nil }
+        let layoutsBeforeUnindexedSwitch = srtOverlay.layoutBuildCountForTesting
+
+        let srtGen4 = try player.open(
+            PlaybackRequest(
+                videoURL: video480URL,
+                startMilliseconds: 200,
+                subtitleSource: PlaybackSubtitleSource(url: srt480UnknownURL, format: .srt, matchedVideoURL: video480URL, initialTimestampMilliseconds: 200),
+                expectedVideoSize: nil
+            )
+        )
+        try await waitForVerticalSyncCondition { delegateSpy.commit(forGeneration: srtGen4) != nil }
+        #expect(srtOverlay.layoutBuildCountForTesting == layoutsBeforeUnindexedSwitch + 1)
+        #expect(container.currentSRTSubtitleImage() != nil)
+
+        // 3. ASS: 640x360 -> 480x270 WITHOUT expectedVideoSize creates the ASS renderer session once at 480x270 (never at stale 640x360).
+        let assGen1 = try player.open(
+            PlaybackRequest(
+                videoURL: video640URL,
+                startMilliseconds: 200,
+                subtitleSource: PlaybackSubtitleSource(url: ass640URL, format: .ass, matchedVideoURL: video640URL, initialTimestampMilliseconds: 200),
+                expectedVideoSize: CGSize(width: 640, height: 360)
+            )
+        )
+        try await waitForVerticalSyncCondition { delegateSpy.commit(forGeneration: assGen1) != nil }
+        let assOverlay = try #require(container.assOverlayViewForTesting)
+        let loadsAfterAss1 = assOverlay.rendererLoadCountForTesting
+        let sessionLoadsAfterAss1 = ASSIndexedPartialLoadDiagnostics.snapshot.fullFallbackSessionLoadCount
+        #expect(container.currentASSSubtitleFrame()?.frameWidth == 640)
+        #expect(container.currentASSSubtitleFrame()?.frameHeight == 360)
+
+        let assGen2 = try player.open(
+            PlaybackRequest(
+                videoURL: video480URL,
+                startMilliseconds: 200,
+                subtitleSource: PlaybackSubtitleSource(url: ass480UnknownURL, format: .ass, matchedVideoURL: video480URL, initialTimestampMilliseconds: 200),
+                expectedVideoSize: nil
+            )
+        )
+        try await waitForVerticalSyncCondition { delegateSpy.commit(forGeneration: assGen2) != nil }
+        #expect(assOverlay.rendererLoadCountForTesting == loadsAfterAss1 + 1)
+        #expect(ASSIndexedPartialLoadDiagnostics.snapshot.fullFallbackSessionLoadCount == sessionLoadsAfterAss1 + 1)
+        #expect(container.currentASSSubtitleFrame()?.frameWidth == 480)
+        #expect(container.currentASSSubtitleFrame()?.frameHeight == 270)
+        #expect(container.currentASSSubtitleFrame()?.surface != nil)
+
+        // 4. ASS in-place canvas resize: when expectedVideoSize (480x270) differs from decoded video frame size (640x360),
+        //    and when live videoSize changes later, SFXASSRendererSession resizes in place without recreating or reloading the session!
+        let loadsBeforeMismatchOpen = assOverlay.rendererLoadCountForTesting
+        let sessionLoadsBeforeMismatchOpen = ASSIndexedPartialLoadDiagnostics.snapshot.fullFallbackSessionLoadCount
+        let resizesBeforeMismatchOpen = assOverlay.rendererInPlaceResizeCountForTesting
+
+        let assGen3 = try player.open(
+            PlaybackRequest(
+                videoURL: video640URL,
+                startMilliseconds: 200,
+                subtitleSource: PlaybackSubtitleSource(url: assInPlaceResizeURL, format: .ass, matchedVideoURL: video640URL, initialTimestampMilliseconds: 200),
+                expectedVideoSize: CGSize(width: 480, height: 270)
+            )
+        )
+        try await waitForVerticalSyncCondition { delegateSpy.commit(forGeneration: assGen3) != nil }
+        #expect(assOverlay.rendererLoadCountForTesting == loadsBeforeMismatchOpen + 1)
+        #expect(ASSIndexedPartialLoadDiagnostics.snapshot.fullFallbackSessionLoadCount == sessionLoadsBeforeMismatchOpen + 1)
+        #expect(assOverlay.rendererInPlaceResizeCountForTesting == resizesBeforeMismatchOpen + 1)
+        #expect(container.currentASSSubtitleFrame()?.frameWidth == 640)
+        #expect(container.currentASSSubtitleFrame()?.frameHeight == 360)
+        #expect(container.currentASSSubtitleFrame()?.surface != nil)
+
+        try player.setPaused(true)
+        let workerBeforeDirectResize = assOverlay.rendererWorkerIdentityForTesting
+        container.setVideoSize(CGSize(width: 960, height: 540))
+        try await waitForVerticalSyncCondition {
+            container.currentASSSubtitleFrame()?.frameWidth == 960
+                && container.currentASSSubtitleFrame()?.frameHeight == 540
+                && container.currentASSSubtitleFrame()?.surface != nil
+        }
+        #expect(assOverlay.rendererWorkerIdentityForTesting == workerBeforeDirectResize)
+        #expect(assOverlay.rendererLoadCountForTesting == loadsBeforeMismatchOpen + 1)
+        #expect(ASSIndexedPartialLoadDiagnostics.snapshot.fullFallbackSessionLoadCount == sessionLoadsBeforeMismatchOpen + 1)
+    }
+
+    @Test
+    @MainActor
+    func nonDefaultEventsFormatOrderRendersFirstAndSecondWindowsAcrossIndexedAndFallbackPaths() async throws {
+        let ffmpegURL = try #require(verticalSyncTestFFmpegURL())
+        let tempDir = try makeVerticalSyncTempDirectory()
+        let scopeToken = tempDir.lastPathComponent
+        defer {
+            ASSIndexedPartialLoadDiagnostics.resetForTesting()
+            PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let mediaDir = tempDir.appendingPathComponent("CustomFormatMedia-\(scopeToken)", isDirectory: true)
+        let dbDir = tempDir.appendingPathComponent("CustomFormatDB-\(scopeToken)", isDirectory: true)
+        try FileManager.default.createDirectory(at: mediaDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dbDir, withIntermediateDirectories: true)
+        let databaseURL = dbDir.appendingPathComponent("CueSeeker.sqlite")
+
+        let ssaVideoURL = mediaDir.appendingPathComponent("ClassicSSA.mkv")
+        let ssaSubtitleURL = mediaDir.appendingPathComponent("ClassicSSA.ssa")
+        let shuffledVideoURL = mediaDir.appendingPathComponent("ShuffledFormat.mkv")
+        let shuffledSubtitleURL = mediaDir.appendingPathComponent("ShuffledFormat.ass")
+
+        try makeVerticalSyncTestVideo(at: ssaVideoURL, ffmpegURL: ffmpegURL, frameRate: "24", durationSeconds: 10)
+        try makeVerticalSyncTestVideo(at: shuffledVideoURL, ffmpegURL: ffmpegURL, frameRate: "24", durationSeconds: 10)
+
+        let ssaScript = """
+        [Script Info]
+        Title: Classic SSA Custom Format
+        ScriptType: v4.00
+        PlayResX: 640
+        PlayResY: 360
+
+        [V4 Styles]
+        Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, TertiaryColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, AlphaLevel, Encoding
+        Style: Default,Helvetica,36,16777215,65535,0,0,0,0,1,2,1,2,20,20,24,0,1
+
+        [Events]
+        Format: Marked, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: Marked=0,0:00:00.20,0:00:03.80,Default,Actor,0000,0000,0000,,SSA First Window Visible Text
+        Dialogue: Marked=0,0:00:06.00,0:00:09.20,Default,Actor,0000,0000,0000,,SSA Second Window Visible Text
+        """
+        try Data(ssaScript.utf8).write(to: ssaSubtitleURL)
+
+        // Custom column order where Start=col0, End=col1, Layer=col2, Style=col8, Text=col9.
+        // If Window 1 wiped event_format back to libass defaults (Layer, Start, End, Style, ...),
+        // "0:00:00.20" would be parsed as Layer=0, "0:00:03.80" as Start, and "0" as End (Duration <= 0 -> blank!).
+        let shuffledASSScript = """
+        [Script Info]
+        Title: Shuffled Columns ASS
+        ScriptType: v4.00+
+        PlayResX: 640
+        PlayResY: 360
+
+        [V4+ Styles]
+        Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+        Style: CustomMain,Helvetica,36,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,24,1
+
+        [Events]
+        Format: Start, End, Layer, Effect, MarginV, MarginR, MarginL, Name, Style, Text
+        Dialogue: 0:00:00.20,0:00:03.80,0,,24,20,20,Narrator,CustomMain,Shuffled First Window Visible Text
+        Dialogue: 0:00:06.00,0:00:09.20,0,,24,20,20,Narrator,CustomMain,Shuffled Second Window Visible Text
+        """
+        try Data(shuffledASSScript.utf8).write(to: shuffledSubtitleURL)
+
+        try DatabaseBootstrap.prepare(at: databaseURL)
+        do {
+            let indexingDB = try IndexingDatabase(path: databaseURL)
+            let indexResult = try SubtitleIndexer().index(folder: mediaDir, into: indexingDB)
+            #expect(indexResult.indexedSubtitleFiles == 2)
+            #expect(indexResult.failedFiles.isEmpty)
+        }
+
+        ASSIndexedPartialLoadDiagnostics.scopedPathSubstringForTesting = scopeToken
+        let cacheReader = PlaybackSubtitleRenderCacheReader(databaseURL: databaseURL)
+
+        let player = PlaybackPlayer()
+        player.setVolume(0)
+        defer { try? player.stop() }
+        player.decodeMode = .software
+        let container = try #require(player.renderView as? PlaybackRenderContainerView)
+        container.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
+        let delegateSpy = VerticalSyncPlayerDelegateSpy(container: container)
+        player.delegate = delegateSpy
+
+        for (videoURL, subtitleURL) in [
+            (ssaVideoURL, ssaSubtitleURL),
+            (shuffledVideoURL, shuffledSubtitleURL)
+        ] {
+            // A. Indexed partial-loading path: Window 1 (500ms) and Window 2 (6_500ms) both render visible pixels.
+            let indexedBefore = ASSIndexedPartialLoadDiagnostics.snapshot.indexedSessionLoadCount
+            let indexedOpenGen = try player.open(
+                PlaybackRequest(
+                    videoURL: videoURL,
+                    startMilliseconds: 500,
+                    subtitleSource: PlaybackSubtitleSource(
+                        url: subtitleURL,
+                        format: .ass,
+                        matchedVideoURL: videoURL,
+                        initialTimestampMilliseconds: 500,
+                        renderCacheProvider: cacheReader
+                    ),
+                    expectedVideoSize: CGSize(width: 160, height: 90)
+                )
+            )
+            try await waitForVerticalSyncCondition {
+                delegateSpy.commit(forGeneration: indexedOpenGen) != nil
+            }
+            #expect(ASSIndexedPartialLoadDiagnostics.snapshot.indexedSessionLoadCount == indexedBefore + 1)
+            let indexedWindowOneSurface = try #require(container.currentASSSubtitleFrame()?.surface)
+            #expect(indexedWindowOneSurface.width > 0 && indexedWindowOneSurface.height > 0)
+
+            let indexedWindowTwoGen = try player.seek(toMilliseconds: 6_500, pauseAfterFirstFrame: true)
+            try await waitForVerticalSyncCondition {
+                delegateSpy.commit(forGeneration: indexedWindowTwoGen) != nil
+            }
+            let indexedWindowTwoSurface = try #require(container.currentASSSubtitleFrame()?.surface)
+            #expect(indexedWindowTwoSurface.width > 0 && indexedWindowTwoSurface.height > 0)
+
+            // B. Unindexed full-fallback windowed path: Window 1 (500ms) and Window 2 (6_500ms) both render visible pixels.
+            let fallbackBefore = ASSIndexedPartialLoadDiagnostics.snapshot.fullFallbackSessionLoadCount
+            let fallbackOpenGen = try player.open(
+                PlaybackRequest(
+                    videoURL: videoURL,
+                    startMilliseconds: 500,
+                    subtitleSource: PlaybackSubtitleSource(
+                        url: subtitleURL,
+                        format: .ass,
+                        matchedVideoURL: videoURL,
+                        initialTimestampMilliseconds: 500,
+                        renderCacheProvider: nil
+                    ),
+                    expectedVideoSize: CGSize(width: 160, height: 90)
+                )
+            )
+            try await waitForVerticalSyncCondition {
+                delegateSpy.commit(forGeneration: fallbackOpenGen) != nil
+            }
+            #expect(ASSIndexedPartialLoadDiagnostics.snapshot.fullFallbackSessionLoadCount == fallbackBefore + 1)
+            let fallbackWindowOneSurface = try #require(container.currentASSSubtitleFrame()?.surface)
+            #expect(fallbackWindowOneSurface.width > 0 && fallbackWindowOneSurface.height > 0)
+
+            let fallbackWindowTwoGen = try player.seek(toMilliseconds: 6_500, pauseAfterFirstFrame: true)
+            try await waitForVerticalSyncCondition {
+                delegateSpy.commit(forGeneration: fallbackWindowTwoGen) != nil
+            }
+            let fallbackWindowTwoSurface = try #require(container.currentASSSubtitleFrame()?.surface)
+            #expect(fallbackWindowTwoSurface.width > 0 && fallbackWindowTwoSurface.height > 0)
+        }
+    }
 }
 
 
@@ -1128,7 +1642,8 @@ private func makeVerticalSyncTestVideo(
     ffmpegURL: URL,
     frameRate: String,
     durationSeconds: Int,
-    keyframeInterval: Int = 12
+    keyframeInterval: Int = 12,
+    videoSize: String = "160x90"
 ) throws {
     let process = Process()
     process.executableURL = ffmpegURL
@@ -1139,7 +1654,7 @@ private func makeVerticalSyncTestVideo(
         "-f",
         "lavfi",
         "-i",
-        "testsrc2=duration=\(durationSeconds):size=160x90:rate=\(frameRate)",
+        "testsrc2=duration=\(durationSeconds):size=\(videoSize):rate=\(frameRate)",
         "-f",
         "lavfi",
         "-i",

@@ -234,21 +234,31 @@ public final class LibraryDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    public func videoCodec(forVideoPath videoPath: String) -> String? {
+    public func videoPlaybackOpenMetadata(forVideoPath videoPath: String) -> VideoPlaybackOpenMetadata {
         guard let statement = try? database.prepare(
             """
-            SELECT vf.video_codec
+            SELECT vf.video_codec, vf.video_width, vf.video_height
             FROM video_files vf
             WHERE vf.path = ?;
             """
         ) else {
-            return nil
+            return VideoPlaybackOpenMetadata()
         }
         try? statement.bind(videoPath, at: 1)
         guard (try? statement.step()) == true else {
-            return nil
+            return VideoPlaybackOpenMetadata()
         }
-        return statement.nullableStringColumn(0)
+        let rawWidth = statement.nullableIntColumn(1)
+        let rawHeight = statement.nullableIntColumn(2)
+        return VideoPlaybackOpenMetadata(
+            codec: statement.nullableStringColumn(0),
+            videoWidth: rawWidth.flatMap { $0 > 0 ? $0 : nil },
+            videoHeight: rawHeight.flatMap { $0 > 0 ? $0 : nil }
+        )
+    }
+
+    public func videoCodec(forVideoPath videoPath: String) -> String? {
+        videoPlaybackOpenMetadata(forVideoPath: videoPath).codec
     }
 
     /// The Display Title Index gave the video, read from the database only, so
@@ -762,5 +772,21 @@ extension LibraryDatabase {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.string(from: date)
+    }
+}
+
+public struct VideoPlaybackOpenMetadata: Equatable, Sendable {
+    public let codec: String?
+    public let videoWidth: Int?
+    public let videoHeight: Int?
+
+    public init(
+        codec: String? = nil,
+        videoWidth: Int? = nil,
+        videoHeight: Int? = nil
+    ) {
+        self.codec = codec
+        self.videoWidth = videoWidth
+        self.videoHeight = videoHeight
     }
 }

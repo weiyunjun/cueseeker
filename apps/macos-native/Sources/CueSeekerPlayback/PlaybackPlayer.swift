@@ -75,6 +75,7 @@ private struct PendingPresentation {
     let trigger: PlaybackSubtitleFirstFrameTrigger
     let targetMilliseconds: Int
     let heldMilliseconds: Int
+    let expectedVideoSize: CGSize?
     var subtitleAction: PendingSubtitleAction
     var stagedSubtitleFailedURL: URL?
     var preparedVideoFrame: PreparedVideoFirstFrame?
@@ -105,6 +106,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var pendingManualSubtitleSwitchSource: PlaybackSubtitleSource?
     private var isEvaluatingPendingPresentationGate = false
     internal var subtitleFirstFrameWaitTimeoutSeconds: TimeInterval = 1.0
+    internal var hasPendingManualSubtitleSwitchForTesting: Bool {
+        pendingManualSubtitleSwitchSource != nil
+    }
     private var reachedAutoStopBoundaryMilliseconds: Int?
     private var persistentAutoPauseBoundary: PlaybackAutoStopBoundary?
     private var autoPauseAuthorization: PlaybackAutoPauseAuthorization?
@@ -241,7 +245,8 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         beginPresentationTransition(
             trigger: .newVideoOpen,
             targetMilliseconds: request.startMilliseconds,
-            subtitleAction: .replace(request.subtitleSource)
+            subtitleAction: .replace(request.subtitleSource),
+            expectedVideoSize: request.expectedVideoSize
         )
         let expectedGeneration = nativePlayer.nativePresentationGeneration &+ 1
         authorizeAutoPauseBoundary(
@@ -548,7 +553,8 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private func beginPresentationTransition(
         trigger: PlaybackSubtitleFirstFrameTrigger,
         targetMilliseconds: Int,
-        subtitleAction: PendingSubtitleAction
+        subtitleAction: PendingSubtitleAction,
+        expectedVideoSize: CGSize? = nil
     ) {
         subtitleWaitTimeoutTask?.cancel()
         subtitleWaitTimeoutTask = nil
@@ -578,6 +584,14 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             resolvedSubtitleAction = subtitleAction
         }
 
+        let resolvedExpectedVideoSize: CGSize?
+        switch trigger {
+        case .newVideoOpen:
+            resolvedExpectedVideoSize = expectedVideoSize
+        case .sameVideoSeek, .manualSubtitleSwitch:
+            resolvedExpectedVideoSize = expectedVideoSize ?? pendingPresentation?.expectedVideoSize
+        }
+
         let transitionID = UUID()
         pendingPresentation = PendingPresentation(
             transitionID: transitionID,
@@ -585,6 +599,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             trigger: trigger,
             targetMilliseconds: safeTargetMilliseconds,
             heldMilliseconds: max(0, heldMilliseconds),
+            expectedVideoSize: resolvedExpectedVideoSize,
             subtitleAction: resolvedSubtitleAction,
             stagedSubtitleFailedURL: nil,
             preparedVideoFrame: nil,
@@ -1091,8 +1106,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 return
             }
             (self.renderView as? PlaybackRenderContainerView)?.setSubtitleTime(
-                milliseconds: effectiveMilliseconds,
-                targetFormatOnly: self.pendingManualSubtitleSwitchSource?.format
+                milliseconds: effectiveMilliseconds
             )
             self.lastRenderedASSSubtitleMilliseconds = effectiveMilliseconds
         }
@@ -1110,8 +1124,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 return
             }
             (self.renderView as? PlaybackRenderContainerView)?.setSubtitleTime(
-                milliseconds: effectiveMilliseconds,
-                targetFormatOnly: self.pendingManualSubtitleSwitchSource?.format
+                milliseconds: effectiveMilliseconds
             )
             self.lastRenderedASSSubtitleMilliseconds = effectiveMilliseconds
         }
@@ -1182,8 +1195,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 let container = self.renderView as? PlaybackRenderContainerView
                 if milliseconds != self.lastRenderedASSSubtitleMilliseconds {
                     container?.setSubtitleTime(
-                        milliseconds: milliseconds,
-                        targetFormatOnly: self.pendingManualSubtitleSwitchSource?.format
+                        milliseconds: milliseconds
                     )
                     self.lastRenderedASSSubtitleMilliseconds = milliseconds
                 }
@@ -1294,10 +1306,8 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             return
         }
         let videoSize = currentNativeVideoSize() ?? lastCommittedVideoSize
-        let targetMilliseconds = container.currentSubtitleMilliseconds(for: manualSource.format)
-        guard container.isStagedSubtitleReady(
+        guard container.isManualSubtitleSwitchReady(
             for: manualSource,
-            atMilliseconds: targetMilliseconds,
             videoSize: videoSize
         ) else {
             return
@@ -1326,9 +1336,16 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             return
         }
         installContainerHandlers(on: container)
-        let speculativeVideoSize = pending.preparedVideoFrame?.videoSize
-            ?? currentNativeVideoSize()
-            ?? lastCommittedVideoSize
+        let speculativeVideoSize: CGSize?
+        switch pending.trigger {
+        case .newVideoOpen:
+            speculativeVideoSize = pending.preparedVideoFrame?.videoSize
+                ?? pending.expectedVideoSize
+        case .sameVideoSeek, .manualSubtitleSwitch:
+            speculativeVideoSize = pending.preparedVideoFrame?.videoSize
+                ?? currentNativeVideoSize()
+                ?? lastCommittedVideoSize
+        }
         let targetMilliseconds = pending.preparedVideoFrame?.alignedMilliseconds
             ?? pending.targetMilliseconds
         container.prepareStagedSubtitlePresentation(
@@ -1864,9 +1881,7 @@ public final class PlaybackRenderContainerView: NSView {
         let safeMilliseconds = max(0, targetMilliseconds)
         currentASSSubtitleTimeMilliseconds = safeMilliseconds
         currentSubtitlesVisible = isVisible
-        if let speculativeVideoSize {
-            currentVideoSize = speculativeVideoSize
-        }
+        currentVideoSize = speculativeVideoSize
 
         sourceFaithfulASSOverlayView?.defersLayerPresentation = true
         srtSubtitleOverlayView?.defersLayerPresentation = true
@@ -1978,6 +1993,26 @@ public final class PlaybackRenderContainerView: NSView {
             return srtSubtitleOverlayView?.isPreparedForPresentation(
                 atMilliseconds: milliseconds,
                 videoSize: videoSize
+            ) == true
+        }
+    }
+
+    fileprivate func isManualSubtitleSwitchReady(
+        for source: PlaybackSubtitleSource,
+        videoSize: CGSize?
+    ) -> Bool {
+        let resolvedVideoSize = videoSize
+            ?? ((bounds.width > 1 && bounds.height > 1) ? bounds.size : CGSize(width: 1920, height: 1080))
+        switch source.format {
+        case .ass:
+            return sourceFaithfulASSOverlayView?.isPreparedForManualSwitch(
+                for: source,
+                videoSize: resolvedVideoSize
+            ) == true
+        case .srt:
+            return srtSubtitleOverlayView?.isPreparedForManualSwitch(
+                for: source,
+                videoSize: resolvedVideoSize
             ) == true
         }
     }
@@ -2096,16 +2131,14 @@ public final class PlaybackRenderContainerView: NSView {
         currentSubtitlesVisible = true
         currentVideoSize = videoSize
 
-        sourceFaithfulASSOverlayView?.defersLayerPresentation = true
-        srtSubtitleOverlayView?.defersLayerPresentation = true
-
         let resolvedVideoSize = videoSize
             ?? ((bounds.width > 1 && bounds.height > 1) ? bounds.size : CGSize(width: 1920, height: 1080))
 
         switch source.format {
         case .ass:
-            srtSubtitleOverlayView?.defersLayerPresentation = true
-            srtSubtitleOverlayView?.setSource(nil)
+            if srtSubtitleOverlayView?.defersLayerPresentation == true {
+                srtSubtitleOverlayView?.setSource(nil)
+            }
             ensureSourceFaithfulASSOverlayView()
             sourceFaithfulASSOverlayView?.defersLayerPresentation = true
             _ = sourceFaithfulASSOverlayView?.setPresentation(
@@ -2116,8 +2149,9 @@ public final class PlaybackRenderContainerView: NSView {
                 telemetryAttempt: telemetryAttempt
             )
         case .srt:
-            sourceFaithfulASSOverlayView?.defersLayerPresentation = true
-            sourceFaithfulASSOverlayView?.setSource(nil)
+            if sourceFaithfulASSOverlayView?.defersLayerPresentation == true {
+                sourceFaithfulASSOverlayView?.setSource(nil)
+            }
             ensureSRTSubtitleOverlayView()
             srtSubtitleOverlayView?.defersLayerPresentation = true
             _ = srtSubtitleOverlayView?.setPresentation(
@@ -2347,8 +2381,18 @@ public final class PlaybackRenderContainerView: NSView {
         guard currentSubtitlesVisible else {
             return nil
         }
-        return sourceFaithfulASSOverlayView?.nextScheduledRenderMilliseconds(after: milliseconds)
-            ?? srtSubtitleOverlayView?.nextScheduledRenderMilliseconds(after: milliseconds)
+        let nextASS = sourceFaithfulASSOverlayView?.nextScheduledRenderMilliseconds(after: milliseconds)
+        let nextSRT = srtSubtitleOverlayView?.nextScheduledRenderMilliseconds(after: milliseconds)
+        switch (nextASS, nextSRT) {
+        case let (lhs?, rhs?):
+            return min(lhs, rhs)
+        case let (lhs?, nil):
+            return lhs
+        case let (nil, rhs?):
+            return rhs
+        case (nil, nil):
+            return nil
+        }
     }
 
     func setSubtitlesVisible(_ isVisible: Bool) {

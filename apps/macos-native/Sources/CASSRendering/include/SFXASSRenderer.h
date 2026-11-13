@@ -97,6 +97,9 @@ typedef NSArray<NSString *> * _Nullable (^SFXASSWindowEventLinesProviderBlock)(
                                                                             error:(NSError **)error
     NS_SWIFT_NAME(renderCroppedImage(atTimestampMilliseconds:));
 
+- (BOOL)updateFrameWidth:(NSInteger)frameWidth
+             frameHeight:(NSInteger)frameHeight;
+
 - (void)close;
 
 @end

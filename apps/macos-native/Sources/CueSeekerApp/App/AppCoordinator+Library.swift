@@ -497,6 +497,7 @@ extension AppCoordinator {
 
         do {
             let videoURL = URL.fromMediaPath(video.videoPath)
+            let openMetadata = resolvedOpenVideoPlaybackMetadata(forVideoPath: video.videoPath)
             let request = try PlaybackRequest(
                 videoURL: videoURL,
                 startMilliseconds: startMilliseconds,
@@ -509,7 +510,8 @@ extension AppCoordinator {
                         fallbackEndMilliseconds: startMilliseconds
                     )
                 ),
-                audioTrackIndex: defaultAudioTrackIndex(forVideoPath: video.videoPath),
+                audioTrackIndex: openMetadata.defaultAudioTrackIndex,
+                expectedVideoSize: openMetadata.expectedVideoSize,
                 precheckedVideoFileExists: precheckedPlaybackMediaAvailability?.videoExistence(
                     forMediaPath: videoURL.mediaPath
                 )

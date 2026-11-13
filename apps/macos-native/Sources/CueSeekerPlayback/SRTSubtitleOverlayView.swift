@@ -142,6 +142,36 @@ final class SRTSubtitleOverlayView: NSView {
         return activeValidRangeMilliseconds?.contains(safeMilliseconds) == true
     }
 
+    func isPreparedForManualSwitch(
+        for targetSource: PlaybackSubtitleSource,
+        videoSize targetVideoSize: CGSize?
+    ) -> Bool {
+        let expectedIdentity = Self.identity(for: targetSource)
+        guard let source,
+              source.format == .srt,
+              Self.identity(for: source) == expectedIdentity
+        else {
+            return false
+        }
+        guard areSubtitlesVisible else {
+            return true
+        }
+        if loadFailedForCurrentSource {
+            return false
+        }
+        if let targetVideoSize, videoSize != targetVideoSize {
+            return false
+        }
+        guard videoSize != nil,
+              loadTask == nil,
+              layoutTask == nil,
+              loadedSourceIdentity == expectedIdentity
+        else {
+            return false
+        }
+        return stagedReadyAt != nil || cues.isEmpty
+    }
+
     func retargetDeferredPresentation(
         videoSize nextVideoSize: CGSize?,
         milliseconds: Int

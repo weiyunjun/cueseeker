@@ -49,6 +49,7 @@ final class AppCoordinator: ObservableObject {
 
     let databaseURL: URL
     let playbackSubtitleFocusDatabaseReader: PlaybackSubtitleFocusDatabaseReader
+    let playbackSubtitleRenderCacheReader: PlaybackSubtitleRenderCacheReader
     var indexingDatabase: IndexingDatabase?
     let playbackSubtitleDatabase: PlaybackSubtitleDatabase?
     let cueContentDatabase: CueContentDatabase?
@@ -431,6 +432,7 @@ final class AppCoordinator: ObservableObject {
     struct CachedVideoPlaybackMetadata {
         var codec: String?
         var defaultAudioTrackIndex: Int
+        var expectedVideoSize: CGSize?
         var hasLoadedCodecAndAudioTrack = false
         var storedDisplayTitle: String?
         var hasLoadedStoredDisplayTitle = false
@@ -483,6 +485,9 @@ final class AppCoordinator: ObservableObject {
         self.databaseURL = resolvedDatabaseURL
         self.libraryFolderRemovalExecutor = libraryFolderRemovalExecutor
         playbackSubtitleFocusDatabaseReader = PlaybackSubtitleFocusDatabaseReader(
+            databaseURL: resolvedDatabaseURL
+        )
+        playbackSubtitleRenderCacheReader = PlaybackSubtitleRenderCacheReader(
             databaseURL: resolvedDatabaseURL
         )
 

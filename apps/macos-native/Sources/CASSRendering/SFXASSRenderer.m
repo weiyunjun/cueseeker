@@ -720,6 +720,103 @@ static BOOL SFXParseASSTimestampMilliseconds(const char *p, const char *end, int
     return YES;
 }
 
+static NSData *SFXEnsureTrailingNewlineData(NSData *data) {
+    if (data == nil || data.length == 0) {
+        return data;
+    }
+    const char *bytes = (const char *)data.bytes;
+    if (bytes[data.length - 1] == '\n') {
+        return data;
+    }
+    NSMutableData *mutableData = [data mutableCopy];
+    [mutableData appendBytes:"\n" length:1];
+    return mutableData;
+}
+
+static BOOL SFXParseEventsFormatColumns(
+    const char *formatValueStart,
+    const char *formatValueEnd,
+    int *outFieldCount,
+    int *outStartIndex,
+    int *outEndIndex
+) {
+    if (formatValueStart == NULL || formatValueEnd == NULL || formatValueStart >= formatValueEnd) {
+        return NO;
+    }
+    int fieldCount = 0;
+    int startIndex = -1;
+    int endIndex = -1;
+    int textIndex = -1;
+    const char *cursor = formatValueStart;
+    while (cursor <= formatValueEnd) {
+        const char *comma = (const char *)memchr(cursor, ',', (size_t)(formatValueEnd - cursor));
+        const char *tokenEnd = comma != NULL ? comma : formatValueEnd;
+        const char *tokenStart = cursor;
+        while (tokenStart < tokenEnd && (*tokenStart == ' ' || *tokenStart == '\t')) {
+            tokenStart++;
+        }
+        while (tokenEnd > tokenStart
+               && (tokenEnd[-1] == ' ' || tokenEnd[-1] == '\t' || tokenEnd[-1] == '\r' || tokenEnd[-1] == '\n')) {
+            tokenEnd--;
+        }
+        size_t tokenLen = (size_t)(tokenEnd - tokenStart);
+        if (tokenLen == 5 && strncasecmp(tokenStart, "Start", 5) == 0 && startIndex < 0) {
+            startIndex = fieldCount;
+        } else if (tokenLen == 3 && strncasecmp(tokenStart, "End", 3) == 0 && endIndex < 0) {
+            endIndex = fieldCount;
+        } else if (tokenLen == 4 && strncasecmp(tokenStart, "Text", 4) == 0) {
+            textIndex = fieldCount;
+        }
+        fieldCount++;
+        if (comma == NULL) {
+            break;
+        }
+        cursor = comma + 1;
+    }
+    if (fieldCount < 3 || startIndex < 0 || endIndex < 0 || textIndex != fieldCount - 1) {
+        return NO;
+    }
+    *outFieldCount = fieldCount;
+    *outStartIndex = startIndex;
+    *outEndIndex = endIndex;
+    return YES;
+}
+
+static BOOL SFXExtractDialogueFieldRange(
+    const char *afterPrefix,
+    const char *lineEnd,
+    int fieldCount,
+    int targetIndex,
+    const char **outStart,
+    const char **outEnd
+) {
+    if (afterPrefix == NULL || lineEnd == NULL || afterPrefix > lineEnd || targetIndex < 0 || targetIndex >= fieldCount) {
+        return NO;
+    }
+    const char *cursor = afterPrefix;
+    for (int col = 0; col < fieldCount; col++) {
+        if (col == fieldCount - 1) {
+            if (col == targetIndex) {
+                *outStart = cursor;
+                *outEnd = lineEnd;
+                return YES;
+            }
+            return NO;
+        }
+        const char *comma = (const char *)memchr(cursor, ',', (size_t)(lineEnd - cursor));
+        if (comma == NULL) {
+            return NO;
+        }
+        if (col == targetIndex) {
+            *outStart = cursor;
+            *outEnd = comma;
+            return YES;
+        }
+        cursor = comma + 1;
+    }
+    return NO;
+}
+
 static BOOL SFXIsValidUTF8WithoutNulls(const uint8_t *bytes, size_t length) {
     if (bytes == NULL || length == 0) {
         return NO;
@@ -1157,7 +1254,7 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
         return nil;
     }
 
-    _rewrittenHeaderData = headerData;
+    _rewrittenHeaderData = SFXEnsureTrailingNewlineData(headerData);
     _track = SFXReadASSMemory(_library, (const char *)_rewrittenHeaderData.bytes, _rewrittenHeaderData.length, nil);
     if (_track == NULL) {
         SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, failureMessage);
@@ -1187,6 +1284,10 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     size_t headerEnd = 0;
     BOOL isInsideEventsSection = NO;
     BOOL hasEventsFormat = NO;
+    int eventsFormatFieldCount = 0;
+    int eventsStartFieldIndex = -1;
+    int eventsEndFieldIndex = -1;
+    BOOL hasWindowableEventsFormat = NO;
     BOOL foundFirstDialogue = NO;
     BOOL canUseWindowedEvents = YES;
     size_t sliceCapacity = 0;
@@ -1224,23 +1325,49 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
                 canUseWindowedEvents = NO;
                 break;
             }
+            hasWindowableEventsFormat = SFXParseEventsFormatColumns(
+                trimmed + 7,
+                contentEnd,
+                &eventsFormatFieldCount,
+                &eventsStartFieldIndex,
+                &eventsEndFieldIndex
+            );
+            if (!hasWindowableEventsFormat) {
+                canUseWindowedEvents = NO;
+            }
         } else if (isInsideEventsSection && hasEventsFormat && trimmedLen >= 9 && strncasecmp(trimmed, "Dialogue:", 9) == 0) {
             if (!foundFirstDialogue) {
                 headerEnd = pos;
                 foundFirstDialogue = YES;
             }
-            const char *c1 = (const char *)memchr(trimmed + 9, ',', (size_t)(lineEnd - (trimmed + 9)));
-            const char *c2 = c1 != NULL
-                ? (const char *)memchr(c1 + 1, ',', (size_t)(lineEnd - (c1 + 1)))
-                : NULL;
-            const char *c3 = c2 != NULL
-                ? (const char *)memchr(c2 + 1, ',', (size_t)(lineEnd - (c2 + 1)))
-                : NULL;
+            if (!canUseWindowedEvents || !hasWindowableEventsFormat) {
+                canUseWindowedEvents = NO;
+                break;
+            }
+            const char *startFieldStart = NULL;
+            const char *startFieldEnd = NULL;
+            const char *endFieldStart = NULL;
+            const char *endFieldEnd = NULL;
             int32_t startMs = 0;
             int32_t endMs = 0;
-            if (c1 != NULL && c2 != NULL && c3 != NULL
-                && SFXParseASSTimestampMilliseconds(c1 + 1, c2, &startMs)
-                && SFXParseASSTimestampMilliseconds(c2 + 1, c3, &endMs)
+            if (SFXExtractDialogueFieldRange(
+                    trimmed + 9,
+                    lineEnd,
+                    eventsFormatFieldCount,
+                    eventsStartFieldIndex,
+                    &startFieldStart,
+                    &startFieldEnd
+                )
+                && SFXExtractDialogueFieldRange(
+                    trimmed + 9,
+                    lineEnd,
+                    eventsFormatFieldCount,
+                    eventsEndFieldIndex,
+                    &endFieldStart,
+                    &endFieldEnd
+                )
+                && SFXParseASSTimestampMilliseconds(startFieldStart, startFieldEnd, &startMs)
+                && SFXParseASSTimestampMilliseconds(endFieldStart, endFieldEnd, &endMs)
                 && pos <= UINT32_MAX
                 && lineLen <= UINT32_MAX) {
                 if (_eventSliceCount == sliceCapacity) {
@@ -1304,7 +1431,7 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
         if (headerData == nil || headerData.length == 0) {
             headerData = [NSData dataWithBytes:_mappedScriptBytes + bodyStart length:headerLength];
         }
-        _rewrittenHeaderData = headerData;
+        _rewrittenHeaderData = SFXEnsureTrailingNewlineData(headerData);
         _track = SFXReadASSMemory(_library, (const char *)_rewrittenHeaderData.bytes, _rewrittenHeaderData.length, nil);
         if (_track != NULL) {
             _usesWindowedEvents = YES;
@@ -1366,19 +1493,24 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
         }
     }
 
-    if (_loadedWindowEndMilliseconds > _loadedWindowStartMilliseconds && _rewrittenHeaderData.length > 0) {
-        if (_track != NULL) {
-            ass_free_track(_track);
-            _track = NULL;
+    BOOL canFeedFirstWindowDirectly = (
+        _loadedWindowEndMilliseconds <= _loadedWindowStartMilliseconds
+        && _track->n_events == 0
+    );
+    if (!canFeedFirstWindowDirectly) {
+        if (_rewrittenHeaderData.length > 0) {
+            if (_track != NULL) {
+                ass_free_track(_track);
+                _track = NULL;
+            }
+            _track = SFXReadASSMemory(_library, (const char *)_rewrittenHeaderData.bytes, _rewrittenHeaderData.length, nil);
+            if (_track == NULL) {
+                SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"libass failed to reload ASS header for window.");
+                return NO;
+            }
+        } else {
+            ass_flush_events(_track);
         }
-        _track = SFXReadASSMemory(_library, (const char *)_rewrittenHeaderData.bytes, _rewrittenHeaderData.length, nil);
-        if (_track == NULL) {
-            SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"libass failed to reload ASS header for window.");
-            return NO;
-        }
-    } else {
-        ass_flush_events(_track);
-        ass_process_data(_track, "[Events]\n", 9);
     }
 
     if (providedLines != nil) {
@@ -1629,6 +1761,26 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
                                                        changed:YES
                                      unchangedFromMilliseconds:unchangedFromMs
                                     unchangedUntilMilliseconds:unchangedUntilMs];
+}
+
+- (BOOL)updateFrameWidth:(NSInteger)frameWidth
+             frameHeight:(NSInteger)frameHeight {
+    if (_renderer == NULL || _track == NULL || !SFXASSValidateFrameSize(frameWidth, frameHeight, NULL)) {
+        return NO;
+    }
+    if (_frameWidth == frameWidth && _frameHeight == frameHeight) {
+        return YES;
+    }
+    int safeWidth = (int)MAX(1, MIN((NSInteger)INT_MAX, frameWidth));
+    int safeHeight = (int)MAX(1, MIN((NSInteger)INT_MAX, frameHeight));
+    ass_set_frame_size(_renderer, safeWidth, safeHeight);
+    ass_set_storage_size(_renderer, safeWidth, safeHeight);
+    _frameWidth = frameWidth;
+    _frameHeight = frameHeight;
+    _hasRenderedCroppedFrame = NO;
+    _lastUnchangedFromMilliseconds = -1;
+    _lastUnchangedUntilMilliseconds = -1;
+    return YES;
 }
 
 - (void)dealloc {

@@ -1,6 +1,6 @@
 import Combine
-import CueSeekerCore
-import CueSeekerPlayback
+@testable import CueSeekerCore
+@testable import CueSeekerPlayback
 import Foundation
 import Testing
 @testable import CueSeekerApp
@@ -214,4 +214,113 @@ func appCoordinatorSubtitleAvailabilityAndErrorBannerDistinguishReadableCachedRe
 
     app.handleSubtitleSourceLoadFailure(URL(fileURLWithPath: activePath))
     #expect(app.playback.errorMessages[.subtitle]?.contains(activePath) == true)
+}
+
+@MainActor
+@Test
+func appCoordinatorReusesSingleSubtitleRenderCacheReaderAcrossEpisodesAndResolvesExpectedVideoSize() async throws {
+    let suiteName = "CueSeekerAppRenderCacheReuseTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    let tempDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent(suiteName, isDirectory: true)
+    let mediaDir = tempDir.appendingPathComponent("Season1", isDirectory: true)
+    try FileManager.default.createDirectory(at: mediaDir, withIntermediateDirectories: true)
+    let databaseURL = tempDir.appendingPathComponent("CueSeeker.sqlite")
+    defer {
+        ASSIndexedPartialLoadDiagnostics.resetForTesting()
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
+        try? FileManager.default.removeItem(at: tempDir)
+    }
+
+    let episodeSpecs: [(name: String, width: Int, height: Int, codec: String)] = [
+        ("Episode01", 1920, 1080, "h264"),
+        ("Episode02", 1920, 800, "hevc"),
+        ("Episode03", 1280, 720, "av1")
+    ]
+    var episodePairs: [(videoURL: URL, subtitleURL: URL, width: Int, height: Int, codec: String)] = []
+    for (idx, spec) in episodeSpecs.enumerated() {
+        let videoURL = mediaDir.appendingPathComponent("\(spec.name).mkv")
+        let subtitleURL = mediaDir.appendingPathComponent("\(spec.name).ass")
+        try Data("video-\(idx)".utf8).write(to: videoURL)
+        let assScript = """
+        [Script Info]
+        ScriptType: v4.00+
+        PlayResX: \(spec.width)
+        PlayResY: \(spec.height)
+
+        [V4+ Styles]
+        Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+        Style: Default,Helvetica,38,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,24,1
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:00.20,0:00:03.50,Default,,0,0,0,,Episode \(idx + 1) Opening Cue
+        """
+        try Data(assScript.utf8).write(to: subtitleURL)
+        episodePairs.append((videoURL, subtitleURL, spec.width, spec.height, spec.codec))
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    do {
+        let indexingDB = try IndexingDatabase(path: databaseURL)
+        let indexResult = try SubtitleIndexer().index(folder: mediaDir, into: indexingDB)
+        #expect(indexResult.indexedSubtitleFiles == 3)
+        #expect(indexResult.failedFiles.isEmpty)
+
+        let libraryDB = try LibraryDatabase(path: databaseURL)
+        for pair in episodePairs {
+            try libraryDB.updateVideoMetadata(
+                videoFile: pair.videoURL,
+                duration: 120.0,
+                videoWidth: pair.width,
+                videoHeight: pair.height,
+                frameRate: 24.0,
+                videoCodec: pair.codec,
+                audioTracks: []
+            )
+        }
+    }
+
+    ASSIndexedPartialLoadDiagnostics.resetForTesting()
+    ASSIndexedPartialLoadDiagnostics.scopedPathSubstringForTesting = suiteName
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    #expect(app.playbackSubtitleRenderCacheReader.openedDatabaseConnectionCountForTesting == 0)
+
+    let renderContainer = PlaybackRenderContainerView()
+    renderContainer.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
+
+    for (idx, pair) in episodePairs.enumerated() {
+        let openMetadata = app.resolvedOpenVideoPlaybackMetadata(forVideoPath: pair.videoURL.path)
+        #expect(openMetadata.codec == pair.codec)
+        #expect(openMetadata.expectedVideoSize == CGSize(width: pair.width, height: pair.height))
+
+        let source = try #require(
+            app.playbackSubtitleSource(
+                forSubtitleFile: pair.subtitleURL,
+                format: .ass,
+                videoPath: pair.videoURL.path,
+                startingAtMilliseconds: 500,
+                fallbackEndMilliseconds: 3_500
+            )
+        )
+        let provider = try #require(source.renderCacheProvider)
+        let reader = try #require(provider as? PlaybackSubtitleRenderCacheReader)
+        #expect(provider.cacheScopeID == app.playbackSubtitleRenderCacheReader.cacheScopeID)
+        #expect(reader.cacheScopeID == app.playbackSubtitleRenderCacheReader.cacheScopeID)
+
+        _ = renderContainer.commitSubtitlePresentation(
+            source: source,
+            videoSize: CGSize(width: pair.width, height: pair.height),
+            milliseconds: 500,
+            isVisible: true
+        )
+        let deadline = Date().addingTimeInterval(3.0)
+        while ASSIndexedPartialLoadDiagnostics.snapshot.indexedSessionLoadCount < idx + 1 && Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        #expect(ASSIndexedPartialLoadDiagnostics.snapshot.indexedSessionLoadCount == idx + 1)
+    }
+
+    #expect(app.playbackSubtitleRenderCacheReader.openedDatabaseConnectionCountForTesting == 1)
 }

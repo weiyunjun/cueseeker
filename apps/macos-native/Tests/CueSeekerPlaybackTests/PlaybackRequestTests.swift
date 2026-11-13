@@ -1074,6 +1074,7 @@ func sourceFaithfulASSPresentationAvoidsIntermediateRendererReloads() throws {
 
     #expect(view.rendererLoadCountForTesting == 2)
     #expect(view.rendererWorkerIdentityForTesting != firstWorker)
+    let secondWorker = view.rendererWorkerIdentityForTesting
 
     view.setPresentation(
         source: PlaybackSubtitleSource(url: secondSubtitleURL, format: .ass),
@@ -1082,7 +1083,9 @@ func sourceFaithfulASSPresentationAvoidsIntermediateRendererReloads() throws {
         isVisible: false
     )
 
-    #expect(view.rendererLoadCountForTesting == 3)
+    #expect(view.rendererLoadCountForTesting == 2)
+    #expect(view.rendererInPlaceResizeCountForTesting == 1)
+    #expect(view.rendererWorkerIdentityForTesting == secondWorker)
     #expect(view.currentPresentationFrame() == nil)
 }
 

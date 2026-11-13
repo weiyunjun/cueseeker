@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import CueSeekerCore
 
@@ -197,6 +198,7 @@ public struct PlaybackRequest: Equatable, Sendable {
     /// Counted from 0 among the file's audio streams; a file without it plays
     /// its first audio track.
     public let audioTrackIndex: Int
+    public let expectedVideoSize: CGSize?
 
     public init(
         videoURL: URL,
@@ -205,6 +207,7 @@ public struct PlaybackRequest: Equatable, Sendable {
         autoStopAtMilliseconds: Int? = nil,
         subtitleSource: PlaybackSubtitleSource? = nil,
         audioTrackIndex: Int = 0,
+        expectedVideoSize: CGSize? = nil,
         precheckedVideoFileExists: Bool? = nil
     ) throws {
         guard videoURL.isFileURL || videoURL.isRemoteMediaURL else {
@@ -233,6 +236,15 @@ public struct PlaybackRequest: Equatable, Sendable {
             startMilliseconds: safeStartMilliseconds
         )
         self.audioTrackIndex = max(0, audioTrackIndex)
+        if let expectedVideoSize,
+           expectedVideoSize.width.isFinite,
+           expectedVideoSize.height.isFinite,
+           expectedVideoSize.width > 0,
+           expectedVideoSize.height > 0 {
+            self.expectedVideoSize = expectedVideoSize
+        } else {
+            self.expectedVideoSize = nil
+        }
     }
 }
 

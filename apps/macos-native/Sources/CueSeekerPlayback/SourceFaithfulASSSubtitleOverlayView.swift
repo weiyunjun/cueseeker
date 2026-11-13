@@ -448,6 +448,17 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         }
     }
 
+    func updateFrameSize(frameWidth: Int, frameHeight: Int) {
+        queue.async {
+            guard !self.isInvalidated else {
+                return
+            }
+            self.frameWidth = frameWidth
+            self.frameHeight = frameHeight
+            _ = self.session?.updateFrameWidth(frameWidth, frameHeight: frameHeight)
+        }
+    }
+
     func render(
         generation expectedGeneration: UUID,
         timestampMilliseconds: Int,
@@ -730,7 +741,10 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     var videoSize: CGSize? {
         didSet {
             if !isApplyingPresentation, oldValue != videoSize {
-                reloadRendererIfPossible()
+                if !updateRendererFrameSizeInPlaceIfPossible() {
+                    reloadRendererIfPossible()
+                }
+                needsLayout = true
                 needsDisplay = true
             }
         }
@@ -753,6 +767,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     private var source: PlaybackSubtitleSource?
     private var generation: UUID?
+    private var frameSizeRevision: UInt = 0
     private var isRendererReady = false
     private var isRenderInFlight = false
     private var pendingTimestampMilliseconds: Int?
@@ -775,6 +790,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var subtitleSurfaceLayer: CALayer?
     private var rendererWorker = SourceFaithfulASSRendererWorker()
     private(set) var rendererLoadCountForTesting = 0
+    private(set) var rendererInPlaceResizeCountForTesting = 0
 
     var hasDisplayedSubtitleImage: Bool {
         !subtitleContainerLayer.isHidden && subtitleSurfaceLayer?.contents != nil
@@ -899,6 +915,28 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             || renderedValidRangeMilliseconds?.contains(safeMilliseconds) == true
     }
 
+    func isPreparedForManualSwitch(
+        for targetSource: PlaybackSubtitleSource,
+        videoSize targetVideoSize: CGSize?
+    ) -> Bool {
+        guard let source,
+              source.url.standardizedMediaURL == targetSource.url.standardizedMediaURL,
+              source.format == targetSource.format
+        else {
+            return false
+        }
+        guard areSubtitlesVisible else {
+            return true
+        }
+        if loadFailedForCurrentSource || failureMessage != nil {
+            return false
+        }
+        if source.format != .srt, let targetVideoSize, videoSize != targetVideoSize {
+            return false
+        }
+        return isRendererReady && stagedReadyAt != nil
+    }
+
     func retargetDeferredPresentation(
         videoSize nextVideoSize: CGSize?,
         milliseconds: Int
@@ -909,14 +947,30 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             pendingTelemetryRender = pending
         }
 
-        let shouldReloadForVideoSize = source?.format != .srt
+        let shouldUpdateForVideoSize = source?.format != .srt
             && nextVideoSize != nil
             && videoSize != nextVideoSize
-        if shouldReloadForVideoSize {
+        if shouldUpdateForVideoSize {
             isApplyingPresentation = true
             videoSize = nextVideoSize
             currentTimeMilliseconds = safeMilliseconds
             isApplyingPresentation = false
+
+            if updateRendererFrameSizeInPlaceIfPossible() {
+                if var pending = pendingTelemetryRender, !pending.attempt.isCancelled {
+                    pending.targetTimestampMilliseconds = safeMilliseconds
+                    if !pending.awaitingLoadCompletion {
+                        pending.minCompletingRenderSequence = pendingTimestampMilliseconds != nil
+                            ? (nextRenderSequence &+ 1)
+                            : max(nextRenderSequence, 1)
+                    }
+                    pendingTelemetryRender = pending
+                }
+                needsLayout = true
+                needsDisplay = true
+                return
+            }
+
             reloadRendererIfPossible()
             if var pending = pendingTelemetryRender, !pending.attempt.isCancelled {
                 if pending.attempt.prepStartedAt == nil {
@@ -959,12 +1013,13 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             clearSubtitleLayers()
         }
 
+        let hadStagedFrame = (stagedReadyAt != nil)
         let readyAt = stagedReadyAt ?? committedAt
         stagedReadyAt = nil
         if let pending = pendingTelemetryRender,
            !pending.awaitingLoadCompletion,
-           !isRenderInFlight,
-           pendingTimestampMilliseconds == nil {
+           ((!isSynchronousCommit && hadStagedFrame)
+               || (!isRenderInFlight && pendingTimestampMilliseconds == nil)) {
             pendingTelemetryRender = nil
             if !pending.attempt.isCancelled {
                 if isSynchronousCommit {
@@ -1043,6 +1098,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             for: nextSource,
             videoSize: nextVideoSize
         )
+        let matchesLoadedOrLoadingSource = rendererMatchesSource(nextSource)
         let safeMilliseconds = max(0, milliseconds)
 
         isApplyingPresentation = true
@@ -1064,6 +1120,9 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         if canReuseRenderer {
             failureMessage = nil
             requestRender(force: true)
+            needsDisplay = true
+        } else if matchesLoadedOrLoadingSource, updateRendererFrameSizeInPlaceIfPossible() {
+            needsLayout = true
             needsDisplay = true
         } else {
             reloadRendererIfPossible()
@@ -1193,6 +1252,10 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                 return
             }
 
+            isRendererReady = false
+            clearPresentationState()
+            replaceRendererWorker()
+
             guard let renderSize = renderFrameSize() else {
                 loadFailedForCurrentSource = false
                 failureMessage = "ASS renderer is waiting for a valid video size."
@@ -1203,12 +1266,9 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                 return
             }
 
-            isRendererReady = false
-            clearPresentationState()
             loadFailedForCurrentSource = false
             failureMessage = nil
             needsDisplay = true
-            replaceRendererWorker()
             currentLoadStartedAt = CACurrentMediaTime()
 
             let loadGeneration = rendererWorker.load(
@@ -1262,15 +1322,12 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
     }
 
-    private func rendererCanBeReused(
-        for nextSource: PlaybackSubtitleSource?,
-        videoSize nextVideoSize: CGSize?
-    ) -> Bool {
+    private func rendererMatchesSource(_ nextSource: PlaybackSubtitleSource?) -> Bool {
         guard let source,
               let nextSource,
               generation != nil,
-              failureMessage == nil,
-              videoSize == nextVideoSize
+              !loadFailedForCurrentSource,
+              failureMessage == nil
         else {
             return false
         }
@@ -1279,6 +1336,46 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             && source.format == nextSource.format
             && source.renderCacheProvider?.cacheScopeID
                 == nextSource.renderCacheProvider?.cacheScopeID
+    }
+
+    private func rendererCanBeReused(
+        for nextSource: PlaybackSubtitleSource?,
+        videoSize nextVideoSize: CGSize?
+    ) -> Bool {
+        rendererMatchesSource(nextSource) && videoSize == nextVideoSize
+    }
+
+    @discardableResult
+    private func updateRendererFrameSizeInPlaceIfPossible() -> Bool {
+        guard let source,
+              source.format == .ass,
+              generation != nil,
+              !loadFailedForCurrentSource,
+              failureMessage == nil,
+              let renderSize = renderFrameSize()
+        else {
+            return false
+        }
+
+        frameSizeRevision &+= 1
+        rendererInPlaceResizeCountForTesting += 1
+        renderedTimestampMilliseconds = nil
+        renderedValidRangeMilliseconds = nil
+        renderedFrame = nil
+        renderedSurfaceImage = nil
+        stagedReadyAt = nil
+        if !defersLayerPresentation {
+            clearSubtitleLayers()
+        }
+
+        rendererWorker.updateFrameSize(
+            frameWidth: renderSize.width,
+            frameHeight: renderSize.height
+        )
+        if isRendererReady {
+            requestRender(force: true)
+        }
+        return true
     }
 
     private func requestRender(force: Bool = false) {
@@ -1334,6 +1431,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         isRenderInFlight = true
         nextRenderSequence &+= 1
         let renderSequence = nextRenderSequence
+        let requestFrameSizeRevision = frameSizeRevision
 
         rendererWorker.render(
             generation: generation,
@@ -1351,6 +1449,13 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                 }
 
                 self.isRenderInFlight = false
+
+                guard requestFrameSizeRevision == self.frameSizeRevision else {
+                    if self.pendingTimestampMilliseconds != nil, let generation = self.generation {
+                        self.startNextRenderIfNeeded(generation: generation)
+                    }
+                    return
+                }
 
                 switch result {
                 case .success(let frame):
@@ -1388,13 +1493,26 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     )
                 }
 
+                var didNotifyPreparedFrameReady = false
+                if case .success = result,
+                   self.defersLayerPresentation,
+                   self.stagedReadyAt == nil {
+                    self.stagedReadyAt = CACurrentMediaTime()
+                    if !self.isSuppressingPreparedFrameReadyCallback {
+                        didNotifyPreparedFrameReady = true
+                        self.onPreparedFrameReady?()
+                    }
+                }
+
                 if self.pendingTimestampMilliseconds != nil, let generation = self.generation {
                     self.startNextRenderIfNeeded(generation: generation)
                 } else if case .success = result, !self.isRenderInFlight {
                     if self.defersLayerPresentation {
                         self.stagedReadyAt = CACurrentMediaTime()
                     }
-                    self.onPreparedFrameReady?()
+                    if !didNotifyPreparedFrameReady, !self.isSuppressingPreparedFrameReadyCallback {
+                        self.onPreparedFrameReady?()
+                    }
                 }
             })
         }

@@ -791,12 +791,14 @@ extension AppCoordinator {
                     }
                 }
             } else {
+                let openMetadata = resolvedOpenVideoPlaybackMetadata(forVideoPath: excerpt.videoPath)
                 let request = try PlaybackRequest(
                     videoURL: videoURL,
                     startMilliseconds: excerpt.startMilliseconds,
                     autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
                     subtitleSource: loadablePlaybackSubtitleSource(playbackSubtitleSource(for: excerpt)),
-                    audioTrackIndex: defaultAudioTrackIndex(forVideoPath: excerpt.videoPath),
+                    audioTrackIndex: openMetadata.defaultAudioTrackIndex,
+                    expectedVideoSize: openMetadata.expectedVideoSize,
                     precheckedVideoFileExists: precheckedPlaybackMediaAvailability?.videoExistence(
                         forMediaPath: videoURL.mediaPath
                     )

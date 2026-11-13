@@ -692,12 +692,14 @@ extension AppCoordinator {
                     }
                 }
             } else {
+                let openMetadata = resolvedOpenVideoPlaybackMetadata(forVideoPath: result.videoPath)
                 let request = try PlaybackRequest(
                     videoURL: videoURL,
                     startMilliseconds: result.startMilliseconds,
                     autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
                     subtitleSource: loadablePlaybackSubtitleSource(playbackSubtitleSource(for: result)),
-                    audioTrackIndex: defaultAudioTrackIndex(forVideoPath: result.videoPath),
+                    audioTrackIndex: openMetadata.defaultAudioTrackIndex,
+                    expectedVideoSize: openMetadata.expectedVideoSize,
                     precheckedVideoFileExists: precheckedPlaybackMediaAvailability?.videoExistence(
                         forMediaPath: videoURL.mediaPath
                     )
@@ -839,7 +841,7 @@ extension AppCoordinator {
             matchedVideoURL: videoURL,
             initialTimestampMilliseconds: startMilliseconds,
             preparationTimeWindow: preparationTimeWindow,
-            renderCacheProvider: PlaybackSubtitleRenderCacheReader(databaseURL: databaseURL)
+            renderCacheProvider: playbackSubtitleRenderCacheReader
         )
     }
 

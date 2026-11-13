@@ -1,3 +1,4 @@
+import CoreGraphics
 import CueSeekerCore
 import CueSeekerPlayback
 import Foundation
@@ -22,27 +23,39 @@ extension AppCoordinator {
 
     func resolvedOpenVideoPlaybackMetadata(
         forVideoPath videoPath: String
-    ) -> (codec: String?, defaultAudioTrackIndex: Int) {
+    ) -> (codec: String?, defaultAudioTrackIndex: Int, expectedVideoSize: CGSize?) {
         let mediaPath = URL.fromMediaPath(videoPath).mediaPath
         synchronizeCachedVideoPlaybackMetadataRevision()
         if let cached = cachedVideoPlaybackMetadataByMediaPath[mediaPath],
            cached.hasLoadedCodecAndAudioTrack {
-            return (cached.codec, cached.defaultAudioTrackIndex)
+            return (cached.codec, cached.defaultAudioTrackIndex, cached.expectedVideoSize)
         }
-        let codec = libraryDatabase?.videoCodec(forVideoPath: videoPath)
+        let openMetadata = libraryDatabase?.videoPlaybackOpenMetadata(forVideoPath: videoPath)
+        let codec = openMetadata?.codec
+        let expectedVideoSize: CGSize?
+        if let width = openMetadata?.videoWidth,
+           let height = openMetadata?.videoHeight,
+           width > 0,
+           height > 0 {
+            expectedVideoSize = CGSize(width: width, height: height)
+        } else {
+            expectedVideoSize = nil
+        }
         let defaultAudioTrackIndex = recordedAudioTracks(forVideoPath: videoPath)?.defaultIndex ?? 0
         if libraryDatabase != nil {
             var entry = cachedVideoPlaybackMetadataByMediaPath[mediaPath]
                 ?? CachedVideoPlaybackMetadata(
                     codec: codec,
-                    defaultAudioTrackIndex: defaultAudioTrackIndex
+                    defaultAudioTrackIndex: defaultAudioTrackIndex,
+                    expectedVideoSize: expectedVideoSize
                 )
             entry.codec = codec
             entry.defaultAudioTrackIndex = defaultAudioTrackIndex
+            entry.expectedVideoSize = expectedVideoSize
             entry.hasLoadedCodecAndAudioTrack = true
             cachedVideoPlaybackMetadataByMediaPath[mediaPath] = entry
         }
-        return (codec, defaultAudioTrackIndex)
+        return (codec, defaultAudioTrackIndex, expectedVideoSize)
     }
 
     func resolvedStoredPlaybackDisplayTitle(
