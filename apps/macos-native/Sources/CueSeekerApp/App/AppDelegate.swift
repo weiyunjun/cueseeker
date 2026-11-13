@@ -398,7 +398,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 return self.appState.handlePlaybackKeyDown(
                     keyCode: keyCode,
                     modifierFlagsRawValue: modifierFlags,
-                    isRepeat: event.isARepeat
+                    isRepeat: event.isARepeat,
+                    window: event.window
                 )
             }
 

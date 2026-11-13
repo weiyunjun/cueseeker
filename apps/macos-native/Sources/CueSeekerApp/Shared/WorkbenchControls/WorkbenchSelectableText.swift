@@ -878,12 +878,12 @@ final class WorkbenchSelectableTextNSView:
     }
 
     @IBAction func copy(_ sender: Any?) {
-        _ = WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: window)
+        _ = CueSeekerWindow.copyActiveSelection(in: window)
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(NSText.copy(_:)) {
-            return WorkbenchStaticTextSelectionCoordinator.shared.canCopySelection(in: window)
+            return CueSeekerWindow.canCopyActiveSelection(in: window)
         }
         return true
     }

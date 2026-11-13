@@ -14,16 +14,18 @@ extension AppCoordinator {
     func handlePlaybackKeyDown(
         keyCode: UInt16,
         modifierFlagsRawValue: UInt,
-        isRepeat: Bool = false
+        isRepeat: Bool = false,
+        window: NSWindow? = nil
     ) -> Bool {
         handlePlaybackKeyDown(
             keyCode: keyCode,
             modifierFlagsRawValue: modifierFlagsRawValue,
             isRepeat: isRepeat,
             textInputState: PlaybackKeyboardTextInputState(
-                isEditableFocused: Self.isEditableTextInputFocused(),
-                hasMarkedText: Self.hasMarkedTextInFocusedEditor()
-            )
+                isEditableFocused: Self.isEditableTextInputFocused(in: window),
+                hasMarkedText: Self.hasMarkedTextInFocusedEditor(in: window)
+            ),
+            window: window
         )
     }
 
@@ -38,7 +40,8 @@ extension AppCoordinator {
         modifierFlagsRawValue: UInt,
         isRepeat: Bool = false,
         textInputState: PlaybackKeyboardTextInputState,
-        shortcuts: PlaybackShortcutKeymap? = nil
+        shortcuts: PlaybackShortcutKeymap? = nil,
+        window: NSWindow? = nil
     ) -> Bool {
         let isPlaybackInterfaceVisible = currentPlaybackVideoPath != nil || playbackFullscreenManager.isFullscreen
 
@@ -78,6 +81,21 @@ extension AppCoordinator {
             isRepeat: isRepeat
         ) {
             return true
+        }
+
+        // Plain `Cmd + C` prioritizes copying an active static or cue-reel
+        // text selection (or focused editor) before any custom `⌘C` binding.
+        let commandCopyModifiers: NSEvent.ModifierFlags = [
+            .command,
+            .option,
+            .control,
+            .shift,
+        ]
+        if flags.intersection(commandCopyModifiers) == .command,
+           keyCode == 8,
+           textInputState.isEditableFocused || Self.canCopyTextSelection(in: window)
+        {
+            return false
         }
 
         reconcilePlaybackAccessibilityFocus()
@@ -338,7 +356,7 @@ extension AppCoordinator {
             guard modifierFlags.intersection(disallowedModifiers).isEmpty,
                   !modifierFlags.contains(.shift)
             else {
-                return true
+                return false
             }
             switch keyCode {
             case 49, 36, 76:
@@ -400,7 +418,7 @@ extension AppCoordinator {
             return true
         }
         guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
-            return true
+            return false
         }
         switch keyCode {
         case 123 where commandPanel.page.showsRecentCardGrid:
@@ -769,8 +787,17 @@ extension AppCoordinator {
         return false
     }
 
-    static func hasMarkedTextInFocusedEditor() -> Bool {
-        let activeWindow = NSApplication.shared.keyWindow
+    static func canCopyTextSelection(in window: NSWindow? = nil) -> Bool {
+        if let targetWindow = window ?? CueSeekerWindow.activeKeyWindow {
+            return CueSeekerWindow.canCopyActiveSelection(in: targetWindow)
+        }
+        return WorkbenchStaticTextSelectionCoordinator.shared.hasSelection
+            || PlaybackSubtitleFocusReelContainerView.hasUncoveredSelection
+    }
+
+    static func hasMarkedTextInFocusedEditor(in window: NSWindow? = nil) -> Bool {
+        let activeWindow = window
+            ?? CueSeekerWindow.activeKeyWindow
             ?? NSApplication.shared.windows.first { $0 is CueSeekerMainWindow }
         guard let textView = activeWindow?.firstResponder
             as? NSTextView

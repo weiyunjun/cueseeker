@@ -113,6 +113,12 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     /// The registry whose gate handles the selected-text menu's events, and
     /// which layer this reel's menu belongs to: the Playback Overlay for the
     /// overlay's reels, the Command Panel for the panel's.
+    private struct WeakReelContainerBox {
+        weak var value: PlaybackSubtitleFocusReelContainerView?
+    }
+
+    private static var registeredContainers: [WeakReelContainerBox] = []
+
     var interfaceLayers: InterfaceLayerRegistry?
     var menuOwner: InterfaceLayer = .playbackOverlay
     /// True while a higher surface covers this reel. Its menu keeps its place
@@ -295,6 +301,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window == nil {
+            Self.unregisterContainer(self)
             removeEventMonitor()
             NotificationCenter.default.removeObserver(
                 self,
@@ -304,6 +311,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             dismissSelectedTextActions()
             resetWheelInteraction(requiresNewGesture: true)
         } else {
+            Self.registerContainer(self)
             installEventMonitorIfNeeded()
             NotificationCenter.default.addObserver(
                 self,
@@ -321,6 +329,121 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             return
         }
         dismissSelectedTextActions()
+    }
+
+    /// Non-empty selected cue text eligible for silent window copy (`Cmd + C` / `Edit -> Copy`).
+    var selectedTextForCopy: String? {
+        guard isUncoveredForTextCopy else {
+            return nil
+        }
+        return documentView.selectedText
+    }
+
+    var canCopySelectedText: Bool {
+        selectedTextForCopy != nil
+    }
+
+    @discardableResult
+    func copySelectedTextToPasteboard(
+        _ pasteboard: NSPasteboard = .general
+    ) -> Bool {
+        guard let text = selectedTextForCopy else {
+            return false
+        }
+        return CueClipboard.copy(text, to: pasteboard)
+    }
+
+    static var hasUncoveredSelection: Bool {
+        pruneDeadContainers()
+        return registeredContainers.contains { $0.value?.canCopySelectedText == true }
+    }
+
+    static func canCopySelection(in window: NSWindow?) -> Bool {
+        activeContainerForCopy(in: window) != nil
+    }
+
+    @discardableResult
+    static func copySelection(
+        in window: NSWindow?,
+        to pasteboard: NSPasteboard = .general
+    ) -> Bool {
+        guard let container = activeContainerForCopy(in: window) else {
+            return false
+        }
+        return container.copySelectedTextToPasteboard(pasteboard)
+    }
+
+    private static func registerContainer(_ container: PlaybackSubtitleFocusReelContainerView) {
+        pruneDeadContainers()
+        if !registeredContainers.contains(where: { $0.value === container }) {
+            registeredContainers.append(WeakReelContainerBox(value: container))
+        }
+    }
+
+    private static func unregisterContainer(_ container: PlaybackSubtitleFocusReelContainerView) {
+        registeredContainers.removeAll { $0.value == nil || $0.value === container }
+    }
+
+    private static func pruneDeadContainers() {
+        registeredContainers.removeAll { $0.value == nil }
+    }
+
+    private static func activeContainerForCopy(
+        in window: NSWindow?
+    ) -> PlaybackSubtitleFocusReelContainerView? {
+        guard let window else {
+            return nil
+        }
+        pruneDeadContainers()
+        return registeredContainers
+            .compactMap(\.value)
+            .filter { $0.window === window && $0.canCopySelectedText }
+            .sorted { $0.menuOwner.rawValue > $1.menuOwner.rawValue }
+            .first
+    }
+
+    private var isVisibleInWindowHierarchy: Bool {
+        guard !isHiddenOrHasHiddenAncestor else {
+            return false
+        }
+        var current: NSView? = self
+        while let view = current {
+            if view.isHidden || view.alphaValue <= 0.001 {
+                return false
+            }
+            current = view.superview
+        }
+        return true
+    }
+
+    private var isUncoveredForTextCopy: Bool {
+        guard let window,
+              mountedContentAdapter != nil,
+              isVisibleInWindowHierarchy,
+              !isCoveredByHigherLayer,
+              isInteractionEnabled || menuGateSession != nil
+        else {
+            return false
+        }
+        if let interfaceLayers {
+            if interfaceLayers.isCovered(menuOwner) {
+                return false
+            }
+            // Allow this reel's own `selectedTextMenu` while blocking if an
+            // unrelated menu freezes the layer.
+            if interfaceLayers.isFrozen(menuOwner), menuGateSession == nil {
+                return false
+            }
+        }
+        if let mainWindow = window as? CueSeekerMainWindow {
+            if mainWindow.isBehindDialog(self) || mainWindow.dialogSize() != nil {
+                return false
+            }
+            if menuOwner == .workbenchPage, mainWindow.isWorkbenchCovered() {
+                return false
+            }
+        }
+        return true
     }
 
     func update(

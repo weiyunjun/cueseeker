@@ -973,7 +973,8 @@ private struct PlaybackCommandPanelSearchReel: View {
                 onNativeMotionGateChanged: { _ in },
                 onKeyboardMotionChanged: { _ in },
                 interfaceLayers: interfaceLayers,
-                menuOwner: .commandPanel
+                menuOwner: .commandPanel,
+                isCoveredByHigherLayer: layerContext.isCovered
             )
             .id("command-search:\(windowStore.reelDatasetID ?? "empty")")
             .frame(

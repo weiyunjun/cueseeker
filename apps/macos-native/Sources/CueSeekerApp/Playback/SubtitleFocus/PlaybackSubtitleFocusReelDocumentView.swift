@@ -1378,6 +1378,23 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         invalidateRow(textSelection.ordinal)
     }
 
+    /// Current non-empty cue selection string for silent window-level copy
+    /// (`Cmd + C` / `Edit -> Copy`), preserving the active selection.
+    var selectedText: String? {
+        guard !isEditingCollage,
+              let textSelection,
+              textSelection.range.length > 0,
+              let text = contentAdapter?.selectedText(
+                  at: textSelection.ordinal,
+                  range: textSelection.range
+              ),
+              !text.isEmpty
+        else {
+            return nil
+        }
+        return text
+    }
+
     private func invalidateRow(_ ordinal: Int) {
         guard ordinal >= 0, ordinal < layout.totalCount else {
             return

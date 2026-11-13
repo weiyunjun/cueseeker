@@ -100,11 +100,11 @@ class CueSeekerWindow: NSWindow {
                     return false
                 }
             }
-            if flags == .command,
+            if flags.subtracting([.capsLock]) == .command,
                event.charactersIgnoringModifiers?.lowercased() == "c" || event.keyCode == 8
             {
                 let copied = MainActor.assumeIsolated {
-                    WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: self)
+                    Self.copyActiveSelection(in: self)
                 }
                 if copied {
                     return true
@@ -116,17 +116,41 @@ class CueSeekerWindow: NSWindow {
 
     @IBAction func copy(_ sender: Any?) {
         _ = MainActor.assumeIsolated {
-            WorkbenchStaticTextSelectionCoordinator.shared.copySelection(in: self)
+            Self.copyActiveSelection(in: self)
         }
     }
 
     override func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(NSText.copy(_:)) {
             return MainActor.assumeIsolated {
-                WorkbenchStaticTextSelectionCoordinator.shared.canCopySelection(in: self)
+                Self.canCopyActiveSelection(in: self)
             }
         }
         return super.validateMenuItem(menuItem)
+    }
+
+    @MainActor
+    static func canCopyActiveSelection(in window: NSWindow?) -> Bool {
+        WorkbenchStaticTextSelectionCoordinator.shared.canCopySelection(in: window)
+            || PlaybackSubtitleFocusReelContainerView.canCopySelection(in: window)
+    }
+
+    @MainActor
+    @discardableResult
+    static func copyActiveSelection(
+        in window: NSWindow?,
+        to pasteboard: NSPasteboard = .general
+    ) -> Bool {
+        if WorkbenchStaticTextSelectionCoordinator.shared.copySelection(
+            in: window,
+            to: pasteboard
+        ) {
+            return true
+        }
+        return PlaybackSubtitleFocusReelContainerView.copySelection(
+            in: window,
+            to: pasteboard
+        )
     }
 
     override func sendEvent(_ event: NSEvent) {

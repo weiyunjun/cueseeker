@@ -32,3 +32,21 @@
 - Ran `swift test --package-path apps/macos-native --no-parallel --filter "PlaybackCueResultLayoutTests|PlaybackPlaylistReelAdapterTests|cueReelNonTextDragEntrySelectsFromClampedAnchorAndCollageStaysNonSelectable"`: `22` tests passed (`2.778s`).
 - Ran `swift test --package-path apps/macos-native --no-parallel --filter "WorkbenchSelectableTextTests|PlaybackCueResultLayoutTests|PlaybackPlaylistReelAdapterTests|cueReelNonTextDragEntrySelectsFromClampedAnchorAndCollageStaysNonSelectable|PlaybackSubtitleFocusKeyboardActionTests|PlaybackSearchOverlayTests|SettingsAndDialogsStaticTextSelectionTests|WorkbenchControlMetricsTests|RecentPlaybackSessionRegressionTests"`: `116` tests passed (`8.969s`).
 - Ready for user end-to-end acceptance before drafting post-acceptance `docs/human/design/ui/` documentation updates (`UI Text Selection Rules.md` and `UI Index.md`).
+
+## Follow-up Fix: Command Panel `Cmd + C` Routing & Subtitle Reel Selection Copy
+
+### Scope & Changes
+
+1. **`Command Panel` modifier pass-through & `Cmd + C` copy priority over custom `⌘C` shortcuts**
+   - Updated `handlePlaybackCommandPanelKeyDown` in `apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator+PlaybackInputRouter.swift` so disallowed modifier / shift combinations return `false` instead of `true`, matching `handlePlaybackSubtitleFocusKeyDown` and `handlePlaybackCollageKeyDown` and allowing `Cmd + C`, `⌘,`, `⌘W`, `⌘Q` to reach window/menu handling while still blocking fallthrough to underlying `Player Stage` shortcuts.
+   - Added `window: NSWindow? = nil` propagation from `AppDelegate.keyDownMonitor` into `AppCoordinator.handlePlaybackKeyDown`, plus `AppCoordinator.canCopyTextSelection(in:)` checking both static text selections and uncovered subtitle reel selections. When plain `Cmd + C` is pressed while an active copyable text selection exists or an editable text input is focused, `handlePlaybackKeyDown` returns `false` before `openCommandPanel` and custom `⌘C`-bound playback/overlay/collage shortcuts; once cleared, custom `⌘C` shortcuts execute as configured.
+
+2. **Silent `Cmd + C` & `Edit -> Copy` for `Playback Current`, `Playback Subtitle Playlist`, and `Command Panel Search Results` reels**
+   - Added read-only `selectedText` on `PlaybackSubtitleFocusReelDocumentView` (`PlaybackSubtitleFocusReelDocumentView.swift`) and silent copy/query helpers (`selectedTextForCopy`, `canCopySelectedText`, `copySelectedTextToPasteboard`, window-scoped `canCopySelection(in:)`, `copySelection(in:to:)`) on `PlaybackSubtitleFocusReelContainerView` (`PlaybackSubtitleFocusReel.swift`) that write via `CueClipboard.copy` without displaying a Toast or dismissing the selection / open `Copy Selected Text` menu.
+   - Enforced layer-occlusion boundaries (`window`, hierarchy visibility & alpha, `!isCoveredByHigherLayer`, `interfaceLayers.isCovered(menuOwner)`, unrelated-menu freeze guard, and dialog bounds/coverage via `CueSeekerMainWindow`) and passed `isCoveredByHigherLayer: layerContext.isCovered` for `PlaybackCommandPanelSearchResults` (`PlaybackCommandPanel.swift`).
+   - Wired `CueSeekerWindow` (`performKeyEquivalent(with:)`, `copy(_:)`, `validateMenuItem(_:)`) in `CueSeekerMainWindow.swift` and responder-chain fallback in `WorkbenchSelectableTextNSView` (`WorkbenchSelectableText.swift`) to `CueSeekerWindow.canCopyActiveSelection(in:)` / `CueSeekerWindow.copyActiveSelection(in:to:)`.
+
+### Verification
+
+- Added `apps/macos-native/Tests/CueSeekerAppTests/PlaybackReelCopyAndCommandPanelRoutingTests.swift` covering Command Panel secondary page `Cmd + C` pass-through & static text copy, custom `⌘C` shortcut yielding/resumption, silent `Cmd + C` / `Edit -> Copy` across all three subtitle reels (with open `Copy Selected Text` menu), and `Command Panel` / `Dialog` layer occlusion boundaries.
+- Ran `swift test --package-path apps/macos-native --no-parallel --filter "PlaybackReelCopyAndCommandPanelRoutingTests|PlaybackSubtitleFocusKeyboardActionTests|WorkbenchSelectableTextTests|PlaybackPlaylistReelAdapterTests|SettingsAndDialogsStaticTextSelectionTests|PlaybackNormalShortcutTests|PlaybackShortcutKeymapTests|WorkbenchAccessibilityStep4Tests|WorkbenchDialogLayerTests|PlaybackSearchOverlayTests"`: all `110` tests passed.
