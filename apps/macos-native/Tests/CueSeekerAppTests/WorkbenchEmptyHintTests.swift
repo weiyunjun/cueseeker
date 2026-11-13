@@ -227,7 +227,7 @@ func subtitleTableViewHidesHeaderWhenShowsHeaderIsFalse() throws {
 func emptyStateLocalizationMatchesRequirements() {
     let languages: [(AppLanguage, [String: String])] = [
         (.english, [
-            "table.search_empty_hint": "Enter a search term to show cues.",
+            "table.search_empty_hint": "Enter keywords to search cues.",
             "table.search_no_results": "No matching cues found.",
             "excerpt.table.empty_hint": "Save cues from search results or playback to collect excerpts.",
             "excerpt.table.no_results": "No matching excerpts found.",
@@ -238,7 +238,7 @@ func emptyStateLocalizationMatchesRequirements() {
             "onboarding.no_folder.go_to_file": "Go to File"
         ]),
         (.simplifiedChinese, [
-            "table.search_empty_hint": "输入搜索词以显示台词。",
+            "table.search_empty_hint": "输入关键词以搜索台词。",
             "table.search_no_results": "未找到匹配的台词。",
             "excerpt.table.empty_hint": "从搜索结果中或在播放时保存台词，即可收集摘录。",
             "excerpt.table.no_results": "未找到匹配的摘录。",
@@ -249,7 +249,7 @@ func emptyStateLocalizationMatchesRequirements() {
             "onboarding.no_folder.go_to_file": "前往文件"
         ]),
         (.traditionalChinese, [
-            "table.search_empty_hint": "輸入搜尋字詞以顯示台詞。",
+            "table.search_empty_hint": "輸入關鍵字以搜尋台詞。",
             "table.search_no_results": "未找到相符的台詞。",
             "excerpt.table.empty_hint": "從搜尋結果中或在播放時儲存台詞，即可收集摘錄。",
             "excerpt.table.no_results": "未找到相符的摘錄。",

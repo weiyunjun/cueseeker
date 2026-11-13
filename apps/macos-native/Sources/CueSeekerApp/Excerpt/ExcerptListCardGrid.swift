@@ -266,7 +266,7 @@ private struct ExcerptListCard: View {
         [
             LibraryCardContextMenuItem(
                 title: L("excerpt.edit_list"),
-                icon: .notePencil,
+                icon: .pencilSimple,
                 action: onEdit
             ),
             LibraryCardContextMenuItem(

@@ -348,7 +348,7 @@ private struct PlaybackCommandPanelRoot: View {
         WorkbenchAccessibilityReader { accessibility in
             VStack(spacing: 0) {
                 WorkbenchSearchField(
-                    placeholder: L("sidebar.search"),
+                    placeholder: L("playback.command_panel.search_placeholder"),
                     text: $query,
                     autofocus: true,
                     isSearchAccessibilityFocused: accessibility?.isPlaybackFocused(.commandPanelSearchField) == true,

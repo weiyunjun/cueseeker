@@ -78,8 +78,8 @@
 "table.select" = "選取";
 "table.exit_select" = "退出選取";
 "table.batch_selection_banner_hint" = "已進入批量選取狀態：點擊任意行即可勾選，支援 Shift 連選";
-"table.search_placeholder" = "依名稱、台詞或關鍵字搜尋⋯";
-"table.search_empty_hint" = "輸入搜尋字詞以顯示台詞。";
+"table.search_placeholder" = "搜尋台詞";
+"table.search_empty_hint" = "輸入關鍵字以搜尋台詞。";
 "table.search_no_results" = "未找到相符的台詞。";
 "table.toolbar.anki" = "匯出至 Anki";
 "table.toolbar.copy_deep_links" = "拷貝 Deep Links";
@@ -101,8 +101,8 @@
 "row_menu.copy_deep_link" = "拷貝 Deep Link";
 "row_menu.copy_cue_group_text" = "拷貝台詞組文字";
 "row_menu.copy_time_range" = "拷貝時間範圍";
-"row_menu.move_to" = "移動至⋯";
-"row_menu.duplicate_to" = "複製至⋯";
+"row_menu.move_to" = "移動至";
+"row_menu.duplicate_to" = "複製至";
 "row_menu.remove_excerpt" = "移除摘錄";
 
 /* Facet filter */
@@ -129,6 +129,7 @@
 "facet.watch_status.unwatched" = "未觀看";
 
 /* Excerpt table */
+"excerpt.table.search_placeholder" = "搜尋摘錄";
 "excerpt.table.empty_hint" = "從搜尋結果中或在播放時儲存台詞，即可收集摘錄。";
 "excerpt.table.no_results" = "未找到相符的摘錄。";
 "excerpt.remove.title" = "移除摘錄";
@@ -141,7 +142,7 @@
 "library.resume" = "繼續播放";
 "library.resume_progress" = "繼續 %1$@ / %2$@";
 "library.open_folder" = "打開資料夾";
-"library.change_cover" = "更換封面";
+"library.edit_cover" = "編輯封面";
 "library.mark_finished" = "標示為已看完";
 "library.mark_unwatched" = "標示為未觀看";
 "library.mark_watching" = "標示為觀看中";
@@ -155,7 +156,7 @@
 "library.video_subtitle_count" = "%1$d 部影片  %2$d 個字幕";
 "library.view_in_file" = "在檔案中檢視";
 "library.empty" = "尚無媒體庫影片。";
-"library.recent_watching_empty" = "尚無最近觀看的影片。";
+"library.recent_watching_empty" = "尚無最近影片。";
 "library.recent_excerpts_empty" = "尚無最近的摘錄集。";
 "recent.section.last_7_days" = "最近 7 天";
 "recent.section.last_30_days" = "最近 30 天";
@@ -168,7 +169,7 @@
 "library.sort.oldest_added" = "最早入庫";
 "library.folder_count.one" = "1 個資料夾";
 "library.folder_count.other" = "%d 個資料夾";
-"library.overview.search_placeholder" = "搜尋資料夾…";
+"library.overview.search_placeholder" = "搜尋資料夾";
 "library.overview.search_no_results" = "找不到相符的資料夾。";
 
 /* Library cover editing */
@@ -181,7 +182,7 @@
 
 /* Excerpt */
 "excerpt.overview.summary" = "%1$@  %2$@";
-"excerpt.overview.search_placeholder" = "搜尋摘錄集…";
+"excerpt.overview.search_placeholder" = "搜尋摘錄集";
 "excerpt.overview.search_no_results" = "找不到相符的摘錄集。";
 "excerpt.overview.empty_hint" = "建立摘錄集以收集摘錄。";
 "excerpt.overview.sort.oldest_created" = "最早建立";
@@ -310,6 +311,7 @@
 "playback.result_count.other" = "%d 筆結果";
 "playback.result_preview_note" = "（僅顯示前 %d 筆結果）";
 "playback.save_to_excerpt" = "儲存到摘錄集";
+"playback.command_panel.search_placeholder" = "搜尋台詞";
 "playback.open" = "打開";
 "playback.back" = "返回";
 "playback.current.left_library" = "此字幕已不在媒體庫中。";
@@ -358,10 +360,7 @@
 "settings.library.remove_folder_title" = "移除資料夾？";
 "settings.library.remove_folder_message" = "要從字幕求索中移除「%@」嗎？這不會刪除本機檔案。";
 "settings.library.database_path" = "資料庫：%@";
-"settings.library.removing" = "正在移除 %@⋯";
 "settings.library.removed" = "已移除 %@";
-"settings.library.indexing" = "正在索引 %@⋯";
-"settings.library.indexing_folder" = "正在索引第 %1$d/%2$d 個資料夾：%3$@⋯";
 "settings.library.indexed" = "已索引 %@";
 "settings.library.indexed_folders" = "已索引 %d 個資料夾";
 "settings.library.index_failed" = "索引 %@ 失敗";
@@ -488,8 +487,6 @@
 "settings.maintenance.compact_title" = "壓縮資料庫？";
 "settings.maintenance.compact_confirm" = "壓縮";
 "settings.maintenance.compact_message" = "字幕求索將回收未使用的 SQLite 空間。壓縮期間搜尋與索引會暫停。";
-"settings.maintenance.loading_stats" = "正在載入儲存空間統計⋯";
-"settings.maintenance.compacting" = "正在壓縮資料庫⋯";
 
 /* Settings: Developer */
 "settings.developer.description" = "設定開發期間使用的本機診斷功能。";
@@ -505,7 +502,6 @@
 "settings.developer.no_query_terms" = "沒有查詢詞條。";
 "settings.developer.no_vocabulary" = "沒有詞表資料。";
 "settings.developer.no_data" = "未載入資料。";
-"settings.developer.loading" = "正在載入詞表資料⋯";
 "settings.developer.disabled" = "已停用";
 "settings.developer.updated" = "更新於 %@";
 "settings.developer.docs" = "文件 %@";
@@ -602,9 +598,9 @@
 /* File page tabs and in-App rename */
 "file.section.index" = "索引";
 "file.section.edit" = "編輯";
-"file.menu.rename_this_folder" = "重新命名此資料夾";
-"file.menu.index_this_folder" = "索引此資料夾";
-"file.menu.remove_this_folder" = "移除此資料夾";
+"file.menu.rename_folder" = "重新命名資料夾";
+"file.menu.index_folder" = "索引資料夾";
+"file.menu.remove_folder" = "移除資料夾";
 "rename.folder" = "重新命名資料夾";
 "rename.files" = "重新命名檔案";
 "rename.current_name" = "目前名稱";

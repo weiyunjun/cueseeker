@@ -108,7 +108,8 @@ func simplifiedAndTraditionalChineseRefinedTranslationsMatchSpecification() {
     #expect(zhHans["excerpt.cue_count.one"] == "1 条台词")
     #expect(zhHans["excerpt.cue_count.other"] == "%d 条台词")
     #expect(zhHans["excerpt.list.not_found"] == "该摘录集已不在媒体库中。")
-    #expect(zhHans["library.recent_watching_empty"] == "还没有最近观看的视频。")
+    #expect(zhHans["library.recent_watching_empty"] == "没有最近视频。")
+    #expect(zhHans["library.recent_excerpts_empty"] == "没有最近的摘录集。")
     #expect(zhHans["toast.table.cue_text_copied"] == "已复制台词文本")
     #expect(zhHans["playback.hud.cue_text_copied"] == "已复制台词文本")
     #expect(zhHans["toast.table.deep_links_copied"] == "已复制 Deep Links")
@@ -138,7 +139,8 @@ func simplifiedAndTraditionalChineseRefinedTranslationsMatchSpecification() {
     #expect(zhHant["excerpt.cue_count.one"] == "1 條台詞")
     #expect(zhHant["excerpt.cue_count.other"] == "%d 條台詞")
     #expect(zhHant["excerpt.list.not_found"] == "該摘錄集已不在媒體庫中。")
-    #expect(zhHant["library.recent_watching_empty"] == "尚無最近觀看的影片。")
+    #expect(zhHant["library.recent_watching_empty"] == "尚無最近影片。")
+    #expect(zhHant["library.recent_excerpts_empty"] == "尚無最近的摘錄集。")
     #expect(zhHant["toast.table.cue_text_copied"] == "已拷貝台詞文字")
     #expect(zhHant["playback.hud.cue_text_copied"] == "已拷貝台詞文字")
     #expect(zhHant["toast.table.deep_links_copied"] == "已拷貝 Deep Links")
@@ -219,7 +221,8 @@ func languageSwitchImmediatelyUpdatesMenusDialogSessionsAndPlaybackState() {
         }
 
         settings.localization.set(.english)
-        #expect(LibraryCoverContextMenuItem.title == "Change Cover")
+        #expect(LibraryCoverContextMenuItem.title == "Edit Cover")
+        #expect(LibraryCoverContextMenuItem.icon == .pencilSimple)
         #expect(LibraryCoverEditingCopy.dialogTitle == "Edit Cover")
         #expect(LibraryCoverEditingCopy.chooseImageActionTitle == "Choose Image")
         #expect(LibraryCoverEditingCopy.cancelButtonTitle == "Cancel")
@@ -337,7 +340,8 @@ func languageSwitchImmediatelyUpdatesMenusDialogSessionsAndPlaybackState() {
 
         #expect(renderedAppearanceTitles == ["浅色", "深色", "自动"])
         #expect(AppAppearanceMode.allCases.map(\.displayName) == ["浅色", "深色", "自动"])
-        #expect(LibraryCoverContextMenuItem.title == "更换封面")
+        #expect(LibraryCoverContextMenuItem.title == "编辑封面")
+        #expect(LibraryCoverContextMenuItem.icon == .pencilSimple)
         #expect(LibraryCoverEditingCopy.dialogTitle == "编辑封面")
         #expect(LibraryCoverEditingCopy.chooseImageActionTitle == "选择图片")
         #expect(LibraryCoverEditingCopy.cancelButtonTitle == "取消")
@@ -466,6 +470,100 @@ private func localizableEntries(for language: AppLanguage) -> [String: String] {
         return [:]
     }
     return entries
+}
+
+@Test
+func copyEllipsisPlaceholderEmptyStateAndActionIconConsistencyMatchesSpecification() {
+    let expectedByLanguage: [(AppLanguage, [String: String])] = [
+        (.english, [
+            "menu.settings": "Settings...",
+            "row_menu.move_to": "Move to",
+            "row_menu.duplicate_to": "Duplicate to",
+            "table.search_placeholder": "Search cues",
+            "excerpt.table.search_placeholder": "Search excerpts",
+            "playback.command_panel.search_placeholder": "Search cues",
+            "library.overview.search_placeholder": "Search folders",
+            "excerpt.overview.search_placeholder": "Search excerpt lists",
+            "table.search_empty_hint": "Enter keywords to search cues.",
+            "library.recent_watching_empty": "No recent videos yet.",
+            "library.recent_excerpts_empty": "No recent excerpt lists yet.",
+            "task.empty.current": "No tasks running or waiting.",
+            "task.empty.completed": "No completed tasks yet.",
+            "task.empty.incomplete": "No incomplete tasks.",
+            "library.edit_cover": "Edit Cover",
+            "file.menu.rename_folder": "Rename Folder",
+            "file.menu.index_folder": "Index Folder",
+            "file.menu.remove_folder": "Remove Folder",
+        ]),
+        (.simplifiedChinese, [
+            "menu.settings": "设置…",
+            "row_menu.move_to": "移动到",
+            "row_menu.duplicate_to": "复制到",
+            "table.search_placeholder": "搜索台词",
+            "excerpt.table.search_placeholder": "搜索摘录",
+            "playback.command_panel.search_placeholder": "搜索台词",
+            "library.overview.search_placeholder": "搜索文件夹",
+            "excerpt.overview.search_placeholder": "搜索摘录集",
+            "table.search_empty_hint": "输入关键词以搜索台词。",
+            "library.recent_watching_empty": "没有最近视频。",
+            "library.recent_excerpts_empty": "没有最近的摘录集。",
+            "task.empty.current": "没有正在进行或等待中的任务。",
+            "task.empty.completed": "还没有已完成的任务。",
+            "task.empty.incomplete": "没有未完成的任务。",
+            "library.edit_cover": "编辑封面",
+            "file.menu.rename_folder": "重命名文件夹",
+            "file.menu.index_folder": "索引文件夹",
+            "file.menu.remove_folder": "移除文件夹",
+        ]),
+        (.traditionalChinese, [
+            "menu.settings": "設定⋯",
+            "row_menu.move_to": "移動至",
+            "row_menu.duplicate_to": "複製至",
+            "table.search_placeholder": "搜尋台詞",
+            "excerpt.table.search_placeholder": "搜尋摘錄",
+            "playback.command_panel.search_placeholder": "搜尋台詞",
+            "library.overview.search_placeholder": "搜尋資料夾",
+            "excerpt.overview.search_placeholder": "搜尋摘錄集",
+            "table.search_empty_hint": "輸入關鍵字以搜尋台詞。",
+            "library.recent_watching_empty": "尚無最近影片。",
+            "library.recent_excerpts_empty": "尚無最近的摘錄集。",
+            "task.empty.current": "沒有正在進行或等待中的任務。",
+            "task.empty.completed": "還沒有已完成的任務。",
+            "task.empty.incomplete": "沒有未完成的任務。",
+            "library.edit_cover": "編輯封面",
+            "file.menu.rename_folder": "重新命名資料夾",
+            "file.menu.index_folder": "索引資料夾",
+            "file.menu.remove_folder": "移除資料夾",
+        ]),
+    ]
+    let removedKeys = [
+        "settings.library.removing",
+        "settings.library.indexing",
+        "settings.library.indexing_folder",
+        "settings.maintenance.loading_stats",
+        "settings.maintenance.compacting",
+        "settings.developer.loading",
+        "library.change_cover",
+        "file.menu.rename_this_folder",
+        "file.menu.index_this_folder",
+        "file.menu.remove_this_folder",
+    ]
+
+    for (language, expected) in expectedByLanguage {
+        let entries = localizableEntries(for: language)
+        for (key, expectedValue) in expected {
+            #expect(entries[key] == expectedValue, "Mismatch for \(key) in \(language)")
+        }
+        for removedKey in removedKeys {
+            #expect(entries[removedKey] == nil, "Expected \(removedKey) to be removed in \(language)")
+        }
+        let keysWithEllipsis = entries.compactMap { key, value in
+            (value.contains("...") || value.contains("…") || value.contains("⋯")) ? key : nil
+        }
+        #expect(keysWithEllipsis == ["menu.settings"], "Unexpected ellipsis keys in \(language): \(keysWithEllipsis)")
+    }
+
+    #expect(!AppIcon.allCases.map(\.rawValue).contains("note-pencil"))
 }
 
 /// The focus overlay renders localized copy, so hosting it outside the App

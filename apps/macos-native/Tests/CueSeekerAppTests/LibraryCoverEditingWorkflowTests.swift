@@ -84,8 +84,8 @@ func libraryCoverEditingUsesAcceptedCopyAndContentTypes() {
     #expect(LibraryCoverEditingCopy.cancelButtonTitle == "Cancel")
     #expect(LibraryCoverEditingCopy.saveButtonTitle == "Save")
     #expect(Set(LibraryCoverOpenPanelPolicy.allowedContentTypes) == [.jpeg, .png, .gif])
-    #expect(LibraryCoverContextMenuItem.title == "Change Cover")
-    #expect(LibraryCoverContextMenuItem.icon == .export)
+    #expect(LibraryCoverContextMenuItem.title == "Edit Cover")
+    #expect(LibraryCoverContextMenuItem.icon == .pencilSimple)
 }
 
 @Test

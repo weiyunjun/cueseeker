@@ -69,6 +69,7 @@ private struct WorkbenchExcerptTableContent: View {
         SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
             columns: SchemaWorkbenchSearchDefaults.excerptColumns,
+            searchPlaceholder: L("excerpt.table.search_placeholder"),
             summaryContent: coverSummary,
             hostsPageChromeInTable: true,
             tableSummary: tableSummary,
@@ -318,7 +319,7 @@ private struct WorkbenchExcerptTableContent: View {
         [
             LibraryCardContextMenuItem(
                 title: L("excerpt.edit_list"),
-                icon: .notePencil,
+                icon: .pencilSimple,
                 action: { appState.beginEditingExcerptList(summary.list) }
             ),
             LibraryCardContextMenuItem(
@@ -352,7 +353,7 @@ private struct WorkbenchExcerptTableContent: View {
         let pinnedContent = AnyView(
             VStack(spacing: 0) {
                 SchemaWorkbenchSearchToolbar(
-                    placeholder: L("table.search_placeholder"),
+                    placeholder: L("excerpt.table.search_placeholder"),
                     searchDraft: searchInputBinding,
                     searchResultCountText: exactSearchResultCountText,
                     selectedCountText: schemaWorkbenchSelectedCountText(

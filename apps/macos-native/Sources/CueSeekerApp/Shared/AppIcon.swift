@@ -53,7 +53,6 @@ enum AppIcon: String, CaseIterable, Sendable {
     case question = "question"
     case info = "info"
     case pencilSimple = "pencil-simple"
-    case notePencil = "note-pencil"
     case trash = "trash"
     case copy = "copy"
     case export = "export"

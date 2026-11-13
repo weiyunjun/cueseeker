@@ -96,7 +96,7 @@ final class DebugInteractionLatencyProbeTests: XCTestCase {
         )
         DebugInteractionLatencyProbe.measureMenuItemAction(
             menuID: "card_button_menu",
-            item: "Change Cover"
+            item: "Edit Cover"
         ) {}
 
         await fulfillment(of: [openExpectation, actionExpectation], timeout: 1.0)
@@ -107,7 +107,7 @@ final class DebugInteractionLatencyProbeTests: XCTestCase {
 
         let actionEvent = events.first { $0.message == "Menu item action executed" }
         XCTAssertEqual(actionEvent?.fields["menu_id"], "card_button_menu")
-        XCTAssertEqual(actionEvent?.fields["item"], "Change Cover")
+        XCTAssertEqual(actionEvent?.fields["item"], "Edit Cover")
     }
 
     func testDialogOpenInternalTransitionAndFilePanelEmitStructuredDebugLogs() async {

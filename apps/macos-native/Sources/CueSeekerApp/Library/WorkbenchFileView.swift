@@ -544,7 +544,7 @@ struct WorkbenchFileView: View {
                             }
                         ),
                         FileCardMenuItem(
-                            title: L("file.menu.rename_this_folder"),
+                            title: L("file.menu.rename_folder"),
                             icon: .pencilSimple,
                             isEnabled: !isFolderOperationBlocked,
                             isDestructive: false,
@@ -553,7 +553,7 @@ struct WorkbenchFileView: View {
                             }
                         ),
                         FileCardMenuItem(
-                            title: L("file.menu.index_this_folder"),
+                            title: L("file.menu.index_folder"),
                             icon: .arrowClockwise,
                             isEnabled: !isFolderOperationBlocked,
                             isDestructive: false,
@@ -562,7 +562,7 @@ struct WorkbenchFileView: View {
                             }
                         ),
                         FileCardMenuItem(
-                            title: L("file.menu.remove_this_folder"),
+                            title: L("file.menu.remove_folder"),
                             icon: .folderMinus,
                             isEnabled: !isFolderOperationBlocked,
                             isDestructive: true,
@@ -661,7 +661,7 @@ struct WorkbenchFileView: View {
                                         }
                                     ),
                                     FileCardMenuItem(
-                                        title: L("file.menu.rename_this_folder"),
+                                        title: L("file.menu.rename_folder"),
                                         icon: .pencilSimple,
                                         isEnabled: !isFolderOperationBlocked,
                                         isDestructive: false,

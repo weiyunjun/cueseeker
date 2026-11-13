@@ -78,8 +78,8 @@
 "table.select" = "Select";
 "table.exit_select" = "Exit Selection";
 "table.batch_selection_banner_hint" = "Batch selection active: click any row to select, Shift+click for range";
-"table.search_placeholder" = "Search cues by name, lyrics, or keywords...";
-"table.search_empty_hint" = "Enter a search term to show cues.";
+"table.search_placeholder" = "Search cues";
+"table.search_empty_hint" = "Enter keywords to search cues.";
 "table.search_no_results" = "No matching cues found.";
 "table.toolbar.anki" = "Export to Anki";
 "table.toolbar.copy_deep_links" = "Copy Deep Links";
@@ -101,8 +101,8 @@
 "row_menu.copy_deep_link" = "Copy Deep Link";
 "row_menu.copy_cue_group_text" = "Copy Cue Group Text";
 "row_menu.copy_time_range" = "Copy Time Range";
-"row_menu.move_to" = "Move to ...";
-"row_menu.duplicate_to" = "Duplicate to ...";
+"row_menu.move_to" = "Move to";
+"row_menu.duplicate_to" = "Duplicate to";
 "row_menu.remove_excerpt" = "Remove Excerpt";
 
 /* Facet filter */
@@ -129,6 +129,7 @@
 "facet.watch_status.unwatched" = "Unwatched";
 
 /* Excerpt table */
+"excerpt.table.search_placeholder" = "Search excerpts";
 "excerpt.table.empty_hint" = "Save cues from search results or playback to collect excerpts.";
 "excerpt.table.no_results" = "No matching excerpts found.";
 "excerpt.remove.title" = "Remove Excerpt";
@@ -141,7 +142,7 @@
 "library.resume" = "Resume";
 "library.resume_progress" = "Resume %1$@ / %2$@";
 "library.open_folder" = "Open Folder";
-"library.change_cover" = "Change Cover";
+"library.edit_cover" = "Edit Cover";
 "library.mark_finished" = "Mark as Finished";
 "library.mark_unwatched" = "Mark as Unwatched";
 "library.mark_watching" = "Mark as Watching";
@@ -155,7 +156,7 @@
 "library.video_subtitle_count" = "%1$d videos  %2$d subtitles";
 "library.view_in_file" = "View in File";
 "library.empty" = "No library videos yet.";
-"library.recent_watching_empty" = "No recent watching yet.";
+"library.recent_watching_empty" = "No recent videos yet.";
 "library.recent_excerpts_empty" = "No recent excerpt lists yet.";
 "recent.section.last_7_days" = "Last 7 Days";
 "recent.section.last_30_days" = "Last 30 Days";
@@ -168,7 +169,7 @@
 "library.sort.oldest_added" = "Oldest Added";
 "library.folder_count.one" = "1 folder";
 "library.folder_count.other" = "%d folders";
-"library.overview.search_placeholder" = "Search folders...";
+"library.overview.search_placeholder" = "Search folders";
 "library.overview.search_no_results" = "No matching folders found.";
 
 /* Library cover editing */
@@ -181,7 +182,7 @@
 
 /* Excerpt */
 "excerpt.overview.summary" = "%1$@  %2$@";
-"excerpt.overview.search_placeholder" = "Search excerpt lists...";
+"excerpt.overview.search_placeholder" = "Search excerpt lists";
 "excerpt.overview.search_no_results" = "No matching excerpt lists found.";
 "excerpt.overview.empty_hint" = "Create an excerpt list to collect excerpts.";
 "excerpt.overview.sort.oldest_created" = "Oldest Created";
@@ -310,6 +311,7 @@
 "playback.result_count.other" = "%d results";
 "playback.result_preview_note" = "(Showing first %d results)";
 "playback.save_to_excerpt" = "Save to Excerpt List";
+"playback.command_panel.search_placeholder" = "Search cues";
 "playback.open" = "Open";
 "playback.back" = "Back";
 "playback.current.left_library" = "This subtitle is no longer in the library.";
@@ -358,10 +360,7 @@
 "settings.library.remove_folder_title" = "Remove Folder?";
 "settings.library.remove_folder_message" = "Remove “%@” from CueSeeker? This will not delete local files.";
 "settings.library.database_path" = "Database: %@";
-"settings.library.removing" = "Removing %@…";
 "settings.library.removed" = "Removed %@";
-"settings.library.indexing" = "Indexing %@...";
-"settings.library.indexing_folder" = "Indexing folder %1$d of %2$d: %3$@...";
 "settings.library.indexed" = "Indexed %@";
 "settings.library.indexed_folders" = "Indexed %d folder(s)";
 "settings.library.index_failed" = "Failed to index %@";
@@ -488,8 +487,6 @@
 "settings.maintenance.compact_title" = "Compact Database?";
 "settings.maintenance.compact_confirm" = "Compact";
 "settings.maintenance.compact_message" = "CueSeeker will reclaim unused SQLite space. Search and indexing are paused while compaction runs.";
-"settings.maintenance.loading_stats" = "Loading storage stats...";
-"settings.maintenance.compacting" = "Compacting database...";
 
 /* Settings: Developer */
 "settings.developer.description" = "Configure local diagnostics used during development.";
@@ -505,7 +502,6 @@
 "settings.developer.no_query_terms" = "No query terms.";
 "settings.developer.no_vocabulary" = "No vocabulary data.";
 "settings.developer.no_data" = "No data loaded.";
-"settings.developer.loading" = "Loading vocabulary data...";
 "settings.developer.disabled" = "Disabled";
 "settings.developer.updated" = "Updated %@";
 "settings.developer.docs" = "docs %@";
@@ -580,9 +576,9 @@
 "task.confirm.remove.message" = "“%@” will stop and move to Incomplete. The cards it already exported are discarded.";
 "task.confirm.delete.title" = "Delete Record";
 "task.confirm.delete.message" = "The record for “%@” will be deleted. The exported file is not deleted.";
-"task.empty.current" = "No task is running or waiting.";
-"task.empty.completed" = "No completed task yet.";
-"task.empty.incomplete" = "No incomplete task.";
+"task.empty.current" = "No tasks running or waiting.";
+"task.empty.completed" = "No completed tasks yet.";
+"task.empty.incomplete" = "No incomplete tasks.";
 "task.name.index" = "Index";
 "task.name.add_folder" = "Add Folder";
 "task.name.remove_folder" = "Remove Folder";
@@ -602,9 +598,9 @@
 /* File page tabs and in-App rename */
 "file.section.index" = "Index";
 "file.section.edit" = "Edit";
-"file.menu.rename_this_folder" = "Rename This Folder";
-"file.menu.index_this_folder" = "Index This Folder";
-"file.menu.remove_this_folder" = "Remove This Folder";
+"file.menu.rename_folder" = "Rename Folder";
+"file.menu.index_folder" = "Index Folder";
+"file.menu.remove_folder" = "Remove Folder";
 "rename.folder" = "Rename Folder";
 "rename.files" = "Rename Files";
 "rename.current_name" = "Current Name";
