@@ -30,6 +30,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
 
         let recorder = TelemetryRecorder(container: nil)
         let player = PlaybackPlayer()
+        player.setVolume(0)
         defer { try? player.stop() }
         player.decodeMode = .software
         let container = player.renderView as? PlaybackRenderContainerView
@@ -104,6 +105,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
 
         let recorder = TelemetryRecorder(container: nil)
         let player = PlaybackPlayer()
+        player.setVolume(0)
         defer { try? player.stop() }
         player.decodeMode = .software
         let container = player.renderView as? PlaybackRenderContainerView
@@ -212,6 +214,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
 
         let recorder = TelemetryRecorder(container: nil)
         let player = PlaybackPlayer()
+        player.setVolume(0)
         defer { try? player.stop() }
         player.decodeMode = .software
         let container = player.renderView as? PlaybackRenderContainerView
@@ -301,6 +304,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
 
         let recorder = TelemetryRecorder(container: nil)
         let player = PlaybackPlayer()
+        player.setVolume(0)
         defer { try? player.stop() }
         player.decodeMode = .software
         let container = player.renderView as? PlaybackRenderContainerView
@@ -384,6 +388,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
 
         let recorder = TelemetryRecorder(container: nil)
         let player = PlaybackPlayer()
+        player.setVolume(0)
         defer { try? player.stop() }
         player.decodeMode = .software
         player.setSubtitlesVisible(false)
@@ -529,6 +534,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
 
         // Cancelling via PlaybackPlayer rapid switch & stop must suppress aborted generations.
         let player = PlaybackPlayer()
+        player.setVolume(0)
         defer { try? player.stop() }
         player.decodeMode = .software
         let openGen = try player.open(PlaybackRequest(videoURL: videoURL, startMilliseconds: 100))

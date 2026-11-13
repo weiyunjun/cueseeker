@@ -8,6 +8,21 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     return [session isCancelledForIOInterrupt] ? 1 : 0;
 }
 
+static BOOL SFXIsRunningInUnitTestProcess(void) {
+    NSProcessInfo *processInfo = [NSProcessInfo processInfo];
+    NSString *processName = processInfo.processName;
+    if ([processName isEqualToString:@"xctest"]
+        || [processName containsString:@"swiftpm-testing-helper"]) {
+        return YES;
+    }
+    NSDictionary<NSString *, NSString *> *environment = processInfo.environment;
+    if (environment[@"XCTestConfigurationFilePath"] != nil
+        || environment[@"XCTestBundlePath"] != nil) {
+        return YES;
+    }
+    return NSClassFromString(@"XCTestCase") != Nil;
+}
+
 @implementation SFXNativePlaybackSession
 
 - (instancetype)initWithPath:(NSString *)path
@@ -35,6 +50,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     _delegate = delegate;
     _owner = owner;
     _volume = volume;
+    atomic_init(&_audioMainMixerOutputVolume, -1.0f);
     atomic_init(&_playbackRate, SFXClampedPlaybackRate(playbackRate));
     _decodeMode = decodeMode;
     _presentationGeneration = presentationGeneration;
@@ -256,6 +272,10 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     BOOL drained = _audioOutputDrained;
     [_packetQueueCondition unlock];
     return drained;
+}
+
+- (float)audioMainMixerOutputVolume {
+    return atomic_load(&_audioMainMixerOutputVolume);
 }
 
 - (BOOL)isFinished {
@@ -1356,6 +1376,12 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     [_audioEngine attachNode:_audioTimePitch];
     [_audioEngine connect:_audioPlayer to:_audioTimePitch format:_audioFormat];
     [_audioEngine connect:_audioTimePitch to:_audioEngine.mainMixerNode format:_audioFormat];
+    BOOL muteTerminalHardwareMixer = SFXIsRunningInUnitTestProcess();
+    if (muteTerminalHardwareMixer) {
+        // Failsafe for unit-test processes: silence terminal hardware mixer
+        // output while leaving decoding, scheduling, rate, and logical volume intact.
+        _audioEngine.mainMixerNode.outputVolume = 0.0f;
+    }
 
     NSError *audioError = nil;
     if (![_audioEngine startAndReturnError:&audioError]) {
@@ -1368,6 +1394,10 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
         [self teardownAudioOutput];
         return NO;
     }
+    if (muteTerminalHardwareMixer) {
+        _audioEngine.mainMixerNode.outputVolume = 0.0f;
+    }
+    atomic_store(&_audioMainMixerOutputVolume, _audioEngine.mainMixerNode.outputVolume);
 
     __weak typeof(self) weakSelf = self;
     _audioEngineConfigurationObserver = [[NSNotificationCenter defaultCenter]
@@ -1391,6 +1421,7 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     _pendingCoalescedAudioStartMediaSeconds = -1;
     [_audioPlayer stop];
     [_audioEngine stop];
+    atomic_store(&_audioMainMixerOutputVolume, -1.0f);
     _audioPlayer = nil;
     _audioTimePitch = nil;
     _audioEngine = nil;
@@ -1767,6 +1798,12 @@ static int SFXFFmpegInterruptCallback(void *opaque) {
     _volume = volume;
     dispatch_async(_audioDecodeQueue, ^{
         _audioPlayer.volume = volume;
+        if (_audioEngine != nil) {
+            if (SFXIsRunningInUnitTestProcess()) {
+                _audioEngine.mainMixerNode.outputVolume = 0.0f;
+            }
+            atomic_store(&_audioMainMixerOutputVolume, _audioEngine.mainMixerNode.outputVolume);
+        }
     });
 }
 

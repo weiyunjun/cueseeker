@@ -440,6 +440,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     double _rebufferStartedHostSeconds;
     double _pauseStartedHostSeconds;
     float _volume;
+    _Atomic(float) _audioMainMixerOutputVolume;
     _Atomic(float) _playbackRate;
     SFXNativePlaybackDecodeMode _decodeMode;
     CVPixelBufferRef _pendingDisplayPixelBuffer;
@@ -664,6 +665,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 @property (nonatomic, readonly) NSUInteger segmentAudioDrainCount;
 @property (nonatomic, readonly) NSUInteger audioOutputRecoveryCount;
 @property (nonatomic, readonly) BOOL audioOutputDrained;
+@property (nonatomic, readonly) float audioMainMixerOutputVolume;
 @property (nonatomic, readonly, getter=isFinished) BOOL finished;
 /// Paused, or opened to pause on its first frame and not yet resumed.
 @property (nonatomic, readonly, getter=isPaused) BOOL paused;

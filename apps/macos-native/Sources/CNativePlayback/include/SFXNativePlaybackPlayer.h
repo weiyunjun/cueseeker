@@ -134,6 +134,9 @@ didReachAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds;
 @property (nonatomic, readonly) NSUInteger nativeSegmentAudioDrainCount;
 @property (nonatomic, readonly) NSUInteger nativeAudioOutputRecoveryCount;
 @property (nonatomic, readonly) BOOL nativeAudioOutputDrained;
+/// Terminal `AVAudioEngine.mainMixerNode.outputVolume` when audio output is
+/// prepared, or `-1` when no audio output engine is active.
+@property (nonatomic, readonly) float nativeAudioMainMixerOutputVolume;
 @property (nonatomic) float volume;
 @property (nonatomic) float playbackRate;
 @property (nonatomic) SFXNativePlaybackDecodeMode decodeMode;

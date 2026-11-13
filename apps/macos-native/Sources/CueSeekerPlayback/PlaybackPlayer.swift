@@ -809,6 +809,10 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         storedVolume
     }
 
+    internal var nativeAudioMainMixerOutputVolumeForTesting: Float {
+        nativePlayer.nativeAudioMainMixerOutputVolume
+    }
+
     public func setVolume(_ value: Double) {
         storedVolume = min(max(value, 0), 100)
         nativePlayer.volume = Float(storedVolume / 100)

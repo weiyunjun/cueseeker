@@ -615,6 +615,14 @@ Rules:
   subtitle fidelity, responsiveness, or lifecycle stability regresses.
 - Playback engine-specific behavior must be documented after the engine is selected.
 - Final playback engine verification criteria must be updated after the playback ADR is accepted.
+- Any automated test that instantiates a playback engine or player (`PlaybackPlayer`,
+  `SFXNativePlaybackPlayer`) and opens real or synthetic media containing an
+  audio track must explicitly mute its output (`setVolume(0)` / `volume = 0`);
+  running `swift test` must never emit audible sound through the host speakers.
+  In addition, unit-test processes automatically mute the terminal hardware mixer
+  (`mainMixerNode.outputVolume = 0`) as a failsafe without altering logical
+  `volume` defaults or short-circuiting audio decoding, scheduling, speed control,
+  or completion callbacks.
 
 ## 11. File Access and Sandboxing Tests
 

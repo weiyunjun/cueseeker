@@ -208,6 +208,11 @@
     return _session.audioOutputDrained;
 }
 
+- (float)nativeAudioMainMixerOutputVolume {
+    SFXNativePlaybackSession *session = _session;
+    return session != nil ? session.audioMainMixerOutputVolume : -1.0f;
+}
+
 - (float)volume {
     return _volume;
 }

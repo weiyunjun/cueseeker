@@ -1933,5 +1933,91 @@ func nativePlaybackDecodesTimelineThumbnailsForRealVideoAndIncompleteKeyframeInd
     }
 }
 
+@Test
+@MainActor
+func unitTestProcessMutesHardwareAudioMixerWithoutOverridingLogicalVolume() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping hardware mixer mute test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let videoURL = directory.appendingPathComponent("audible-sine-failsafe.mkv")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "color=c=navy:s=320x180:r=24:d=1.2",
+            "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=1.2",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "128k",
+            "-shortest", "-y", videoURL.path
+        ]
+    )
+
+    // 1. Native player without manual `volume = 0`:
+    //    - preserves logical `volume == 1.0`
+    //    - still decodes/schedules/plays back audio buffers & callbacks
+    //    - keeps terminal `AVAudioEngine.mainMixerNode.outputVolume == 0`
+    do {
+        let nativePlayer = SFXNativePlaybackPlayer()
+        defer { nativePlayer.stop() }
+        nativePlayer.decodeMode = .software
+
+        #expect(nativePlayer.volume == 1.0)
+        #expect(nativePlayer.nativeAudioMainMixerOutputVolume == -1.0)
+
+        try nativePlayer.openPath(videoURL.path, startMilliseconds: 0)
+
+        let playedAudioAndVideo = await waitUntil(timeoutSeconds: 5.0) {
+            nativePlayer.nativePresentedVideoFrameCount >= 1
+                && nativePlayer.nativeAudioPlayedBackBufferCount >= 1
+                && nativePlayer.nativeAudioMainMixerOutputVolume >= 0
+        }
+        #expect(playedAudioAndVideo)
+        #expect(nativePlayer.nativeAudioMainMixerOutputVolume == 0.0)
+        #expect(nativePlayer.volume == 1.0)
+
+        nativePlayer.volume = 0.6
+        try await Task.sleep(for: .milliseconds(80))
+        #expect(nativePlayer.volume == 0.6)
+        #expect(nativePlayer.nativeAudioMainMixerOutputVolume == 0.0)
+
+        nativePlayer.stop()
+        #expect(nativePlayer.nativeAudioMainMixerOutputVolume == -1.0)
+    }
+
+    // 2. High-level PlaybackPlayer without manual `setVolume(0)`:
+    //    - preserves default logical `volume() == 100`
+    //    - terminal hardware mixer stays muted before and after logical volume updates
+    do {
+        let player = PlaybackPlayer()
+        defer { try? player.stop() }
+        player.decodeMode = .software
+
+        #expect(player.volume() == 100)
+        _ = try player.open(PlaybackRequest(videoURL: videoURL, startMilliseconds: 0))
+
+        let opened = await waitUntil(timeoutSeconds: 5.0) {
+            player.videoAspectRatio() != nil
+                && player.nativeAudioMainMixerOutputVolumeForTesting >= 0
+        }
+        #expect(opened)
+        #expect(player.nativeAudioMainMixerOutputVolumeForTesting == 0.0)
+        #expect(player.volume() == 100)
+
+        player.setVolume(75)
+        try await Task.sleep(for: .milliseconds(80))
+        #expect(player.volume() == 75)
+        #expect(player.nativeAudioMainMixerOutputVolumeForTesting == 0.0)
+    }
+}
+
+
 
 

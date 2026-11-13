@@ -19,10 +19,15 @@
   - Tagged `PendingPresentation` with `.newVideoOpen` vs `.sameVideoSeek` and included `subtitle_sync=...` in `"Playback presentation committed"` (`AppLogger.shared.info`) explicitly separating `none`, `hidden`, `sync_ready`, and `async_pending`.
   - Tracked `.manualSubtitleSwitch` in `loadSubtitleSource(_:)` and cancelled active telemetry attempts synchronously on `stop()`, `cancelPendingPresentation()`, superseding transitions, and `setSubtitlesVisible(false)`.
 
-- **Automated Tests (`apps/macos-native/Tests/CueSeekerPlaybackTests/PlaybackSubtitleFirstFrameTelemetryTests.swift`)**:
-  - Covered real ffmpeg-backed video open, same-video seek reuse/replace, manual subtitle track switching for both ASS and SRT paths, hidden/no-subtitle presentation commit states, rapid superseding switches and `stop()` cancellation, continuous playback tick silence, `WARN` escalation thresholds, `AppDiagnosticTelemetryCollectionMode` filtering, and zero disk log verification.
+- **Automated Tests (`apps/macos-native/Tests/CueSeekerPlaybackTests/PlaybackSubtitleFirstFrameTelemetryTests.swift`, `NativePlaybackMediaTimelineTests.swift`)**:
+  - Covered real ffmpeg-backed video open, same-video seek reuse/replace, manual subtitle track switching for both ASS and SRT paths, hidden/no-subtitle presentation commit states, rapid superseding switches and `stop()` cancellation, continuous playback tick silence, `WARN` escalation thresholds, `AppDiagnosticTelemetryCollectionMode` filtering, zero disk log verification, and explicit `player.setVolume(0)` muting across all 6 audio-track player test cases.
+  - Added `unitTestProcessMutesHardwareAudioMixerWithoutOverridingLogicalVolume` verifying that unit-test runs keep `AVAudioEngine.mainMixerNode.outputVolume == 0` even without calling `setVolume(0)`, while leaving logical `volume` defaults/mutations and audio buffer playback callbacks intact.
+
+- **Unit-Test Hardware Audio Failsafe & Testing Rules (`CNativePlayback`, `PlaybackPlayer.swift`, `docs/engineering/06_testing_rules.md`)**:
+  - Matched `ApplicationInfo.isRunningInUnitTestProcess` in `SFXNativePlaybackSession` (`SFXIsRunningInUnitTestProcess`) so initializing or updating audio output in a unit-test process sets terminal `AVAudioEngine.mainMixerNode.outputVolume = 0` without skipping decoding, resampling, scheduling, time-pitch speed control, completion/drain callbacks, or changing logical `volume` defaults (`1.0` / `100`).
+  - Documented the mandatory player-muting requirement and lower-layer hardware mixer failsafe under `## 10. Playback Verification` in `docs/engineering/06_testing_rules.md`.
 
 ## Verification
 
 - `swift build --package-path apps/macos-native` — Build complete (0 errors).
-- `swift test --package-path apps/macos-native --no-parallel --filter "CueSeekerPlaybackTests|PlaybackPresentationTransitionTests|AppLoggerTests"` — 129 tests passed, 0 failures.
+- `swift test --package-path apps/macos-native --no-parallel --filter "CueSeekerPlaybackTests|PlaybackPresentationTransitionTests|PlaybackStoreTests|AppLoggerTests|openSpeedMenuOwnsArrowKeysInsteadOfVolume|openSelectedTextMenuOwnsArrowKeysInsteadOfVolume|openSpeedMenuSpendsEveryKeyItDoesNotTake|playbackControllerRepeatsThumbstickUpOnNormalVideo"` — 138 tests passed, 0 failures.
