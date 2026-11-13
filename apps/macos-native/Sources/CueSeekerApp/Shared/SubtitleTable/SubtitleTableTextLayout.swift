@@ -148,7 +148,7 @@ enum SubtitleTableText {
     private static func bodyColor(role: SubtitleTableTextRole) -> NSColor {
         switch role {
         case .primaryContent:
-            return WorkbenchRedesignColors.NS.textPrimary
+            return WorkbenchRedesignColors.NS.textSecondary
         case .secondaryContext, .metadata:
             return WorkbenchRedesignColors.NS.textSecondary
         }

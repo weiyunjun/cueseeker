@@ -5353,3 +5353,97 @@ func subtitleTableRowHeightsSharedCenterAxisAndPlainTextSelectionCopyMatchRefine
     #expect(openFixture.coordinator.rowHeightForTesting(0) == 72)
     #expect(openFixture.coordinator.rowHeightForTesting(1) == 96)
 }
+
+@MainActor
+@Test
+func subtitleTablePrimaryCueUsesSecondaryTextColorWithMatchingHoverUnderlineAndPreservesMutedUnavailableColor() throws {
+    let rows = [
+        SubtitleTableRow(
+            id: 1,
+            primaryCueID: 1,
+            displayTitle: "Episode 1",
+            primaryCueText: "Normal primary cue",
+            cueGroupTexts: ["Normal primary cue", "Additional context cue"],
+            primaryGroupIndex: 0
+        ),
+        SubtitleTableRow(
+            id: 2,
+            primaryCueID: 2,
+            displayTitle: "Episode 2",
+            primaryCueText: "Unavailable primary cue",
+            cueGroupTexts: ["Unavailable primary cue"],
+            primaryGroupIndex: 0,
+            cueState: .unavailable(.videoMissing)
+        ),
+    ]
+
+    for showsCueGroup in [false, true] {
+        let fixture = makeAttachedVirtualTableCoordinator(
+            width: 1_200,
+            rowCount: rows.count,
+            rowProvider: { rows[$0] },
+            showsCueGroup: showsCueGroup
+        )
+
+        let normalStyles = fixture.coordinator.cueTextVisualStylesForTesting(row: 0)
+        let expectedFragmentCount = showsCueGroup ? 2 : 1
+        #expect(normalStyles.count == expectedFragmentCount)
+        #expect(normalStyles[0].text == "Normal primary cue")
+        #expect(normalStyles[0].foregroundColor === WorkbenchRedesignColors.NS.textSecondary)
+        #expect(normalStyles[0].hoverUnderlineColor == nil)
+        if showsCueGroup {
+            #expect(normalStyles[1].text == "Additional context cue")
+            #expect(normalStyles[1].foregroundColor === WorkbenchRedesignColors.NS.textSecondary)
+            #expect(normalStyles[1].hoverUnderlineColor == nil)
+        }
+
+        let normalHoverRect = try #require(
+            fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues")
+        )
+        let normalCuePoint = fixture.documentView.convert(
+            CGPoint(x: normalHoverRect.midX, y: normalHoverRect.minY + 12),
+            to: nil as NSView?
+        )
+        fixture.coordinator.handleMouseHover(windowPoint: normalCuePoint)
+        #expect(fixture.coordinator.isCellHoveredForTesting(row: 0, columnID: "cues"))
+
+        let hoveredStyles = fixture.coordinator.cueTextVisualStylesForTesting(row: 0)
+        #expect(hoveredStyles.count == expectedFragmentCount)
+        for style in hoveredStyles {
+            #expect(style.foregroundColor === WorkbenchRedesignColors.NS.textSecondary)
+            #expect(style.hoverUnderlineColor === WorkbenchRedesignColors.NS.textSecondary)
+            #expect(style.hoverUnderlineColor === style.foregroundColor)
+        }
+
+        // Verify resolved secondary text & hover underline colors match identically in Light and Dark appearances.
+        for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+            let appearance = try #require(NSAppearance(named: appearanceName))
+            var resolvedPrimary: NSColor?
+            var resolvedUnderline: NSColor?
+            var resolvedSecondary: NSColor?
+            appearance.performAsCurrentDrawingAppearance {
+                resolvedPrimary = hoveredStyles[0].foregroundColor?.usingColorSpace(.sRGB)
+                resolvedUnderline = hoveredStyles[0].hoverUnderlineColor?.usingColorSpace(.sRGB)
+                resolvedSecondary = WorkbenchRedesignColors.NS.textSecondary.usingColorSpace(.sRGB)
+            }
+            #expect(resolvedPrimary == resolvedSecondary)
+            #expect(resolvedUnderline == resolvedSecondary)
+        }
+
+        // Unavailable row preserves --color-text-muted and never enters interactive Cues hover state.
+        let unavailableFragments = fixture.coordinator.textFragmentInfoForTesting(row: 1, columnID: "cues")
+        let unavailableFrag = try #require(unavailableFragments.first)
+        let unavailablePoint = fixture.documentView.convert(
+            CGPoint(x: unavailableFrag.textBounds.midX, y: unavailableFrag.textBounds.midY),
+            to: nil as NSView?
+        )
+        fixture.coordinator.handleMouseHover(windowPoint: unavailablePoint)
+        #expect(!fixture.coordinator.isCellHoveredForTesting(row: 1, columnID: "cues"))
+
+        let unavailableStyles = fixture.coordinator.cueTextVisualStylesForTesting(row: 1)
+        #expect(unavailableStyles.count == 1)
+        #expect(unavailableStyles[0].text == "Unavailable primary cue")
+        #expect(unavailableStyles[0].foregroundColor === WorkbenchRedesignColors.NS.textMuted)
+        #expect(unavailableStyles[0].hoverUnderlineColor == nil)
+    }
+}

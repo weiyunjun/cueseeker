@@ -915,10 +915,15 @@ Required Cue-table coverage:
 - Shiori search updates from each input change, reuses Search's Primary Cue
   matcher without matching Display Title, and exposes its exact result count
   only after the current resident projection is complete.
-- A one-line primary Cue with no additional context resolves to 40 points; each
-  additional primary visual line adds 24 points and each additional Cue Group
-  visual line adds 20 points. Tests must count source line breaks and automatic
-  wrapping and verify the general `16 + 24P + 20S` formula.
+- A one-line primary Cue with no additional context resolves to at least
+  `48` points (`--min-height-table-row`), while row height follows
+  `max(48, H_max + 24)` (`--padding-table-row-y` = `12px` top + `12px` bottom)
+  where the Cue block `H_max` follows `24P + 20S + 4G` (each primary visual
+  line adds `24` points, each additional Cue Group visual line adds `20`
+  points, and each inter-cue item gap adds `4` points `--gap-table-cue-group`)
+  and single-segment plain-text data columns (`Display Title`, `Time Range`,
+  `Date Added`) follow `20L` (`--line-height-table-cell`). Tests must count
+  source line breaks and automatic wrapping and verify `max(48, H_max + 24)`.
 - Complete primary and optional additional Cue text is rendered without
   clipping, truncation, ellipsis, a maximum line count, or a character limit.
 - `Show Cue Group` defaults to Off, persists across launches, and uses a native

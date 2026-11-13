@@ -224,6 +224,45 @@ extension SubtitleTableView.Coordinator {
         }
     }
 
+    func cueTextVisualStylesForTesting(row: Int) -> [(
+        text: String,
+        foregroundColor: NSColor?,
+        hoverUnderlineColor: NSColor?
+    )] {
+        guard let documentView,
+              let model = rowProvider(row)
+        else {
+            return []
+        }
+        let rowRect = rectForRow(row, width: documentView.bounds.width)
+        guard let cellRect = dataCellRect(columnID: "cues", rowRect: rowRect) else {
+            return []
+        }
+        let measurement = cachedMeasurement(for: row, documentWidth: rowRect.width)
+            ?? SubtitleTableRowMeasurement(
+                height: rowRect.height,
+                primaryLineCount: 1,
+                extraCueLineCounts: []
+            )
+        let isHovered = isCuesCellHovered(
+            row: row,
+            isUnavailable: model.cueState.isUnavailable
+        )
+        return cueTextFragments(
+            model: model,
+            in: cellRect,
+            measurement: measurement
+        ).map { fragment in
+            (
+                text: fragment.attributed.string,
+                foregroundColor: fragment.foregroundColor,
+                hoverUnderlineColor: isHovered
+                    ? cueHoverUnderlineColor(for: fragment, model: model)
+                    : nil
+            )
+        }
+    }
+
     func headerTextFragmentInfoForTesting() -> [(
         columnID: String,
         columnIndex: Int,

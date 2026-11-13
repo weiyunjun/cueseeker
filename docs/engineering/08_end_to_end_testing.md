@@ -899,7 +899,8 @@ The gate passes only if:
 - Search count, pagination, selection, and actions are based on
   individual Cues; sibling matches from one Cue Group remain distinct.
 - Every primary and displayed additional Cue line is visible. Row geometry
-  follows `16 + 24P + 20S`, including width wrapping and source line breaks.
+  follows `max(48, H_max + 24)` (Cue block `24P + 20S + 4G` and plain-text data
+  columns `20L`), including width wrapping and source line breaks.
 - `Show Cue Group` defaults Off on fresh state, persists across launches, and is
   presentation-only. It changes neither query execution, row identity snapshot,
   result count, sorting, selection, primary Cue identity, nor action target.

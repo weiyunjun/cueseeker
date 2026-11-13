@@ -218,9 +218,7 @@ extension SubtitleTableView.Coordinator {
             )
         }
         let cuesRect = rowColumnRect(layout.cuesRect, rowRect: rowRect)
-        let isCuesHovered = !isSelectionMode
-            && !isUnavailable
-            && isCellHovered(row: row, columnID: "cues")
+        let isCuesHovered = isCuesCellHovered(row: row, isUnavailable: isUnavailable)
         drawCues(
             model: model,
             in: cuesRect,
@@ -390,6 +388,28 @@ extension SubtitleTableView.Coordinator {
         NSGraphicsContext.restoreGraphicsState()
     }
 
+    func cueTextColors(for model: SubtitleTableRow) -> (primary: NSColor, extra: NSColor) {
+        (
+            primary: model.cueState.isUnavailable
+                ? WorkbenchRedesignColors.NS.textMuted
+                : WorkbenchRedesignColors.NS.textSecondary,
+            extra: WorkbenchRedesignColors.NS.textSecondary
+        )
+    }
+
+    func isCuesCellHovered(row: Int, isUnavailable: Bool) -> Bool {
+        !isSelectionMode
+            && !isUnavailable
+            && isCellHovered(row: row, columnID: "cues")
+    }
+
+    func cueHoverUnderlineColor(
+        for fragment: SubtitleTableTextFragmentLayout,
+        model: SubtitleTableRow
+    ) -> NSColor {
+        fragment.foregroundColor ?? cueTextColors(for: model).primary
+    }
+
     func drawCues(
         model: SubtitleTableRow?,
         in rect: CGRect,
@@ -398,16 +418,10 @@ extension SubtitleTableView.Coordinator {
         selectedRange: NSRange?
     ) {
         guard let model else { return }
-        let primaryColor = model.cueState.isUnavailable
-            ? WorkbenchRedesignColors.NS.textMuted
-            : WorkbenchRedesignColors.NS.textPrimary
-        let extraColor = WorkbenchRedesignColors.NS.textSecondary
         let fragments = cueTextFragments(
             model: model,
             in: rect,
-            measurement: measurement,
-            primaryColor: primaryColor,
-            extraColor: extraColor
+            measurement: measurement
         )
 
         NSGraphicsContext.saveGraphicsState()
@@ -426,7 +440,7 @@ extension SubtitleTableView.Coordinator {
             if isHovered {
                 textLayout.drawUnderline(
                     at: fragment.origin,
-                    color: fragment.foregroundColor ?? primaryColor,
+                    color: cueHoverUnderlineColor(for: fragment, model: model),
                     thickness: SubtitleTableMetrics.interactiveTextUnderlineThickness,
                     offset: SubtitleTableMetrics.interactiveTextUnderlineOffset,
                     backingScaleFactor: backingScaleFactor()
@@ -654,9 +668,12 @@ extension SubtitleTableView.Coordinator {
         model: SubtitleTableRow,
         in rect: CGRect,
         measurement: SubtitleTableRowMeasurement,
-        primaryColor: NSColor = WorkbenchRedesignColors.NS.textPrimary,
-        extraColor: NSColor = WorkbenchRedesignColors.NS.textSecondary
+        primaryColor: NSColor? = nil,
+        extraColor: NSColor? = nil
     ) -> [SubtitleTableTextFragmentLayout] {
+        let colors = cueTextColors(for: model)
+        let resolvedPrimaryColor = primaryColor ?? colors.primary
+        let resolvedExtraColor = extraColor ?? colors.extra
         let extraTexts = showsCueGroup ? model.additionalCueTexts : []
         let leadingIndent = model.cueState.isUnavailable
             ? SubtitleTableCueGeometry.unavailableLeadingIndent
@@ -672,7 +689,7 @@ extension SubtitleTableView.Coordinator {
             attributed: SubtitleTableCueTextMeasurer.attributedString(
                 primaryText,
                 style: .primary,
-                foregroundColor: primaryColor
+                foregroundColor: resolvedPrimaryColor
             ),
             origin: CGPoint(
                 x: textX,
@@ -691,7 +708,7 @@ extension SubtitleTableView.Coordinator {
                     attributed: SubtitleTableCueTextMeasurer.attributedString(
                         text,
                         style: .extra,
-                        foregroundColor: extraColor
+                        foregroundColor: resolvedExtraColor
                     ),
                     origin: CGPoint(
                         x: textX,
@@ -755,41 +772,18 @@ extension SubtitleTableView.Coordinator {
         in rect: CGRect,
         measurement: SubtitleTableRowMeasurement
     ) -> CGRect? {
-        let textWidth = cuesTextWidth(in: rect, model: model)
-        let leadingIndent = model.cueState.isUnavailable
-            ? SubtitleTableCueGeometry.unavailableLeadingIndent
-            : 0
-        let textX = rect.minX + SubtitleTableCueGeometry.cellLeadingPadding + leadingIndent
         var usedRects = [CGRect]()
-        for (extraText, offset) in zip(
-            showsCueGroup ? model.additionalCueTexts : [],
-            measurement.extraCueOffsets
+        for fragment in cueTextFragments(
+            model: model,
+            in: rect,
+            measurement: measurement
         ) {
             textLayout.update(
-                attributedString: SubtitleTableCueTextMeasurer.attributedString(
-                    extraText,
-                    style: .extra,
-                    foregroundColor: WorkbenchRedesignColors.NS.textMuted
-                ),
-                width: textWidth
+                attributedString: fragment.attributed,
+                width: fragment.width
             )
-            usedRects.append(contentsOf: textLayout.usedRects(at: CGPoint(
-                x: textX,
-                y: rect.minY + offset
-            )))
+            usedRects.append(contentsOf: textLayout.usedRects(at: fragment.origin))
         }
-        textLayout.update(
-            attributedString: SubtitleTableCueTextMeasurer.attributedString(
-                model.primaryCueText,
-                style: .primary,
-                foregroundColor: WorkbenchRedesignColors.NS.textPrimary
-            ),
-            width: textWidth
-        )
-        usedRects.append(contentsOf: textLayout.usedRects(at: CGPoint(
-            x: textX,
-            y: rect.minY + measurement.primaryFirstLineOffset
-        )))
         return contentHoverRect(rects: usedRects, clippedTo: rect)
     }
 
