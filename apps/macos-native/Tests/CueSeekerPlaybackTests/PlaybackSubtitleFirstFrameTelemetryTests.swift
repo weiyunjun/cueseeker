@@ -35,7 +35,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         player.decodeMode = .software
         let container = player.renderView as? PlaybackRenderContainerView
         container?.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
-        recorder.attach(container: container)
+        recorder.attach(container: container, videoFileName: videoURL.lastPathComponent)
 
         let request = try PlaybackRequest(
             videoURL: videoURL,
@@ -55,7 +55,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         }
 
         let commit = try #require(recorder.commits.first(where: { $0.generation == generation }))
-        #expect(commit.subtitleSyncState == .asyncPending)
+        #expect(commit.subtitleSyncState == .syncReady)
         #expect(commit.subtitleFileName == "opening-track.ass")
 
         let recorded = try #require(recorder.firstFrames.first)
@@ -65,8 +65,8 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         #expect(recorded.event.subtitleFileName == "opening-track.ass")
         #expect(recorded.event.preparationMilliseconds > 0)
         #expect(recorded.event.firstFrameMilliseconds >= 0)
-        #expect(recorded.event.lagMilliseconds >= 0)
-        #expect(!recorded.event.isSynchronousAtCommit)
+        #expect(recorded.event.lagMilliseconds == 0)
+        #expect(recorded.event.isSynchronousAtCommit)
         #expect(recorded.event.presentationGeneration == generation)
 
         // Let continuous playback advance briefly across time without switching;
@@ -110,7 +110,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         player.decodeMode = .software
         let container = player.renderView as? PlaybackRenderContainerView
         container?.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
-        recorder.attach(container: container)
+        recorder.attach(container: container, videoFileName: videoURL.lastPathComponent)
 
         let openGeneration = try player.open(
             PlaybackRequest(
@@ -133,14 +133,15 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         let openCommit = try #require(
             recorder.commits.first(where: { $0.generation == openGeneration })
         )
-        #expect(openCommit.subtitleSyncState == .asyncPending)
+        #expect(openCommit.subtitleSyncState == .syncReady)
         let openEvent = try #require(recorder.firstFrames.first)
         #expect(openEvent.hasSRTImage)
         #expect(openEvent.event.trigger == .newVideoOpen)
         #expect(openEvent.event.format == .srt)
         #expect(openEvent.event.subtitleFileName == "track-one.srt")
         #expect(openEvent.event.preparationMilliseconds > 0)
-        #expect(!openEvent.event.isSynchronousAtCommit)
+        #expect(openEvent.event.lagMilliseconds == 0)
+        #expect(openEvent.event.isSynchronousAtCommit)
 
         // Same-video seek preserving an already prepared SRT layout must commit synchronously
         // with 0 prep and 0 lag relative to video first frame.
@@ -181,14 +182,15 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         let replaceCommit = try #require(
             recorder.commits.first(where: { $0.generation == replaceSeekGen })
         )
-        #expect(replaceCommit.subtitleSyncState == .asyncPending)
+        #expect(replaceCommit.subtitleSyncState == .syncReady)
         let replaceEvent = recorder.firstFrames[2]
         #expect(replaceEvent.hasSRTImage)
         #expect(replaceEvent.event.trigger == .sameVideoSeek)
         #expect(replaceEvent.event.format == .srt)
         #expect(replaceEvent.event.subtitleFileName == "track-two.srt")
         #expect(replaceEvent.event.preparationMilliseconds > 0)
-        #expect(!replaceEvent.event.isSynchronousAtCommit)
+        #expect(replaceEvent.event.lagMilliseconds == 0)
+        #expect(replaceEvent.event.isSynchronousAtCommit)
     }
 
     @Test
@@ -219,7 +221,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         player.decodeMode = .software
         let container = player.renderView as? PlaybackRenderContainerView
         container?.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
-        recorder.attach(container: container)
+        recorder.attach(container: container, videoFileName: videoURL.lastPathComponent)
 
         let openGen = try player.open(
             PlaybackRequest(
@@ -239,8 +241,9 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
             recorder.commits.contains(where: { $0.generation == openGen })
                 && recorder.firstFrames.count == 1
         }
-        #expect(recorder.commits.last?.subtitleSyncState == .asyncPending)
+        #expect(recorder.commits.last?.subtitleSyncState == .syncReady)
         #expect(recorder.firstFrames[0].event.preparationMilliseconds > 0)
+        #expect(recorder.firstFrames[0].event.isSynchronousAtCommit)
 
         // Pause at 400ms inside the exact same ASS valid range [0..1600): layer is synchronously ready.
         let inCueSeekGen = try player.seek(toMilliseconds: 400, pauseAfterFirstFrame: true)
@@ -260,7 +263,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         #expect(inCueEvent.lagMilliseconds == 0)
         #expect(inCueEvent.isSynchronousAtCommit)
 
-        // Seek to 2_800ms (Cue Two, outside [0..1600)): reuses worker (prep=0) and renders async.
+        // Seek to 2_800ms (Cue Two, outside [0..1600)): reuses worker (prep=0) and commits synchronously with video frame.
         let crossCueSeekGen = try player.seek(toMilliseconds: 2_800, pauseAfterFirstFrame: true)
         try await waitForTelemetryCondition {
             recorder.commits.contains(where: { $0.generation == crossCueSeekGen })
@@ -270,12 +273,13 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         let crossCueCommit = try #require(
             recorder.commits.first(where: { $0.generation == crossCueSeekGen })
         )
-        #expect(crossCueCommit.subtitleSyncState == .asyncPending)
+        #expect(crossCueCommit.subtitleSyncState == .syncReady)
         let crossCueEvent = recorder.firstFrames[2]
         #expect(crossCueEvent.event.trigger == .sameVideoSeek)
         #expect(crossCueEvent.event.format == .ass)
         #expect(crossCueEvent.event.preparationMilliseconds == 0)
-        #expect(!crossCueEvent.event.isSynchronousAtCommit)
+        #expect(crossCueEvent.event.lagMilliseconds == 0)
+        #expect(crossCueEvent.event.isSynchronousAtCommit)
         #expect(crossCueEvent.hasASSFrame)
     }
 
@@ -309,7 +313,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         player.decodeMode = .software
         let container = player.renderView as? PlaybackRenderContainerView
         container?.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
-        recorder.attach(container: container)
+        recorder.attach(container: container, videoFileName: videoURL.lastPathComponent)
 
         let openGen = try player.open(
             PlaybackRequest(videoURL: videoURL, startMilliseconds: 300)
@@ -392,7 +396,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         defer { try? player.stop() }
         player.decodeMode = .software
         player.setSubtitlesVisible(false)
-        recorder.attach(container: nil)
+        recorder.attach(container: nil, videoFileName: videoURL.lastPathComponent)
 
         let gen = try player.open(
             PlaybackRequest(
@@ -537,6 +541,7 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         player.setVolume(0)
         defer { try? player.stop() }
         player.decodeMode = .software
+        recorder.attach(container: nil, videoFileName: videoURL.lastPathComponent)
         let openGen = try player.open(PlaybackRequest(videoURL: videoURL, startMilliseconds: 100))
         try await waitForTelemetryCondition {
             recorder.commits.contains(where: { $0.generation == openGen })
@@ -722,6 +727,66 @@ struct PlaybackSubtitleFirstFrameTelemetryTests {
         #expect(AppLogLevel.warn >= AppLogLevel.info)
         #expect(AppLogLevel.debug < AppLogLevel.info)
     }
+
+    @Test
+    @MainActor
+    func subtitleWaitTimeoutCommitsAsyncPendingAndEmitsLagTelemetryWhenSubtitleArrivesLater() async throws {
+        let ffmpegURL = try #require(telemetryTestFFmpegURL())
+        let tempDir = try makeTelemetryTempDirectory()
+        defer {
+            ASSIndexedPartialLoadDiagnostics.resetForTesting()
+            PlaybackSubtitleFirstFrameTelemetry.resetForTesting()
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let videoURL = tempDir.appendingPathComponent("timeout-telemetry.mkv")
+        let subtitleURL = tempDir.appendingPathComponent("slow-timeout.ass")
+        try makeTelemetryTestVideo(at: videoURL, ffmpegURL: ffmpegURL)
+        try writeASSSubtitleFile(
+            at: subtitleURL,
+            cues: [(start: "0:00:00.00", end: "0:00:03.00", text: "Delayed ASS Line")]
+        )
+
+        let recorder = TelemetryRecorder(container: nil)
+        let player = PlaybackPlayer()
+        player.setVolume(0)
+        player.subtitleFirstFrameWaitTimeoutSeconds = 0.08
+        ASSIndexedPartialLoadDiagnostics.artificialLoadDelaySecondsForTesting = 0.25
+        defer { try? player.stop() }
+        player.decodeMode = .software
+        let container = player.renderView as? PlaybackRenderContainerView
+        container?.frame = CGRect(x: 0, y: 0, width: 640, height: 360)
+        recorder.attach(container: container, videoFileName: videoURL.lastPathComponent)
+
+        let openGen = try player.open(
+            PlaybackRequest(
+                videoURL: videoURL,
+                startMilliseconds: 200,
+                subtitleSource: PlaybackSubtitleSource(
+                    url: subtitleURL,
+                    format: .ass,
+                    matchedVideoURL: videoURL,
+                    initialTimestampMilliseconds: 200
+                )
+            )
+        )
+
+        try await waitForTelemetryCondition {
+            recorder.commits.contains(where: { $0.generation == openGen })
+        }
+        let commit = try #require(recorder.commits.first(where: { $0.generation == openGen }))
+        #expect(commit.subtitleSyncState == .asyncPending)
+        #expect(commit.subtitleFileName == "slow-timeout.ass")
+
+        try await waitForTelemetryCondition {
+            recorder.firstFrames.count == 1
+        }
+        let lateEvent = try #require(recorder.firstFrames.first)
+        #expect(lateEvent.hasASSFrame)
+        #expect(!lateEvent.event.isSynchronousAtCommit)
+        #expect(lateEvent.event.lagMilliseconds > 0)
+        #expect(lateEvent.event.presentationGeneration == openGen)
+    }
 }
 
 private struct RecordedSubtitleFirstFrame {
@@ -735,6 +800,7 @@ private final class TelemetryRecorder: @unchecked Sendable {
     private var storedCommits: [PlaybackPresentationCommitTelemetryEvent] = []
     private var storedFirstFrames: [RecordedSubtitleFirstFrame] = []
     private weak var container: PlaybackRenderContainerView?
+    private var expectedVideoFileName: String?
 
     init(container: PlaybackRenderContainerView?) {
         self.container = container
@@ -752,9 +818,13 @@ private final class TelemetryRecorder: @unchecked Sendable {
         return storedFirstFrames
     }
 
-    func attach(container: PlaybackRenderContainerView?) {
+    func attach(
+        container: PlaybackRenderContainerView?,
+        videoFileName: String? = nil
+    ) {
         lock.lock()
         self.container = container
+        self.expectedVideoFileName = videoFileName
         lock.unlock()
 
         PlaybackSubtitleFirstFrameTelemetry.setPresentationCommitTestObserver { [weak self] commit in
@@ -767,8 +837,11 @@ private final class TelemetryRecorder: @unchecked Sendable {
 
     private func appendCommit(_ commit: PlaybackPresentationCommitTelemetryEvent) {
         lock.lock()
+        defer { lock.unlock() }
+        if let expectedVideoFileName, commit.videoFileName != expectedVideoFileName {
+            return
+        }
         storedCommits.append(commit)
-        lock.unlock()
     }
 
     private func appendFirstFrame(_ event: PlaybackSubtitleFirstFrameTelemetryEvent) {

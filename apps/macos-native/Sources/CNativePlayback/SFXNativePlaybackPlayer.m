@@ -14,7 +14,9 @@
     NSUInteger _nativeInSessionSeekCount;
     NSUInteger _nativePresentationGeneration;
     NSUInteger _currentPresentationGeneration;
+    NSUInteger _lastNotifiedPreparedVideoPresentationGeneration;
     NSUInteger _lastNotifiedVideoPresentationGeneration;
+    BOOL _defersFirstFramePresentationCommit;
     BOOL _audioOutputRecoveryScheduled;
     BOOL _audioOutputRecoveryRequested;
     dispatch_queue_t _scrubPreviewQueue;
@@ -258,6 +260,18 @@
     return session != nil ? session.usingHardwareDecode : NO;
 }
 
+- (BOOL)defersFirstFramePresentationCommit {
+    @synchronized (self) {
+        return _defersFirstFramePresentationCommit;
+    }
+}
+
+- (void)setDefersFirstFramePresentationCommit:(BOOL)defersFirstFramePresentationCommit {
+    @synchronized (self) {
+        _defersFirstFramePresentationCommit = defersFirstFramePresentationCommit;
+    }
+}
+
 - (void)setDecodeMode:(SFXNativePlaybackDecodeMode)decodeMode {
     SFXNativePlaybackDecodeMode previous = _decodeMode;
     switch (decodeMode) {
@@ -298,6 +312,27 @@
     }
 }
 
+- (BOOL)shouldDeferFirstFrameCommitForSession:(SFXNativePlaybackSession *)session
+                       presentationGeneration:(NSUInteger)presentationGeneration {
+    @synchronized (self) {
+        return _defersFirstFramePresentationCommit
+            && _session == session
+            && _currentPresentationGeneration == presentationGeneration
+            && _lastNotifiedVideoPresentationGeneration != presentationGeneration;
+    }
+}
+
+- (BOOL)commitPreparedPresentationForGeneration:(NSUInteger)presentationGeneration {
+    SFXNativePlaybackSession *session = nil;
+    @synchronized (self) {
+        if (_session == nil || _currentPresentationGeneration != presentationGeneration) {
+            return NO;
+        }
+        session = _session;
+    }
+    return [session commitPreparedFirstFrameForPresentationGeneration:presentationGeneration];
+}
+
 - (BOOL)enqueueSampleBuffer:(CMSampleBufferRef)sampleBuffer
                  forSession:(SFXNativePlaybackSession *)session
       presentationGeneration:(NSUInteger)presentationGeneration
@@ -334,6 +369,34 @@
             _latestSubmittedVideoFrameSnapshot = nil;
         }
         return YES;
+    }
+}
+
+- (void)session:(SFXNativePlaybackSession *)session
+didPrepareFirstVideoFrameAtMilliseconds:(NSInteger)milliseconds
+                       videoWidth:(NSInteger)videoWidth
+                      videoHeight:(NSInteger)videoHeight
+presentationGeneration:(NSUInteger)presentationGeneration {
+    id<SFXNativePlaybackPlayerDelegate> delegate = nil;
+    @synchronized (self) {
+        if (_session != session
+            || _currentPresentationGeneration != presentationGeneration
+            || _lastNotifiedPreparedVideoPresentationGeneration == presentationGeneration
+            || _lastNotifiedVideoPresentationGeneration == presentationGeneration) {
+            return;
+        }
+        _lastNotifiedPreparedVideoPresentationGeneration = presentationGeneration;
+        delegate = self.delegate;
+    }
+
+    if ([delegate respondsToSelector:@selector(nativePlaybackPlayer:didPrepareFirstVideoFrameAtMilliseconds:videoWidth:videoHeight:presentationGeneration:)]) {
+        [delegate nativePlaybackPlayer:self
+            didPrepareFirstVideoFrameAtMilliseconds:milliseconds
+                                         videoWidth:videoWidth
+                                        videoHeight:videoHeight
+                             presentationGeneration:presentationGeneration];
+    } else {
+        [self commitPreparedPresentationForGeneration:presentationGeneration];
     }
 }
 

@@ -287,7 +287,7 @@ extension AppCoordinator {
                     )
                     if let subtitleURL {
                         if subtitleURL.isRemoteMediaURL {
-                            availability.isSubtitleReadable = WebDAVSubtitleCache.shared.loadData(for: subtitleURL) != nil
+                            availability.isSubtitleReadable = WebDAVSubtitleCache.shared.ensureSubtitleAvailable(for: subtitleURL)
                         } else if needsSubtitleFileProbe {
                             availability.isSubtitleReadable = FileManager.default.isReadableFile(atPath: subtitleURL.path)
                         }
@@ -350,7 +350,7 @@ extension AppCoordinator {
         if let prechecked = precheckedPlaybackMediaAvailability?.subtitleReadability(forMediaPath: source.url.mediaPath) {
             isReadable = prechecked
         } else if source.url.isRemoteMediaURL {
-            isReadable = WebDAVSubtitleCache.shared.loadData(for: source.url) != nil
+            isReadable = WebDAVSubtitleCache.shared.ensureSubtitleAvailable(for: source.url)
         } else {
             isReadable = FileManager.default.isReadableFile(atPath: source.url.path)
         }

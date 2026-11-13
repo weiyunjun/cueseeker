@@ -35,6 +35,7 @@ public struct PlaybackPresentationCommitTelemetryEvent: Sendable, Equatable {
     public let presentedMilliseconds: Int
     public let subtitleSyncState: PlaybackSubtitleCommitSyncState
     public let subtitleFileName: String?
+    public let videoFileName: String?
 }
 
 public enum PlaybackSubtitleFirstFrameTelemetry {
@@ -77,7 +78,8 @@ public enum PlaybackSubtitleFirstFrameTelemetry {
         targetMilliseconds: Int,
         presentedMilliseconds: Int,
         subtitleSyncState: PlaybackSubtitleCommitSyncState,
-        subtitleFileName: String?
+        subtitleFileName: String?,
+        videoFileName: String? = nil
     ) {
         observerState.lock.lock()
         let observer = observerState.presentationCommitObserver
@@ -88,7 +90,8 @@ public enum PlaybackSubtitleFirstFrameTelemetry {
                 targetMilliseconds: targetMilliseconds,
                 presentedMilliseconds: presentedMilliseconds,
                 subtitleSyncState: subtitleSyncState,
-                subtitleFileName: subtitleFileName
+                subtitleFileName: subtitleFileName,
+                videoFileName: videoFileName
             )
         )
     }
@@ -158,10 +161,10 @@ final class PlaybackSubtitleFirstFrameAttempt: @unchecked Sendable {
     let id = UUID()
     let trigger: PlaybackSubtitleFirstFrameTrigger
     let source: PlaybackSubtitleSource
-    let targetMilliseconds: Int
-    let presentationGeneration: UInt?
+    private var storedTargetMilliseconds: Int
+    private var storedPresentationGeneration: UInt?
     let startedAt: CFTimeInterval
-    let videoCommittedAt: CFTimeInterval?
+    private(set) var videoCommittedAt: CFTimeInterval?
 
     private let stateLock = NSLock()
     private var cancelled = false
@@ -183,10 +186,38 @@ final class PlaybackSubtitleFirstFrameAttempt: @unchecked Sendable {
     ) {
         self.trigger = trigger
         self.source = source
-        self.targetMilliseconds = max(0, targetMilliseconds)
-        self.presentationGeneration = presentationGeneration
+        self.storedTargetMilliseconds = max(0, targetMilliseconds)
+        self.storedPresentationGeneration = presentationGeneration
         self.startedAt = startedAt
         self.videoCommittedAt = videoCommittedAt
+    }
+
+    var targetMilliseconds: Int {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return storedTargetMilliseconds
+    }
+
+    var presentationGeneration: UInt? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return storedPresentationGeneration
+    }
+
+    func updateTargetMilliseconds(_ milliseconds: Int) {
+        stateLock.lock()
+        if !cancelled && !completed {
+            storedTargetMilliseconds = max(0, milliseconds)
+        }
+        stateLock.unlock()
+    }
+
+    func bindPresentationGeneration(_ generation: UInt) {
+        stateLock.lock()
+        if !cancelled && !completed {
+            storedPresentationGeneration = generation
+        }
+        stateLock.unlock()
     }
 
     var isCancelled: Bool {
@@ -240,7 +271,18 @@ final class PlaybackSubtitleFirstFrameAttempt: @unchecked Sendable {
     }
 
     @MainActor
-    func completeSynchronouslyAtCommit(at completedAt: CFTimeInterval = CACurrentMediaTime()) {
+    func markVideoCommitted(at timestamp: CFTimeInterval) {
+        guard !isCancelled, !completed else {
+            return
+        }
+        videoCommittedAt = timestamp
+    }
+
+    @MainActor
+    func completeSynchronouslyAtCommit(
+        at completedAt: CFTimeInterval = CACurrentMediaTime(),
+        frameReadyAt: CFTimeInterval? = nil
+    ) {
         stateLock.lock()
         guard !cancelled, !completed else {
             stateLock.unlock()
@@ -249,15 +291,26 @@ final class PlaybackSubtitleFirstFrameAttempt: @unchecked Sendable {
         completed = true
         stateLock.unlock()
 
-        didPrepareSource = false
-        prepStartedAt = nil
-        prepFinishedAt = nil
+        if videoCommittedAt == nil, presentationGeneration != nil {
+            videoCommittedAt = completedAt
+        }
         wasSynchronousAtCommit = (videoCommittedAt != nil)
-        let renderStart = renderStartedAt ?? startedAt
-        let firstFrameMilliseconds = max(0, (completedAt - renderStart) * 1000.0)
+        let effectiveReadyAt = frameReadyAt ?? completedAt
+        let preparationMilliseconds: Double
+        let firstFrameStart: CFTimeInterval
+        if didPrepareSource {
+            let prepStart = prepStartedAt ?? startedAt
+            let prepEnd = prepFinishedAt ?? effectiveReadyAt
+            preparationMilliseconds = max(0, (prepEnd - prepStart) * 1000.0)
+            firstFrameStart = renderStartedAt ?? prepEnd
+        } else {
+            preparationMilliseconds = 0
+            firstFrameStart = renderStartedAt ?? startedAt
+        }
+        let firstFrameMilliseconds = max(0, (effectiveReadyAt - firstFrameStart) * 1000.0)
         PlaybackSubtitleFirstFrameTelemetry.emitFirstFrame(
             attempt: self,
-            preparationMilliseconds: 0,
+            preparationMilliseconds: preparationMilliseconds,
             firstFrameMilliseconds: firstFrameMilliseconds,
             lagMilliseconds: 0
         )

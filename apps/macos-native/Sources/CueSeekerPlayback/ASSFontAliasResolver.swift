@@ -639,8 +639,68 @@ enum ASSFontAliasRewriter {
 final class ASSFontAliasResolver: @unchecked Sendable {
     static let shared = ASSFontAliasResolver()
 
-    private let lock = NSLock()
+    private let condition = NSCondition()
     private var cachedTable: (snapshot: ASSInstalledFontEnvironmentSnapshot, table: ASSFontAliasTable)?
+    private var isBuilding = false
+    private var needsEnvironmentRefresh = true
+    private var snapshotScanCount = 0
+    private var tableBuildCount = 0
+    private var fontChangeObserver: NSObjectProtocol?
+
+    init(observeSystemFontChanges: Bool = true) {
+        if observeSystemFontChanges {
+            let notificationName = NSNotification.Name(
+                kCTFontManagerRegisteredFontsChangedNotification as String
+            )
+            fontChangeObserver = NotificationCenter.default.addObserver(
+                forName: notificationName,
+                object: nil,
+                queue: nil
+            ) { [weak self] _ in
+                self?.markEnvironmentNeedsRefresh()
+            }
+        }
+    }
+
+    deinit {
+        if let fontChangeObserver {
+            NotificationCenter.default.removeObserver(fontChangeObserver)
+        }
+    }
+
+    func warmUp() {
+        _ = aliasTable()
+    }
+
+    func markEnvironmentNeedsRefresh() {
+        condition.lock()
+        needsEnvironmentRefresh = true
+        condition.unlock()
+    }
+
+    func resetForTesting() {
+        condition.lock()
+        while isBuilding {
+            condition.wait()
+        }
+        cachedTable = nil
+        needsEnvironmentRefresh = true
+        snapshotScanCount = 0
+        tableBuildCount = 0
+        condition.unlock()
+    }
+
+    var snapshotScanCountForTesting: Int {
+        condition.lock()
+        defer { condition.unlock() }
+        return snapshotScanCount
+    }
+
+    var tableBuildCountForTesting: Int {
+        condition.lock()
+        defer { condition.unlock() }
+        return tableBuildCount
+    }
 
     func rewriteRenderScript(_ script: String, requestedFontNames: [String]? = nil) -> String {
         let aliases = aliasTable()
@@ -655,21 +715,46 @@ final class ASSFontAliasResolver: @unchecked Sendable {
     }
 
     private func aliasTable() -> ASSFontAliasTable {
-        let installedFontSnapshot = Self.installedFontEnvironmentSnapshot()
-
-        lock.lock()
-        if let cachedTable, cachedTable.snapshot == installedFontSnapshot {
-            lock.unlock()
+        condition.lock()
+        if !needsEnvironmentRefresh, let cachedTable {
+            condition.unlock()
             return cachedTable.table
         }
-        lock.unlock()
+        if isBuilding {
+            while isBuilding {
+                condition.wait()
+            }
+            if let cachedTable {
+                condition.unlock()
+                return cachedTable.table
+            }
+        }
+        isBuilding = true
+        let previousCached = cachedTable
+        condition.unlock()
 
-        let table = Self.buildAliasTable(for: installedFontSnapshot)
+        let installedFontSnapshot = Self.installedFontEnvironmentSnapshot()
+        let resolvedTable: ASSFontAliasTable
+        let didBuildNewTable: Bool
+        if let previousCached, previousCached.snapshot == installedFontSnapshot {
+            resolvedTable = previousCached.table
+            didBuildNewTable = false
+        } else {
+            resolvedTable = Self.buildAliasTable(for: installedFontSnapshot)
+            didBuildNewTable = true
+        }
 
-        lock.lock()
-        cachedTable = (snapshot: installedFontSnapshot, table: table)
-        lock.unlock()
-        return table
+        condition.lock()
+        snapshotScanCount += 1
+        if didBuildNewTable {
+            tableBuildCount += 1
+        }
+        cachedTable = (snapshot: installedFontSnapshot, table: resolvedTable)
+        needsEnvironmentRefresh = false
+        isBuilding = false
+        condition.broadcast()
+        condition.unlock()
+        return resolvedTable
     }
 
     private static func buildAliasTable(for installedFontSnapshot: ASSInstalledFontEnvironmentSnapshot) -> ASSFontAliasTable {

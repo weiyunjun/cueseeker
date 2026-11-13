@@ -415,6 +415,7 @@ static BOOL SFXIsRunningInUnitTestProcess(void) {
     }
 
     [_packetQueueCondition lock];
+    _audioPrimed = YES;
     BOOL hasOutstandingAudio = _outstandingAudioBufferCount > 0;
     [self clearAudioPacketQueueLocked];
     [_packetQueueCondition broadcast];
@@ -1580,6 +1581,7 @@ static BOOL SFXIsRunningInUnitTestProcess(void) {
     [_packetQueueCondition lock];
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
+    [self clearPreparedFirstFrameSubmission];
     [self signalPacingCondition];
 }
 
@@ -2580,6 +2582,7 @@ static BOOL SFXIsRunningInUnitTestProcess(void) {
     av_frame_unref(_videoFrame);
 
     [self clearPendingPixelBufferSubmission];
+    [self clearPreparedFirstFrameSubmission];
     [self resetSegmentBoundaryState];
 
     double now = CACurrentMediaTime();

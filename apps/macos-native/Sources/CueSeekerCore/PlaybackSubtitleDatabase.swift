@@ -2,6 +2,7 @@ import Foundation
 
 public protocol PlaybackSubtitleRenderCacheProviding: Sendable {
     var cacheScopeID: String { get }
+    var subtitleCache: WebDAVSubtitleCache { get }
     func hasCurrentASSFontReferenceManifest(forSubtitleFile subtitleFile: URL) throws -> Bool
     func assFontReferences(forSubtitleFile subtitleFile: URL) throws -> [ASSFontReference]
     func validatedASSEventOffsetIndex(forSubtitleFile subtitleFile: URL) throws -> ASSEventOffsetIndex?
@@ -10,6 +11,10 @@ public protocol PlaybackSubtitleRenderCacheProviding: Sendable {
         actualFileSize: Int64,
         actualModifiedAt: Date
     ) throws -> ASSEventOffsetIndex?
+}
+
+public extension PlaybackSubtitleRenderCacheProviding {
+    var subtitleCache: WebDAVSubtitleCache { .shared }
 }
 
 public struct PlaybackSubtitleRenderCacheReader: PlaybackSubtitleRenderCacheProviding, Equatable, Sendable {
@@ -134,7 +139,7 @@ public struct PlaybackSubtitleRenderCacheReader: PlaybackSubtitleRenderCacheProv
 public final class PlaybackSubtitleDatabase: PlaybackSubtitleRenderCacheProviding, @unchecked Sendable {
     private let path: URL
     private let database: SQLiteDatabase
-    let subtitleCache: WebDAVSubtitleCache
+    public let subtitleCache: WebDAVSubtitleCache
 
     public init(
         path: URL,

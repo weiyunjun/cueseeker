@@ -299,11 +299,12 @@ enum SRTSubtitleRenderer {
             )
         }
         try checkCancellation(isCancelled)
+        let subtitleCache = source.renderCacheProvider?.subtitleCache ?? .shared
         let data = try PlaybackPerformanceProbe.measure(
             "SRTSubtitleRenderer.read",
             thresholdMilliseconds: 2
         ) {
-            try WebDAVSubtitleCache.shared.readSubtitleData(from: source.url)
+            try subtitleCache.readSubtitleData(from: source.url)
         }
         try checkCancellation(isCancelled)
         let entries = try PlaybackPerformanceProbe.measure(

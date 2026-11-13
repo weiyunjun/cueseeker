@@ -132,7 +132,7 @@ public struct ASSEventOffsetIndex: Equatable, Sendable {
         )
     }
 
-    func readAndDecodeEventLines(
+    public func readAndDecodeEventLines(
         _ eventRanges: [ASSEventByteRange],
         from subtitleFile: URL,
         subtitleCache: WebDAVSubtitleCache = .shared,

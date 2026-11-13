@@ -48,6 +48,11 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
 @end
 
 typedef NSString * _Nonnull (^SFXASSScriptRewriterBlock)(NSString * _Nonnull scriptChunk);
+typedef NSArray<NSString *> * _Nullable (^SFXASSWindowEventLinesProviderBlock)(
+    NSInteger windowStartMilliseconds,
+    NSInteger windowEndMilliseconds,
+    NSError * _Nullable * _Nullable error
+);
 
 @interface SFXASSRendererSession : NSObject
 
@@ -76,6 +81,14 @@ typedef NSString * _Nonnull (^SFXASSScriptRewriterBlock)(NSString * _Nonnull scr
                                      error:(NSError **)error
     NS_SWIFT_NAME(init(assScript:sourceIdentifier:frameWidth:frameHeight:));
 
+- (nullable instancetype)initWithASSHeader:(NSString *)headerScript
+                          sourceIdentifier:(NSString *)sourceIdentifier
+                                frameWidth:(NSInteger)frameWidth
+                               frameHeight:(NSInteger)frameHeight
+                  windowEventLinesProvider:(SFXASSWindowEventLinesProviderBlock)windowEventLinesProvider
+                                     error:(NSError **)error
+    NS_SWIFT_NAME(init(assHeader:sourceIdentifier:frameWidth:frameHeight:windowEventLinesProvider:));
+
 - (nullable SFXASSRenderOutput *)renderFrameAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
                                                               error:(NSError **)error
     NS_SWIFT_NAME(renderFrame(atTimestampMilliseconds:));
@@ -91,6 +104,10 @@ typedef NSString * _Nonnull (^SFXASSScriptRewriterBlock)(NSString * _Nonnull scr
 @interface SFXASSRenderer : NSObject
 
 + (NSString *)libassVersionString;
+
++ (void)warmUpFontEnvironment;
++ (NSUInteger)engineInitializationCountForTesting;
++ (void)resetFontEnvironmentPoolForTesting;
 
 + (nullable SFXASSRenderOutput *)renderASSFileAtPath:(NSString *)path
                                           frameWidth:(NSInteger)frameWidth

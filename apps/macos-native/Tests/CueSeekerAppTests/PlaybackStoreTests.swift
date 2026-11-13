@@ -1,5 +1,6 @@
 import Combine
 import CueSeekerCore
+import CueSeekerPlayback
 import Foundation
 import Testing
 @testable import CueSeekerApp
@@ -161,4 +162,56 @@ private func withTemporaryUserDefaults(_ body: (UserDefaults) -> Void) {
     }
 
     body(userDefaults)
+}
+
+
+@MainActor
+@Test
+func appCoordinatorSubtitleAvailabilityAndErrorBannerDistinguishReadableCachedRemoteAndStaleFailures() throws {
+    let suiteName = "CueSeekerSubtitleErrorBannerTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    let tempDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent(suiteName, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    let databaseURL = tempDir.appendingPathComponent("CueSeeker.sqlite")
+    let remoteCachedURL = try #require(URL(string: "http://nas.local:5244/dav/\(suiteName)/Episode01.ass"))
+    defer {
+        WebDAVSubtitleCache.shared.removeCachedSubtitle(for: remoteCachedURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
+        try? FileManager.default.removeItem(at: tempDir)
+    }
+
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let videoURL = tempDir.appendingPathComponent("Episode01.mkv")
+    let missingSubtitleURL = tempDir.appendingPathComponent("MissingEpisode01.ass")
+
+    // 1. Missing local subtitle immediately shows top-left subtitle error banner and returns nil.
+    let missingResolved = app.loadablePlaybackSubtitleSource(
+        PlaybackSubtitleSource(url: missingSubtitleURL, format: .ass, matchedVideoURL: videoURL)
+    )
+    #expect(missingResolved == nil)
+    #expect(app.playback.errorMessages[.subtitle]?.contains(missingSubtitleURL.mediaPath) == true)
+
+    // 2. Cached remote WebDAV subtitle passes ensureSubtitleAvailable, clears previous subtitle error, and returns source.
+    _ = try WebDAVSubtitleCache.shared.storeSubtitleData(Data("[Script Info]\n".utf8), for: remoteCachedURL)
+    #expect(WebDAVSubtitleCache.shared.ensureSubtitleAvailable(for: remoteCachedURL))
+    let cachedRemoteSource = PlaybackSubtitleSource(url: remoteCachedURL, format: .ass, matchedVideoURL: videoURL)
+    let remoteResolved = app.loadablePlaybackSubtitleSource(cachedRemoteSource)
+    #expect(remoteResolved?.url == remoteCachedURL)
+    #expect(app.playback.errorMessages[.subtitle] == nil)
+
+    // 3. Renderer source-load failure shows error only when URL matches currentPlaybackSubtitlePath (stale failures ignored).
+    let activePath = tempDir.appendingPathComponent("ActiveCorrupt.ass").path
+    let staleURL = tempDir.appendingPathComponent("StaleReplaced.ass")
+    app.playbackSubtitle = VideoSubtitle(
+        subtitleFileID: 1,
+        subtitlePath: activePath,
+        format: .ass
+    )
+    app.handleSubtitleSourceLoadFailure(staleURL)
+    #expect(app.playback.errorMessages[.subtitle] == nil)
+
+    app.handleSubtitleSourceLoadFailure(URL(fileURLWithPath: activePath))
+    #expect(app.playback.errorMessages[.subtitle]?.contains(activePath) == true)
 }

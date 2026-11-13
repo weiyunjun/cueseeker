@@ -98,11 +98,274 @@ private struct ASSRenderWorkerError: Error, Sendable {
     let message: String
 }
 
+enum ASSIndexedPartialLoadDiagnostics {
+    struct Snapshot: Equatable, Sendable {
+        var indexedSessionLoadCount: Int = 0
+        var fullFallbackSessionLoadCount: Int = 0
+        var databaseIndexValidationCount: Int = 0
+        var memoryCacheReuseCount: Int = 0
+        var partialChunkReadCount: Int = 0
+        var partialChunkBytesRead: Int = 0
+    }
+
+    private static let lock = NSLock()
+    private static var storedSnapshot = Snapshot()
+    private static var storedArtificialLoadDelaySeconds: TimeInterval = 0
+    private static var storedScopedPathSubstring: String?
+
+    static var snapshot: Snapshot {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedSnapshot
+    }
+
+    static var scopedPathSubstringForTesting: String? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedScopedPathSubstring
+        }
+        set {
+            lock.lock()
+            storedScopedPathSubstring = newValue
+            lock.unlock()
+        }
+    }
+
+    static var artificialLoadDelaySecondsForTesting: TimeInterval {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedArtificialLoadDelaySeconds
+        }
+        set {
+            lock.lock()
+            storedArtificialLoadDelaySeconds = max(0, newValue)
+            lock.unlock()
+        }
+    }
+
+    static func artificialLoadDelaySeconds(forSourcePath sourcePath: String) -> TimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        guard matchesScopeLocked(sourcePath) else { return 0 }
+        return storedArtificialLoadDelaySeconds
+    }
+
+    private static func matchesScopeLocked(_ sourcePath: String) -> Bool {
+        guard let substring = storedScopedPathSubstring else { return true }
+        return sourcePath.contains(substring)
+    }
+
+    static func recordIndexedSessionLoad(sourcePath: String) {
+        lock.lock()
+        if matchesScopeLocked(sourcePath) {
+            storedSnapshot.indexedSessionLoadCount += 1
+        }
+        lock.unlock()
+    }
+
+    static func recordFullFallbackSessionLoad(sourcePath: String) {
+        lock.lock()
+        if matchesScopeLocked(sourcePath) {
+            storedSnapshot.fullFallbackSessionLoadCount += 1
+        }
+        lock.unlock()
+    }
+
+    static func recordDatabaseIndexValidation(sourcePath: String) {
+        lock.lock()
+        if matchesScopeLocked(sourcePath) {
+            storedSnapshot.databaseIndexValidationCount += 1
+        }
+        lock.unlock()
+    }
+
+    static func recordMemoryCacheReuse(sourcePath: String) {
+        lock.lock()
+        if matchesScopeLocked(sourcePath) {
+            storedSnapshot.memoryCacheReuseCount += 1
+        }
+        lock.unlock()
+    }
+
+    static func recordChunkRead(sourcePath: String, bytes: Int) {
+        lock.lock()
+        if matchesScopeLocked(sourcePath) {
+            storedSnapshot.partialChunkReadCount += 1
+            storedSnapshot.partialChunkBytesRead += max(0, bytes)
+        }
+        lock.unlock()
+    }
+
+    static func resetForTesting() {
+        lock.lock()
+        storedSnapshot = Snapshot()
+        storedArtificialLoadDelaySeconds = 0
+        storedScopedPathSubstring = nil
+        lock.unlock()
+        ValidatedASSOffsetIndexMemoryCache.shared.clear()
+    }
+}
+
+private final class ValidatedASSOffsetIndexMemoryCache: @unchecked Sendable {
+    static let shared = ValidatedASSOffsetIndexMemoryCache()
+
+    private struct Key: Hashable {
+        let mediaPath: String
+        let cacheScopeID: String
+    }
+
+    private struct Entry {
+        let key: Key
+        let index: ASSEventOffsetIndex
+        let requestedFontNames: [String]?
+        let fileSize: Int64
+        let modifiedAtInterval: TimeInterval?
+    }
+
+    private let lock = NSLock()
+    private var entries: [Entry] = []
+    private let maxEntries = 8
+
+    func clear() {
+        lock.lock()
+        entries.removeAll()
+        lock.unlock()
+    }
+
+    func invalidate(mediaPath: String, cacheScopeID: String?) {
+        lock.lock()
+        entries.removeAll { entry in
+            entry.key.mediaPath == mediaPath
+                && (cacheScopeID == nil || entry.key.cacheScopeID == cacheScopeID)
+        }
+        lock.unlock()
+    }
+
+    func resolve(
+        for subtitleURL: URL,
+        cacheProvider: any PlaybackSubtitleRenderCacheProviding
+    ) throws -> (
+        index: ASSEventOffsetIndex,
+        requestedFontNames: [String]?,
+        fileSize: Int64,
+        modifiedAtInterval: TimeInterval?
+    )? {
+        let key = Key(
+            mediaPath: subtitleURL.mediaPath,
+            cacheScopeID: cacheProvider.cacheScopeID
+        )
+
+        let actualSize: Int64
+        let actualModifiedAt: Date?
+        if subtitleURL.isRemoteMediaURL {
+            let cachedURL = cacheProvider.subtitleCache.cachedFileURL(for: subtitleURL)
+            guard let handle = try? FileHandle(forReadingFrom: cachedURL) else {
+                invalidate(mediaPath: key.mediaPath, cacheScopeID: key.cacheScopeID)
+                return nil
+            }
+            try? handle.close()
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: cachedURL.path),
+                  let size = (attributes[.size] as? NSNumber)?.int64Value,
+                  size >= 0
+            else {
+                invalidate(mediaPath: key.mediaPath, cacheScopeID: key.cacheScopeID)
+                return nil
+            }
+            actualSize = size
+            actualModifiedAt = nil
+        } else {
+            let handle = try FileHandle(forReadingFrom: subtitleURL)
+            try? handle.close()
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: subtitleURL.path),
+                  let size = (attributes[.size] as? NSNumber)?.int64Value,
+                  let modifiedDate = attributes[.modificationDate] as? Date
+            else {
+                invalidate(mediaPath: key.mediaPath, cacheScopeID: key.cacheScopeID)
+                return nil
+            }
+            actualSize = size
+            actualModifiedAt = modifiedDate
+        }
+
+        lock.lock()
+        if let existingIdx = entries.firstIndex(where: { $0.key == key }) {
+            let existing = entries[existingIdx]
+            let matchesFingerprint: Bool
+            if let actualModifiedAt {
+                matchesFingerprint = existing.fileSize == actualSize
+                    && existing.modifiedAtInterval != nil
+                    && abs((existing.modifiedAtInterval ?? 0) - actualModifiedAt.timeIntervalSince1970) < 0.001
+            } else {
+                matchesFingerprint = existing.fileSize == actualSize
+            }
+            if matchesFingerprint {
+                entries.remove(at: existingIdx)
+                entries.append(existing)
+                lock.unlock()
+                ASSIndexedPartialLoadDiagnostics.recordMemoryCacheReuse(sourcePath: key.mediaPath)
+                return (
+                    existing.index,
+                    existing.requestedFontNames,
+                    existing.fileSize,
+                    existing.modifiedAtInterval
+                )
+            }
+            entries.remove(at: existingIdx)
+        }
+        lock.unlock()
+
+        ASSIndexedPartialLoadDiagnostics.recordDatabaseIndexValidation(sourcePath: key.mediaPath)
+        let validated: ASSEventOffsetIndex?
+        if let actualModifiedAt {
+            validated = try cacheProvider.validatedASSEventOffsetIndex(
+                forSubtitleFile: subtitleURL,
+                actualFileSize: actualSize,
+                actualModifiedAt: actualModifiedAt
+            )
+        } else {
+            validated = try cacheProvider.validatedASSEventOffsetIndex(forSubtitleFile: subtitleURL)
+        }
+        guard let validated else {
+            return nil
+        }
+
+        let requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
+            sourcePath: subtitleURL.mediaPath,
+            renderCacheProvider: cacheProvider
+        )
+        let newEntry = Entry(
+            key: key,
+            index: validated,
+            requestedFontNames: requestedFontNames,
+            fileSize: actualSize,
+            modifiedAtInterval: actualModifiedAt?.timeIntervalSince1970
+        )
+
+        lock.lock()
+        entries.removeAll { $0.key == key }
+        entries.append(newEntry)
+        if entries.count > maxEntries {
+            entries.removeFirst(entries.count - maxEntries)
+        }
+        lock.unlock()
+
+        return (
+            validated,
+            requestedFontNames,
+            newEntry.fileSize,
+            newEntry.modifiedAtInterval
+        )
+    }
+}
+
 private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private let queue = DispatchQueue(label: "CueSeeker.SourceFaithfulASSRenderer")
     private let invalidationLock = NSLock()
     private var invalidated = false
     private var session: SFXASSRendererSession?
+    private var usingIndexedSession = false
     private var sourcePath: String?
     private var sourceFormat: PlaybackSubtitleSourceFormat?
     private var renderCacheProvider: (any PlaybackSubtitleRenderCacheProviding)?
@@ -127,6 +390,22 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 return
             }
 
+            let delaySeconds = ASSIndexedPartialLoadDiagnostics.artificialLoadDelaySeconds(
+                forSourcePath: sourcePath
+            )
+            if delaySeconds > 0 {
+                let deadline = CACurrentMediaTime() + delaySeconds
+                while CACurrentMediaTime() < deadline {
+                    if self.isInvalidated {
+                        return
+                    }
+                    Thread.sleep(forTimeInterval: min(0.01, max(0, deadline - CACurrentMediaTime())))
+                }
+                guard !self.isInvalidated else {
+                    return
+                }
+            }
+
             do {
                 self.clearState()
                 self.sourcePath = sourcePath
@@ -134,10 +413,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 self.renderCacheProvider = renderCacheProvider
                 self.frameWidth = frameWidth
                 self.frameHeight = frameHeight
-                self.requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
-                    sourcePath: sourcePath,
-                    renderCacheProvider: renderCacheProvider
-                )
 
                 let nextSession = try self.makeSession()
                 guard !self.isInvalidated else {
@@ -184,7 +459,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             }
 
             do {
-                guard let session = self.session else {
+                guard let currentSession = self.session else {
                     completion(
                         expectedGeneration,
                         .failure(ASSRenderWorkerError(message: "ASS renderer session is not ready."))
@@ -192,7 +467,31 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                     return
                 }
 
-                let output = try session.renderCroppedImage(atTimestampMilliseconds: timestampMilliseconds)
+                let output: SFXASSCroppedRenderOutput
+                do {
+                    output = try currentSession.renderCroppedImage(atTimestampMilliseconds: timestampMilliseconds)
+                } catch {
+                    guard self.usingIndexedSession, !self.isInvalidated else {
+                        throw error
+                    }
+                    if let sourcePath = self.sourcePath {
+                        ValidatedASSOffsetIndexMemoryCache.shared.invalidate(
+                            mediaPath: sourcePath,
+                            cacheScopeID: self.renderCacheProvider?.cacheScopeID
+                        )
+                    }
+                    currentSession.close()
+                    self.session = nil
+                    self.usingIndexedSession = false
+                    let fallbackSession = try self.makeFullFallbackSession()
+                    guard !self.isInvalidated else {
+                        fallbackSession.close()
+                        return
+                    }
+                    self.session = fallbackSession
+                    output = try fallbackSession.renderCroppedImage(atTimestampMilliseconds: timestampMilliseconds)
+                }
+
                 guard !self.isInvalidated else {
                     return
                 }
@@ -240,6 +539,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private func clearState() {
         session?.close()
         session = nil
+        usingIndexedSession = false
         sourcePath = nil
         sourceFormat = nil
         renderCacheProvider = nil
@@ -264,34 +564,117 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
 
         return try autoreleasepool {
             let sourceURL = URL.fromMediaPath(sourcePath)
-            let requestedFontNames = self.requestedFontNames
-            if !sourceURL.isRemoteMediaURL,
-               let session = try? SFXASSRendererSession(
-                   assFileAtPath: sourceURL.path,
-                   frameWidth: frameWidth,
-                   frameHeight: frameHeight,
-                   scriptRewriter: { chunk in
-                       ASSFontAliasResolver.shared.rewriteRenderScript(
-                           chunk,
-                           requestedFontNames: requestedFontNames
-                       )
-                   }
+            if let cacheProvider = renderCacheProvider,
+               let resolved = try ValidatedASSOffsetIndexMemoryCache.shared.resolve(
+                   for: sourceURL,
+                   cacheProvider: cacheProvider
                ) {
-                return session
+                self.requestedFontNames = resolved.requestedFontNames
+                let requestedFontNames = resolved.requestedFontNames
+                let rewrittenHeader = ASSFontAliasResolver.shared.rewriteRenderScript(
+                    resolved.index.headerText,
+                    requestedFontNames: requestedFontNames
+                )
+                let subtitleCache = cacheProvider.subtitleCache
+                let index = resolved.index
+                let expectedFileSize = resolved.fileSize
+                let expectedModifiedAtInterval = resolved.modifiedAtInterval
+                let indexedSession = try SFXASSRendererSession(
+                    assHeader: rewrittenHeader,
+                    sourceIdentifier: sourcePath,
+                    frameWidth: frameWidth,
+                    frameHeight: frameHeight,
+                    windowEventLinesProvider: { winStart, winEnd, errorPtr in
+                        if !sourceURL.isRemoteMediaURL {
+                            guard let attributes = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
+                                  let liveSize = (attributes[.size] as? NSNumber)?.int64Value,
+                                  let liveModifiedDate = attributes[.modificationDate] as? Date,
+                                  liveSize == expectedFileSize,
+                                  let expectedModifiedAtInterval,
+                                  abs(liveModifiedDate.timeIntervalSince1970 - expectedModifiedAtInterval) < 0.001
+                            else {
+                                errorPtr?.pointee = NSError(
+                                    domain: SFXASSRenderingErrorDomain,
+                                    code: SFXASSRenderingErrorCode.loadFailed.rawValue,
+                                    userInfo: [
+                                        NSLocalizedDescriptionKey: "Indexed ASS fingerprint changed for \(sourcePath)."
+                                    ]
+                                )
+                                return nil
+                            }
+                        }
+                        let safeEnd = max(winStart + 1, winEnd)
+                        let ranges = index.overlappingEvents(in: winStart ..< safeEnd)
+                        do {
+                            guard let decodedLines = try index.readAndDecodeEventLines(
+                                ranges,
+                                from: sourceURL,
+                                subtitleCache: subtitleCache,
+                                onChunkRead: { _, byteCount in
+                                    ASSIndexedPartialLoadDiagnostics.recordChunkRead(
+                                        sourcePath: sourcePath,
+                                        bytes: byteCount
+                                    )
+                                }
+                            ) else {
+                                errorPtr?.pointee = NSError(
+                                    domain: SFXASSRenderingErrorDomain,
+                                    code: SFXASSRenderingErrorCode.loadFailed.rawValue,
+                                    userInfo: [
+                                        NSLocalizedDescriptionKey: "Indexed ASS slice decoding failed for \(sourcePath)."
+                                    ]
+                                )
+                                return nil
+                            }
+                            return decodedLines.map { line in
+                                guard line.contains("\\fn") else {
+                                    return line
+                                }
+                                return ASSFontAliasResolver.shared.rewriteRenderScript(
+                                    line,
+                                    requestedFontNames: requestedFontNames
+                                )
+                            }
+                        } catch {
+                            errorPtr?.pointee = error as NSError
+                            return nil
+                        }
+                    }
+                )
+                self.usingIndexedSession = true
+                ASSIndexedPartialLoadDiagnostics.recordIndexedSessionLoad(sourcePath: sourcePath)
+                return indexedSession
             }
 
-            let sourceScript = try SubtitleTextDecoder.decode(
-                contentsOf: sourceURL,
-                format: .ass
-            )
-            let renderScript = rewriteFontAliases(in: sourceScript)
-            return try SFXASSRendererSession(
-                assScript: renderScript,
-                sourceIdentifier: sourcePath,
-                frameWidth: frameWidth,
-                frameHeight: frameHeight
-            )
+            return try makeFullFallbackSession()
         }
+    }
+
+    private func makeFullFallbackSession() throws -> SFXASSRendererSession {
+        guard let sourcePath,
+              frameWidth > 0,
+              frameHeight > 0
+        else {
+            throw ASSRenderWorkerError(message: "ASS renderer source is not ready.")
+        }
+        let sourceURL = URL.fromMediaPath(sourcePath)
+        let subtitleCache = renderCacheProvider?.subtitleCache ?? .shared
+        let rawData = try subtitleCache.readSubtitleData(from: sourceURL)
+        let sourceScript = try SubtitleTextDecoder.decode(rawData, format: .ass)
+        self.requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
+            sourcePath: sourcePath,
+            renderCacheProvider: renderCacheProvider
+        )
+        let renderScript = rewriteFontAliases(in: sourceScript)
+        let fallbackSession = try SFXASSRendererSession(
+            assScript: renderScript,
+            sourceIdentifier: sourcePath,
+            frameWidth: frameWidth,
+            frameHeight: frameHeight
+        )
+        self.usingIndexedSession = false
+        ASSIndexedPartialLoadDiagnostics.recordFullFallbackSessionLoad(sourcePath: sourcePath)
+        return fallbackSession
     }
 
     private func rewriteFontAliases(in script: String) -> String {
@@ -358,6 +741,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     /// in-flight failures this one is the user's to see, so it travels to the
     /// App and is shown in the player's error banner.
     var onSourceLoadFailure: ((URL) -> Void)?
+    var onPreparedFrameReady: (() -> Void)?
+    var defersLayerPresentation = false
 
     private struct PendingTelemetryRender {
         let attempt: PlaybackSubtitleFirstFrameAttempt
@@ -374,8 +759,15 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var renderedTimestampMilliseconds: Int?
     private var renderedValidRangeMilliseconds: Range<Int>?
     private var renderedFrame: ASSRenderedFrame?
+    private var renderedSurfaceImage: CGImage?
+    private var displayedFrame: ASSSparseFrame?
+    private var displayedVideoSize: CGSize?
+    private var displayedSourceFormat: PlaybackSubtitleSourceFormat?
+    private var stagedReadyAt: CFTimeInterval?
+    private var loadFailedForCurrentSource = false
     private var failureMessage: String?
     private var isApplyingPresentation = false
+    private var isSuppressingPreparedFrameReadyCallback = false
     private var currentLoadStartedAt: CFTimeInterval?
     private var pendingTelemetryRender: PendingTelemetryRender?
     private var nextRenderSequence: UInt = 0
@@ -383,6 +775,10 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var subtitleSurfaceLayer: CALayer?
     private var rendererWorker = SourceFaithfulASSRendererWorker()
     private(set) var rendererLoadCountForTesting = 0
+
+    var hasDisplayedSubtitleImage: Bool {
+        !subtitleContainerLayer.isHidden && subtitleSurfaceLayer?.contents != nil
+    }
 
     override var isFlipped: Bool {
         true
@@ -420,9 +816,13 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     func currentPresentationFrame() -> ASSSparseFrame? {
-        guard areSubtitlesVisible,
-              let renderedFrame
-        else {
+        guard areSubtitlesVisible else {
+            return nil
+        }
+        if defersLayerPresentation {
+            return displayedFrame
+        }
+        guard let renderedFrame else {
             return nil
         }
 
@@ -466,10 +866,133 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         PlaybackPerformanceProbe.measure("SourceFaithfulASSSubtitleOverlayView.layout", thresholdMilliseconds: 8) {
             subtitleContainerLayer.frame = bounds
-            if let renderedFrame {
+            if let displayedFrame {
+                updatePresentationLayout(
+                    for: displayedFrame,
+                    layoutVideoSize: displayedVideoSize ?? videoSize,
+                    layoutFormat: displayedSourceFormat ?? source?.format
+                )
+            } else if !defersLayerPresentation, let renderedFrame {
                 updatePresentationLayout(for: renderedFrame)
             }
         }
+    }
+
+    func isPreparedForPresentation(
+        atMilliseconds targetMilliseconds: Int,
+        videoSize targetVideoSize: CGSize?
+    ) -> Bool {
+        guard let source, areSubtitlesVisible else {
+            return true
+        }
+        if loadFailedForCurrentSource {
+            return true
+        }
+        if source.format != .srt, let targetVideoSize, videoSize != targetVideoSize {
+            return false
+        }
+        guard isRendererReady, !isRenderInFlight, pendingTimestampMilliseconds == nil else {
+            return false
+        }
+        let safeMilliseconds = max(0, targetMilliseconds)
+        return renderedTimestampMilliseconds == safeMilliseconds
+            || renderedValidRangeMilliseconds?.contains(safeMilliseconds) == true
+    }
+
+    func retargetDeferredPresentation(
+        videoSize nextVideoSize: CGSize?,
+        milliseconds: Int
+    ) {
+        let safeMilliseconds = max(0, milliseconds)
+        if var pending = pendingTelemetryRender, !pending.attempt.isCancelled {
+            pending.targetTimestampMilliseconds = safeMilliseconds
+            pendingTelemetryRender = pending
+        }
+
+        let shouldReloadForVideoSize = source?.format != .srt
+            && nextVideoSize != nil
+            && videoSize != nextVideoSize
+        if shouldReloadForVideoSize {
+            isApplyingPresentation = true
+            videoSize = nextVideoSize
+            currentTimeMilliseconds = safeMilliseconds
+            isApplyingPresentation = false
+            reloadRendererIfPossible()
+            if var pending = pendingTelemetryRender, !pending.attempt.isCancelled {
+                if pending.attempt.prepStartedAt == nil {
+                    pending.attempt.markPrepStarted(at: currentLoadStartedAt ?? CACurrentMediaTime())
+                }
+                pending.awaitingLoadCompletion = true
+                pending.targetTimestampMilliseconds = safeMilliseconds
+                pending.minCompletingRenderSequence = nextRenderSequence &+ 1
+                pendingTelemetryRender = pending
+            }
+            return
+        }
+
+        isSuppressingPreparedFrameReadyCallback = true
+        defer { isSuppressingPreparedFrameReadyCallback = false }
+
+        if currentTimeMilliseconds != safeMilliseconds {
+            currentTimeMilliseconds = safeMilliseconds
+        } else if isRendererReady,
+                  !isRenderInFlight,
+                  pendingTimestampMilliseconds == nil,
+                  renderedTimestampMilliseconds != safeMilliseconds,
+                  renderedValidRangeMilliseconds?.contains(safeMilliseconds) != true {
+            requestRender(force: true)
+        }
+    }
+
+    func flushDeferredLayerPresentation(
+        isSynchronousCommit: Bool,
+        committedAt: CFTimeInterval = CACurrentMediaTime()
+    ) {
+        defersLayerPresentation = false
+        subtitleContainerLayer.isHidden = !areSubtitlesVisible
+
+        if source == nil || !areSubtitlesVisible || loadFailedForCurrentSource || failureMessage != nil {
+            clearSubtitleLayers()
+        } else if let renderedFrame, case .sparse(let sparseFrame, _) = renderedFrame {
+            applySparseFrameToLayer(sparseFrame, precomputedImage: renderedSurfaceImage)
+        } else {
+            clearSubtitleLayers()
+        }
+
+        let readyAt = stagedReadyAt ?? committedAt
+        stagedReadyAt = nil
+        if let pending = pendingTelemetryRender,
+           !pending.awaitingLoadCompletion,
+           !isRenderInFlight,
+           pendingTimestampMilliseconds == nil {
+            pendingTelemetryRender = nil
+            if !pending.attempt.isCancelled {
+                if isSynchronousCommit {
+                    pending.attempt.completeSynchronouslyAtCommit(
+                        at: committedAt,
+                        frameReadyAt: readyAt
+                    )
+                } else {
+                    pending.attempt.completeAsynchronously(at: committedAt)
+                }
+            }
+        }
+    }
+
+    func releaseDeferredLayerPresentationForTimeout(
+        committedAt: CFTimeInterval = CACurrentMediaTime()
+    ) {
+        defersLayerPresentation = false
+        stagedReadyAt = nil
+        clearSubtitleLayers()
+        subtitleContainerLayer.isHidden = !areSubtitlesVisible
+        pendingTelemetryRender?.attempt.markVideoCommitted(at: committedAt)
+    }
+
+    func clearDisplayedLayersImmediately() {
+        defersLayerPresentation = false
+        stagedReadyAt = nil
+        clearSubtitleLayers()
     }
 
     func setSource(_ source: PlaybackSubtitleSource?) {
@@ -605,7 +1128,10 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
 
         if !isRendererReady {
-            if let attempt, !attempt.isCancelled, generation != nil {
+            let waitingForDeferredVideoSize = defersLayerPresentation
+                && !loadFailedForCurrentSource
+                && renderFrameSize() == nil
+            if let attempt, !attempt.isCancelled, (generation != nil || waitingForDeferredVideoSize) {
                 attempt.markPrepStarted(at: currentLoadStartedAt ?? opStartedAt)
                 pendingTelemetryRender = PendingTelemetryRender(
                     attempt: attempt,
@@ -625,7 +1151,20 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
            (renderedTimestampMilliseconds == targetMilliseconds
                || renderedValidRangeMilliseconds?.contains(targetMilliseconds) == true) {
             attempt?.markReusedSource(renderStartedAt: opStartedAt)
-            attempt?.completeSynchronouslyAtCommit(at: CACurrentMediaTime())
+            if defersLayerPresentation {
+                let now = CACurrentMediaTime()
+                stagedReadyAt = now
+                if let attempt, !attempt.isCancelled {
+                    pendingTelemetryRender = PendingTelemetryRender(
+                        attempt: attempt,
+                        targetTimestampMilliseconds: targetMilliseconds,
+                        awaitingLoadCompletion: false,
+                        minCompletingRenderSequence: nextRenderSequence
+                    )
+                }
+            } else {
+                attempt?.completeSynchronouslyAtCommit(at: CACurrentMediaTime())
+            }
             return .syncReady
         }
 
@@ -655,14 +1194,18 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             }
 
             guard let renderSize = renderFrameSize() else {
+                loadFailedForCurrentSource = false
                 failureMessage = "ASS renderer is waiting for a valid video size."
-                cancelPendingTelemetry()
+                if !defersLayerPresentation {
+                    cancelPendingTelemetry()
+                }
                 needsDisplay = true
                 return
             }
 
             isRendererReady = false
             clearPresentationState()
+            loadFailedForCurrentSource = false
             failureMessage = nil
             needsDisplay = true
             replaceRendererWorker()
@@ -705,6 +1248,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     case .failure(let error):
                         self.cancelPendingTelemetry()
                         self.isRendererReady = false
+                        self.loadFailedForCurrentSource = true
                         self.renderedFrame = nil
                         self.failureMessage = error.message
                         self.onRenderingFailure?(error.message)
@@ -746,18 +1290,32 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
 
         let timestampMilliseconds = max(0, currentTimeMilliseconds)
-        if !force {
+        if !force, !isRenderInFlight, pendingTimestampMilliseconds == nil {
             if timestampMilliseconds == renderedTimestampMilliseconds {
+                if defersLayerPresentation {
+                    if stagedReadyAt == nil {
+                        stagedReadyAt = CACurrentMediaTime()
+                    }
+                    if !isSuppressingPreparedFrameReadyCallback {
+                        onPreparedFrameReady?()
+                    }
+                }
                 return
             }
-            if !isRenderInFlight,
-               pendingTimestampMilliseconds == nil,
-               let validRange = renderedValidRangeMilliseconds,
+            if let validRange = renderedValidRangeMilliseconds,
                validRange.contains(timestampMilliseconds) {
                 renderedTimestampMilliseconds = timestampMilliseconds
+                if defersLayerPresentation {
+                    if stagedReadyAt == nil {
+                        stagedReadyAt = CACurrentMediaTime()
+                    }
+                    if !isSuppressingPreparedFrameReadyCallback {
+                        onPreparedFrameReady?()
+                    }
+                }
                 return
             }
-        } else {
+        } else if force {
             renderedValidRangeMilliseconds = nil
         }
 
@@ -801,10 +1359,18 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     self.apply(frame)
                     self.failureMessage = nil
                 case .failure(let error):
+                    let shouldReportSourceFailure = (self.renderedFrame == nil || self.defersLayerPresentation)
+                    let failedSourceURL = self.source?.url
                     self.cancelPendingTelemetry()
                     self.clearPresentationState()
+                    if shouldReportSourceFailure {
+                        self.loadFailedForCurrentSource = true
+                    }
                     self.failureMessage = error.message
                     self.onRenderingFailure?(error.message)
+                    if shouldReportSourceFailure, let failedSourceURL {
+                        self.onSourceLoadFailure?(failedSourceURL)
+                    }
                     self.needsDisplay = true
                 }
 
@@ -815,7 +1381,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     self.pendingTimestampMilliseconds = nil
                 }
 
-                if case .success(let frame) = result {
+                if case .success(let frame) = result, !self.defersLayerPresentation {
                     self.completePendingTelemetryAfterRenderIfNeeded(
                         frame: frame,
                         sequence: renderSequence
@@ -824,6 +1390,11 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
                 if self.pendingTimestampMilliseconds != nil, let generation = self.generation {
                     self.startNextRenderIfNeeded(generation: generation)
+                } else if case .success = result, !self.isRenderInFlight {
+                    if self.defersLayerPresentation {
+                        self.stagedReadyAt = CACurrentMediaTime()
+                    }
+                    self.onPreparedFrameReady?()
                 }
             })
         }
@@ -856,9 +1427,12 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     private func apply(_ frame: ASSRenderedFrame) {
         switch frame {
-        case .sparse:
+        case .sparse(let sparseFrame, _):
             renderedFrame = frame
-            updatePresentation(for: frame)
+            renderedSurfaceImage = sparseFrame.surface.flatMap { makeImage(from: $0) }
+            if !defersLayerPresentation {
+                applySparseFrameToLayer(sparseFrame, precomputedImage: renderedSurfaceImage)
+            }
         case .unchanged:
             break
         }
@@ -871,8 +1445,13 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         renderedTimestampMilliseconds = nil
         renderedValidRangeMilliseconds = nil
         renderedFrame = nil
+        renderedSurfaceImage = nil
+        stagedReadyAt = nil
+        loadFailedForCurrentSource = false
         failureMessage = nil
-        clearSubtitleLayers()
+        if !defersLayerPresentation {
+            clearSubtitleLayers()
+        }
     }
 
     private func replaceRendererWorker() {
@@ -885,13 +1464,16 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private func updatePresentation(for renderedFrame: ASSRenderedFrame) {
         switch renderedFrame {
         case .sparse(let frame, _):
-            updatePresentation(for: frame)
+            applySparseFrameToLayer(frame, precomputedImage: renderedSurfaceImage)
         case .unchanged:
             break
         }
     }
 
-    private func updatePresentation(for frame: ASSSparseFrame) {
+    private func applySparseFrameToLayer(
+        _ frame: ASSSparseFrame,
+        precomputedImage: CGImage?
+    ) {
         PlaybackPerformanceProbe.measure("SourceFaithfulASSSubtitleOverlayView.updatePresentation", thresholdMilliseconds: 8) {
             guard frame.frameWidth > 0, frame.frameHeight > 0 else {
                 clearSubtitleLayers()
@@ -900,9 +1482,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
             subtitleContainerLayer.isHidden = !areSubtitlesVisible
 
-            guard let surface = frame.surface,
-                  let surfaceImage = makeImage(from: surface)
-            else {
+            let resolvedImage = precomputedImage ?? frame.surface.flatMap { makeImage(from: $0) }
+            guard frame.surface != nil, let surfaceImage = resolvedImage else {
                 clearSubtitleLayers()
                 return
             }
@@ -927,29 +1508,44 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             }
             surfaceLayer.contents = surfaceImage
             surfaceLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+            displayedFrame = frame
+            displayedVideoSize = videoSize
+            displayedSourceFormat = source?.format
 
-            updatePresentationLayout(for: frame)
+            updatePresentationLayout(
+                for: frame,
+                layoutVideoSize: displayedVideoSize,
+                layoutFormat: displayedSourceFormat
+            )
         }
     }
 
     private func updatePresentationLayout(for renderedFrame: ASSRenderedFrame) {
         switch renderedFrame {
         case .sparse(let frame, _):
-            updatePresentationLayout(for: frame)
+            updatePresentationLayout(
+                for: frame,
+                layoutVideoSize: videoSize,
+                layoutFormat: source?.format
+            )
         case .unchanged:
             break
         }
     }
 
-    private func updatePresentationLayout(for frame: ASSSparseFrame) {
+    private func updatePresentationLayout(
+        for frame: ASSSparseFrame,
+        layoutVideoSize: CGSize?,
+        layoutFormat: PlaybackSubtitleSourceFormat?
+    ) {
         guard frame.frameWidth > 0, frame.frameHeight > 0 else {
             return
         }
 
-        let presentationRect = source?.format == .srt
+        let presentationRect = layoutFormat == .srt
             ? bounds
             : SourceFaithfulASSSubtitleLayout.videoRect(
-                videoSize: videoSize,
+                videoSize: layoutVideoSize,
                 in: bounds
             )
         guard presentationRect.width > 1, presentationRect.height > 1 else {
@@ -972,6 +1568,9 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private func clearSubtitleLayers() {
         subtitleSurfaceLayer?.removeFromSuperlayer()
         subtitleSurfaceLayer = nil
+        displayedFrame = nil
+        displayedVideoSize = nil
+        displayedSourceFormat = nil
     }
 
     private func makeImage(from surface: ASSCroppedSurface) -> CGImage? {
@@ -997,9 +1596,16 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     private func renderFrameSize() -> (width: Int, height: Int)? {
-        let size = source?.format == .srt
-            ? bounds.size
-            : videoSize ?? bounds.size
+        let size: CGSize
+        if source?.format == .srt {
+            size = bounds.size
+        } else if let videoSize {
+            size = videoSize
+        } else if defersLayerPresentation {
+            return nil
+        } else {
+            size = bounds.size
+        }
         let width = Int(size.width.rounded())
         let height = Int(size.height.rounded())
         guard width > 1, height > 1 else {

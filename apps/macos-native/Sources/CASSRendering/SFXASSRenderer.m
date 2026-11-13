@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <malloc/malloc.h>
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -188,6 +189,241 @@ static void SFXASSMessageCallback(int level, const char *format, va_list args, v
     char buffer[2048] = {0};
     vsnprintf(buffer, sizeof(buffer), format, args);
     fprintf(stderr, "libass[%d]: %s\n", level, buffer);
+}
+
+#define kSFXASSEnginePoolCapacity 2
+
+typedef struct {
+    ASS_Library *library;
+    ASS_Renderer *renderer;
+} SFXASSEngineContext;
+
+static pthread_mutex_t gSFXASSEnginePoolMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t gSFXASSEnginePoolCond = PTHREAD_COND_INITIALIZER;
+static SFXASSEngineContext gSFXASSEnginePool[kSFXASSEnginePoolCapacity];
+static NSUInteger gSFXASSEnginePoolCount = 0;
+static BOOL gSFXASSIsWarmingUp = NO;
+static BOOL gSFXASSHasCompletedWarmup = NO;
+static NSUInteger gSFXASSEngineInitCountForTesting = 0;
+
+static BOOL SFXCreateASSEngineContext(
+    BOOL extractEmbeddedFonts,
+    NSInteger initialWidth,
+    NSInteger initialHeight,
+    ASS_Library **outLibrary,
+    ASS_Renderer **outRenderer,
+    NSError **error
+) {
+    ASS_Library *library = ass_library_init();
+    if (library == NULL) {
+        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass failed to initialize.");
+        return NO;
+    }
+
+    ass_set_message_cb(library, SFXASSMessageCallback, NULL);
+    ass_set_extract_fonts(library, extractEmbeddedFonts ? 1 : 0);
+
+    ASS_Renderer *renderer = ass_renderer_init(library);
+    if (renderer == NULL) {
+        ass_library_done(library);
+        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass renderer failed to initialize.");
+        return NO;
+    }
+
+    int safeWidth = (int)MAX(1, MIN((NSInteger)INT_MAX, initialWidth));
+    int safeHeight = (int)MAX(1, MIN((NSInteger)INT_MAX, initialHeight));
+    ass_set_frame_size(renderer, safeWidth, safeHeight);
+    ass_set_storage_size(renderer, safeWidth, safeHeight);
+    ass_set_cache_limits(renderer, kSFXASSMaxCachedGlyphs, kSFXASSMaxBitmapCacheMegabytes);
+    ass_set_fonts(renderer, NULL, "Helvetica", ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
+
+    pthread_mutex_lock(&gSFXASSEnginePoolMutex);
+    gSFXASSEngineInitCountForTesting += 1;
+    pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
+
+    *outLibrary = library;
+    *outRenderer = renderer;
+    return YES;
+}
+
+static void SFXWarmUpASSFontEnvironment(void) {
+    pthread_mutex_lock(&gSFXASSEnginePoolMutex);
+    if (gSFXASSHasCompletedWarmup || gSFXASSEnginePoolCount > 0) {
+        pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
+        return;
+    }
+    if (gSFXASSIsWarmingUp) {
+        while (gSFXASSIsWarmingUp) {
+            pthread_cond_wait(&gSFXASSEnginePoolCond, &gSFXASSEnginePoolMutex);
+        }
+        pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
+        return;
+    }
+    gSFXASSIsWarmingUp = YES;
+    pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
+
+    ASS_Library *library = NULL;
+    ASS_Renderer *renderer = NULL;
+    BOOL created = SFXCreateASSEngineContext(NO, 1920, 1080, &library, &renderer, NULL);
+
+    pthread_mutex_lock(&gSFXASSEnginePoolMutex);
+    if (created && library != NULL && renderer != NULL) {
+        gSFXASSHasCompletedWarmup = YES;
+        if (gSFXASSEnginePoolCount < kSFXASSEnginePoolCapacity) {
+            gSFXASSEnginePool[gSFXASSEnginePoolCount].library = library;
+            gSFXASSEnginePool[gSFXASSEnginePoolCount].renderer = renderer;
+            gSFXASSEnginePoolCount += 1;
+            library = NULL;
+            renderer = NULL;
+        }
+    }
+    gSFXASSIsWarmingUp = NO;
+    pthread_cond_broadcast(&gSFXASSEnginePoolCond);
+    pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
+
+    if (renderer != NULL) {
+        ass_renderer_done(renderer);
+    }
+    if (library != NULL) {
+        ass_library_done(library);
+    }
+}
+
+static BOOL SFXCheckoutASSEngineContext(
+    BOOL dedicatedWithEmbeddedFonts,
+    NSInteger frameWidth,
+    NSInteger frameHeight,
+    ASS_Library **outLibrary,
+    ASS_Renderer **outRenderer,
+    BOOL *outUsesPool,
+    NSError **error
+) {
+    if (dedicatedWithEmbeddedFonts) {
+        *outUsesPool = NO;
+        return SFXCreateASSEngineContext(YES, frameWidth, frameHeight, outLibrary, outRenderer, error);
+    }
+
+    *outUsesPool = YES;
+    ASS_Library *library = NULL;
+    ASS_Renderer *renderer = NULL;
+
+    pthread_mutex_lock(&gSFXASSEnginePoolMutex);
+    while (gSFXASSIsWarmingUp && gSFXASSEnginePoolCount == 0) {
+        pthread_cond_wait(&gSFXASSEnginePoolCond, &gSFXASSEnginePoolMutex);
+    }
+    if (gSFXASSEnginePoolCount > 0) {
+        gSFXASSEnginePoolCount -= 1;
+        library = gSFXASSEnginePool[gSFXASSEnginePoolCount].library;
+        renderer = gSFXASSEnginePool[gSFXASSEnginePoolCount].renderer;
+        gSFXASSEnginePool[gSFXASSEnginePoolCount].library = NULL;
+        gSFXASSEnginePool[gSFXASSEnginePoolCount].renderer = NULL;
+    }
+    pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
+
+    if (library != NULL && renderer != NULL) {
+        ass_set_frame_size(renderer, (int)frameWidth, (int)frameHeight);
+        ass_set_storage_size(renderer, (int)frameWidth, (int)frameHeight);
+        *outLibrary = library;
+        *outRenderer = renderer;
+        return YES;
+    }
+
+    if (!SFXCreateASSEngineContext(NO, frameWidth, frameHeight, &library, &renderer, error)) {
+        return NO;
+    }
+
+    pthread_mutex_lock(&gSFXASSEnginePoolMutex);
+    gSFXASSHasCompletedWarmup = YES;
+    pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
+
+    *outLibrary = library;
+    *outRenderer = renderer;
+    return YES;
+}
+
+static void SFXReturnOrDestroyASSEngineContext(
+    ASS_Library * _Nullable library,
+    ASS_Renderer * _Nullable renderer,
+    BOOL usesPool
+) {
+    if (library == NULL && renderer == NULL) {
+        return;
+    }
+    if (usesPool && library != NULL && renderer != NULL) {
+        pthread_mutex_lock(&gSFXASSEnginePoolMutex);
+        if (gSFXASSEnginePoolCount < kSFXASSEnginePoolCapacity) {
+            gSFXASSEnginePool[gSFXASSEnginePoolCount].library = library;
+            gSFXASSEnginePool[gSFXASSEnginePoolCount].renderer = renderer;
+            gSFXASSEnginePoolCount += 1;
+            pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
+            return;
+        }
+        pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
+    }
+    if (renderer != NULL) {
+        ass_renderer_done(renderer);
+    }
+    if (library != NULL) {
+        ass_library_done(library);
+    }
+}
+
+static BOOL SFXBytesContainEmbeddedFontsSection(const char *bytes, size_t length) {
+    if (bytes == NULL || length < 7) {
+        return NO;
+    }
+    size_t pos = 0;
+    while (pos < length) {
+        const char *lineStart = bytes + pos;
+        const char *newline = (const char *)memchr(lineStart, '\n', length - pos);
+        size_t lineLen = newline != NULL ? (size_t)(newline - lineStart + 1) : (length - pos);
+        const char *trimmed = lineStart;
+        const char *lineEnd = lineStart + lineLen;
+        while (trimmed < lineEnd && (*trimmed == ' ' || *trimmed == '\t')) {
+            trimmed++;
+        }
+        const char *contentEnd = lineEnd;
+        while (contentEnd > trimmed
+               && (contentEnd[-1] == ' ' || contentEnd[-1] == '\t' || contentEnd[-1] == '\r' || contentEnd[-1] == '\n')) {
+            contentEnd--;
+        }
+        if ((size_t)(contentEnd - trimmed) == 7 && strncasecmp(trimmed, "[Fonts]", 7) == 0) {
+            return YES;
+        }
+        pos += lineLen;
+    }
+    return NO;
+}
+
+static BOOL SFXBytesContainEventsFormat(const char *bytes, size_t length) {
+    if (bytes == NULL || length == 0) {
+        return NO;
+    }
+    size_t pos = 0;
+    BOOL inEvents = NO;
+    while (pos < length) {
+        const char *lineStart = bytes + pos;
+        const char *newline = (const char *)memchr(lineStart, '\n', length - pos);
+        size_t lineLen = newline != NULL ? (size_t)(newline - lineStart + 1) : (length - pos);
+        const char *trimmed = lineStart;
+        const char *lineEnd = lineStart + lineLen;
+        while (trimmed < lineEnd && (*trimmed == ' ' || *trimmed == '\t')) {
+            trimmed++;
+        }
+        const char *contentEnd = lineEnd;
+        while (contentEnd > trimmed
+               && (contentEnd[-1] == ' ' || contentEnd[-1] == '\t' || contentEnd[-1] == '\r' || contentEnd[-1] == '\n')) {
+            contentEnd--;
+        }
+        size_t contentLen = (size_t)(contentEnd - trimmed);
+        if (contentLen >= 2 && trimmed[0] == '[' && contentEnd[-1] == ']') {
+            inEvents = (contentLen == 8 && strncasecmp(trimmed, "[Events]", 8) == 0);
+        } else if (inEvents && contentLen >= 7 && strncasecmp(trimmed, "Format:", 7) == 0) {
+            return YES;
+        }
+        pos += lineLen;
+    }
+    return NO;
 }
 
 static NSInteger SFXCompositeASSImages(
@@ -618,61 +854,6 @@ static BOOL SFXMapFileAtPath(NSString *path, const char **outBytes, size_t *outL
     return YES;
 }
 
-static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **outBytes, size_t *outLength) {
-    NSString *tempTemplate = [NSTemporaryDirectory() stringByAppendingPathComponent:@"cueseeker-ass-XXXXXX"];
-    char templatePath[PATH_MAX];
-    if (![tempTemplate getFileSystemRepresentation:templatePath maxLength:sizeof(templatePath)]) {
-        return NO;
-    }
-    int fd = mkstemp(templatePath);
-    if (fd < 0) {
-        return NO;
-    }
-    unlink(templatePath);
-
-    char chunk[65536];
-    NSRange remainingRange = NSMakeRange(0, script.length);
-    size_t totalWritten = 0;
-    while (remainingRange.length > 0) {
-        NSUInteger usedLength = 0;
-        BOOL ok = [script getBytes:chunk
-                         maxLength:sizeof(chunk)
-                        usedLength:&usedLength
-                          encoding:NSUTF8StringEncoding
-                           options:0
-                             range:remainingRange
-                    remainingRange:&remainingRange];
-        if (!ok || usedLength == 0) {
-            close(fd);
-            return NO;
-        }
-        size_t offset = 0;
-        while (offset < usedLength) {
-            ssize_t written = write(fd, chunk + offset, usedLength - offset);
-            if (written <= 0) {
-                close(fd);
-                return NO;
-            }
-            offset += (size_t)written;
-        }
-        totalWritten += usedLength;
-    }
-
-    if (totalWritten == 0) {
-        close(fd);
-        return NO;
-    }
-
-    void *mapped = mmap(NULL, totalWritten, PROT_READ, MAP_PRIVATE, fd, 0);
-    close(fd);
-    if (mapped == MAP_FAILED) {
-        return NO;
-    }
-    *outBytes = (const char *)mapped;
-    *outLength = totalWritten;
-    return YES;
-}
-
 @implementation SFXASSRenderOutput
 
 - (instancetype)initWithRGBAData:(NSData *)rgbaData
@@ -800,9 +981,13 @@ static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **ou
     ASS_Library *_library;
     ASS_Renderer *_renderer;
     ASS_Track *_track;
+    BOOL _usesPooledEngine;
+    BOOL _ownsMappedFile;
+    NSData *_scriptUTF8Data;
     const char *_mappedScriptBytes;
     size_t _mappedScriptLength;
     SFXASSScriptRewriterBlock _scriptRewriter;
+    SFXASSWindowEventLinesProviderBlock _windowEventLinesProvider;
     NSData *_rewrittenHeaderData;
     SFXASSEventSlice *_eventSlices;
     size_t _eventSliceCount;
@@ -850,35 +1035,27 @@ static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **ou
     _lastUnchangedFromMilliseconds = -1;
     _lastUnchangedUntilMilliseconds = -1;
 
-    _library = ass_library_init();
-    if (_library == NULL) {
-        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass failed to initialize.");
-        return nil;
-    }
-
-    ass_set_message_cb(_library, SFXASSMessageCallback, NULL);
-    ass_set_extract_fonts(_library, 0);
-
-    _renderer = ass_renderer_init(_library);
-    if (_renderer == NULL) {
-        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass renderer failed to initialize.");
-        [self cleanup];
-        return nil;
-    }
-
-    ass_set_frame_size(_renderer, (int)frameWidth, (int)frameHeight);
-    ass_set_storage_size(_renderer, (int)frameWidth, (int)frameHeight);
-    ass_set_cache_limits(_renderer, kSFXASSMaxCachedGlyphs, kSFXASSMaxBitmapCacheMegabytes);
-    ass_set_fonts(_renderer, NULL, "Helvetica", ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
-
     NSString *failureMessage = [NSString stringWithFormat:@"libass could not load ASS source file: %@", path];
     if (!SFXMapFileAtPath(path, &_mappedScriptBytes, &_mappedScriptLength)) {
         SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, failureMessage);
         [self cleanup];
         return nil;
     }
-    if (!SFXIsValidUTF8WithoutNulls((const uint8_t *)_mappedScriptBytes, _mappedScriptLength)
-        || ![self initializeTrackFromMappedScriptWithFailureMessage:failureMessage error:error]) {
+    _ownsMappedFile = YES;
+
+    if (!SFXIsValidUTF8WithoutNulls((const uint8_t *)_mappedScriptBytes, _mappedScriptLength)) {
+        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, failureMessage);
+        [self cleanup];
+        return nil;
+    }
+
+    BOOL hasEmbeddedFonts = SFXBytesContainEmbeddedFontsSection(_mappedScriptBytes, _mappedScriptLength);
+    if (!SFXCheckoutASSEngineContext(hasEmbeddedFonts, frameWidth, frameHeight, &_library, &_renderer, &_usesPooledEngine, error)) {
+        [self cleanup];
+        return nil;
+    }
+
+    if (![self initializeTrackFromMappedScriptWithFailureMessage:failureMessage error:error]) {
         SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, failureMessage);
         [self cleanup];
         return nil;
@@ -910,29 +1087,19 @@ static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **ou
     _lastUnchangedFromMilliseconds = -1;
     _lastUnchangedUntilMilliseconds = -1;
 
-    _library = ass_library_init();
-    if (_library == NULL) {
-        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass failed to initialize.");
-        return nil;
-    }
-
-    ass_set_message_cb(_library, SFXASSMessageCallback, NULL);
-    ass_set_extract_fonts(_library, 0);
-
-    _renderer = ass_renderer_init(_library);
-    if (_renderer == NULL) {
-        SFXASSSetError(error, SFXASSRenderingErrorDependencyUnavailable, @"libass renderer failed to initialize.");
+    NSData *utf8Data = [script dataUsingEncoding:NSUTF8StringEncoding];
+    if (utf8Data == nil || utf8Data.length == 0) {
+        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, @"Could not encode ASS script text.");
         [self cleanup];
         return nil;
     }
+    _scriptUTF8Data = utf8Data;
+    _mappedScriptBytes = (const char *)_scriptUTF8Data.bytes;
+    _mappedScriptLength = _scriptUTF8Data.length;
+    _ownsMappedFile = NO;
 
-    ass_set_frame_size(_renderer, (int)frameWidth, (int)frameHeight);
-    ass_set_storage_size(_renderer, (int)frameWidth, (int)frameHeight);
-    ass_set_cache_limits(_renderer, kSFXASSMaxCachedGlyphs, kSFXASSMaxBitmapCacheMegabytes);
-    ass_set_fonts(_renderer, NULL, "Helvetica", ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
-
-    if (!SFXMapUTF8StringToUnlinkedTempFile(script, &_mappedScriptBytes, &_mappedScriptLength)) {
-        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, @"Could not encode ASS script text.");
+    BOOL hasEmbeddedFonts = SFXBytesContainEmbeddedFontsSection(_mappedScriptBytes, _mappedScriptLength);
+    if (!SFXCheckoutASSEngineContext(hasEmbeddedFonts, frameWidth, frameHeight, &_library, &_renderer, &_usesPooledEngine, error)) {
         [self cleanup];
         return nil;
     }
@@ -943,6 +1110,62 @@ static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **ou
         return nil;
     }
 
+    return self;
+}
+
+- (nullable instancetype)initWithASSHeader:(NSString *)headerScript
+                          sourceIdentifier:(NSString *)sourceIdentifier
+                                frameWidth:(NSInteger)frameWidth
+                               frameHeight:(NSInteger)frameHeight
+                  windowEventLinesProvider:(SFXASSWindowEventLinesProviderBlock)windowEventLinesProvider
+                                     error:(NSError **)error {
+    if (!SFXASSValidateScript(headerScript, sourceIdentifier, error)
+        || !SFXASSValidateFrameSize(frameWidth, frameHeight, error)) {
+        return nil;
+    }
+    if (windowEventLinesProvider == nil) {
+        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"Window event lines provider is required.");
+        return nil;
+    }
+
+    self = [super init];
+    if (self == nil) {
+        return nil;
+    }
+
+    _sourcePath = [sourceIdentifier copy];
+    _frameWidth = frameWidth;
+    _frameHeight = frameHeight;
+    _windowEventLinesProvider = [windowEventLinesProvider copy];
+    _loadedWindowStartMilliseconds = -1;
+    _loadedWindowEndMilliseconds = -1;
+    _lastUnchangedFromMilliseconds = -1;
+    _lastUnchangedUntilMilliseconds = -1;
+
+    NSData *headerData = [headerScript dataUsingEncoding:NSUTF8StringEncoding];
+    NSString *failureMessage = [NSString stringWithFormat:@"libass could not load indexed ASS header: %@", sourceIdentifier];
+    if (headerData == nil
+        || headerData.length == 0
+        || !SFXBytesContainEventsFormat((const char *)headerData.bytes, headerData.length)) {
+        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, failureMessage);
+        [self cleanup];
+        return nil;
+    }
+
+    if (!SFXCheckoutASSEngineContext(NO, frameWidth, frameHeight, &_library, &_renderer, &_usesPooledEngine, error)) {
+        [self cleanup];
+        return nil;
+    }
+
+    _rewrittenHeaderData = headerData;
+    _track = SFXReadASSMemory(_library, (const char *)_rewrittenHeaderData.bytes, _rewrittenHeaderData.length, nil);
+    if (_track == NULL) {
+        SFXASSSetError(error, SFXASSRenderingErrorLoadFailed, failureMessage);
+        [self cleanup];
+        return nil;
+    }
+
+    _usesWindowedEvents = YES;
     return self;
 }
 
@@ -1109,79 +1332,94 @@ static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **ou
     return YES;
 }
 
-- (void)ensureEventsLoadedForTimestampMilliseconds:(NSInteger)timestampMilliseconds {
-    if (!_usesWindowedEvents || _track == NULL || _mappedScriptBytes == NULL) {
-        return;
+- (BOOL)ensureEventsLoadedForTimestampMilliseconds:(NSInteger)timestampMilliseconds
+                                             error:(NSError **)error {
+    if (!_usesWindowedEvents || _track == NULL) {
+        return YES;
+    }
+    if (_windowEventLinesProvider == nil && _mappedScriptBytes == NULL) {
+        return YES;
     }
     NSInteger clampedTimestamp = MAX(0, timestampMilliseconds);
     if (_loadedWindowEndMilliseconds > _loadedWindowStartMilliseconds
         && clampedTimestamp >= _loadedWindowStartMilliseconds
         && clampedTimestamp < _loadedWindowEndMilliseconds) {
-        return;
+        return YES;
     }
 
     NSInteger winStart = (clampedTimestamp / kSFXASSEventWindowDurationMilliseconds)
         * kSFXASSEventWindowDurationMilliseconds;
     NSInteger winEnd = winStart + kSFXASSEventWindowDurationMilliseconds;
 
+    NSArray<NSString *> *providedLines = nil;
+    if (_windowEventLinesProvider != nil) {
+        NSError *providerError = nil;
+        providedLines = _windowEventLinesProvider(winStart, winEnd, &providerError);
+        if (providedLines == nil) {
+            if (error != NULL) {
+                *error = providerError ?: SFXASSRenderingError(
+                    SFXASSRenderingErrorLoadFailed,
+                    @"Indexed ASS window event provider failed."
+                );
+            }
+            return NO;
+        }
+    }
+
     if (_loadedWindowEndMilliseconds > _loadedWindowStartMilliseconds && _rewrittenHeaderData.length > 0) {
         if (_track != NULL) {
             ass_free_track(_track);
             _track = NULL;
         }
-        if (_renderer != NULL) {
-            ass_renderer_done(_renderer);
-            _renderer = NULL;
-        }
-        if (_library != NULL) {
-            ass_library_done(_library);
-            _library = NULL;
-        }
-        malloc_zone_pressure_relief(NULL, 0);
-
-        _library = ass_library_init();
-        if (_library != NULL) {
-            ass_set_message_cb(_library, SFXASSMessageCallback, NULL);
-            ass_set_extract_fonts(_library, 0);
-            _renderer = ass_renderer_init(_library);
-            if (_renderer != NULL) {
-                ass_set_frame_size(_renderer, (int)_frameWidth, (int)_frameHeight);
-                ass_set_storage_size(_renderer, (int)_frameWidth, (int)_frameHeight);
-                ass_set_cache_limits(_renderer, kSFXASSMaxCachedGlyphs, kSFXASSMaxBitmapCacheMegabytes);
-                ass_set_fonts(_renderer, NULL, "Helvetica", ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
-                _track = SFXReadASSMemory(_library, (const char *)_rewrittenHeaderData.bytes, _rewrittenHeaderData.length, nil);
-            }
-        }
-        if (_renderer == NULL || _track == NULL) {
-            return;
+        _track = SFXReadASSMemory(_library, (const char *)_rewrittenHeaderData.bytes, _rewrittenHeaderData.length, nil);
+        if (_track == NULL) {
+            SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"libass failed to reload ASS header for window.");
+            return NO;
         }
     } else {
         ass_flush_events(_track);
         ass_process_data(_track, "[Events]\n", 9);
     }
-    for (size_t i = 0; i < _eventSliceCount; i++) {
-        if ((NSInteger)_eventSlices[i].endMs >= winStart
-            && (NSInteger)_eventSlices[i].startMs <= winEnd) {
-            const char *lineBytes = _mappedScriptBytes + _eventSlices[i].offset;
-            size_t lineLength = (size_t)_eventSlices[i].length;
-            if (_scriptRewriter != nil && memmem(lineBytes, lineLength, "\\fn", 3) != NULL) {
-                @autoreleasepool {
-                    NSString *lineString = [[NSString alloc] initWithBytes:lineBytes
-                                                                    length:lineLength
-                                                                  encoding:NSUTF8StringEncoding];
-                    NSString *rewrittenLine = lineString != nil ? _scriptRewriter(lineString) : nil;
-                    NSData *rewrittenData = [rewrittenLine dataUsingEncoding:NSUTF8StringEncoding];
-                    if (rewrittenData != nil && rewrittenData.length > 0 && rewrittenData.length <= INT_MAX) {
-                        ass_process_data(_track, (char *)rewrittenData.bytes, (int)rewrittenData.length);
-                    } else {
-                        ass_process_data(_track, (char *)lineBytes, (int)lineLength);
+
+    if (providedLines != nil) {
+        for (NSString *line in providedLines) {
+            @autoreleasepool {
+                NSData *lineData = [line dataUsingEncoding:NSUTF8StringEncoding];
+                if (lineData != nil && lineData.length > 0 && lineData.length <= (NSUInteger)(INT_MAX - 1)) {
+                    ass_process_data(_track, (char *)lineData.bytes, (int)lineData.length);
+                    const char *bytes = (const char *)lineData.bytes;
+                    if (bytes[lineData.length - 1] != '\n') {
+                        ass_process_data(_track, "\n", 1);
                     }
                 }
-            } else {
-                ass_process_data(_track, (char *)lineBytes, (int)lineLength);
+            }
+        }
+    } else {
+        for (size_t i = 0; i < _eventSliceCount; i++) {
+            if ((NSInteger)_eventSlices[i].endMs >= winStart
+                && (NSInteger)_eventSlices[i].startMs <= winEnd) {
+                const char *lineBytes = _mappedScriptBytes + _eventSlices[i].offset;
+                size_t lineLength = (size_t)_eventSlices[i].length;
+                if (_scriptRewriter != nil && memmem(lineBytes, lineLength, "\\fn", 3) != NULL) {
+                    @autoreleasepool {
+                        NSString *lineString = [[NSString alloc] initWithBytes:lineBytes
+                                                                        length:lineLength
+                                                                      encoding:NSUTF8StringEncoding];
+                        NSString *rewrittenLine = lineString != nil ? _scriptRewriter(lineString) : nil;
+                        NSData *rewrittenData = [rewrittenLine dataUsingEncoding:NSUTF8StringEncoding];
+                        if (rewrittenData != nil && rewrittenData.length > 0 && rewrittenData.length <= INT_MAX) {
+                            ass_process_data(_track, (char *)rewrittenData.bytes, (int)rewrittenData.length);
+                        } else {
+                            ass_process_data(_track, (char *)lineBytes, (int)lineLength);
+                        }
+                    }
+                } else {
+                    ass_process_data(_track, (char *)lineBytes, (int)lineLength);
+                }
             }
         }
     }
+
     for (int i = 0; i < _track->n_events; i++) {
         _track->events[i].ReadOrder = i;
     }
@@ -1195,6 +1433,7 @@ static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **ou
     _loadedWindowEndMilliseconds = winEnd;
     _lastUnchangedFromMilliseconds = -1;
     _lastUnchangedUntilMilliseconds = -1;
+    return YES;
 }
 
 - (nullable SFXASSRenderOutput *)renderFrameAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
@@ -1208,7 +1447,9 @@ static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **ou
         return nil;
     }
 
-    [self ensureEventsLoadedForTimestampMilliseconds:timestampMilliseconds];
+    if (![self ensureEventsLoadedForTimestampMilliseconds:timestampMilliseconds error:error]) {
+        return nil;
+    }
     _lastUnchangedFromMilliseconds = -1;
     _lastUnchangedUntilMilliseconds = -1;
 
@@ -1248,7 +1489,9 @@ static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **ou
         return nil;
     }
 
-    [self ensureEventsLoadedForTimestampMilliseconds:timestampMilliseconds];
+    if (![self ensureEventsLoadedForTimestampMilliseconds:timestampMilliseconds error:error]) {
+        return nil;
+    }
 
     if (_hasRenderedCroppedFrame
         && _lastUnchangedUntilMilliseconds > _lastUnchangedFromMilliseconds
@@ -1399,6 +1642,7 @@ static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **ou
 - (void)cleanup {
     _reusableCropBuffer = nil;
     _scriptRewriter = nil;
+    _windowEventLinesProvider = nil;
     _rewrittenHeaderData = nil;
     if (_eventAnimatedFlags != NULL) {
         free(_eventAnimatedFlags);
@@ -1410,12 +1654,14 @@ static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **ou
         _eventSliceCount = 0;
     }
     if (_mappedScriptBytes != NULL) {
-        if (_mappedScriptLength > 0) {
+        if (_ownsMappedFile && _mappedScriptLength > 0) {
             munmap((void *)_mappedScriptBytes, _mappedScriptLength);
         }
         _mappedScriptBytes = NULL;
         _mappedScriptLength = 0;
     }
+    _ownsMappedFile = NO;
+    _scriptUTF8Data = nil;
     _usesWindowedEvents = NO;
     _loadedWindowStartMilliseconds = -1;
     _loadedWindowEndMilliseconds = -1;
@@ -1423,15 +1669,15 @@ static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **ou
         ass_free_track(_track);
         _track = NULL;
     }
-    if (_renderer != NULL) {
-        ass_renderer_done(_renderer);
-        _renderer = NULL;
-    }
-    if (_library != NULL) {
-        ass_library_done(_library);
+    if (_renderer != NULL || _library != NULL) {
+        ASS_Library *library = _library;
+        ASS_Renderer *renderer = _renderer;
+        BOOL usesPool = _usesPooledEngine;
         _library = NULL;
+        _renderer = NULL;
+        _usesPooledEngine = NO;
+        SFXReturnOrDestroyASSEngineContext(library, renderer, usesPool);
     }
-    malloc_zone_pressure_relief(NULL, 0);
 }
 
 @end
@@ -1444,6 +1690,46 @@ static BOOL SFXMapUTF8StringToUnlinkedTempFile(NSString *script, const char **ou
     int minor = (version >> 20) & 0xff;
     int patch = (version >> 12) & 0xff;
     return [NSString stringWithFormat:@"%x.%x.%x", major, minor, patch];
+}
+
++ (void)warmUpFontEnvironment {
+    SFXWarmUpASSFontEnvironment();
+}
+
++ (NSUInteger)engineInitializationCountForTesting {
+    pthread_mutex_lock(&gSFXASSEnginePoolMutex);
+    NSUInteger count = gSFXASSEngineInitCountForTesting;
+    pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
+    return count;
+}
+
++ (void)resetFontEnvironmentPoolForTesting {
+    SFXASSEngineContext toDestroy[kSFXASSEnginePoolCapacity];
+    NSUInteger destroyCount = 0;
+
+    pthread_mutex_lock(&gSFXASSEnginePoolMutex);
+    while (gSFXASSIsWarmingUp) {
+        pthread_cond_wait(&gSFXASSEnginePoolCond, &gSFXASSEnginePoolMutex);
+    }
+    destroyCount = gSFXASSEnginePoolCount;
+    for (NSUInteger i = 0; i < destroyCount; i++) {
+        toDestroy[i] = gSFXASSEnginePool[i];
+        gSFXASSEnginePool[i].library = NULL;
+        gSFXASSEnginePool[i].renderer = NULL;
+    }
+    gSFXASSEnginePoolCount = 0;
+    gSFXASSHasCompletedWarmup = NO;
+    gSFXASSEngineInitCountForTesting = 0;
+    pthread_mutex_unlock(&gSFXASSEnginePoolMutex);
+
+    for (NSUInteger i = 0; i < destroyCount; i++) {
+        if (toDestroy[i].renderer != NULL) {
+            ass_renderer_done(toDestroy[i].renderer);
+        }
+        if (toDestroy[i].library != NULL) {
+            ass_library_done(toDestroy[i].library);
+        }
+    }
 }
 
 + (nullable SFXASSRenderOutput *)renderASSFileAtPath:(NSString *)path

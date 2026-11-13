@@ -89,6 +89,11 @@ typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
 	                     playing:(BOOL)playing
 	      presentationGeneration:(NSUInteger)presentationGeneration;
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
+didPrepareFirstVideoFrameAtMilliseconds:(NSInteger)milliseconds
+                       videoWidth:(NSInteger)videoWidth
+                      videoHeight:(NSInteger)videoHeight
+	      presentationGeneration:(NSUInteger)presentationGeneration;
+- (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
 didPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
 	      presentationGeneration:(NSUInteger)presentationGeneration;
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
@@ -142,6 +147,7 @@ didReachAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds;
 @property (nonatomic) SFXNativePlaybackDecodeMode decodeMode;
 @property (nonatomic, readonly) SFXNativePlaybackDecodeMode activeDecodeMode;
 @property (nonatomic, readonly) BOOL usingHardwareDecode;
+@property (nonatomic) BOOL defersFirstFramePresentationCommit;
 
 + (BOOL)isHardwareDecodeSupportedForCodecName:(NSString *)codecName;
 + (BOOL)isHardwareDecodeSupportedForCodecName:(NSString *)codecName
@@ -196,6 +202,8 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
 - (void)cancelTimelineThumbnailRequests;
 - (void)invalidateTimelineThumbnailCache;
 - (void)requestAudioOutputRecoveryForTesting;
+- (BOOL)commitPreparedPresentationForGeneration:(NSUInteger)presentationGeneration
+    NS_SWIFT_NAME(commitPreparedPresentation(forGeneration:));
 - (void)stop;
 
 @end

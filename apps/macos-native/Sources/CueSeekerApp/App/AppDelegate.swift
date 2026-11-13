@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import CueSeekerCore
+import CueSeekerPlayback
 
 extension Notification.Name {
     static let cueSeekerShowSettings = Notification.Name("cueSeekerShowSettings")
@@ -100,6 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         DispatchQueue.main.async { [weak self, appState] in
             appState.ensurePlayerInitialized()
             _ = appState.player?.renderView
+            PlaybackPlayer.warmUpSubtitleEnvironmentInBackground()
             guard let self,
                   let targetWindow = self.pendingForegroundWindow,
                   targetWindow.isVisible,

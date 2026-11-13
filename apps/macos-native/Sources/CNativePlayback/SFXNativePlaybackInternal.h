@@ -313,10 +313,17 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
                     ifCurrentGenerationIs:(NSUInteger)failedGeneration;
 - (BOOL)isCurrentPresentationForSession:(SFXNativePlaybackSession *)session
                  presentationGeneration:(NSUInteger)presentationGeneration;
+- (BOOL)shouldDeferFirstFrameCommitForSession:(SFXNativePlaybackSession *)session
+                       presentationGeneration:(NSUInteger)presentationGeneration;
 - (BOOL)enqueueSampleBuffer:(CMSampleBufferRef)sampleBuffer
                  forSession:(SFXNativePlaybackSession *)session
       presentationGeneration:(NSUInteger)presentationGeneration
           flushBeforeEnqueue:(BOOL)flushBeforeEnqueue;
+- (void)session:(SFXNativePlaybackSession *)session
+didPrepareFirstVideoFrameAtMilliseconds:(NSInteger)milliseconds
+                       videoWidth:(NSInteger)videoWidth
+                      videoHeight:(NSInteger)videoHeight
+presentationGeneration:(NSUInteger)presentationGeneration;
 - (void)session:(SFXNativePlaybackSession *)session
 didPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
 presentationGeneration:(NSUInteger)presentationGeneration;
@@ -448,6 +455,12 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     NSInteger _pendingDisplayAutomaticRecycleMilliseconds;
     NSInteger _pendingDisplayFrameMilliseconds;
     NSUInteger _pendingDisplayPresentationGeneration;
+    CMSampleBufferRef _Nullable _preparedFirstFrameSampleBuffer;
+    CMTime _preparedFirstFramePresentationTime;
+    NSInteger _preparedFirstFrameMilliseconds;
+    NSUInteger _preparedFirstFramePresentationGeneration;
+    NSUInteger _preparedFirstFramePlaybackGeneration;
+    BOOL _preparedFirstFrameCommitted;
     NSUInteger _lastPresentedPresentationGeneration;
     NSUInteger _presentedVideoFrameCount;
     NSInteger _lastSubmittedVideoFrameMilliseconds;
@@ -705,6 +718,8 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
          frameMilliseconds:(NSInteger)frameMilliseconds
 automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds;
 - (void)clearPendingPixelBufferSubmission;
+- (void)clearPreparedFirstFrameSubmission;
+- (BOOL)commitPreparedFirstFrameForPresentationGeneration:(NSUInteger)presentationGeneration;
 - (NSInteger)markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:(double)mediaSeconds;
 - (int)audioFrameSampleRate:(const AVFrame *)frame;
 - (int)audioFrameChannelCount:(const AVFrame *)frame;

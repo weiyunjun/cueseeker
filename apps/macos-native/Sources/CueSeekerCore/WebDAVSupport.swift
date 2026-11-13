@@ -648,6 +648,31 @@ public final class WebDAVSubtitleCache: @unchecked Sendable {
         try? readSubtitleData(from: url)
     }
 
+    public func ensureSubtitleAvailable(
+        for url: URL,
+        client: WebDAVClient = .shared,
+        smbClient: SMBClient = .shared,
+        ftpClient: FTPClient = .shared,
+        nfsClient: NFSClient = .shared
+    ) -> Bool {
+        guard url.isRemoteMediaURL else {
+            return fileManager.isReadableFile(atPath: url.path)
+        }
+
+        let localFile = cachedFileURL(for: url)
+        if fileManager.isReadableFile(atPath: localFile.path) {
+            return true
+        }
+
+        return (try? readSubtitleData(
+            from: url,
+            client: client,
+            smbClient: smbClient,
+            ftpClient: ftpClient,
+            nfsClient: nfsClient
+        )) != nil
+    }
+
     public func moveCachedSubtitle(from oldRemoteURL: URL, to newRemoteURL: URL) {
         let source = cachedFileURL(for: oldRemoteURL)
         let destination = cachedFileURL(for: newRemoteURL)
