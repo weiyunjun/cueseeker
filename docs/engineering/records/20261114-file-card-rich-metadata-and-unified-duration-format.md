@@ -10,7 +10,7 @@
    - `IndexedContentDatabaseModels.swift` / `IndexedContentDatabase.swift`：移除 SQL 查询中的 `COALESCE(..., 0)`，`IndexedContentObject` 与 `IndexedContentSubtitle` 改为可空元字段并读取视频宽高、视频编码、时长、字幕 `raw_cue_count` 与有效台词数（`loadValidCueCounts(for:)` 直接通过 `subtitle_file_id` 索引分组计数，不连接多余表），严格保留数据库 `NULL` 与真实 `0` 的区别。
 2. **领域层统一格式与分档映射（`CueSeekerCore`）**
    - `LibraryDatabase+FileDetail.swift`（`MediaDetailFormatter`）：
-     - 新增 `shortResolutionText(width:height:)`：基于 `videoResolutionBenchmarks`（`8K` 至 `144P` 标准基准宽高）、`resolutionCropToleranceRatio = 0.05` 统一容差及下一档短边下限推导 10 档简化分辨率标签；
+     - 新增 `shortResolutionText(width:height:)`：基于 `videoResolutionBenchmarks`（`8K` 至 `144P` 标准基准宽高与宽银幕启用标记）、`resolutionCropToleranceRatio = 0.05` 统一容差、`widescreenMinimumHeightRatio = 0.5` 与 `widescreenMaximumAspectRatio = 3.6` 推导 10 档简化分辨率标签——全档位支持短边达标（`shortSide >= tier.height * 0.95`），横屏宽银幕去黑边分支仅在 `width > height`、合理宽银幕画幅比（`<= 3.6`）、非 `2K` 档位、`width >= tier.width * 0.95` 且 `height >= tier.height * 0.5` 时生效，未命中前 9 档的正整数宽高兜底返回 `144P`；
      - 在 `videoCodecMappings` 中统一维护详情页与卡片展示名称并新增 `VVC / H.266` 映射，提供 `shortVideoCodecText(_:)` 与保留既有 `File Info` 的 `codecText(_:)`；
      - 抽出 `formattedDuration(seconds:)` 与 `formattedDuration(seconds:roundingRule:)`，为播放器、封面与 `File Info` 统一提供 `< 1h` 时 `MM:SS`（两位补零）与 `>= 1h` 时 `HH:MM:SS`（两位补零）格式，并提供 `shortDurationText(_:)`。
 3. **展示层卡片副标题、时长复用、本地化与缓存失效（`CueSeekerApp`）**
@@ -23,15 +23,8 @@
 
 以下测试均在最后一次代码修改后执行通过：
 
-1. **定向核心与 UI 回归（8 个测试套件）**：
+1. **定向核心与 UI 回归（8 个测试套件，含分辨率边界与 File 卡片测试）**：
    `swift test --package-path apps/macos-native --filter "DatabaseBootstrapTests|IndexedContentDatabaseTests|FileDetailDatabaseTests|LibraryCoverProgressPresentationTests|FileRouteNavigationTests|WorkbenchInvalidationTests|FileDetailDialogTests|FileCardMenuTests"`
    - 结果：Swift Testing 执行 87 项全部通过（0 失败）。
-2. **扩展 Core 与 App 回归（17 个测试套件，含 `WorkbenchSelectableTextTests` 等）**：
-   `swift test --package-path apps/macos-native --filter "CoverSummaryCardTests|PlaybackChromeVisibilityModelTests|PlaybackProgressScrubberThumbnailTests|WorkbenchSelectableTextTests|LibraryCoverProgressPresentationTests|LibraryCoverFrameTests|FileCardMenuTests|FileDetailDialogTests|FileRouteNavigationTests|WorkbenchInvalidationTests|DatabaseBootstrapTests|IndexedContentDatabaseTests|FileDetailDatabaseTests|LibraryDatabaseTests|IndexingDatabaseTests|SubtitleIndexerTests|AppResourceBundleTests"`
-   - 结果：Swift Testing 执行 229 项全部通过（0 失败）。
-3. **本地化键一致性与文件大小格式测试**：
-   `swift test --package-path apps/macos-native --filter "everyBundledLanguageDefinesTheSameKeys|singularCountKeysDoNotContainUnresolvedFormatPlaceholders|FileSizeFormatterTests"`
-   - 结果：XCTest（`FileSizeFormatterTests`）5 项全部通过，Swift Testing 2 项全部通过（0 失败）。
-4. **原生播放模块全量回归**：
-   `swift test --package-path apps/macos-native --filter "CueSeekerPlaybackTests"`
-   - 结果：Swift Testing 执行 135 项全部通过（0 失败）。
+
+此前同一需求首次完成提交（`b525560`）时还额外通过了扩展 Core 与 App 17 个套件（229 项，0 失败）、本地化与文件大小测试（XCTest 5 项 + Swift Testing 2 项，0 失败）及 `CueSeekerPlaybackTests`（135 项，0 失败）；本次仅调整分辨率定档分支与对应边界用例，相关调用点仅 `WorkbenchFileView.FileCardSubtitleFormatter`。

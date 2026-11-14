@@ -435,18 +435,22 @@ public struct MediaDetailPropertyItem: Equatable, Sendable {
 
 public enum MediaDetailFormatter {
     private static let resolutionCropToleranceRatio = 0.05
+    private static let widescreenMinimumHeightRatio = 0.5
+    private static let widescreenMaximumAspectRatio = 3.6
 
-    private static let videoResolutionBenchmarks: [(label: String, width: Int, height: Int)] = [
-        ("8K", 7_680, 4_320),
-        ("4K", 3_840, 2_160),
-        ("2K", 2_560, 1_440),
-        ("1080P", 1_920, 1_080),
-        ("720P", 1_280, 720),
-        ("576P", 1_024, 576),
-        ("480P", 854, 480),
-        ("360P", 640, 360),
-        ("240P", 426, 240),
-        ("144P", 256, 144)
+    private static let videoResolutionBenchmarks: [
+        (label: String, width: Int, height: Int, allowsWidescreenLetterbox: Bool)
+    ] = [
+        ("8K", 7_680, 4_320, true),
+        ("4K", 3_840, 2_160, true),
+        ("2K", 2_560, 1_440, false),
+        ("1080P", 1_920, 1_080, true),
+        ("720P", 1_280, 720, true),
+        ("576P", 1_024, 576, true),
+        ("480P", 854, 480, true),
+        ("360P", 640, 360, true),
+        ("240P", 426, 240, true),
+        ("144P", 256, 144, true)
     ]
 
     private static let videoCodecMappings: [(tokens: [String], detailDisplayName: String, cardDisplayName: String)] = [
@@ -581,22 +585,24 @@ public enum MediaDetailFormatter {
         return "\(width) × \(height)"
     }
 
-    /// Maps positive video dimensions onto 10 simplified resolution tiers derived
-    /// from standard benchmarks, a uniform crop tolerance ratio, and lower-tier short-edge floors.
+    /// Maps positive video dimensions onto 10 simplified resolution tiers using
+    /// short-edge thresholds and constrained landscape widescreen letterbox matching.
     public static func shortResolutionText(width: Int?, height: Int?) -> String? {
         guard let width, let height, width > 0, height > 0 else { return nil }
-        let longSide = max(width, height)
         let shortSide = min(width, height)
         let minimumRetentionRatio = 1.0 - resolutionCropToleranceRatio
-        for index in videoResolutionBenchmarks.dropLast().indices {
-            let tier = videoResolutionBenchmarks[index]
-            let lowerTierShortEdge = videoResolutionBenchmarks[index + 1].height
+        let isReasonableWidescreenLandscape =
+            width > height
+            && Double(width) <= Double(height) * widescreenMaximumAspectRatio
+        for tier in videoResolutionBenchmarks.dropLast() {
             let meetsShortEdgeThreshold =
                 Double(shortSide) >= Double(tier.height) * minimumRetentionRatio
-            let meetsLetterboxThreshold =
-                Double(longSide) >= Double(tier.width) * minimumRetentionRatio
-                && shortSide > lowerTierShortEdge
-            if meetsShortEdgeThreshold || meetsLetterboxThreshold {
+            let meetsWidescreenLetterboxThreshold =
+                tier.allowsWidescreenLetterbox
+                && isReasonableWidescreenLandscape
+                && Double(width) >= Double(tier.width) * minimumRetentionRatio
+                && Double(height) >= Double(tier.height) * widescreenMinimumHeightRatio
+            if meetsShortEdgeThreshold || meetsWidescreenLetterboxThreshold {
                 return tier.label
             }
         }
