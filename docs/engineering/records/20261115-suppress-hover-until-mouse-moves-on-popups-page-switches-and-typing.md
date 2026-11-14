@@ -1,0 +1,35 @@
+# Suppress Hover Until Mouse Moves On Popups, Page Switches, And Typing
+
+- Date: 2026-11-15
+- Related Requirement: `docs/human/requirements/20261115-UI-Suppress Hover Until Mouse Moves On Popups Page Switches And Typing.md`
+- Scope: `CueSeekerApp`, `CueSeekerAppTests`
+
+## Changes Made
+
+- **Reused `PointerHoverScrollState.shared` with `0.5pt` screen-displacement wake threshold and clean suppression/overlay-close lifecycle** (`Shared/PointerHover.swift`, `Shared/CueSeekerMainWindow.swift`, `Shared/AppPointerShape.swift`, `App/AppDelegate.swift`):
+  - Added `.cueSeekerHoverSuppressed`, `wakeMovementThreshold = 0.5`, `hasMovedAtLeastWakeThreshold(from:to:)`, `suppressedOriginScreenLocation` capture in `suppressHoverUntilMouseMoves()`, `clearSuppressionForOverlayClose(recalculate:)`, and `@discardableResult notePointerMoved(atScreenLocation:)` on `PointerHoverScrollState`.
+  - Updated `CueSeekerWindow.sendEvent` to pass `NSEvent.mouseLocation` on `.mouseMoved` so zero-displacement synthetic AppKit `.mouseMoved` events do not clear suppression, while real `>= 0.5pt` motion wakes all hover listeners, `PointerHoverSession`, `WindowFocusHoverSession` (`syncPointerMoved()`), `CardHighlightModel`, `MenuHighlightModel`, and `AppPointerShape` without crossing `InterfaceLayerRegistry.isFrozen` inside `WindowFocusHoverSession`.
+  - Guarded `AppPointerShape` (`reclaimAfterRealMovement()`, `pointerMoved(in:at:)`, `noteCardHover(...)`) against active hover suppression using shared `hasActiveTextDrag`, and extended `noteKeyboardOrControllerSuppressedHover()` to reset both `.grab` and `.iBeam` back to `.arrow` when not actively dragging text.
+  - Enabled `settingsWindow.acceptsMouseMovedEvents = true` and triggered suppression in `AppDelegate.showSettings(_:)`.
+- **Distinguished overlay closes vs `.playbackPage` transitions and top-level menus vs hover submenus** (`Shared/InterfaceLayerRegistry.swift`, `Shared/MenuGate.swift`, `Shared/MenuHighlightModel.swift`, `Shared/MenuSubmenu.swift`, `Shared/CardHighlightModel.swift`, `Shared/WorkbenchControls/WorkbenchDialogLayer.swift`):
+  - Triggered `suppressHoverUntilMouseMoves()` when opening layers, menus (`registerOpenMenu`), stacked dialogs (`WorkbenchDialogLayer`), and entering or exiting `.playbackPage`, while calling `clearSuppressionForOverlayClose(recalculate: true)` BEFORE unfreezing when closing non-page overlays (`menuDidClose` when host layer is no longer frozen, stacked confirmation/dialog pop back to an underlying dialog).
+  - Updated `MenuHighlightModel.open(..., initiallySuppressed:)` and `notePointerMoved(atScreenLocation:)` + `clearKeyboardSuppression()`, routed `.mouseMoved` wake checks through `MenuGate.route(event)` (skipping `client.notePointer` when sub-threshold), removed unconditional wake from `MenuSubmenu.notePointer`, and passed `initiallySuppressed: true` in `PlaybackStore`, `SettingsSubtitleCategory`, `SchemaWorkbenchSearchShell`, and `SubtitleTableCoordinator+Menus` (`rowActionDestinationHighlight`) so hover-opened submenus ignore stationary mount hover without clearing parent menu highlight or breaking `MenuSubmenuSafeArea`.
+  - Synced `CardHighlightModel` suppression state with `PointerHoverScrollState.shared` across `init`, `reset`, and unfreeze, and cleared suppression before `guard !isFrozen` in `notePointerMoved()`.
+- **Unified table, preview, scrollbar, Settings, navigation, and input suppression triggers and button press safety** (`Shared/HoverEffectModifier.swift`, `Shared/SubtitleTable/*`, `Shared/TableScrollbarPrimitive.swift`, `Playback/SubtitleFocus/PlaybackCollagePreview.swift`, `Playback/PlaybackStore.swift`, `Settings/SettingsSubtitleCategory.swift`, `Shared/WorkbenchControls/WorkbenchFormControls.swift`, `WorkbenchNativeTextFields.swift`, `WorkbenchTextAreaInput.swift`, `App/WorkbenchLayoutState.swift`, `Tasks/TaskQueueStore.swift`, `Shared/WorkbenchAccessibility.swift`, `Library/RemoteFolderDialogSharedViews.swift`, `App/AppCoordinator+RemoteFolderDialogs.swift`, `Search/WorkbenchSearchView.swift`, `Excerpt/WorkbenchExcerptTableView.swift`):
+  - Prevented `PressableButtonStyle` from setting or leaving `isHovered = true` while hover is suppressed or cursor is hidden.
+  - Subscribed `SubtitleTableView.Coordinator`, `PlaybackCollagePreview`, and `TableScrollbarOverlayView` to `.cueSeekerHoverSuppressed` and unified hover guards onto `isHoverSuppressed`.
+  - Added `suppressHoverUntilMouseMoves()` on user text edits (strictly guarded against programmatic/external text assignments and `clearTextAndFocus()`), Workbench route/section/sidebar changes, Command Panel page navigation, Settings category/color-popover changes, remote folder step/connection navigation, Task tab changes, and SubtitleTable selection mode toggles (leaving in-playback episode switches on an already open `.playbackPage` untouched).
+- **Updated and added unit tests** (`Tests/CueSeekerAppTests/PointerHoverGateTests.swift`, `MenuHighlightModelTests.swift`, `LibraryCardMenuPlacementTests.swift`, `PlaybackProgressScrubberThumbnailTests.swift`, `WorkbenchAccessibilityStep1Tests.swift`):
+  - Added `wakeMovementThresholdRequiresHalfPointScreenDisplacement` (`PointerHoverGateTests`) and `initiallySuppressedMenuIgnoresStationaryAndSubThresholdMovesUntilRealDisplacement` (`MenuHighlightModelTests`).
+  - Added `PointerHoverScrollState.shared.resetForTesting()` in `LibraryCardMenuPlacementTests` and simulated `notePointerMoved()` for test-driven mouse-move steps in `PlaybackProgressScrubberThumbnailTests` and `WorkbenchAccessibilityStep1Tests`.
+
+## Verification
+
+- `swift build --package-path apps/macos-native`: Build complete (`0.40s`).
+- `swift test --package-path apps/macos-native --no-parallel` targeted suites after final edit:
+  - `PlaybackProgressScrubberThumbnailTests|WorkbenchAccessibilityStep1Tests|TableScrollbarPrimitiveTests|TaskCardMenuTests|SubtitleTableRowActionMenuTests`: `54 passed` (`0` failed).
+  - `CardHighlightModelTests|LibraryCardMenuPlacementTests|MenuHighlightModelTests|PointerHoverGateTests|PointerShapeModelTests`: `53 passed` (`0` failed).
+  - `SubtitleTable|Settings`: `249 passed` (`0` failed).
+  - `RemoteFolder|Dialog|Tooltip|Collage`: `110` run, `1` pre-existing failure (`TooltipTests.swift:652` standalone `TooltipCenter` `NSWindow.willCloseNotification` expectation; all `RemoteFolder`, `FileDetailDialog`, `PlaybackCollagePreview`, `WorkbenchSelectableTextTests` cases passed).
+- Unfiltered `swift test --package-path apps/macos-native --no-parallel` still hits pre-existing unrelated failures (`AppLocalizationTests`, `CueGroupRefreshScopeIntegrationTests`, `LibraryFolderAdditionTests`, `LibraryFolderRemovalTests`, `PlaybackPageFocusIsolationTests`, `PlaybackPlaylistSourceTests`, `PlaybackReturnContextTests`, `PlaybackSubtitleFocusLayoutTests`, `PlaybackSubtitleFocusSessionStoreTests`) and stops stdout in `RecentPlaybackSessionRegressionTests` (`RecentPlaybackSessionRegressionTests` passes `10/10` standalone).
+- Interactive UI/cursor/hover end-to-end verification remains with the user for acceptance.

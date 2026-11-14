@@ -29,8 +29,15 @@ struct PressableButtonStyle: ButtonStyle {
             .onChange(of: configuration.isPressed) { newValue in
                 isPressed = newValue
                 if newValue {
-                    isHovered?.wrappedValue = true
-                } else if (NSEvent.pressedMouseButtons & 1) != 0 {
+                    if !PointerHoverScrollState.shared.isHoverSuppressed
+                        && !AppCursorVisibility.isCursorHidden
+                    {
+                        isHovered?.wrappedValue = true
+                    }
+                } else if PointerHoverScrollState.shared.isHoverSuppressed
+                    || AppCursorVisibility.isCursorHidden
+                    || (NSEvent.pressedMouseButtons & 1) != 0
+                {
                     isHovered?.wrappedValue = false
                 }
             }
@@ -38,7 +45,10 @@ struct PressableButtonStyle: ButtonStyle {
                 if isPressed {
                     isPressed = false
                 }
-                if (NSEvent.pressedMouseButtons & 1) != 0 {
+                if PointerHoverScrollState.shared.isHoverSuppressed
+                    || AppCursorVisibility.isCursorHidden
+                    || (NSEvent.pressedMouseButtons & 1) != 0
+                {
                     isHovered?.wrappedValue = false
                 }
             }

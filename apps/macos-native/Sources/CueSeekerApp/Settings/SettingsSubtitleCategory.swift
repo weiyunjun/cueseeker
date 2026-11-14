@@ -371,6 +371,11 @@ struct SettingsSubtitleCategory: View {
             }
         }
         .onChange(of: activeColorPopover) { newValue in
+            if newValue != nil {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+            } else {
+                PointerHoverScrollState.shared.clearSuppressionForOverlayClose(recalculate: true)
+            }
             if workbenchAccessibility?.activeSubtitleColorPopover != newValue {
                 workbenchAccessibility?.activeSubtitleColorPopover = newValue
             }
@@ -482,7 +487,8 @@ struct SettingsSubtitleCategory: View {
             openingFrame = place(menuSize)
         }
         fontHighlight.open(
-            selectablePositions: Array(0...availableFonts.count)
+            selectablePositions: Array(0...availableFonts.count),
+            initiallySuppressed: true
         )
         activeFontMenu = SettingsSubtitleFontMenuState(
             anchorFrame: anchorFrame,

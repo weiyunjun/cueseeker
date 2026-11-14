@@ -303,6 +303,16 @@ struct PointerHoverGateTests {
 
     @MainActor
     @Test
+    func wakeMovementThresholdRequiresHalfPointScreenDisplacement() {
+        let origin = CGPoint(x: 100, y: 200)
+        #expect(!PointerHoverScrollState.hasMovedAtLeastWakeThreshold(from: origin, to: origin))
+        #expect(!PointerHoverScrollState.hasMovedAtLeastWakeThreshold(from: origin, to: CGPoint(x: 100.49, y: 200)))
+        #expect(PointerHoverScrollState.hasMovedAtLeastWakeThreshold(from: origin, to: CGPoint(x: 100.5, y: 200)))
+        #expect(PointerHoverScrollState.hasMovedAtLeastWakeThreshold(from: origin, to: CGPoint(x: 100.3, y: 200.4)))
+    }
+
+    @MainActor
+    @Test
     func synchronousMenuRelayClearsStaleTriggerButtonHoverWhenPointerMovedAwayWhileMenuWasOpen() throws {
         AppCursorVisibility.resetForTesting()
         PointerHoverScrollState.shared.resetForTesting()

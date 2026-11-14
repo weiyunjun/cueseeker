@@ -167,6 +167,7 @@ extension RemoteFolderDialogSessionProtocol {
         isLoadingDirectory = false
         directoryErrorMessage = nil
         step = .browser
+        PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
     }
 
     func toggleFolderSelection(_ item: WebDAVBrowserItem) {
@@ -201,6 +202,7 @@ extension RemoteFolderDialogSessionProtocol {
         isLoadingDirectory = false
         directoryErrorMessage = nil
         step = .connection
+        PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
     }
 
     func cancelValidation() {

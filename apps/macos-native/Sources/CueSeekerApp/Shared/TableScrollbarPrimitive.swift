@@ -395,6 +395,7 @@ class TableScrollbarOverlayView: NSView {
             NSApplication.didBecomeActiveNotification,
             NSWindow.didBecomeKeyNotification,
             .cueSeekerScrollDebounceSettled,
+            .cueSeekerHoverSuppressed,
         ] {
             let token = center.addObserver(
                 forName: name,
@@ -432,7 +433,7 @@ class TableScrollbarOverlayView: NSView {
             belowWindowWithWindowNumber: 0
         ) == window.windowNumber
         guard !AppCursorVisibility.isCursorHidden,
-              !PointerHoverScrollState.shared.isScrolling,
+              !PointerHoverScrollState.shared.isHoverSuppressed,
               isPointerOverWindow
         else {
             hoveredAxis = nil
@@ -484,7 +485,7 @@ class TableScrollbarOverlayView: NSView {
         super.mouseMoved(with: event)
         guard window != nil,
               !isInteractionFrozen,
-              !PointerHoverScrollState.shared.isScrolling
+              !PointerHoverScrollState.shared.isHoverSuppressed
         else {
             return
         }
@@ -495,7 +496,7 @@ class TableScrollbarOverlayView: NSView {
         super.mouseExited(with: event)
         guard draggingAxis == nil,
               !isInteractionFrozen,
-              !PointerHoverScrollState.shared.isScrolling
+              !PointerHoverScrollState.shared.isHoverSuppressed
         else {
             return
         }

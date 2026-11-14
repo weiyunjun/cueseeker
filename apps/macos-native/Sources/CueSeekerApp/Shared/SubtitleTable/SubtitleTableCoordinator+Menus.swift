@@ -434,7 +434,8 @@ extension SubtitleTableView.Coordinator {
                     ? ExcerptDestinationMenu.defaultPosition(
                         destinations: rowActionDestinations
                     )
-                    : nil
+                    : nil,
+                initiallySuppressed: true
             )
         }
         let submenuView = { [rowActionDestinationHighlight, rowActionDestinations] (maximumHeight: CGFloat) in

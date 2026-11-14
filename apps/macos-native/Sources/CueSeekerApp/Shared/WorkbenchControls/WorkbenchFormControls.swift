@@ -151,6 +151,9 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
             }
             if parent.text != normalized {
                 parent.text = normalized
+                if !field.isApplyingClearAction {
+                    PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+                }
             }
         }
 

@@ -217,7 +217,8 @@ final class PlaybackStore: ObservableObject {
         closeMoreMenu()
         speedMenuHighlight.open(
             selectablePositions: Array(PlaybackViewModel.speedPresets.indices),
-            defaultPosition: defaultPosition
+            defaultPosition: defaultPosition,
+            initiallySuppressed: true
         )
         isSpeedMenuOpen = true
     }
@@ -266,7 +267,8 @@ final class PlaybackStore: ObservableObject {
             ),
             defaultPosition: ExcerptDestinationMenu.defaultPosition(
                 destinations: menu.destinations
-            )
+            ),
+            initiallySuppressed: true
         )
         excerptDestinationMenu = menu
     }
@@ -292,7 +294,8 @@ final class PlaybackStore: ObservableObject {
         closeSpeedMenu()
         closeMoreMenu()
         subtitleMenuHighlight.open(
-            selectablePositions: menu.selectablePositions
+            selectablePositions: menu.selectablePositions,
+            initiallySuppressed: true
         )
         subtitleMenu = menu
     }
@@ -356,7 +359,8 @@ final class PlaybackStore: ObservableObject {
         moreMenu = menu
         moreSubmenuState.reset()
         moreMenuHighlight.open(
-            selectablePositions: [PlaybackMoreSubmenu.audioTrack.rawValue]
+            selectablePositions: [PlaybackMoreSubmenu.audioTrack.rawValue],
+            initiallySuppressed: true
         )
     }
 
@@ -454,7 +458,8 @@ final class PlaybackStore: ObservableObject {
                     let all = selectable.isEmpty ? [0] : selectable
                     moreSubmenuHighlight.open(
                         selectablePositions: selectable,
-                        allPositions: all
+                        allPositions: all,
+                        initiallySuppressed: true
                     )
                 }
             } else {
@@ -547,6 +552,9 @@ final class PlaybackStore: ObservableObject {
     func presentCommandPanel(_ presentation: PlaybackCommandPanelPresentation) {
         if presentation.page != commandPanelPresentation?.page {
             commandPanelHeldPage = nil
+            if commandPanelPresentation != nil {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+            }
         }
         if !presentation.page.showsRecentCardGrid {
             resetCommandPanelRecentCardGridLayout()

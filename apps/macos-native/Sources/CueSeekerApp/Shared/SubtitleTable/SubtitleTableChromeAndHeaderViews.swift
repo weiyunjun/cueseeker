@@ -488,7 +488,7 @@ final class SubtitleVirtualTableHeaderView: NSView, PointerShapeProviding {
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
         guard window != nil,
-              !PointerHoverScrollState.shared.isScrolling
+              !PointerHoverScrollState.shared.isHoverSuppressed
         else {
             return
         }
@@ -497,7 +497,7 @@ final class SubtitleVirtualTableHeaderView: NSView, PointerShapeProviding {
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        guard !PointerHoverScrollState.shared.isScrolling else {
+        guard !PointerHoverScrollState.shared.isHoverSuppressed else {
             return
         }
         if let window,
@@ -515,7 +515,7 @@ final class SubtitleVirtualTableHeaderView: NSView, PointerShapeProviding {
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
         guard window != nil,
-              !PointerHoverScrollState.shared.isScrolling
+              !PointerHoverScrollState.shared.isHoverSuppressed
         else {
             return
         }
@@ -532,7 +532,7 @@ final class SubtitleVirtualTableHeaderView: NSView, PointerShapeProviding {
 
     func refreshHoverFromWindow() {
         guard !AppCursorVisibility.isCursorHidden,
-              !PointerHoverScrollState.shared.isScrolling,
+              !PointerHoverScrollState.shared.isHoverSuppressed,
               let window,
               NSWindow.windowNumber(
                   at: NSEvent.mouseLocation,
@@ -562,7 +562,7 @@ final class SubtitleVirtualTableHeaderView: NSView, PointerShapeProviding {
             return
         }
         if windowLocation == nil {
-            guard !PointerHoverScrollState.shared.isScrolling else {
+            guard !PointerHoverScrollState.shared.isHoverSuppressed else {
                 return
             }
             guard let window,
@@ -981,7 +981,7 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
 
     override func mouseMoved(with event: NSEvent) {
         guard window != nil,
-              !PointerHoverScrollState.shared.isScrolling
+              !PointerHoverScrollState.shared.isHoverSuppressed
         else {
             return
         }
@@ -995,7 +995,7 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
     override func mouseEntered(with event: NSEvent) {}
 
     override func mouseExited(with event: NSEvent) {
-        guard let window, !PointerHoverScrollState.shared.isScrolling else {
+        guard let window, !PointerHoverScrollState.shared.isHoverSuppressed else {
             return
         }
         coordinator?.clearHoverUnlessPointerInside(

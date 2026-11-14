@@ -162,6 +162,16 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
                 object: nil
             )
         }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(hoverDidSuppress(_:)),
+            name: .cueSeekerHoverSuppressed,
+            object: nil
+        )
+    }
+
+    @objc private func hoverDidSuppress(_ notification: Notification) {
+        setHoveredSegment(nil)
     }
 
     @available(*, unavailable)
@@ -359,7 +369,7 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         ) == window.windowNumber
         guard isInteractionEnabled,
               !AppCursorVisibility.isCursorHidden,
-              !PointerHoverScrollState.shared.isScrolling,
+              !PointerHoverScrollState.shared.isHoverSuppressed,
               isPointerOverWindow
         else {
             return
@@ -389,7 +399,7 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             release(atWindowPoint: point)
             return true
         default:
-            guard !PointerHoverScrollState.shared.isScrolling else {
+            guard !PointerHoverScrollState.shared.isHoverSuppressed else {
                 return false
             }
             pointerMoved(toWindowPoint: point)

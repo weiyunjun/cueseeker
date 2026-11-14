@@ -292,6 +292,7 @@ func scrubberFreezesHoverLocationAndThumbnailWhileUpperLayerIsOpenAndRestoresSta
     let probe = try #require(findLocationProbe(in: host))
 
     func sendMouseMoved(at point: CGPoint) {
+        PointerHoverScrollState.shared.notePointerMoved()
         if probe.bounds.contains(point) {
             probe.session?.reportLocation(point)
         } else {
@@ -412,6 +413,7 @@ func stationaryScrubberPointerRefreshesThumbnailWhenSwitchingToEpisodeWithIdenti
 
     // 1. Hover near the end of Episode 1 (x = 799 of 800 -> ~1419.314s = 23:39) and keep pointer stationary:
     let stationaryPoint = CGPoint(x: 799, y: 9)
+    PointerHoverScrollState.shared.notePointerMoved()
     probe.session?.reportLocation(probe.convert(stationaryPoint, from: host))
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
 

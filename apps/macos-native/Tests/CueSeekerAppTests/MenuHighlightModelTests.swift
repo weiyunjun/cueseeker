@@ -314,4 +314,31 @@ struct MenuHighlightModelTests {
         model.noteHover(false, at: 2)
         #expect(model.hoveredPosition == nil)
     }
+
+    @Test
+    func initiallySuppressedMenuIgnoresStationaryAndSubThresholdMovesUntilRealDisplacement() {
+        AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+        let model = MenuHighlightModel()
+        defer {
+            model.close()
+            PointerHoverScrollState.shared.resetForTesting()
+            AppCursorVisibility.resetForTesting()
+        }
+
+        let origin = NSEvent.mouseLocation
+        model.open(selectablePositions: [0, 1, 2], initiallySuppressed: true)
+        #expect(model.isSuppressedByKeyboard)
+        model.noteHover(true, at: 1)
+        #expect(model.highlightedPosition == nil)
+
+        #expect(!model.notePointerMoved(atScreenLocation: origin))
+        #expect(!model.notePointerMoved(atScreenLocation: CGPoint(x: origin.x + 0.3, y: origin.y)))
+        #expect(model.isSuppressedByKeyboard)
+        #expect(model.highlightedPosition == nil)
+
+        #expect(model.notePointerMoved(atScreenLocation: CGPoint(x: origin.x + 0.5, y: origin.y)))
+        #expect(!model.isSuppressedByKeyboard)
+        #expect(model.highlightedPosition == 1)
+    }
 }

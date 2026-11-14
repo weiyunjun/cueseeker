@@ -60,6 +60,18 @@ final class CardHighlightModel: ObservableObject {
         }
     }
 
+    @discardableResult
+    static func broadcastClearKeyboardSuppression() -> Bool {
+        instances.removeAll { $0.value == nil }
+        var didClear = false
+        for box in instances {
+            if box.value?.clearKeyboardSuppression() == true {
+                didClear = true
+            }
+        }
+        return didClear
+    }
+
     static func broadcastPointerMoved() {
         instances.removeAll { $0.value == nil }
         for box in instances {
@@ -131,6 +143,7 @@ final class CardHighlightModel: ObservableObject {
 
     init(keepsCurrentWhenPointerLeaves: Bool = false) {
         self.keepsCurrentWhenPointerLeaves = keepsCurrentWhenPointerLeaves
+        self.isSuppressedByKeyboard = PointerHoverScrollState.shared.isSuppressedByKeyboardOrController
         Self.instances.removeAll { $0.value == nil }
         Self.instances.append(WeakBox(self))
     }
@@ -206,7 +219,7 @@ final class CardHighlightModel: ObservableObject {
         rawHoveredID = nil
         hoveredActionButtonCardID = nil
         isScrolling = false
-        isSuppressedByKeyboard = false
+        isSuppressedByKeyboard = PointerHoverScrollState.shared.isSuppressedByKeyboardOrController
     }
 
     /// Freezes or unfreezes `Hover` updates when a menu or covering layer opens
@@ -228,6 +241,7 @@ final class CardHighlightModel: ObservableObject {
                 )
             }
         } else {
+            isSuppressedByKeyboard = PointerHoverScrollState.shared.isSuppressedByKeyboardOrController
             let canFollowPointer = !isScrolling
                 && !isSuppressedByKeyboard
                 && !AppCursorVisibility.isCursorHidden
@@ -321,16 +335,24 @@ final class CardHighlightModel: ObservableObject {
         }
     }
 
-    func notePointerMoved() {
-        guard !isFrozen else {
-            return
+    func clearKeyboardSuppression() -> Bool {
+        guard isSuppressedByKeyboard else {
+            return false
         }
+        isSuppressedByKeyboard = false
+        return true
+    }
+
+    func notePointerMoved() {
         if isScrolling {
             isScrolling = false
         }
         let wasSuppressedByKeyboard = isSuppressedByKeyboard
         if isSuppressedByKeyboard {
             isSuppressedByKeyboard = false
+        }
+        guard !isFrozen else {
+            return
         }
         if wasSuppressedByKeyboard, let rawHoveredID {
             AppPointerShape.noteCardHover(

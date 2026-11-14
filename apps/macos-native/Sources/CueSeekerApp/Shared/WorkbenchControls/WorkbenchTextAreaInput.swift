@@ -65,7 +65,10 @@ struct WorkbenchTextAreaInput: NSViewRepresentable {
             else {
                 return
             }
-            parent.text = textView.string
+            if parent.text != textView.string {
+                parent.text = textView.string
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+            }
             containerView?.textDidChange()
         }
 

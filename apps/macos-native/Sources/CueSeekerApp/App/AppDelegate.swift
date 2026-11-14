@@ -484,6 +484,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         AppLogger.shared.info(.app, "Settings window opened")
         appState.workbenchLayout.clearSearchFocus()
         appState.workbenchLayout.isSettingsWindowOpen = true
+        PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
 
         if let settingsWindow {
             // Ordering a window that sits in the Dock to the front draws it at
@@ -553,6 +554,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             height: WorkbenchControlMetrics.redesignSettingsWindowMinimumHeight
         )
         settingsWindow.isReleasedWhenClosed = false
+        settingsWindow.acceptsMouseMovedEvents = true
         settingsWindow.contentView = CueSeekerHostingView(rootView: contentView)
         settingsWindow.center()
         self.settingsWindow = settingsWindow

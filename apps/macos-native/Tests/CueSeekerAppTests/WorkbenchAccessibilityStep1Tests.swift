@@ -254,6 +254,7 @@ struct WorkbenchAccessibilityStep1Tests {
         ])
 
         // 1. Before entering the card grid, mouse hovers the 1st card.
+        PointerHoverScrollState.shared.notePointerMoved()
         workbenchHighlight.noteHover(true, id: firstID, showsHand: true)
         #expect(workbenchHighlight.selectedID == nil)
         #expect(workbenchHighlight.hoveredID == firstID)

@@ -488,6 +488,7 @@ extension AppCoordinator {
         } else {
             session.breadcrumbNodes.append(targetNode)
         }
+        PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
         loadRemoteBrowserDirectory(
             at: targetNode.url,
             baseConfig: baseConfig,
@@ -513,6 +514,9 @@ extension AppCoordinator {
         }
 
         session.existingRootFolders = indexing.selectedFolders
+        if targetIndex < session.breadcrumbNodes.count - 1 {
+            PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+        }
         session.breadcrumbNodes = Array(session.breadcrumbNodes.prefix(targetIndex + 1))
         loadRemoteBrowserDirectory(
             at: node.url,

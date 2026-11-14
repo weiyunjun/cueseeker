@@ -82,29 +82,39 @@ final class InterfaceLayerRegistry: ObservableObject {
             if layer == .dialog || layer == .playbackPage {
                 givePageFocusUp()
             }
-        } else {
-            openLayers.remove(layer)
-            if layer == .dialog {
-                topDialogSize = nil
-            }
-        }
-        AppPointerShape.reevaluateAfterInterfaceChange()
-        if isOpen {
             CardHighlightModel.broadcastLayerFrozenChanged(true, in: self) { candidate in
                 self.isFrozen(candidate)
             }
             PointerHoverSession.broadcastLayerFrozenChanged(true, in: self) { candidate in
                 self.isFrozen(candidate)
             }
+            PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+            AppPointerShape.reevaluateAfterInterfaceChange()
         } else {
-            PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { candidate in
-                !self.isFrozen(candidate)
+            openLayers.remove(layer)
+            if layer == .dialog {
+                topDialogSize = nil
             }
-            CardHighlightModel.broadcastLayerFrozenChanged(false, in: self) { candidate in
-                !self.isFrozen(candidate)
+            if layer == .playbackPage {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+                AppPointerShape.reevaluateAfterInterfaceChange()
+                PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { candidate in
+                    !self.isFrozen(candidate)
+                }
+                CardHighlightModel.broadcastLayerFrozenChanged(false, in: self) { candidate in
+                    !self.isFrozen(candidate)
+                }
+            } else {
+                PointerHoverScrollState.shared.clearSuppressionForOverlayClose(recalculate: false)
+                AppPointerShape.reevaluateAfterInterfaceChange()
+                PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { candidate in
+                    !self.isFrozen(candidate)
+                }
+                CardHighlightModel.broadcastLayerFrozenChanged(false, in: self) { candidate in
+                    !self.isFrozen(candidate)
+                }
+                PointerHoverScrollState.shared.clearSuppressionForOverlayClose(recalculate: true)
             }
-            NotificationCenter.default.post(name: .cueSeekerScrollDebounceSettled, object: nil)
-            AppPointerShape.reevaluate()
         }
         TooltipCenter.shared.dismissFromUserInteraction()
     }
@@ -171,6 +181,7 @@ final class InterfaceLayerRegistry: ObservableObject {
         PointerHoverSession.broadcastLayerFrozenChanged(true, in: self) { layer in
             self.isFrozen(layer)
         }
+        PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
         TooltipCenter.shared.dismissFromUserInteraction()
         return OpenMenuToken(registry: self, owner: owner)
     }
@@ -184,6 +195,9 @@ final class InterfaceLayerRegistry: ObservableObject {
         } else {
             openMenuCounts[owner] = count - 1
         }
+        if !isFrozen(owner) {
+            PointerHoverScrollState.shared.clearSuppressionForOverlayClose(recalculate: false)
+        }
         PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { layer in
             !self.isFrozen(layer)
         }
@@ -191,8 +205,7 @@ final class InterfaceLayerRegistry: ObservableObject {
             !self.isFrozen(layer)
         }
         if !isFrozen(owner) {
-            NotificationCenter.default.post(name: .cueSeekerScrollDebounceSettled, object: nil)
-            AppPointerShape.reevaluate()
+            PointerHoverScrollState.shared.clearSuppressionForOverlayClose(recalculate: true)
         }
     }
 

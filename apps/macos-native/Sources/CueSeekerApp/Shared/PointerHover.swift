@@ -6,6 +6,9 @@ extension Notification.Name {
     static let cueSeekerScrollDebounceSettled = Notification.Name(
         "CueSeekerScrollDebounceSettled"
     )
+    static let cueSeekerHoverSuppressed = Notification.Name(
+        "CueSeekerHoverSuppressed"
+    )
 }
 
 /// Coordinates the 300ms scroll-end debounce and cursor visibility state for
@@ -14,10 +17,12 @@ extension Notification.Name {
 final class PointerHoverScrollState: ObservableObject {
     static let shared = PointerHoverScrollState()
     static let debounceNanoseconds: UInt64 = 300_000_000
+    static let wakeMovementThreshold: CGFloat = 0.5
 
     @Published private(set) var isScrolling = false
     @Published private(set) var isCursorHidden = false
     @Published private(set) var isSuppressedByKeyboardOrController = false
+    private var suppressedOriginScreenLocation: CGPoint?
     private var debounceTask: Task<Void, Never>?
     private var activeHoverListeners: [UUID: () -> Void] = [:]
     nonisolated(unsafe) private var focusObserverTokens: [NSObjectProtocol] = []
@@ -90,21 +95,69 @@ final class PointerHoverScrollState: ObservableObject {
         }
     }
 
-    func noteSelectionMovedByKeyboardOrController() {
-        var didChange = false
-        if !isSuppressedByKeyboardOrController {
+    static func hasMovedAtLeastWakeThreshold(from origin: CGPoint, to current: CGPoint) -> Bool {
+        hypot(current.x - origin.x, current.y - origin.y) >= wakeMovementThreshold
+    }
+
+    func suppressHoverUntilMouseMoves() {
+        suppressedOriginScreenLocation = NSEvent.mouseLocation
+        let didChange = !isSuppressedByKeyboardOrController
+        if didChange {
             isSuppressedByKeyboardOrController = true
+            notifyActiveHoverListeners()
+        }
+        CardHighlightModel.broadcastSelectionMovedByKeyboardOrController()
+        MenuHighlightModel.broadcastSelectionMovedByKeyboardOrController()
+        AppPointerShape.noteKeyboardOrControllerSuppressedHover()
+        TooltipCenter.shared.hideImmediately()
+        NotificationCenter.default.post(name: .cueSeekerHoverSuppressed, object: nil)
+    }
+
+    func clearSuppressionForOverlayClose(recalculate: Bool = true) {
+        suppressedOriginScreenLocation = nil
+        var didChange = false
+        if isSuppressedByKeyboardOrController {
+            isSuppressedByKeyboardOrController = false
             didChange = true
         }
+        let didUnsuppressCards = CardHighlightModel.broadcastClearKeyboardSuppression()
+        let didUnsuppressMenus = MenuHighlightModel.broadcastClearKeyboardSuppression()
         if didChange {
             notifyActiveHoverListeners()
         }
-        AppPointerShape.noteKeyboardOrControllerSuppressedHover()
-        CardHighlightModel.broadcastSelectionMovedByKeyboardOrController()
-        MenuHighlightModel.broadcastSelectionMovedByKeyboardOrController()
+        if recalculate, !isScrolling, !isCursorHidden {
+            recalculateHoverState(
+                postNotification: true,
+                recheckCardsAndMenus: didUnsuppressCards || didUnsuppressMenus
+            )
+            Task { @MainActor [weak self] in
+                guard let self, !self.isHoverSuppressed, !self.isCursorHidden else {
+                    return
+                }
+                self.recalculateHoverState(
+                    postNotification: true,
+                    recheckCardsAndMenus: false
+                )
+            }
+        }
     }
 
-    func notePointerMoved() {
+    func noteSelectionMovedByKeyboardOrController() {
+        suppressHoverUntilMouseMoves()
+    }
+
+    @discardableResult
+    func notePointerMoved(atScreenLocation screenLocation: CGPoint? = nil) -> Bool {
+        if let screenLocation,
+           isSuppressedByKeyboardOrController,
+           let origin = suppressedOriginScreenLocation,
+           !Self.hasMovedAtLeastWakeThreshold(from: origin, to: screenLocation)
+        {
+            MenuHighlightModel.broadcastPointerMoved(atScreenLocation: screenLocation)
+            return false
+        }
+        let wasSuppressed = isSuppressedByKeyboardOrController
+        let wasScrolling = isScrolling
         debounceTask?.cancel()
         debounceTask = nil
         var didChange = false
@@ -114,13 +167,42 @@ final class PointerHoverScrollState: ObservableObject {
         }
         if isSuppressedByKeyboardOrController {
             isSuppressedByKeyboardOrController = false
+            suppressedOriginScreenLocation = nil
             didChange = true
         }
+        let didWakeMenu = MenuHighlightModel.broadcastPointerMoved(atScreenLocation: screenLocation)
         if didChange {
             notifyActiveHoverListeners()
         }
         CardHighlightModel.broadcastPointerMoved()
-        MenuHighlightModel.broadcastPointerMoved()
+        if wasSuppressed || wasScrolling || didWakeMenu {
+            recalculateHoverState(
+                postNotification: wasSuppressed || wasScrolling,
+                recheckCardsAndMenus: false
+            )
+        }
+        return !isSuppressedByKeyboardOrController
+    }
+
+    private func recalculateHoverState(
+        postNotification: Bool,
+        recheckCardsAndMenus: Bool
+    ) {
+        if recheckCardsAndMenus {
+            CardHighlightModel.broadcastPointerMoved()
+            MenuHighlightModel.broadcastPointerMoved()
+        }
+        PointerHoverSession.syncScrollSettled()
+        WindowFocusHoverSession.syncPointerMoved()
+        if postNotification {
+            NotificationCenter.default.post(
+                name: .cueSeekerScrollDebounceSettled,
+                object: nil
+            )
+        }
+        if NSApp?.isActive == true {
+            AppPointerShape.reevaluate()
+        }
     }
 
     func settleScroll() {
@@ -153,6 +235,7 @@ final class PointerHoverScrollState: ObservableObject {
     func resetForTesting() {
         debounceTask?.cancel()
         debounceTask = nil
+        suppressedOriginScreenLocation = nil
         isScrolling = false
         isSuppressedByKeyboardOrController = false
         isCursorHidden = AppCursorVisibility.isCursorHidden
@@ -1082,6 +1165,10 @@ final class WindowFocusHoverSession: ObservableObject {
 
     private static var registeredSessions: [ObjectIdentifier: WeakBox] = [:]
 
+    static func syncPointerMoved() {
+        syncWindowDidBecomeKey(in: nil)
+    }
+
     static func syncWindowDidBecomeKey(in window: NSWindow? = nil) {
         registeredSessions = registeredSessions.filter { $0.value.value != nil }
         for box in registeredSessions.values {
@@ -1129,7 +1216,9 @@ final class WindowFocusHoverSession: ObservableObject {
     }
 
     func handleWindowDidBecomeKey() {
-        guard let pointerInside = currentPointerInsideView() else {
+        guard !PointerHoverScrollState.shared.isHoverSuppressed,
+              let pointerInside = currentPointerInsideView()
+        else {
             return
         }
         probeView?.setAssumesMouseInside(pointerInside)

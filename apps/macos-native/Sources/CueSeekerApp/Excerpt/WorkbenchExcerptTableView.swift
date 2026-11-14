@@ -1132,16 +1132,21 @@ private struct WorkbenchExcerptTableContent: View {
         persistSelection()
         isSelectionMode = true
         appState.workbenchAccessibility.isTableInSelectionMode = true
+        PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
     }
 
     private func exitSelectionMode() {
         guard isSelectionMode || rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount) > 0 else {
             return
         }
+        let didLeaveSelectionMode = isSelectionMode
         isSelectionMode = false
         appState.workbenchAccessibility.isTableInSelectionMode = false
         rowSelection.reset()
         persistSelection()
+        if didLeaveSelectionMode {
+            PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+        }
     }
 
     private func restoreSelectionIfPossible() {

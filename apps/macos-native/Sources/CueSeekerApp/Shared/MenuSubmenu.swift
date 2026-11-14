@@ -143,7 +143,6 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         triggerFrame: CGRect,
         submenuFrame: CGRect
     ) {
-        PointerHoverScrollState.shared.notePointerMoved()
         guard let parent = openParent else {
             clearSafeArea()
             return

@@ -30,6 +30,7 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isSystemSheetAttached) private var isSystemSheetAttached
     @Environment(\.interfaceLayers) private var interfaceLayers
+    @State private var previousDialogIDs: [AnyHashable] = []
 
     var body: some View {
         let hasOpenDialogs = !dialogIDs.isEmpty
@@ -99,14 +100,27 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
         // it, closed once it is empty. A dialog added to the list needs
         // nothing else to be registered.
         .onAppear {
+            previousDialogIDs = dialogIDs
             interfaceLayers?.setOpen(.dialog, !dialogIDs.isEmpty)
         }
         .onChange(of: dialogIDs) { newDialogIDs in
+            let oldDialogIDs = previousDialogIDs
+            previousDialogIDs = newDialogIDs
             if let lastID = newDialogIDs.last {
                 DebugInteractionLatencyProbe.beginDialogOpenIfNeeded(
                     dialogID: String(describing: lastID),
                     trigger: "dialog_layer"
                 )
+            }
+            if !oldDialogIDs.isEmpty && !newDialogIDs.isEmpty {
+                if newDialogIDs.count < oldDialogIDs.count {
+                    PointerHoverScrollState.shared.clearSuppressionForOverlayClose(recalculate: true)
+                    AppPointerShape.reevaluateAfterInterfaceChange()
+                } else if newDialogIDs.count > oldDialogIDs.count
+                    || newDialogIDs.last != oldDialogIDs.last
+                {
+                    PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+                }
             }
         }
         .onChange(of: dialogIDs.isEmpty) { isEmpty in

@@ -343,6 +343,14 @@ extension SubtitleTableView.Coordinator {
         headerView?.refreshHeaderHosts()
     }
 
+    @objc func hoverDidSuppress(_ notification: Notification) {
+        guard !isPointerFrozen else {
+            return
+        }
+        clearHover()
+        headerView?.clearHoverState()
+    }
+
     @objc func scrollDebounceDidSettle(_ notification: Notification) {
         guard !isCoveredByHigherLayer else {
             return
@@ -355,7 +363,7 @@ extension SubtitleTableView.Coordinator {
     func reevaluateHoverFromCurrentPointer() {
         guard !isPointerFrozen,
               !AppCursorVisibility.isCursorHidden,
-              !PointerHoverScrollState.shared.isScrolling,
+              !PointerHoverScrollState.shared.isHoverSuppressed,
               let window = documentView?.window
         else {
             return

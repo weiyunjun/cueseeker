@@ -28,6 +28,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     private var isSchedulingSwiftUIFocus = false
     private var isRetryingSwiftUIFocus = false
     var isApplyingProgrammaticText = false
+    private(set) var isApplyingClearAction = false
     private var needsScrollSelectionVisibleOnLayout = false
     private var configuredAlignment: NSTextAlignment = .left
     private var isUpdatingEffectiveAlignment = false
@@ -275,7 +276,9 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
             applyTextStyle(to: editor)
             editor.setSelectedRange(NSRange(location: 0, length: 0))
             (editor.superview as? NSClipView)?.scroll(to: .zero)
+            isApplyingClearAction = true
             editor.didChangeText()
+            isApplyingClearAction = false
         } else {
             isApplyingProgrammaticText = true
             stringValue = ""
@@ -926,6 +929,7 @@ struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
         if let editor = nsView.currentEditor() as? NSTextView {
             if editor.string != normalized, !editor.hasMarkedText() {
                 let selection = editor.selectedRange()
+                nsView.isApplyingProgrammaticText = true
                 editor.string = normalized
                 nsView.applyTextStyleToCurrentEditor()
                 let length = (normalized as NSString).length
@@ -935,6 +939,7 @@ struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
                 )
                 editor.setSelectedRange(clampedRange)
                 editor.scrollRangeToVisible(clampedRange)
+                nsView.isApplyingProgrammaticText = false
             }
         } else if nsView.stringValue != normalized {
             nsView.stringValue = normalized
@@ -973,13 +978,16 @@ struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
         }
 
         func controlTextDidChange(_ obj: Notification) {
-            guard let field = obj.object as? WorkbenchNativeSecureTextField else {
+            guard let field = obj.object as? WorkbenchNativeSecureTextField,
+                  !field.isApplyingProgrammaticText
+            else {
                 return
             }
             field.applyTextStyleToCurrentEditor()
             let normalized = SearchInputNormalizer.singleLine(field.stringValue)
             if parent.text != normalized {
                 parent.text = normalized
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
             }
         }
 
@@ -1024,6 +1032,7 @@ final class WorkbenchNativeSecureTextField: NSSecureTextField {
     }
 
     var onFocusChange: ((Bool) -> Void)?
+    var isApplyingProgrammaticText = false
 
     override var intrinsicContentSize: NSSize {
         let resolvedFont = font ?? .systemFont(

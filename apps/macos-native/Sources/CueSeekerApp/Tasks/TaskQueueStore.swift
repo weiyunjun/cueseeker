@@ -307,6 +307,7 @@ final class TaskQueueStore: ObservableObject {
         didSet {
             if selectedTab != oldValue {
                 WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
             }
         }
     }

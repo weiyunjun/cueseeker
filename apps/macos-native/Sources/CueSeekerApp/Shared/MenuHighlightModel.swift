@@ -39,11 +39,28 @@ final class MenuHighlightModel: ObservableObject {
         }
     }
 
-    static func broadcastPointerMoved() {
+    @discardableResult
+    static func broadcastPointerMoved(atScreenLocation screenLocation: CGPoint? = nil) -> Bool {
         instances.removeAll { $0.value == nil }
+        var didWake = false
         for box in instances {
-            box.value?.notePointerMoved()
+            if box.value?.notePointerMoved(atScreenLocation: screenLocation) == true {
+                didWake = true
+            }
         }
+        return didWake
+    }
+
+    @discardableResult
+    static func broadcastClearKeyboardSuppression() -> Bool {
+        instances.removeAll { $0.value == nil }
+        var didClear = false
+        for box in instances {
+            if box.value?.clearKeyboardSuppression() == true {
+                didClear = true
+            }
+        }
+        return didClear
     }
 
     static func broadcastScrollSettled() {
@@ -102,6 +119,7 @@ final class MenuHighlightModel: ObservableObject {
     private(set) var isOpen = false
     private(set) var isScrolling = false
     private(set) var isSuppressedByKeyboard = false
+    private var suppressedOriginScreenLocation: CGPoint?
     private(set) var pinnedPosition: Int?
     private var rawHoveredPosition: Int?
 
@@ -128,14 +146,18 @@ final class MenuHighlightModel: ObservableObject {
     func open(
         selectablePositions: [Int],
         allPositions: [Int]? = nil,
-        defaultPosition: Int? = nil
+        defaultPosition: Int? = nil,
+        initiallySuppressed: Bool = false
     ) {
         _ = defaultPosition
         self.selectablePositions = selectablePositions
         self.allPositions = allPositions ?? selectablePositions
         isOpen = true
         isScrolling = false
-        isSuppressedByKeyboard = false
+        let shouldSuppress = initiallySuppressed
+            || PointerHoverScrollState.shared.isSuppressedByKeyboardOrController
+        isSuppressedByKeyboard = shouldSuppress
+        suppressedOriginScreenLocation = shouldSuppress ? NSEvent.mouseLocation : nil
         pinnedPosition = nil
         rawHoveredPosition = nil
         highlightedPosition = nil
@@ -152,6 +174,7 @@ final class MenuHighlightModel: ObservableObject {
         rawHoveredPosition = nil
         isScrolling = false
         isSuppressedByKeyboard = false
+        suppressedOriginScreenLocation = nil
     }
 
     /// Moves `highlightedPosition` by `offset` and reports whether the surface
@@ -312,6 +335,7 @@ final class MenuHighlightModel: ObservableObject {
         pinnedPosition = nil
         accessibilityPosition = nil
         isSuppressedByKeyboard = true
+        suppressedOriginScreenLocation = NSEvent.mouseLocation
         if let pinned, highlightedPosition != pinned {
             highlightedPosition = pinned
         }
@@ -319,6 +343,16 @@ final class MenuHighlightModel: ObservableObject {
 
     func noteSelectionMovedByKeyboardOrController() {
         isSuppressedByKeyboard = true
+        suppressedOriginScreenLocation = NSEvent.mouseLocation
+    }
+
+    func clearKeyboardSuppression() -> Bool {
+        suppressedOriginScreenLocation = nil
+        guard isSuppressedByKeyboard else {
+            return false
+        }
+        isSuppressedByKeyboard = false
+        return true
     }
 
     func noteScrolled() {
@@ -369,7 +403,16 @@ final class MenuHighlightModel: ObservableObject {
         syncHoveredPosition()
     }
 
-    func notePointerMoved() {
+    @discardableResult
+    func notePointerMoved(atScreenLocation screenLocation: CGPoint? = nil) -> Bool {
+        if let screenLocation,
+           isSuppressedByKeyboard,
+           let origin = suppressedOriginScreenLocation,
+           !PointerHoverScrollState.hasMovedAtLeastWakeThreshold(from: origin, to: screenLocation)
+        {
+            return false
+        }
+        suppressedOriginScreenLocation = nil
         if isScrolling {
             isScrolling = false
         }
@@ -378,9 +421,10 @@ final class MenuHighlightModel: ObservableObject {
             isSuppressedByKeyboard = false
         }
         if wasSuppressedByKeyboard, rawHoveredPosition == nil {
-            return
+            return true
         }
         syncHoveredPosition()
+        return wasSuppressedByKeyboard
     }
 
     private func noteCursorHiddenChanged(_ isHidden: Bool) {

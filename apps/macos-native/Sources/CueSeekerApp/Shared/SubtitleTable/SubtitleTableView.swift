@@ -767,6 +767,12 @@ struct SubtitleTableView: NSViewRepresentable {
                 name: .cueSeekerScrollDebounceSettled,
                 object: nil
             )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(hoverDidSuppress),
+                name: .cueSeekerHoverSuppressed,
+                object: nil
+            )
             installKeyboardFocusEventMonitor()
         }
 
@@ -1171,11 +1177,14 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             if selectionModeChanged {
                 clearFocusedCheckbox()
+                updateHoveredRow(nil)
                 updateHoveredColumnID(nil)
                 updateHoveredCueTextRow(nil)
                 updateHoveredCueStateRow(nil)
                 updateHoveredRowActionRow(nil)
                 updatePressedRowActionRow(nil)
+                headerView?.clearHoverState()
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
                 if isMenuOpen {
                     dismissMenu()
                 }

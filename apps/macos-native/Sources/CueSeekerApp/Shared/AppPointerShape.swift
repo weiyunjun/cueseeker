@@ -209,12 +209,19 @@ enum AppPointerShape {
         }
     }
 
+    private static var hasActiveTextDrag: Bool {
+        SubtitleTableActiveTextDragState.isDraggingSelection
+            || WorkbenchStaticTextSelectionCoordinator.shared.activeDraggingPointerShape != nil
+    }
+
     private static func reclaimAfterRealMovement() {
         guard pointerLocationOutside != nil, let window else {
             return
         }
         pointerLocationOutside = nil
-        guard !AppCursorVisibility.isCursorHidden else {
+        guard !AppCursorVisibility.isCursorHidden,
+              !PointerHoverScrollState.shared.isHoverSuppressed
+        else {
             return
         }
         decide(at: currentPointerLocation(in: window))
@@ -236,6 +243,9 @@ enum AppPointerShape {
         guard window === self.window else {
             return
         }
+        guard !PointerHoverScrollState.shared.isHoverSuppressed || hasActiveTextDrag else {
+            return
+        }
         decide(at: windowPoint)
     }
 
@@ -254,6 +264,9 @@ enum AppPointerShape {
         ) else {
             return
         }
+        guard !PointerHoverScrollState.shared.isSuppressedByKeyboardOrController else {
+            return
+        }
         guard let window else {
             _ = model.pointerMoved(over: .arrow, isMenuOpen: isMenuOpen())
             return
@@ -263,7 +276,10 @@ enum AppPointerShape {
 
     static func noteKeyboardOrControllerSuppressedHover() {
         model.clearHandCards()
-        if model.shape == .grab {
+        guard !hasActiveTextDrag else {
+            return
+        }
+        if model.shape == .grab || model.shape == .iBeam {
             set(model.reset())
         }
     }
@@ -324,8 +340,7 @@ enum AppPointerShape {
         guard isPointerOverOwnWindow() else {
             return
         }
-        let isActiveTextDrag = SubtitleTableActiveTextDragState.isDraggingSelection
-            || WorkbenchStaticTextSelectionCoordinator.shared.activeDraggingPointerShape != nil
+        let isActiveTextDrag = hasActiveTextDrag
         set(model.pointerMoved(
             over: surfaceShape(at: windowPoint),
             isMenuOpen: isMenuOpen(),

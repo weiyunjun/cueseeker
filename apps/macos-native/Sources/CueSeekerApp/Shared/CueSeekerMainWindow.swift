@@ -159,7 +159,9 @@ class CueSeekerWindow: NSWindow {
         switch event.type {
         case .scrollWheel:
             PointerHoverScrollState.shared.noteScrolled()
-        case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
+        case .mouseMoved:
+            PointerHoverScrollState.shared.notePointerMoved(atScreenLocation: NSEvent.mouseLocation)
+        case .leftMouseDragged, .rightMouseDragged:
             PointerHoverScrollState.shared.notePointerMoved()
         default:
             break

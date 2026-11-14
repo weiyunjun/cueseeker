@@ -189,6 +189,7 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var panelMode: WorkbenchPanelMode {
         didSet {
             if panelMode != oldValue {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
                 AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
@@ -197,6 +198,7 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedLibraryFolderPath: String? {
         didSet {
             if selectedLibraryFolderPath != oldValue {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
                 AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
@@ -204,6 +206,7 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedExcerptListID: Int64? {
         didSet {
             if selectedExcerptListID != oldValue {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
                 AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
@@ -212,6 +215,7 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedRecentSection: WorkbenchRecentSection = .videos {
         didSet {
             if selectedRecentSection != oldValue {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
                 AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
@@ -220,6 +224,7 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedFileSection: WorkbenchFileSection = .index {
         didSet {
             if selectedFileSection != oldValue {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
                 AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
@@ -227,6 +232,7 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedFileRootPath: String? {
         didSet {
             if selectedFileRootPath != oldValue {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
                 AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
@@ -234,6 +240,7 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedFileFolderPath: String? {
         didSet {
             if selectedFileFolderPath != oldValue {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
                 AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
@@ -338,7 +345,13 @@ final class WorkbenchLayoutState: ObservableObject {
     private static let panelModeKey = "workbenchPanelMode"
     private static let isSidebarVisibleKey = "workbenchSidebarVisible"
 
-    @Published var isSidebarVisible: Bool
+    @Published var isSidebarVisible: Bool {
+        didSet {
+            if isSidebarVisible != oldValue {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+            }
+        }
+    }
     @Published fileprivate(set) var isVideoSizeTransitionInProgress = false
     @Published var isAppFullscreen = false
     /// Whether the Settings window is open, so the topbar's Settings button can

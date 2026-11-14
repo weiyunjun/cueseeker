@@ -400,14 +400,21 @@ final class MenuGate {
         default:
             // Pointer motion, tracking area crossings, cursor updates and
             // drags.
-            if !isFromAnotherWindow,
-               event.type == .mouseMoved
-                || event.type == .leftMouseDragged
-                || event.type == .rightMouseDragged {
-                PointerHoverScrollState.shared.notePointerMoved()
+            var pointerDidWake = true
+            if !isFromAnotherWindow {
+                if event.type == .mouseMoved {
+                    pointerDidWake = PointerHoverScrollState.shared.notePointerMoved(
+                        atScreenLocation: NSEvent.mouseLocation
+                    )
+                } else if event.type == .leftMouseDragged || event.type == .rightMouseDragged {
+                    PointerHoverScrollState.shared.notePointerMoved()
+                }
             }
             let isPointerOnMenu = client.isPointerOnMenu(event)
-            if !isFromAnotherWindow, event.type != .mouseEntered,
+            let isSuppressedMouseMove = event.type == .mouseMoved && !pointerDidWake
+            if !isFromAnotherWindow,
+               !isSuppressedMouseMove,
+               event.type != .mouseEntered,
                event.type != .mouseExited, event.type != .cursorUpdate {
                 // Another window's event carries that window's coordinates,
                 // which say nothing about where this menu is.

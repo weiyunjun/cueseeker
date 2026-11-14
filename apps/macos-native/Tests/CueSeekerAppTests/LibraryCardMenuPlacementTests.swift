@@ -204,6 +204,11 @@ func libraryCardMenuOpenedOnAScrolledPageKeepsItsSide() async throws {
 @Test
 func cardHighlightModelSeparatesPointerHoverFromKeyboardSelectionAndSwitchesPointerOnActionButton() {
     AppPointerShape.resetForTesting()
+    PointerHoverScrollState.shared.resetForTesting()
+    defer {
+        AppPointerShape.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+    }
     let highlight = CardHighlightModel(keepsCurrentWhenPointerLeaves: true)
     highlight.setSelected("card-1")
 

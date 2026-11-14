@@ -666,6 +666,7 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
     }
 
     private func performSettingsCategorySwitchCleanup() {
+        PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
         TooltipCenter.shared.dismissFromUserInteraction()
         activeSubtitleColorPopover = nil
         unfocusAllSettingsTextInputs()
