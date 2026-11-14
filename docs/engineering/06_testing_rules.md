@@ -14,9 +14,20 @@ Testing should focus on the local subtitle search and playback workflow.
 
 Principles:
 
-- Test pure logic directly where possible.
+- Scope automated tests strictly to deterministic pure logic: pure data
+  computation, subtitle parsing, search matching, SQLite persistence and
+  migrations, and UI-independent domain rules, covering core paths and key
+  boundaries concisely without permuting listed UI entry points.
+- Verify window, pointer hover, cursor shape, menu and popup, visual text
+  centering/typography, and video/subtitle first-frame or A/V presentation
+  changes through build checks, zero regressions in the existing test suite, and
+  human end-to-end acceptance; do not add new simulated UI or playback tests
+  unless explicitly requested.
+- Never construct fake windows, view hierarchies, or synthetic mouse/keyboard
+  events in unit tests to simulate UI interaction, and never add test-only
+  properties, artificial delay switches, reset entry points, or probe counters
+  to production code to facilitate unit testing.
 - Test database behavior with real SQLite and FTS5.
-- Test macOS integration points with focused integration or manual checks.
 - Keep fixture data small, explicit, and version controlled when practical.
 - Do not depend on the user's personal subtitle library for automated tests.
 - Each milestone must have acceptance checks tied to product requirements.
@@ -690,15 +701,22 @@ Rules:
 
 ## 14. Regression Policy
 
-Bug fixes should add tests when the bug is deterministic and testable.
+Bug fixes should add concise automated tests only when the bug lies in
+deterministic, UI-independent pure logic or persistence.
 
 Rules:
 
 - Parser bugs should add parser tests.
 - Database bugs should add migration or query tests.
 - Search ranking or query bugs should add search fixtures.
-- Playback bugs should add the closest practical automated check plus a manual verification note if needed.
-- UI regressions should add smoke coverage where the native test setup allows it.
+- Pure data calculation and UI-independent domain rule bugs should add concise
+  unit tests on the core failure condition without permuting UI entry points.
+- Window, pointer hover, cursor shape, menu/popup, visual text centering and
+  typography, and video/subtitle first-frame or A/V presentation fixes default
+  to build verification, zero regressions in the existing test suite, and human
+  end-to-end acceptance; do not construct simulated UI or playback regression
+  harnesses or add test-only backdoors to production code unless explicitly
+  requested.
 
 ## 15. Milestone Completion Rule
 

@@ -121,6 +121,15 @@ Rules:
 - Reuse an existing source of truth, state, or execution path when it is
   sufficient. Add abstractions, caches, duplicate state, or compatibility paths
   only when the current requirement needs them.
+- Prohibitions on hardcoding and private special-case implementations govern
+  product and interaction rule consistency with `docs/human/design/` (no
+  undocumented exceptions or magic numbers); they do not require wrapping code
+  into heavy generalized frameworks. When multiple surfaces share a design rule,
+  prefer in-place updates or reusing design tokens and small shared functions
+  rather than introducing standalone engines, manager layers, or redundant
+  intermediate data models without explicit approval.
+- Production code must not expose test-only properties, artificial delay
+  switches, reset hooks, or probe counters solely to facilitate unit tests.
 - Keep independent data migration, ownership, UI lifecycle, and performance
   changes separately verifiable unless the requirement explicitly combines them.
 - When multiple designs meet the same acceptance criteria, choose the one with

@@ -113,15 +113,29 @@ Rules:
 
 ## 4.1 Complexity Checks
 
+During solution alignment (before drafting requirements):
+
+- State the expected change scope in plain language, including the existing
+  places to modify, approximate scale, and whether any new standalone module or
+  abstraction is proposed, so over-designed approaches are caught early.
+
 Before implementation:
 
 - Apply the minimum sufficient design rules in
   `docs/engineering/04_architecture_rules.md`.
 - Identify the smallest required file set and reuse existing mechanisms where
-  possible.
+  possible. Do not introduce a new standalone framework, generalized engine,
+  manager layer, or redundant intermediate model without explicit approval.
 - If the change adds an abstraction, cache, state source, asynchronous
   lifecycle, or combines independent concerns, report the complexity and a
   smaller or phased alternative before editing.
+
+During acceptance and iterative tuning:
+
+- When an acceptance issue or edge case surfaces, first inspect whether the
+  previous edit took a roundabout path or introduced redundant state. Prefer
+  simplifying by deleting excess branches and unwinding over-wrapped structures
+  rather than stacking extra state flags or patches onto tangled logic.
 
 Before commit:
 
@@ -414,6 +428,22 @@ Rules:
   product semantics, platform UI/UX, platform integration, or playback
   execution, and keep durable product meaning out of SwiftUI views, AppKit
   bridges, and native playback classes.
+- During solution alignment, the AI must state the expected change scope (target
+  locations, rough scale, and whether any new standalone module or abstraction
+  is needed) before drafting requirements. During acceptance tuning, the AI must
+  audit and simplify roundabout logic or redundant state before adding changes,
+  and must never stack state flags onto over-complicated code.
+- Automated tests written by the AI are strictly scoped to deterministic pure
+  logic (pure data calculation, subtitle parsing, search matching, database
+  persistence/migrations, and UI-independent domain rules) on core paths and key
+  boundaries. Changes to windows, pointer hover, cursor shapes, menus/popups,
+  visual text centering/typography, or video/subtitle frame presentation default
+  to build verification, zero regressions in the existing test suite, and user
+  E2E acceptance without adding new simulated UI or playback tests unless
+  explicitly requested. The AI must never build fake windows/view hierarchies or
+  synthetic mouse/keyboard events in unit tests, and must never add test-only
+  properties, artificial delay switches, reset entry points, or probe counters
+  to production code.
 
 ## The Solution
 
@@ -424,7 +454,7 @@ Four principles in one file that directly address these issues:
 | **Think Before Coding** | Wrong assumptions, hidden confusion, missing tradeoffs |
 | **Simplicity First** | Overcomplication, bloated abstractions |
 | **Surgical Changes** | Orthogonal edits, touching code you shouldn't |
-| **Goal-Driven Execution** | Leverage through tests-first, verifiable success criteria |
+| **Goal-Driven Execution** | Verifiable success criteria matched to pure-logic vs UI/playback boundaries |
 
 ## The Four Principles in Detail
 
@@ -479,9 +509,10 @@ Transform imperative tasks into verifiable goals:
 
 | Instead of... | Transform to... |
 |--------------|-----------------|
-| "Add validation" | "Write tests for invalid inputs, then make them pass" |
-| "Fix the bug" | "Write a test that reproduces it, then make it pass" |
-| "Refactor X" | "Ensure tests pass before and after" |
+| "Add validation" | "Write pure-logic tests for invalid inputs, then make them pass" |
+| "Fix a pure-logic / parser / DB bug" | "Write a concise pure-logic test that reproduces it, then make it pass" |
+| "Fix a UI / hover / typography / playback presentation issue" | "Verify build + existing test suite pass with zero regressions, then hand off for user E2E acceptance (no synthetic UI/playback test harnesses)" |
+| "Refactor X" | "Ensure build and existing tests pass before and after" |
 
 For multi-step tasks, state a brief plan:
 
