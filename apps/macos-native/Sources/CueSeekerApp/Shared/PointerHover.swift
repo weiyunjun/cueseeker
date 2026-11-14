@@ -99,18 +99,29 @@ final class PointerHoverScrollState: ObservableObject {
         hypot(current.x - origin.x, current.y - origin.y) >= wakeMovementThreshold
     }
 
-    func suppressHoverUntilMouseMoves() {
+    func suppressHoverUntilMouseMoves(clearsFrozenHover: Bool = false) {
         suppressedOriginScreenLocation = NSEvent.mouseLocation
         let didChange = !isSuppressedByKeyboardOrController
         if didChange {
             isSuppressedByKeyboardOrController = true
+        }
+        if clearsFrozenHover {
+            PointerHoverSession.broadcastClearHoverForInterfaceSwitch()
+        }
+        if didChange {
             notifyActiveHoverListeners()
         }
-        CardHighlightModel.broadcastSelectionMovedByKeyboardOrController()
+        CardHighlightModel.broadcastSelectionMovedByKeyboardOrController(
+            clearsFrozenHover: clearsFrozenHover
+        )
         MenuHighlightModel.broadcastSelectionMovedByKeyboardOrController()
         AppPointerShape.noteKeyboardOrControllerSuppressedHover()
         TooltipCenter.shared.hideImmediately()
-        NotificationCenter.default.post(name: .cueSeekerHoverSuppressed, object: nil)
+        NotificationCenter.default.post(
+            name: .cueSeekerHoverSuppressed,
+            object: nil,
+            userInfo: clearsFrozenHover ? ["clearsFrozenHover": true] : nil
+        )
     }
 
     func clearSuppressionForOverlayClose(recalculate: Bool = true) {
@@ -460,6 +471,13 @@ final class PointerHoverSession: ObservableObject {
             } else {
                 session.handleStateChanged()
             }
+        }
+    }
+
+    static func broadcastClearHoverForInterfaceSwitch() {
+        registeredSessions = registeredSessions.filter { $0.value.value != nil }
+        for box in registeredSessions.values {
+            box.value?.clearHoverForInterfaceSwitch()
         }
     }
 
@@ -837,6 +855,51 @@ final class PointerHoverSession: ObservableObject {
         syncScrollListener()
         if let delivered {
             action?(delivered)
+        }
+    }
+
+    func clearHoverForInterfaceSwitch() {
+        clearPointerHandShape()
+        if tracksLocation {
+            let hadDelivered = locationGate.freezeChanged(
+                isFrozen: false,
+                isScrolling: false,
+                isCursorHidden: AppCursorVisibility.isCursorHidden,
+                isSuppressedByKeyboard: true
+            )
+            _ = locationGate.report(
+                nil,
+                isFrozen: isFrozen,
+                isScrolling: PointerHoverScrollState.shared.isScrolling,
+                isCursorHidden: AppCursorVisibility.isCursorHidden,
+                isSuppressedByKeyboard: true
+            )
+            syncScrollListener()
+            if let hadDelivered {
+                locationAction?(hadDelivered)
+            }
+            return
+        }
+        if let probe = probeView as? PointerHoverProbeView {
+            probe.setAssumesMouseInside(false)
+            probe.setTracksReenter(false)
+        }
+        let hadDelivered = gate.freezeChanged(
+            isFrozen: false,
+            isScrolling: false,
+            isCursorHidden: AppCursorVisibility.isCursorHidden,
+            isSuppressedByKeyboard: true
+        )
+        _ = gate.report(
+            false,
+            isFrozen: isFrozen,
+            isScrolling: PointerHoverScrollState.shared.isScrolling,
+            isCursorHidden: AppCursorVisibility.isCursorHidden,
+            isSuppressedByKeyboard: true
+        )
+        syncScrollListener()
+        if let hadDelivered {
+            action?(hadDelivered)
         }
     }
 

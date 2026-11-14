@@ -522,8 +522,8 @@ final class SubtitleVirtualTableHeaderView: NSView, PointerShapeProviding {
         updateHoverState(windowLocation: event.locationInWindow)
     }
 
-    func clearHoverState() {
-        guard coordinator?.isPointerFrozen != true else {
+    func clearHoverState(ignoringFreeze: Bool = false) {
+        guard ignoringFreeze || coordinator?.isPointerFrozen != true else {
             return
         }
         isHeaderHovered = false

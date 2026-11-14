@@ -112,6 +112,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var selectedModule: PlaybackOverlayModule? = .current {
         didSet {
             if selectedModule != oldValue {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves(
+                    clearsFrozenHover: true
+                )
                 AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }

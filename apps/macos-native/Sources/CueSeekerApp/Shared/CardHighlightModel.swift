@@ -43,10 +43,14 @@ final class CardHighlightModel: ObservableObject {
         }
     }
 
-    static func broadcastSelectionMovedByKeyboardOrController() {
+    static func broadcastSelectionMovedByKeyboardOrController(
+        clearsFrozenHover: Bool = false
+    ) {
         instances.removeAll { $0.value == nil }
         for box in instances {
-            box.value?.noteSelectionMovedByKeyboardOrController()
+            box.value?.noteSelectionMovedByKeyboardOrController(
+                clearsFrozenHover: clearsFrozenHover
+            )
         }
     }
 
@@ -317,8 +321,24 @@ final class CardHighlightModel: ObservableObject {
         hoveredID = AppCursorVisibility.isCursorHidden ? nil : id
     }
 
-    func noteSelectionMovedByKeyboardOrController() {
+    func noteSelectionMovedByKeyboardOrController(clearsFrozenHover: Bool = false) {
         isSuppressedByKeyboard = true
+        if clearsFrozenHover {
+            if let rawHoveredID {
+                AppPointerShape.noteCardHover(
+                    false,
+                    id: rawHoveredID,
+                    showsHand: effectiveShowsHand(for: rawHoveredID, baseShowsHand: rawHoveredShowsHand),
+                    followsPointer: false
+                )
+            }
+            rawHoveredID = nil
+            hoveredActionButtonCardID = nil
+            if hoveredID != nil {
+                hoveredID = nil
+            }
+            return
+        }
         guard !isFrozen else {
             return
         }

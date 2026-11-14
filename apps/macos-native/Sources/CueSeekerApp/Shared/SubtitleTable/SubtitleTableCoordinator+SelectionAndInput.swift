@@ -344,11 +344,13 @@ extension SubtitleTableView.Coordinator {
     }
 
     @objc func hoverDidSuppress(_ notification: Notification) {
-        guard !isPointerFrozen else {
+        let clearsFrozenHover =
+            (notification.userInfo?["clearsFrozenHover"] as? Bool) == true
+        guard clearsFrozenHover || !isPointerFrozen else {
             return
         }
-        clearHover()
-        headerView?.clearHoverState()
+        clearHover(ignoringFreeze: clearsFrozenHover)
+        headerView?.clearHoverState(ignoringFreeze: clearsFrozenHover)
     }
 
     @objc func scrollDebounceDidSettle(_ notification: Notification) {
@@ -2113,15 +2115,20 @@ extension SubtitleTableView.Coordinator {
         clearHover()
     }
 
-    func clearHover() {
+    func clearHover(ignoringFreeze: Bool = false) {
         // The pointer leaving the table for a surface above it is not a
         // reason to drop the highlight underneath: a frozen table keeps
         // its picture until it owns input again.
-        if isPointerFrozen {
+        if !ignoringFreeze && isPointerFrozen {
             return
         }
         updateHoveredColumnID(nil)
-        updateHoveredRow(nil)
+        if ignoringFreeze, let oldRow = hoveredRow {
+            hoveredRow = nil
+            invalidateRows([oldRow])
+        } else {
+            updateHoveredRow(nil)
+        }
         updateHoveredCueTextRow(nil)
         updateHoveredCueStateRow(nil)
         updateHoveredRowActionRow(nil)

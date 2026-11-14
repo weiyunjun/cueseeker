@@ -77,10 +77,16 @@ final class InterfaceLayerRegistry: ObservableObject {
         guard openLayers.contains(layer) != isOpen else {
             return
         }
+        let isFullWindowSwitch = layer == .playbackPage || layer == .playbackOverlay
         if isOpen {
             openLayers.insert(layer)
             if layer == .dialog || layer == .playbackPage {
                 givePageFocusUp()
+            }
+            if isFullWindowSwitch {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves(
+                    clearsFrozenHover: true
+                )
             }
             CardHighlightModel.broadcastLayerFrozenChanged(true, in: self) { candidate in
                 self.isFrozen(candidate)
@@ -88,15 +94,19 @@ final class InterfaceLayerRegistry: ObservableObject {
             PointerHoverSession.broadcastLayerFrozenChanged(true, in: self) { candidate in
                 self.isFrozen(candidate)
             }
-            PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+            if !isFullWindowSwitch {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+            }
             AppPointerShape.reevaluateAfterInterfaceChange()
         } else {
             openLayers.remove(layer)
             if layer == .dialog {
                 topDialogSize = nil
             }
-            if layer == .playbackPage {
-                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+            if isFullWindowSwitch {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves(
+                    clearsFrozenHover: true
+                )
                 AppPointerShape.reevaluateAfterInterfaceChange()
                 PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { candidate in
                     !self.isFrozen(candidate)

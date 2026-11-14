@@ -418,6 +418,14 @@ class TableScrollbarOverlayView: NSView {
     }
 
     private func handleFocusNotification(_ notification: Notification) {
+        if notification.name == .cueSeekerHoverSuppressed {
+            let clearsFrozenHover =
+                (notification.userInfo?["clearsFrozenHover"] as? Bool) == true
+            if clearsFrozenHover || !isInteractionFrozen, draggingAxis == nil {
+                hoveredAxis = nil
+            }
+            return
+        }
         guard let window else {
             return
         }
