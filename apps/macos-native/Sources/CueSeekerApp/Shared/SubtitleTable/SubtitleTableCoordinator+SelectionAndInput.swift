@@ -539,9 +539,10 @@ extension SubtitleTableView.Coordinator {
             let width = max(1, cellRect.width - 2 * leading)
             textLayout.update(attributedString: attributed, width: width)
             let lineHeight = textLayout.usedHeight
+            let centerYOffset = textLayout.firstLineCenterYOffset ?? (lineHeight / 2)
             let origin = CGPoint(
                 x: cellRect.minX + leading,
-                y: cellRect.minY + max(0, (cellRect.height - lineHeight) / 2)
+                y: max(cellRect.minY, cellRect.midY - centerYOffset)
             )
             let clipHeight = min(
                 cellRect.height,

@@ -105,3 +105,71 @@ func subtitleCueFixedLineHeightCenteringPreservesUsedRectsAndPositionsUnderlines
         #expect(layout.utf16Offset(at: hitPoint, origin: .zero) >= 0)
     }
 }
+
+@MainActor
+@Test
+func subtitleBodySameFontRoleKeepsBaselineAndSelectionConsistentAcrossGlyphShapes() throws {
+    let samples = ["Ave Mujica - 01", "It's MyGO!!!!! - 07", "...", "08:33 - 10:38"]
+    var expectedUnderlineMinY: CGFloat?
+    var expectedSelectionRect: CGRect?
+
+    for sample in samples {
+        let attributed = SubtitleTableText.body(sample, role: .primaryContent)
+        let layout = SubtitleTextLayout()
+        layout.update(attributedString: attributed, width: 300)
+
+        let underline = try #require(
+            layout.underlineRects(
+                at: .zero,
+                thickness: SubtitleTableMetrics.interactiveTextUnderlineThickness,
+                offset: SubtitleTableMetrics.interactiveTextUnderlineOffset,
+                backingScaleFactor: 2
+            ).first
+        )
+        let selection = try #require(
+            layout.selectionRects(
+                forUTF16Range: NSRange(location: 0, length: attributed.length),
+                at: .zero
+            ).first
+        )
+
+        if let expectedUnderlineMinY {
+            #expect(underline.minY == expectedUnderlineMinY)
+        } else {
+            expectedUnderlineMinY = underline.minY
+        }
+        if let expectedSelectionRect {
+            #expect(selection.minY == expectedSelectionRect.minY)
+            #expect(selection.height == expectedSelectionRect.height)
+        } else {
+            expectedSelectionRect = selection
+        }
+    }
+}
+
+@MainActor
+@Test
+func subtitleHeaderColumnsShareIdenticalCenteredSelectionTopAndHeight() throws {
+    let cellRect = CGRect(x: 0, y: 0, width: 200, height: 44)
+    let titles = ["Cues", "Display Title", "Time Range", "Date Added"]
+    let expectedMinY = cellRect.midY - SubtitleTableText.cellLineHeight / 2
+
+    for title in titles {
+        let attributed = SubtitleTableText.header(title)
+        let layout = SubtitleTextLayout()
+        layout.update(attributedString: attributed, width: cellRect.width)
+
+        let centerYOffset = try #require(layout.firstLineCenterYOffset)
+        let origin = CGPoint(x: 0, y: max(cellRect.minY, cellRect.midY - centerYOffset))
+        let selection = try #require(
+            layout.selectionRects(
+                forUTF16Range: NSRange(location: 0, length: attributed.length),
+                at: origin,
+                targetLineHeight: SubtitleTableText.cellLineHeight
+            ).first
+        )
+
+        #expect(abs(selection.minY - expectedMinY) < 0.001)
+        #expect(selection.height == SubtitleTableText.cellLineHeight)
+    }
+}

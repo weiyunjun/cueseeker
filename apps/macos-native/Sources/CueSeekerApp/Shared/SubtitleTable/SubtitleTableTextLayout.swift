@@ -192,14 +192,18 @@ final class SubtitleTextLayout {
         let lineFragmentRect: CGRect
         let usedRect: CGRect
         let originalBaselineY: CGFloat
-        let visibleMidYOffset: CGFloat
+        let fontMidYOffset: CGFloat
         let fixedLineHeight: CGFloat?
         let lowestUnderlineOffset: CGFloat
         let deltaY: CGFloat
 
-        var visibleCenterYOffset: CGFloat {
-            lineFragmentRect.minY + originalBaselineY - visibleMidYOffset + deltaY
+        var fontCenterYOffset: CGFloat {
+            lineFragmentRect.minY + originalBaselineY - fontMidYOffset + deltaY
         }
+    }
+
+    var firstLineCenterYOffset: CGFloat? {
+        visualLineMetrics().first?.fontCenterYOffset
     }
 
     func draw(at origin: CGPoint) {
@@ -298,7 +302,7 @@ final class SubtitleTextLayout {
                     let selectionMinY = if targetLineHeight == nil, line.fixedLineHeight != nil {
                         origin.y + line.lineFragmentRect.minY
                     } else {
-                        origin.y + line.visibleCenterYOffset - resolvedLineHeight / 2
+                        origin.y + line.fontCenterYOffset - resolvedLineHeight / 2
                     }
                     rects.append(CGRect(
                         x: origin.x + rect.minX,
@@ -414,21 +418,20 @@ final class SubtitleTextLayout {
                 }
             }
             let trimmedRange = NSRange(location: clampedStart, length: clampedEnd - clampedStart)
-            var visibleMidYOffset = (fallbackFont.ascender + fallbackFont.descender) / 2
+            var maxAscender: CGFloat?
+            var minDescender: CGFloat?
             var maxUnderlineOffset: CGFloat?
             if trimmedRange.length > 0 {
                 let ctLine = CTLineCreateWithAttributedString(
                     textStorage.attributedSubstring(from: trimmedRange)
                 )
-                let glyphBounds = CTLineGetBoundsWithOptions(ctLine, [.useGlyphPathBounds])
-                if !glyphBounds.isNull, glyphBounds.height > 0 {
-                    visibleMidYOffset = glyphBounds.midY
-                }
                 for case let run as CTRun in (CTLineGetGlyphRuns(ctLine) as NSArray) {
                     let dict = CTRunGetAttributes(run) as NSDictionary
                     if let runFont = (dict[kCTFontAttributeName] as? NSFont)
                         ?? (dict[NSAttributedString.Key.font] as? NSFont)
                     {
+                        maxAscender = max(maxAscender ?? runFont.ascender, runFont.ascender)
+                        minDescender = min(minDescender ?? runFont.descender, runFont.descender)
                         maxUnderlineOffset = max(
                             maxUnderlineOffset ?? -runFont.underlinePosition,
                             -runFont.underlinePosition
@@ -436,16 +439,19 @@ final class SubtitleTextLayout {
                     }
                 }
             }
+            let ascender = maxAscender ?? fallbackFont.ascender
+            let descender = minDescender ?? fallbackFont.descender
+            let fontMidYOffset = (ascender + descender) / 2
             let lowestUnderlineOffset = maxUnderlineOffset ?? -fallbackFont.underlinePosition
             let deltaY = fixedLineHeight.map {
-                ($0 / 2) - (originalBaselineY - visibleMidYOffset)
+                ($0 / 2) - (originalBaselineY - fontMidYOffset)
             } ?? 0
             return VisualLineMetrics(
                 glyphRange: glyphRange,
                 lineFragmentRect: lineFragmentRect,
                 usedRect: usedRect,
                 originalBaselineY: originalBaselineY,
-                visibleMidYOffset: visibleMidYOffset,
+                fontMidYOffset: fontMidYOffset,
                 fixedLineHeight: fixedLineHeight,
                 lowestUnderlineOffset: lowestUnderlineOffset,
                 deltaY: deltaY

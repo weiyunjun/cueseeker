@@ -306,8 +306,7 @@ final class WorkbenchSelectableTextNSView:
         let charRange: NSRange
         let truncatedGlyphRange: NSRange?
         let originalBaselineY: CGFloat
-        let visibleMidYOffset: CGFloat
-        let glyphHalfHeight: CGFloat
+        let fontMidYOffset: CGFloat
         let lowestUnderlineOffset: CGFloat
         let deltaY: CGFloat
     }
@@ -1281,56 +1280,32 @@ final class WorkbenchSelectableTextNSView:
         }
         guard glyphRange.length > 0 else { return [] }
 
-        let fragments = lineFragmentLayouts(at: resolvedOrigin)
         var rects: [CGRect] = []
-        let fixedLineHeight = (lineHeight ?? 0) > 0 ? lineHeight : nil
-
-        func visibleCenterY(for fragment: LineFragmentLayout) -> CGFloat {
-            resolvedOrigin.y
-                + fragment.lineFragmentRect.minY
-                + fragment.originalBaselineY
-                - fragment.visibleMidYOffset
-        }
-
-        for (index, fragment) in fragments.enumerated() {
-            let lineSelectionRange = NSIntersectionRange(glyphRange, fragment.glyphRange)
-            guard lineSelectionRange.length > 0 else { continue }
-
-            let selectionMinY: CGFloat
-            let selectionHeight: CGFloat
-            if let fixedLineHeight {
-                selectionMinY = resolvedOrigin.y + fragment.lineFragmentRect.minY
-                selectionHeight = fixedLineHeight
-            } else {
-                let centerY = visibleCenterY(for: fragment)
-                let topBoundary = index == 0
-                    ? bounds.minY
-                    : (visibleCenterY(for: fragments[index - 1]) + centerY) / 2
-                let bottomBoundary = index == fragments.count - 1
-                    ? bounds.maxY
-                    : (centerY + visibleCenterY(for: fragments[index + 1])) / 2
-                let availableHalf = min(
-                    max(0, centerY - topBoundary),
-                    max(0, bottomBoundary - centerY)
-                )
-                let targetHalf = max(fragment.glyphHalfHeight, fragment.lineFragmentRect.height / 2)
-                let halfHeight = min(targetHalf, availableHalf)
-                selectionMinY = centerY - halfHeight
-                selectionHeight = halfHeight * 2
+        if let fixedLineHeight = (lineHeight ?? 0) > 0 ? lineHeight : nil {
+            for fragment in lineFragmentLayouts(at: resolvedOrigin) {
+                let lineSelectionRange = NSIntersectionRange(glyphRange, fragment.glyphRange)
+                guard lineSelectionRange.length > 0 else { continue }
+                layoutManager.enumerateEnclosingRects(
+                    forGlyphRange: lineSelectionRange,
+                    withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+                    in: textContainer
+                ) { rect, _ in
+                    guard rect.width > 0 else { return }
+                    rects.append(CGRect(
+                        x: resolvedOrigin.x + rect.minX,
+                        y: resolvedOrigin.y + fragment.lineFragmentRect.minY,
+                        width: rect.width,
+                        height: fixedLineHeight
+                    ))
+                }
             }
-
+        } else {
             layoutManager.enumerateEnclosingRects(
-                forGlyphRange: lineSelectionRange,
+                forGlyphRange: glyphRange,
                 withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
                 in: textContainer
             ) { rect, _ in
-                guard rect.width > 0, selectionHeight > 0 else { return }
-                rects.append(CGRect(
-                    x: resolvedOrigin.x + rect.minX,
-                    y: selectionMinY,
-                    width: rect.width,
-                    height: selectionHeight
-                ))
+                rects.append(rect.offsetBy(dx: resolvedOrigin.x, dy: resolvedOrigin.y))
             }
         }
         return rects
@@ -1375,7 +1350,7 @@ final class WorkbenchSelectableTextNSView:
                     truncatedGlyphRange: truncatedRange
                 )
                 let deltaY = fixedLineHeight.map {
-                    ($0 / 2) - (originalBaselineY - metrics.visibleMidYOffset)
+                    ($0 / 2) - (originalBaselineY - metrics.fontMidYOffset)
                 } ?? 0
                 fragments.append(
                     LineFragmentLayout(
@@ -1385,8 +1360,7 @@ final class WorkbenchSelectableTextNSView:
                         charRange: charRange,
                         truncatedGlyphRange: truncatedRange,
                         originalBaselineY: originalBaselineY,
-                        visibleMidYOffset: metrics.visibleMidYOffset,
-                        glyphHalfHeight: metrics.glyphHalfHeight,
+                        fontMidYOffset: metrics.fontMidYOffset,
                         lowestUnderlineOffset: metrics.lowestUnderlineOffset,
                         deltaY: deltaY
                     )
@@ -1402,7 +1376,7 @@ final class WorkbenchSelectableTextNSView:
         charRange: NSRange,
         visibleLineGlyphs: NSRange,
         truncatedGlyphRange: NSRange?
-    ) -> (visibleMidYOffset: CGFloat, glyphHalfHeight: CGFloat, lowestUnderlineOffset: CGFloat) {
+    ) -> (fontMidYOffset: CGFloat, lowestUnderlineOffset: CGFloat) {
         let metricText = NSMutableAttributedString()
         if let truncated = truncatedGlyphRange {
             let prefixGlyphCount = max(0, truncated.location - visibleLineGlyphs.location)
@@ -1443,30 +1417,35 @@ final class WorkbenchSelectableTextNSView:
         }
 
         let fallbackMidYOffset = (font.ascender + font.descender) / 2
-        let fallbackHalfHeight = (font.ascender - font.descender) / 2
         let fallbackUnderline = -font.underlinePosition
         guard metricText.length > 0 else {
-            return (fallbackMidYOffset, fallbackHalfHeight, fallbackUnderline)
+            return (fallbackMidYOffset, fallbackUnderline)
         }
 
         let ctLine = CTLineCreateWithAttributedString(metricText)
-        let glyphBounds = CTLineGetBoundsWithOptions(ctLine, [.useGlyphPathBounds])
-        let hasGlyphBounds = !glyphBounds.isNull && glyphBounds.height > 0
+        var maxAscender: CGFloat?
+        var minDescender: CGFloat?
         var maxUnderlineOffset: CGFloat?
         for case let run as CTRun in (CTLineGetGlyphRuns(ctLine) as NSArray) {
             let dict = CTRunGetAttributes(run) as NSDictionary
             if let runFont = (dict[kCTFontAttributeName] as? NSFont)
                 ?? (dict[NSAttributedString.Key.font] as? NSFont)
             {
+                maxAscender = max(maxAscender ?? runFont.ascender, runFont.ascender)
+                minDescender = min(minDescender ?? runFont.descender, runFont.descender)
                 maxUnderlineOffset = max(
                     maxUnderlineOffset ?? -runFont.underlinePosition,
                     -runFont.underlinePosition
                 )
             }
         }
+        let fontMidYOffset = if let maxAscender, let minDescender {
+            (maxAscender + minDescender) / 2
+        } else {
+            fallbackMidYOffset
+        }
         return (
-            hasGlyphBounds ? glyphBounds.midY : fallbackMidYOffset,
-            hasGlyphBounds ? glyphBounds.height / 2 : fallbackHalfHeight,
+            fontMidYOffset,
             maxUnderlineOffset ?? fallbackUnderline
         )
     }
