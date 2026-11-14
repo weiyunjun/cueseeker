@@ -61,66 +61,47 @@ func subtitleTextLayoutUnionUsedRectCoversAllVisibleLines() throws {
 
 @MainActor
 @Test
-func subtitleCueBaselineOffsetMovesOnlyGlyphDecorations() throws {
+func subtitleCueFixedLineHeightCenteringPreservesUsedRectsAndPositionsUnderlines() throws {
     let text = "まだやってたのね その腕でライブなんて\n冗談じゃない"
 
     for style in [SubtitleTableCueStyle.primary, .extra] {
-        let centered = SubtitleTableCueTextMeasurer.attributedString(
+        let attributed = SubtitleTableCueTextMeasurer.attributedString(
             text,
             style: style,
             foregroundColor: .labelColor
         )
-        let uncentered = NSMutableAttributedString(attributedString: centered)
-        uncentered.removeAttribute(
-            .baselineOffset,
-            range: NSRange(location: 0, length: uncentered.length)
-        )
-        let centeredLayout = SubtitleTextLayout()
-        let uncenteredLayout = SubtitleTextLayout()
-        centeredLayout.update(attributedString: centered, width: 110)
-        uncenteredLayout.update(attributedString: uncentered, width: 110)
+        #expect(attributed.attribute(.baselineOffset, at: 0, effectiveRange: nil) == nil)
 
-        let centeredUsedRects = centeredLayout.usedRects(at: .zero)
-        let uncenteredUsedRects = uncenteredLayout.usedRects(at: .zero)
-        let fullRange = NSRange(location: 0, length: centered.length)
-        let centeredSelectionRects = centeredLayout.selectionRects(
+        let layout = SubtitleTextLayout()
+        layout.update(attributedString: attributed, width: 110)
+
+        let usedRects = layout.usedRects(at: .zero)
+        let fullRange = NSRange(location: 0, length: attributed.length)
+        let selectionRects = layout.selectionRects(
             forUTF16Range: fullRange,
             at: .zero
         )
-        let uncenteredSelectionRects = uncenteredLayout.selectionRects(
-            forUTF16Range: fullRange,
-            at: .zero
-        )
-        let centeredUnderlines = centeredLayout.underlineRects(
-            at: .zero,
-            thickness: SubtitleTableMetrics.interactiveTextUnderlineThickness,
-            offset: SubtitleTableMetrics.interactiveTextUnderlineOffset,
-            backingScaleFactor: 2
-        )
-        let uncenteredUnderlines = uncenteredLayout.underlineRects(
+        let underlines = layout.underlineRects(
             at: .zero,
             thickness: SubtitleTableMetrics.interactiveTextUnderlineThickness,
             offset: SubtitleTableMetrics.interactiveTextUnderlineOffset,
             backingScaleFactor: 2
         )
 
-        #expect(centeredUsedRects == uncenteredUsedRects)
-        #expect(centeredSelectionRects == uncenteredSelectionRects)
-        #expect(centeredUnderlines.count == uncenteredUnderlines.count)
-        #expect(centeredUnderlines.count > 2)
-        for (centeredUnderline, uncenteredUnderline) in zip(centeredUnderlines, uncenteredUnderlines) {
-            #expect(centeredUnderline.width == uncenteredUnderline.width)
-            #expect(abs((uncenteredUnderline.minY - centeredUnderline.minY) - style.baselineOffset) < 0.001)
+        #expect(usedRects.count > 2)
+        #expect(selectionRects.count == usedRects.count)
+        #expect(underlines.count == usedRects.count)
+        for ((usedRect, selectionRect), underline) in zip(zip(usedRects, selectionRects), underlines) {
+            #expect(selectionRect.height == style.lineHeight)
+            #expect(abs(underline.width - ceil(usedRect.width * 2) / 2) <= 0.5)
+            #expect(underline.minY > usedRect.minY)
+            #expect(underline.maxY <= usedRect.minY + style.lineHeight)
         }
 
-        let hitPoint = try #require(centeredUsedRects.first.map {
+        let hitPoint = try #require(usedRects.first.map {
             CGPoint(x: $0.midX, y: $0.midY)
         })
-        #expect(centeredLayout.containsText(at: hitPoint, origin: .zero))
-        #expect(uncenteredLayout.containsText(at: hitPoint, origin: .zero))
-        #expect(
-            centeredLayout.utf16Offset(at: hitPoint, origin: .zero)
-                == uncenteredLayout.utf16Offset(at: hitPoint, origin: .zero)
-        )
+        #expect(layout.containsText(at: hitPoint, origin: .zero))
+        #expect(layout.utf16Offset(at: hitPoint, origin: .zero) >= 0)
     }
 }

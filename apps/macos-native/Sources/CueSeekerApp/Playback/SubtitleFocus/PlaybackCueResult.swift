@@ -515,14 +515,26 @@ final class PlaybackCueResultLayout {
         NSBezierPath(rect: resultRect).addClip()
         defer { NSGraphicsContext.restoreGraphicsState() }
         let cueTextRect = plan.cueTextRect(in: resultRect)
+        let metadataRect = plan.metadataRect(in: resultRect)
         if let selectedTextRange {
+            let selectionClipHeight = max(
+                0,
+                (metadataRect?.minY ?? resultRect.maxY) - resultRect.minY
+            )
+            let selectionClipRect = CGRect(
+                x: resultRect.minX,
+                y: resultRect.minY,
+                width: resultRect.width,
+                height: selectionClipHeight
+            ).intersection(resultRect)
             visualLineLayout.drawSelection(
                 forUTF16Range: selectedTextRange,
-                in: cueTextRect
+                in: cueTextRect,
+                clipRect: selectionClipRect
             )
         }
         visualLineLayout.drawPreparedPlan(in: cueTextRect)
-        if let metadataRect = plan.metadataRect(in: resultRect) {
+        if let metadataRect {
             PlaybackCueMetadataLayout.draw(
                 plan.metadata,
                 in: metadataRect,

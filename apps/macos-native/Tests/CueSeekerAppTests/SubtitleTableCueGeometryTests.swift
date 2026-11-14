@@ -196,18 +196,16 @@ func subtitleCueTypographyVisuallyCentersGlyphsInsideFixedLineHeights() throws {
             forGlyphAt: glyphIndex,
             effectiveRange: nil
         )
-        let baseline = layoutManager.location(forGlyphAt: glyphIndex).y
-        let visualTop = baseline - style.font.ascender
-        let visualBottom = baseline - style.font.descender
-        let topMargin = visualTop - lineRect.minY
-        let bottomMargin = lineRect.maxY - visualBottom
-
         #expect(lineRect.height == style.lineHeight)
-        #expect(abs(topMargin - bottomMargin) < 1)
-        #expect(
-            attributed.attribute(.baselineOffset, at: 0, effectiveRange: nil) as? CGFloat
-                == style.baselineOffset
+        #expect(attributed.attribute(.baselineOffset, at: 0, effectiveRange: nil) == nil)
+        let layout = SubtitleTextLayout()
+        layout.update(attributedString: attributed, width: 2_000)
+        let selectionRects = layout.selectionRects(
+            forUTF16Range: NSRange(location: 0, length: attributed.length),
+            at: .zero
         )
+        #expect(selectionRects.count == 1)
+        #expect(selectionRects.first?.height == style.lineHeight)
     }
 }
 

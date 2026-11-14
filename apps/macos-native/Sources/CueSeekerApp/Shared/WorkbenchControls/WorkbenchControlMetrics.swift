@@ -258,6 +258,8 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeTableHeader: CGFloat = 14
     /// --line-height-table-cell: 20px
     static let redesignLineHeightTableCell: CGFloat = 20
+    /// --line-height-status-indicator: 20px
+    static let redesignLineHeightStatusIndicator: CGFloat = 20
     /// --line-height-table-cue-primary: 24px
     static let redesignLineHeightTableCuePrimary: CGFloat = 24
     /// --line-height-table-cue-secondary: 20px

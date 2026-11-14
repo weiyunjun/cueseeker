@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 import CueSeekerCore
 import SwiftUI
 
@@ -70,14 +71,6 @@ enum SubtitleTableText {
         return style
     }
 
-    static func naturalLineHeight(for font: NSFont) -> CGFloat {
-        ceil(font.ascender - font.descender + font.leading)
-    }
-
-    static func centeredBaselineOffset(for font: NSFont, lineHeight: CGFloat) -> CGFloat {
-        max(0, (lineHeight - naturalLineHeight(for: font)) / 2)
-    }
-
     static func bodyParagraphStyle() -> NSParagraphStyle {
         fixedLineParagraphStyle(lineHeight: cellLineHeight)
     }
@@ -91,7 +84,6 @@ enum SubtitleTableText {
         return NSAttributedString(string: text, attributes: [
             .font: font,
             .paragraphStyle: bodyParagraphStyle(),
-            .baselineOffset: centeredBaselineOffset(for: font, lineHeight: cellLineHeight),
             .foregroundColor: foregroundColor ?? bodyColor(role: role),
         ])
     }
@@ -195,10 +187,30 @@ final class SubtitleTextLayout {
         textStorage.length
     }
 
+    private struct VisualLineMetrics {
+        let glyphRange: NSRange
+        let lineFragmentRect: CGRect
+        let usedRect: CGRect
+        let originalBaselineY: CGFloat
+        let visibleMidYOffset: CGFloat
+        let fixedLineHeight: CGFloat?
+        let lowestUnderlineOffset: CGFloat
+        let deltaY: CGFloat
+
+        var visibleCenterYOffset: CGFloat {
+            lineFragmentRect.minY + originalBaselineY - visibleMidYOffset + deltaY
+        }
+    }
+
     func draw(at origin: CGPoint) {
         let glyphRange = layoutManager.glyphRange(for: textContainer)
         guard glyphRange.length > 0 else { return }
-        layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: origin)
+        for line in visualLineMetrics() {
+            layoutManager.drawGlyphs(
+                forGlyphRange: line.glyphRange,
+                at: CGPoint(x: origin.x, y: origin.y + line.deltaY)
+            )
+        }
     }
 
     func containsText(at point: CGPoint, origin: CGPoint) -> Bool {
@@ -256,7 +268,11 @@ final class SubtitleTextLayout {
         return wordRange.length > 0 ? wordRange : nil
     }
 
-    func selectionRects(forUTF16Range range: NSRange, at origin: CGPoint) -> [CGRect] {
+    func selectionRects(
+        forUTF16Range range: NSRange,
+        at origin: CGPoint,
+        targetLineHeight: CGFloat? = nil
+    ) -> [CGRect] {
         let safeRange = NSIntersectionRange(
             range,
             NSRange(location: 0, length: textStorage.length)
@@ -266,13 +282,34 @@ final class SubtitleTextLayout {
             forCharacterRange: safeRange,
             actualCharacterRange: nil
         )
+        let lines = visualLineMetrics()
+        guard !lines.isEmpty else { return [] }
         var rects: [CGRect] = []
-        layoutManager.enumerateEnclosingRects(
-            forGlyphRange: glyphRange,
-            withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
-            in: textContainer
-        ) { rect, _ in
-            rects.append(rect.offsetBy(dx: origin.x, dy: origin.y))
+        for line in lines {
+            let lineSelectionRange = NSIntersectionRange(glyphRange, line.glyphRange)
+            guard lineSelectionRange.length > 0 else { continue }
+            let resolvedLineHeight = targetLineHeight ?? line.fixedLineHeight
+            layoutManager.enumerateEnclosingRects(
+                forGlyphRange: lineSelectionRange,
+                withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+                in: textContainer
+            ) { rect, _ in
+                if let resolvedLineHeight, resolvedLineHeight > 0 {
+                    let selectionMinY = if targetLineHeight == nil, line.fixedLineHeight != nil {
+                        origin.y + line.lineFragmentRect.minY
+                    } else {
+                        origin.y + line.visibleCenterYOffset - resolvedLineHeight / 2
+                    }
+                    rects.append(CGRect(
+                        x: origin.x + rect.minX,
+                        y: selectionMinY,
+                        width: rect.width,
+                        height: resolvedLineHeight
+                    ))
+                } else {
+                    rects.append(rect.offsetBy(dx: origin.x, dy: origin.y))
+                }
+            }
         }
         return rects
     }
@@ -298,17 +335,15 @@ final class SubtitleTextLayout {
     ) -> [CGRect] {
         let scale = max(1, backingScaleFactor)
         let lineThickness = max(1 / scale, thickness)
-        return lineGlyphRanges().compactMap { glyphRange in
-            guard glyphRange.length > 0 else { return nil }
-            let usedRect = layoutManager.lineFragmentUsedRect(
-                forGlyphAt: glyphRange.location,
-                effectiveRange: nil
-            )
-            guard usedRect.width > 0 else { return nil }
-            let baseline = origin.y + usedRect.minY + layoutManager.location(forGlyphAt: glyphRange.location).y
-            let y = pixelAligned(baseline + offset, scale: scale)
-            let minX = pixelFloored(origin.x + usedRect.minX, scale: scale)
-            let maxX = pixelCeiled(origin.x + usedRect.maxX, scale: scale)
+        return visualLineMetrics().compactMap { line in
+            guard line.usedRect.width > 0 else { return nil }
+            let baseline = origin.y
+                + line.lineFragmentRect.minY
+                + line.originalBaselineY
+                + line.deltaY
+            let y = pixelAligned(baseline + line.lowestUnderlineOffset + offset, scale: scale)
+            let minX = pixelFloored(origin.x + line.usedRect.minX, scale: scale)
+            let maxX = pixelCeiled(origin.x + line.usedRect.maxX, scale: scale)
             return CGRect(
                 x: minX,
                 y: y,
@@ -333,6 +368,88 @@ final class SubtitleTextLayout {
             backingScaleFactor: backingScaleFactor
         ) where rect.width > 0 {
             rect.fill()
+        }
+    }
+
+    private func visualLineMetrics() -> [VisualLineMetrics] {
+        let nsText = textStorage.string as NSString
+        return lineGlyphRanges().compactMap { glyphRange in
+            guard glyphRange.length > 0 else { return nil }
+            let lineFragmentRect = layoutManager.lineFragmentRect(
+                forGlyphAt: glyphRange.location,
+                effectiveRange: nil
+            )
+            let usedRect = layoutManager.lineFragmentUsedRect(
+                forGlyphAt: glyphRange.location,
+                effectiveRange: nil
+            )
+            let originalBaselineY = layoutManager.location(forGlyphAt: glyphRange.location).y
+            let charRange = layoutManager.characterRange(
+                forGlyphRange: glyphRange,
+                actualGlyphRange: nil
+            )
+            let attrIndex = min(max(0, charRange.location), max(0, textStorage.length - 1))
+            let attrs = textStorage.length > 0
+                ? textStorage.attributes(at: attrIndex, effectiveRange: nil)
+                : [:]
+            let fallbackFont = (attrs[.font] as? NSFont) ?? SubtitleTableText.tagFont
+            let paragraphStyle = attrs[.paragraphStyle] as? NSParagraphStyle
+            let fixedLineHeight: CGFloat? = if let paragraphStyle,
+                                               paragraphStyle.minimumLineHeight > 0,
+                                               paragraphStyle.minimumLineHeight == paragraphStyle.maximumLineHeight
+            {
+                paragraphStyle.minimumLineHeight
+            } else {
+                nil
+            }
+
+            let clampedStart = min(max(0, charRange.location), nsText.length)
+            var clampedEnd = min(max(clampedStart, NSMaxRange(charRange)), nsText.length)
+            while clampedEnd > clampedStart {
+                let scalar = nsText.character(at: clampedEnd - 1)
+                if scalar == 0x0A || scalar == 0x0D {
+                    clampedEnd -= 1
+                } else {
+                    break
+                }
+            }
+            let trimmedRange = NSRange(location: clampedStart, length: clampedEnd - clampedStart)
+            var visibleMidYOffset = (fallbackFont.ascender + fallbackFont.descender) / 2
+            var maxUnderlineOffset: CGFloat?
+            if trimmedRange.length > 0 {
+                let ctLine = CTLineCreateWithAttributedString(
+                    textStorage.attributedSubstring(from: trimmedRange)
+                )
+                let glyphBounds = CTLineGetBoundsWithOptions(ctLine, [.useGlyphPathBounds])
+                if !glyphBounds.isNull, glyphBounds.height > 0 {
+                    visibleMidYOffset = glyphBounds.midY
+                }
+                for case let run as CTRun in (CTLineGetGlyphRuns(ctLine) as NSArray) {
+                    let dict = CTRunGetAttributes(run) as NSDictionary
+                    if let runFont = (dict[kCTFontAttributeName] as? NSFont)
+                        ?? (dict[NSAttributedString.Key.font] as? NSFont)
+                    {
+                        maxUnderlineOffset = max(
+                            maxUnderlineOffset ?? -runFont.underlinePosition,
+                            -runFont.underlinePosition
+                        )
+                    }
+                }
+            }
+            let lowestUnderlineOffset = maxUnderlineOffset ?? -fallbackFont.underlinePosition
+            let deltaY = fixedLineHeight.map {
+                ($0 / 2) - (originalBaselineY - visibleMidYOffset)
+            } ?? 0
+            return VisualLineMetrics(
+                glyphRange: glyphRange,
+                lineFragmentRect: lineFragmentRect,
+                usedRect: usedRect,
+                originalBaselineY: originalBaselineY,
+                visibleMidYOffset: visibleMidYOffset,
+                fixedLineHeight: fixedLineHeight,
+                lowestUnderlineOffset: lowestUnderlineOffset,
+                deltaY: deltaY
+            )
         }
     }
 

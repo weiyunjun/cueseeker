@@ -458,7 +458,6 @@ struct WorkbenchSelectableTextTests {
             width: textWidth
         )
         #expect(expectedHeight == lineHeight * 4)
-        #expect(WorkbenchSelectableTextNSView.resolvedBaselineOffset(for: font, lineHeight: lineHeight) > 0)
 
         let (window, rootView) = makeTestWindow(size: CGSize(width: 440, height: 140))
         let hostingView = NSHostingView(

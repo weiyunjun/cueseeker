@@ -108,6 +108,7 @@ struct WorkbenchStatusIndicator: View {
             weight: WorkbenchControlMetrics.redesignFontWeightControl,
             color: textColor,
             lineLimit: 1,
+            lineHeight: WorkbenchControlMetrics.redesignLineHeightStatusIndicator,
             truncationMode: .tail,
             preferredPointerShape: onTap != nil ? .grab : .iBeam,
             showsUnderline: showsUnderline,

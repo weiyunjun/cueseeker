@@ -29,16 +29,6 @@ enum SubtitleTableCueStyle: Sendable {
     var font: NSFont {
         NSFont.systemFont(ofSize: fontSize, weight: fontWeight)
     }
-
-    @MainActor
-    var naturalLineHeight: CGFloat {
-        SubtitleTableText.naturalLineHeight(for: font)
-    }
-
-    @MainActor
-    var baselineOffset: CGFloat {
-        SubtitleTableText.centeredBaselineOffset(for: font, lineHeight: lineHeight)
-    }
 }
 
 enum SubtitleTableCueGeometry {
@@ -191,7 +181,6 @@ final class SubtitleTableCueTextMeasurer {
             .font: style.font,
             .paragraphStyle: paragraphStyle(for: style),
             .foregroundColor: foregroundColor,
-            .baselineOffset: style.baselineOffset,
         ])
     }
 

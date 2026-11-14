@@ -353,11 +353,16 @@ extension SubtitleTableView.Coordinator {
     func drawSelectionBackground(
         _ range: NSRange?,
         with layout: SubtitleTextLayout,
-        at origin: CGPoint
+        at origin: CGPoint,
+        targetLineHeight: CGFloat? = nil
     ) {
         guard let range, range.length > 0 else { return }
         NSColor.selectedTextBackgroundColor.setFill()
-        for rect in layout.selectionRects(forUTF16Range: range, at: origin) {
+        for rect in layout.selectionRects(
+            forUTF16Range: range,
+            at: origin,
+            targetLineHeight: targetLineHeight
+        ) {
             rect.fill()
         }
     }

@@ -442,28 +442,23 @@ final class PlaybackVisualLineStackLayout {
         )
     }
 
-    func drawSelection(
+    func selectionRects(
         forUTF16Range range: NSRange,
         in contentRect: CGRect
-    ) {
+    ) -> [CGRect] {
         let safeRange = NSIntersectionRange(
             range,
             NSRange(location: 0, length: textStorage.length)
         )
-        guard safeRange.length > 0,
-              let context = NSGraphicsContext.current
-        else {
-            return
+        guard safeRange.length > 0 else {
+            return []
         }
-
-        context.saveGraphicsState()
-        NSBezierPath(rect: contentRect).addClip()
-        NSColor.selectedTextBackgroundColor.setFill()
         let selectionGlyphRange = layoutManager.glyphRange(
             forCharacterRange: safeRange,
             actualCharacterRange: nil
         )
-        for line in plan.lines {
+        var selectedLines: [(lineIndex: Int, rect: CGRect)] = []
+        for (index, line) in plan.lines.enumerated() {
             let lineSelectionRange = NSIntersectionRange(
                 selectionGlyphRange,
                 line.glyphRange
@@ -471,16 +466,63 @@ final class PlaybackVisualLineStackLayout {
             guard lineSelectionRange.length > 0 else {
                 continue
             }
-            layoutManager.boundingRect(
+            let glyphRect = layoutManager.boundingRect(
                 forGlyphRange: lineSelectionRange,
                 in: textContainer
-            ).offsetBy(
-                dx: contentRect.minX,
-                dy: contentRect.minY
-                    + line.typographicTop
-                    + line.ascent
-                    - line.originalBaseline
-            ).fill()
+            )
+            let halfHeight = line.nominalLineHeight / 2
+            let centerY = contentRect.minY + line.visibleCenterY
+            let lineRect = CGRect(
+                x: contentRect.minX + glyphRect.minX,
+                y: centerY - halfHeight,
+                width: glyphRect.width,
+                height: line.nominalLineHeight
+            )
+            if let lastIndex = selectedLines.indices.last,
+               selectedLines[lastIndex].lineIndex + 1 == index,
+               selectedLines[lastIndex].rect.maxY > lineRect.minY {
+                let splitY = (selectedLines[lastIndex].rect.maxY + lineRect.minY) / 2
+                if splitY > selectedLines[lastIndex].rect.minY, splitY < lineRect.maxY {
+                    selectedLines[lastIndex].rect = CGRect(
+                        x: selectedLines[lastIndex].rect.minX,
+                        y: selectedLines[lastIndex].rect.minY,
+                        width: selectedLines[lastIndex].rect.width,
+                        height: splitY - selectedLines[lastIndex].rect.minY
+                    )
+                    selectedLines.append((
+                        index,
+                        CGRect(
+                            x: lineRect.minX,
+                            y: splitY,
+                            width: lineRect.width,
+                            height: lineRect.maxY - splitY
+                        )
+                    ))
+                    continue
+                }
+            }
+            selectedLines.append((index, lineRect))
+        }
+        return selectedLines.map(\.rect)
+    }
+
+    func drawSelection(
+        forUTF16Range range: NSRange,
+        in contentRect: CGRect,
+        clipRect: CGRect? = nil
+    ) {
+        let rects = selectionRects(forUTF16Range: range, in: contentRect)
+        guard !rects.isEmpty,
+              let context = NSGraphicsContext.current
+        else {
+            return
+        }
+
+        context.saveGraphicsState()
+        NSBezierPath(rect: clipRect ?? contentRect).addClip()
+        NSColor.selectedTextBackgroundColor.setFill()
+        for rect in rects {
+            rect.fill()
         }
         context.restoreGraphicsState()
     }
@@ -747,7 +789,8 @@ final class PlaybackSubtitleFocusNativeTextLayout {
         if let selectedTextRange {
             visualLineLayout.drawSelection(
                 forUTF16Range: selectedTextRange,
-                in: textRect
+                in: textRect,
+                clipRect: rect
             )
         }
         visualLineLayout.drawPreparedPlan(in: textRect)

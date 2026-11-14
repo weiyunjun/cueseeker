@@ -141,12 +141,12 @@ func subtitleTableBodyUsesFixedCenteredTwentyPointLineBoxesAndAlignsHitSelection
         #expect(paragraph.lineSpacing == 0)
         #expect(paragraph.paragraphSpacing == 0)
 
-        let font = try attributedFont(single)
-        let baselineOffset = try #require(
-            single.attribute(.baselineOffset, at: 0, effectiveRange: nil) as? CGFloat
+        #expect(single.attribute(.baselineOffset, at: 0, effectiveRange: nil) == nil)
+        let selection = layout.selectionRects(
+            forUTF16Range: NSRange(location: 0, length: single.length),
+            at: .zero
         )
-        let expectedOffset = max(0, (expectedLineHeight - ceil(font.ascender - font.descender + font.leading)) / 2)
-        #expect(abs(baselineOffset - expectedOffset) < 0.001)
+        #expect(selection.first?.height == expectedLineHeight)
     }
 
     // Two explicit lines stack at 2 * 20 = 40 without trailing or extra lineSpacing.

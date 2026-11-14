@@ -543,6 +543,11 @@ extension SubtitleTableView.Coordinator {
                 x: cellRect.minX + leading,
                 y: cellRect.minY + max(0, (cellRect.height - lineHeight) / 2)
             )
+            let clipHeight = min(
+                cellRect.height,
+                max(lineHeight, SubtitleTableText.cellLineHeight) + 6
+            )
+            let clipY = cellRect.minY + max(0, (cellRect.height - clipHeight) / 2)
             return HeaderTextFragmentLayout(
                 columnID: columnID,
                 columnIndex: columnIndex,
@@ -553,9 +558,9 @@ extension SubtitleTableView.Coordinator {
                     width: width,
                     clipRect: CGRect(
                         x: origin.x,
-                        y: origin.y,
+                        y: clipY,
                         width: max(0, min(size.width, cellRect.maxX - leading - origin.x)),
-                        height: min(lineHeight, cellRect.height)
+                        height: clipHeight
                     ),
                     logicalUTF16Range: NSRange(
                         location: 0,
@@ -658,7 +663,8 @@ extension SubtitleTableView.Coordinator {
             drawSelectionBackground(
                 selectedRange,
                 with: textLayout,
-                at: item.fragment.origin
+                at: item.fragment.origin,
+                targetLineHeight: SubtitleTableText.cellLineHeight
             )
             NSGraphicsContext.restoreGraphicsState()
         }

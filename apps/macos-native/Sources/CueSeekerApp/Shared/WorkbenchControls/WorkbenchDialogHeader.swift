@@ -143,6 +143,7 @@ struct WorkbenchDetailHeaderRow: View {
                 weight: WorkbenchControlMetrics.redesignFontWeightControl,
                 color: WorkbenchRedesignColors.textPrimary,
                 lineLimit: 2,
+                lineHeight: WorkbenchControlMetrics.redesignDetailFileTitleLineHeight,
                 truncationMode: .tail,
                 alignment: .leading
             )
