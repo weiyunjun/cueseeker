@@ -20,13 +20,24 @@ Principles:
   boundaries concisely without permuting listed UI entry points.
 - Verify window, pointer hover, cursor shape, menu and popup, visual text
   centering/typography, and video/subtitle first-frame or A/V presentation
-  changes through build checks, zero regressions in the existing test suite, and
-  human end-to-end acceptance; do not add new simulated UI or playback tests
-  unless explicitly requested.
+  changes through build checks, zero regressions in relevant headless/pure-logic
+  test suites, and human end-to-end acceptance; do not add new simulated UI or
+  playback tests unless explicitly requested.
 - Never construct fake windows, view hierarchies, or synthetic mouse/keyboard
   events in unit tests to simulate UI interaction, and never add test-only
   properties, artificial delay switches, reset entry points, or probe counters
   to production code to facilitate unit testing.
+- Keep legacy test files intact without rewriting them, while preventing window
+  flashing and focus stealing during development: intermediate syntax and type
+  checks must use `swift build --package-path apps/macos-native`; automated
+  `swift test` runs (including test commands written into cross-session
+  implementation prompts) must either target headless pure-logic suites via
+  `--filter` or explicitly `--skip` legacy suites that materialize visible
+  on-screen windows or switch app activation policy (`DebugE2EControllerTests`,
+  `WorkbenchInputControlsTests`, `PointerHoverGateTests`,
+  `CueGroupRefreshScopeIntegrationTests`, `PlaybackPageFocusIsolationTests`).
+  Never run unfiltered `swift test` by default unless explicitly requested by
+  the user.
 - Test database behavior with real SQLite and FTS5.
 - Keep fixture data small, explicit, and version controlled when practical.
 - Do not depend on the user's personal subtitle library for automated tests.
@@ -713,10 +724,11 @@ Rules:
   unit tests on the core failure condition without permuting UI entry points.
 - Window, pointer hover, cursor shape, menu/popup, visual text centering and
   typography, and video/subtitle first-frame or A/V presentation fixes default
-  to build verification, zero regressions in the existing test suite, and human
-  end-to-end acceptance; do not construct simulated UI or playback regression
-  harnesses or add test-only backdoors to production code unless explicitly
-  requested.
+  to build verification, zero regressions in relevant headless/pure-logic test
+  suites (run with `--filter` or with legacy window-popping suites skipped via
+  `--skip`), and human end-to-end acceptance; do not construct simulated UI or
+  playback regression harnesses or add test-only backdoors to production code
+  unless explicitly requested.
 
 ## 15. Milestone Completion Rule
 

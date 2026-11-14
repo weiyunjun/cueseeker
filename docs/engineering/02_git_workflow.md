@@ -438,12 +438,36 @@ Rules:
   persistence/migrations, and UI-independent domain rules) on core paths and key
   boundaries. Changes to windows, pointer hover, cursor shapes, menus/popups,
   visual text centering/typography, or video/subtitle frame presentation default
-  to build verification, zero regressions in the existing test suite, and user
-  E2E acceptance without adding new simulated UI or playback tests unless
-  explicitly requested. The AI must never build fake windows/view hierarchies or
-  synthetic mouse/keyboard events in unit tests, and must never add test-only
-  properties, artificial delay switches, reset entry points, or probe counters
-  to production code.
+  to build verification, zero regressions in relevant headless/pure-logic test
+  suites, and user E2E acceptance without adding new simulated UI or playback
+  tests unless explicitly requested. The AI must never build fake windows/view
+  hierarchies or synthetic mouse/keyboard events in unit tests, and must never
+  add test-only properties, artificial delay switches, reset entry points, or
+  probe counters to production code.
+- Automated test execution must never flash windows on screen or steal desktop
+  focus during development while keeping legacy test files untouched:
+  intermediate compile checks must use `swift build --package-path apps/macos-native`,
+  and `swift test` runs (including test commands written into cross-session
+  implementation prompts) must either `--filter` targeted headless/pure-logic
+  test suites or explicitly `--skip` legacy window-popping suites
+  (`DebugE2EControllerTests`, `WorkbenchInputControlsTests`,
+  `PointerHoverGateTests`, `CueGroupRefreshScopeIntegrationTests`,
+  `PlaybackPageFocusIsolationTests`). Unfiltered `swift test` must never be run
+  by default unless explicitly requested by the user.
+- During Code Review, before reporting any suspected issue, the AI must verify
+  exact UI labels, menu items, and shortcut definitions in source code and
+  cross-check relevant design and interaction documents under
+  `docs/human/design/` to confirm the behavior is not an established product
+  rule; theoretical branches unreachable through ordinary in-app interaction
+  must be dropped or explicitly noted as unreachable in normal UI rather than
+  fabricated into fake operation sequences. By default, Code Review output must
+  present only the symptom, concrete UI reproduction steps (exact screen,
+  control, key/pointer actions), and expected vs. actual behavior, stopping for
+  human verification without generating a fix prompt or editing code. After the
+  user confirms a reproduced issue, the AI must first explain why behavior
+  worked prior to the change, how the change introduced the issue, and the
+  proposed fix scope/approach, outputting a fix prompt or applying edits only
+  after alignment and explicit user instruction.
 
 ## The Solution
 
@@ -511,7 +535,7 @@ Transform imperative tasks into verifiable goals:
 |--------------|-----------------|
 | "Add validation" | "Write pure-logic tests for invalid inputs, then make them pass" |
 | "Fix a pure-logic / parser / DB bug" | "Write a concise pure-logic test that reproduces it, then make it pass" |
-| "Fix a UI / hover / typography / playback presentation issue" | "Verify build + existing test suite pass with zero regressions, then hand off for user E2E acceptance (no synthetic UI/playback test harnesses)" |
+| "Fix a UI / hover / typography / playback presentation issue" | "Verify build + relevant headless pure-logic tests pass with zero window popups or regressions, then hand off for user E2E acceptance (no synthetic UI/playback test harnesses)" |
 | "Refactor X" | "Ensure build and existing tests pass before and after" |
 
 For multi-step tasks, state a brief plan:
