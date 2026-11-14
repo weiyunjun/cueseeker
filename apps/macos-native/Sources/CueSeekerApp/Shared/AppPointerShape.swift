@@ -209,7 +209,7 @@ enum AppPointerShape {
         }
     }
 
-    private static var hasActiveTextDrag: Bool {
+    static var hasActiveTextDrag: Bool {
         SubtitleTableActiveTextDragState.isDraggingSelection
             || WorkbenchStaticTextSelectionCoordinator.shared.activeDraggingPointerShape != nil
     }

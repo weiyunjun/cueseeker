@@ -23,6 +23,9 @@ final class PointerHoverScrollState: ObservableObject {
     @Published private(set) var isCursorHidden = false
     @Published private(set) var isSuppressedByKeyboardOrController = false
     private var suppressedOriginScreenLocation: CGPoint?
+    private var isWorkbenchTransitionTrackingActive = false
+    private var pendingWorkbenchTransitionRevision: UInt64 = 0
+    private var completedWorkbenchTransitionRevision: UInt64 = 0
     private var debounceTask: Task<Void, Never>?
     private var activeHoverListeners: [UUID: () -> Void] = [:]
     nonisolated(unsafe) private var focusObserverTokens: [NSObjectProtocol] = []
@@ -53,6 +56,40 @@ final class PointerHoverScrollState: ObservableObject {
 
     var isHoverSuppressed: Bool {
         isScrolling || isSuppressedByKeyboardOrController
+    }
+
+    var isAwaitingWorkbenchTransitionPresentation: Bool {
+        isWorkbenchTransitionTrackingActive
+            && pendingWorkbenchTransitionRevision != completedWorkbenchTransitionRevision
+    }
+
+    func setWorkbenchTransitionTrackingActive(_ isActive: Bool) {
+        isWorkbenchTransitionTrackingActive = isActive
+        if !isActive {
+            completedWorkbenchTransitionRevision = pendingWorkbenchTransitionRevision
+        }
+    }
+
+    @discardableResult
+    func beginWorkbenchTransitionSuppression() -> UInt64 {
+        suppressHoverUntilMouseMoves(clearsFrozenHover: true)
+        guard isWorkbenchTransitionTrackingActive else {
+            return completedWorkbenchTransitionRevision
+        }
+        pendingWorkbenchTransitionRevision &+= 1
+        return pendingWorkbenchTransitionRevision
+    }
+
+    func completeWorkbenchTransitionSuppression(through revision: UInt64) {
+        guard isWorkbenchTransitionTrackingActive,
+              revision > completedWorkbenchTransitionRevision
+        else {
+            return
+        }
+        completedWorkbenchTransitionRevision = min(revision, pendingWorkbenchTransitionRevision)
+        if !isAwaitingWorkbenchTransitionPresentation, isSuppressedByKeyboardOrController {
+            suppressedOriginScreenLocation = NSEvent.mouseLocation
+        }
     }
 
     var activeHoverListenerCountForTesting: Int {
@@ -126,6 +163,7 @@ final class PointerHoverScrollState: ObservableObject {
 
     func clearSuppressionForOverlayClose(recalculate: Bool = true) {
         suppressedOriginScreenLocation = nil
+        completedWorkbenchTransitionRevision = pendingWorkbenchTransitionRevision
         var didChange = false
         if isSuppressedByKeyboardOrController {
             isSuppressedByKeyboardOrController = false
@@ -159,13 +197,17 @@ final class PointerHoverScrollState: ObservableObject {
 
     @discardableResult
     func notePointerMoved(atScreenLocation screenLocation: CGPoint? = nil) -> Bool {
-        if let screenLocation,
-           isSuppressedByKeyboardOrController,
-           let origin = suppressedOriginScreenLocation,
-           !Self.hasMovedAtLeastWakeThreshold(from: origin, to: screenLocation)
-        {
-            MenuHighlightModel.broadcastPointerMoved(atScreenLocation: screenLocation)
-            return false
+        if let screenLocation, isSuppressedByKeyboardOrController {
+            if isAwaitingWorkbenchTransitionPresentation {
+                suppressedOriginScreenLocation = screenLocation
+                return false
+            }
+            if let origin = suppressedOriginScreenLocation,
+               !Self.hasMovedAtLeastWakeThreshold(from: origin, to: screenLocation)
+            {
+                MenuHighlightModel.broadcastPointerMoved(atScreenLocation: screenLocation)
+                return false
+            }
         }
         let wasSuppressed = isSuppressedByKeyboardOrController
         let wasScrolling = isScrolling
@@ -243,10 +285,34 @@ final class PointerHoverScrollState: ObservableObject {
         }
     }
 
+    func syncAfterMouseButtonReleased(atScreenLocation screenLocation: CGPoint) {
+        guard !isCursorHidden else {
+            return
+        }
+        if isHoverSuppressed {
+            guard !isScrolling,
+                  !isAwaitingWorkbenchTransitionPresentation,
+                  let origin = suppressedOriginScreenLocation,
+                  Self.hasMovedAtLeastWakeThreshold(from: origin, to: screenLocation)
+            else {
+                return
+            }
+            _ = notePointerMoved(atScreenLocation: screenLocation)
+            return
+        }
+        recalculateHoverState(
+            postNotification: true,
+            recheckCardsAndMenus: false
+        )
+    }
+
     func resetForTesting() {
         debounceTask?.cancel()
         debounceTask = nil
         suppressedOriginScreenLocation = nil
+        isWorkbenchTransitionTrackingActive = false
+        pendingWorkbenchTransitionRevision = 0
+        completedWorkbenchTransitionRevision = 0
         isScrolling = false
         isSuppressedByKeyboardOrController = false
         isCursorHidden = AppCursorVisibility.isCursorHidden
@@ -350,7 +416,7 @@ struct PointerHoverGate: Equatable {
     /// answer it.
     private var reportedIsHovered = false
     /// What the surface was last told, which is what it is painting.
-    private var deliveredIsHovered = false
+    private(set) var deliveredIsHovered = false
 
     var hasActiveHover: Bool {
         reportedIsHovered || deliveredIsHovered
@@ -691,6 +757,13 @@ final class PointerHoverSession: ObservableObject {
     }
 
     func report(_ isHovered: Bool) {
+        if !tracksLocation,
+           !isFrozen,
+           probeView?.window != nil,
+           (NSEvent.pressedMouseButtons & 0b11) != 0
+        {
+            return
+        }
         if !isHovered,
            !tracksLocation,
            !isFrozen,
@@ -900,6 +973,19 @@ final class PointerHoverSession: ObservableObject {
         syncScrollListener()
         if let hadDelivered {
             action?(hadDelivered)
+        }
+    }
+
+    func handleViewDisappeared() {
+        if let probe = probeView as? PointerHoverProbeView {
+            probe.setAssumesMouseInside(false)
+            probe.setTracksReenter(false)
+        }
+        let hadDeliveredHover = !tracksLocation && gate.deliveredIsHovered
+        gate = PointerHoverGate()
+        unregisterScrollListener()
+        if hadDeliveredHover {
+            action?(false)
         }
     }
 
@@ -1173,7 +1259,7 @@ private struct PointerHoverModifier: ViewModifier {
                 }
             }
             .onDisappear {
-                session.unregisterScrollListener()
+                session.handleViewDisappeared()
             }
     }
 }
@@ -1215,7 +1301,7 @@ private struct PointerHoverLocationModifier: ViewModifier {
                 session.setFrozen(interfaceLayers?.isFrozen(layerContext.layer) ?? isFrozen)
             }
             .onDisappear {
-                session.unregisterScrollListener()
+                session.handleViewDisappeared()
             }
     }
 }

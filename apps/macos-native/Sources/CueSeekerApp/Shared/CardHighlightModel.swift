@@ -152,6 +152,31 @@ final class CardHighlightModel: ObservableObject {
         Self.instances.append(WeakBox(self))
     }
 
+    deinit {
+        guard let rawHoveredID else {
+            return
+        }
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                AppPointerShape.noteCardHover(
+                    false,
+                    id: rawHoveredID,
+                    showsHand: true,
+                    followsPointer: false
+                )
+            }
+        } else {
+            Task { @MainActor in
+                AppPointerShape.noteCardHover(
+                    false,
+                    id: rawHoveredID,
+                    showsHand: true,
+                    followsPointer: false
+                )
+            }
+        }
+    }
+
     /// Whether `id` is in the `Select` state.
     func isSelected(_ id: String) -> Bool {
         selectedID == id
@@ -178,6 +203,18 @@ final class CardHighlightModel: ObservableObject {
 
     private func effectiveShowsHand(for id: String, baseShowsHand: Bool) -> Bool {
         baseShowsHand && hoveredActionButtonCardID != id
+    }
+
+    private func unregisterRawHoverFromPointerShapeIfNeeded(excluding nextID: String? = nil) {
+        guard let previousID = rawHoveredID, previousID != nextID else {
+            return
+        }
+        AppPointerShape.noteCardHover(
+            false,
+            id: previousID,
+            showsHand: true,
+            followsPointer: false
+        )
     }
 
     /// Updates the `Select` state (`selectedID`) from the interface's default
@@ -266,6 +303,7 @@ final class CardHighlightModel: ObservableObject {
     /// From a card's hover callback.
     func noteHover(_ isHovered: Bool, id: String, showsHand: Bool = true) {
         if isHovered {
+            unregisterRawHoverFromPointerShapeIfNeeded(excluding: id)
             rawHoveredID = id
             rawHoveredShowsHand = showsHand
         } else if rawHoveredID == id {
@@ -284,6 +322,13 @@ final class CardHighlightModel: ObservableObject {
                 id: id,
                 showsHand: effectiveShowsHand(for: id, baseShowsHand: showsHand),
                 followsPointer: followsPointer
+            )
+        } else if !isHovered {
+            AppPointerShape.noteCardHover(
+                false,
+                id: id,
+                showsHand: true,
+                followsPointer: false
             )
         }
         guard !isFrozen, !isScrolling, !isSuppressedByKeyboard else {
@@ -315,10 +360,20 @@ final class CardHighlightModel: ObservableObject {
     /// From a right-click or left-click on a card. Updates `Hover` immediately
     /// to the pressed card without altering `Select` (`selectedID`).
     func notePress(id: String) {
+        unregisterRawHoverFromPointerShapeIfNeeded(excluding: id)
         rawHoveredID = id
         isScrolling = false
         isSuppressedByKeyboard = false
         hoveredID = AppCursorVisibility.isCursorHidden ? nil : id
+    }
+
+    func clearHoverOnDisappear() {
+        unregisterRawHoverFromPointerShapeIfNeeded()
+        rawHoveredID = nil
+        hoveredActionButtonCardID = nil
+        if hoveredID != nil {
+            hoveredID = nil
+        }
     }
 
     func noteSelectionMovedByKeyboardOrController(clearsFrozenHover: Bool = false) {
@@ -454,6 +509,9 @@ private struct CardHighlightFreezeModifier: ViewModifier {
             .onChange(of: layerContext.isFrozen) { isFrozen in
                 model.registry = interfaceLayers
                 model.setFrozen(isFrozen)
+            }
+            .onDisappear {
+                model.clearHoverOnDisappear()
             }
     }
 }

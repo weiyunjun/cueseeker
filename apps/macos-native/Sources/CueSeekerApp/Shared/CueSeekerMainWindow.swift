@@ -161,8 +161,6 @@ class CueSeekerWindow: NSWindow {
             PointerHoverScrollState.shared.noteScrolled()
         case .mouseMoved:
             PointerHoverScrollState.shared.notePointerMoved(atScreenLocation: NSEvent.mouseLocation)
-        case .leftMouseDragged, .rightMouseDragged:
-            PointerHoverScrollState.shared.notePointerMoved()
         default:
             break
         }
@@ -210,9 +208,15 @@ class CueSeekerWindow: NSWindow {
             case .passthrough:
                 break
             case .consume:
+                PointerHoverScrollState.shared.syncAfterMouseButtonReleased(
+                    atScreenLocation: NSEvent.mouseLocation
+                )
                 return
             case .redirect(let redirectedEvent):
                 super.sendEvent(redirectedEvent)
+                PointerHoverScrollState.shared.syncAfterMouseButtonReleased(
+                    atScreenLocation: NSEvent.mouseLocation
+                )
                 return
             }
         case .rightMouseDown:
@@ -248,7 +252,19 @@ class CueSeekerWindow: NSWindow {
                 }
             }
         }
+        let hadPressedMouseButtonsBeforeSend = (NSEvent.pressedMouseButtons & 0b11) != 0
         super.sendEvent(event)
+        let didFinishMouseButtonTracking =
+            event.type == .leftMouseUp
+            || event.type == .rightMouseUp
+            || (hadPressedMouseButtonsBeforeSend
+                && (event.type == .leftMouseDown || event.type == .rightMouseDown)
+                && (NSEvent.pressedMouseButtons & 0b11) == 0)
+        if didFinishMouseButtonTracking {
+            PointerHoverScrollState.shared.syncAfterMouseButtonReleased(
+                atScreenLocation: NSEvent.mouseLocation
+            )
+        }
         if event.type == .leftMouseDragged,
            MainActor.assumeIsolated({
                WorkbenchStaticTextSelectionCoordinator.shared.isDragCursorLocked(for: self)
@@ -685,8 +701,12 @@ final class CueSeekerMainWindow: CueSeekerWindow {
     override func sendEvent(_ event: NSEvent) {
         super.sendEvent(event)
         switch event.type {
-        case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
+        case .mouseMoved:
             AppPointerShape.pointerMoved(in: self, at: event.locationInWindow)
+        case .leftMouseDragged, .rightMouseDragged:
+            if AppPointerShape.hasActiveTextDrag {
+                AppPointerShape.pointerMoved(in: self, at: event.locationInWindow)
+            }
         default:
             break
         }

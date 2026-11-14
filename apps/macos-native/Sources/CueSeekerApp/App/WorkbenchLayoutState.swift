@@ -186,11 +186,11 @@ enum WorkbenchRoute: Equatable {
 
 @MainActor
 final class WorkbenchRouteState: ObservableObject {
+    private(set) var transitionRevision: UInt64 = 0
     @Published fileprivate(set) var panelMode: WorkbenchPanelMode {
         didSet {
             if panelMode != oldValue {
-                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
-                AppPointerShape.reevaluateAfterInterfaceChange()
+                noteRoutePropertyChanged()
             }
         }
     }
@@ -198,16 +198,14 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedLibraryFolderPath: String? {
         didSet {
             if selectedLibraryFolderPath != oldValue {
-                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
-                AppPointerShape.reevaluateAfterInterfaceChange()
+                noteRoutePropertyChanged()
             }
         }
     }
     @Published fileprivate(set) var selectedExcerptListID: Int64? {
         didSet {
             if selectedExcerptListID != oldValue {
-                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
-                AppPointerShape.reevaluateAfterInterfaceChange()
+                noteRoutePropertyChanged()
             }
         }
     }
@@ -215,8 +213,7 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedRecentSection: WorkbenchRecentSection = .videos {
         didSet {
             if selectedRecentSection != oldValue {
-                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
-                AppPointerShape.reevaluateAfterInterfaceChange()
+                noteRoutePropertyChanged()
             }
         }
     }
@@ -224,24 +221,21 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedFileSection: WorkbenchFileSection = .index {
         didSet {
             if selectedFileSection != oldValue {
-                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
-                AppPointerShape.reevaluateAfterInterfaceChange()
+                noteRoutePropertyChanged()
             }
         }
     }
     @Published fileprivate(set) var selectedFileRootPath: String? {
         didSet {
             if selectedFileRootPath != oldValue {
-                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
-                AppPointerShape.reevaluateAfterInterfaceChange()
+                noteRoutePropertyChanged()
             }
         }
     }
     @Published fileprivate(set) var selectedFileFolderPath: String? {
         didSet {
             if selectedFileFolderPath != oldValue {
-                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
-                AppPointerShape.reevaluateAfterInterfaceChange()
+                noteRoutePropertyChanged()
             }
         }
     }
@@ -254,6 +248,11 @@ final class WorkbenchRouteState: ObservableObject {
     @Published private(set) var heldNoFolderSurface: WorkbenchNoFolderHoldSurface?
     var onHeldNoFolderSurfaceInvalidated: (() -> Void)?
     var onRecentSectionChanged: (() -> Void)?
+
+    private func noteRoutePropertyChanged() {
+        transitionRevision = PointerHoverScrollState.shared.beginWorkbenchTransitionSuppression()
+        AppPointerShape.reevaluateAfterInterfaceChange()
+    }
 
     init(panelMode: WorkbenchPanelMode) {
         let route = WorkbenchRoute.firstLevel(of: panelMode)

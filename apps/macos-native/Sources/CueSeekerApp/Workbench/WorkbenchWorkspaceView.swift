@@ -77,6 +77,11 @@ enum WorkbenchPresentedSurface: Equatable {
     }
 }
 
+private struct WorkbenchSurfacePreparationTrigger: Equatable {
+    let surface: WorkbenchPresentedSurface
+    let transitionRevision: UInt64
+}
+
 private final class WorkbenchSurfaceTransitionTracker {
     var lastTargetSurface: WorkbenchPresentedSurface?
     var lastPresentedSurface: WorkbenchPresentedSurface?
@@ -101,6 +106,13 @@ struct WorkbenchWorkspaceView: View {
 
     private var targetSurface: WorkbenchPresentedSurface {
         WorkbenchPresentedSurface.current(from: routeState)
+    }
+
+    private var surfacePreparationTrigger: WorkbenchSurfacePreparationTrigger {
+        WorkbenchSurfacePreparationTrigger(
+            surface: targetSurface,
+            transitionRevision: routeState.transitionRevision
+        )
     }
 
     private var activeSurface: WorkbenchPresentedSurface? {
@@ -160,20 +172,36 @@ struct WorkbenchWorkspaceView: View {
                 // This is where the playback page is routed over the whole
                 // workbench, so this is where that layer is registered.
                 .onAppear {
-                    scheduleSurfacePreparationIfNeeded(for: targetSurface)
+                    PointerHoverScrollState.shared.setWorkbenchTransitionTrackingActive(
+                        !showsPlaybackRoute
+                    )
+                    scheduleSurfacePreparationIfNeeded(for: surfacePreparationTrigger)
                     appState.interfaceLayers.setOpen(
                         .playbackPage,
                         showsPlaybackRoute
                     )
                 }
-                .onChange(of: targetSurface) { newSurface in
-                    scheduleSurfacePreparationIfNeeded(for: newSurface)
+                .onChange(of: surfacePreparationTrigger) { newTrigger in
+                    scheduleSurfacePreparationIfNeeded(for: newTrigger)
+                }
+                .onChange(of: asyncPreparedRevision) { _ in
+                    guard activeSurface == targetSurface else {
+                        return
+                    }
+                    let revision = routeState.transitionRevision
+                    DispatchQueue.main.async {
+                        PointerHoverScrollState.shared.completeWorkbenchTransitionSuppression(
+                            through: revision
+                        )
+                    }
                 }
                 .onDisappear {
+                    PointerHoverScrollState.shared.setWorkbenchTransitionTrackingActive(false)
                     transitionTracker.preparationTask?.cancel()
                     transitionTracker.preparationTask = nil
                 }
                 .onChange(of: showsPlaybackRoute) { isOpen in
+                    PointerHoverScrollState.shared.setWorkbenchTransitionTrackingActive(!isOpen)
                     appState.interfaceLayers.setOpen(.playbackPage, isOpen)
                 }
             }
@@ -181,15 +209,19 @@ struct WorkbenchWorkspaceView: View {
     }
 
     private func scheduleSurfacePreparationIfNeeded(
-        for surface: WorkbenchPresentedSurface
+        for trigger: WorkbenchSurfacePreparationTrigger
     ) {
+        let surface = trigger.surface
+        let transitionRevision = trigger.transitionRevision
         let preparationStartedAt = DebugInteractionLatencyProbe.now()
         let previousLabel = transitionTracker.lastRecordedSurface?.diagnosticLabel ?? "none"
         let didChangeSurface = transitionTracker.lastRecordedSurface != surface
             || DebugInteractionLatencyProbe.hasPendingNavigation(domain: "workbench")
         transitionTracker.preparationTask?.cancel()
         transitionTracker.preparationTask = nil
-        if appState.isWorkbenchSurfaceReadyForPresentation(surface) {
+        if transitionTracker.asyncPreparedSurface == surface
+            || appState.isWorkbenchSurfaceReadyForPresentation(surface)
+        {
             transitionTracker.lastPresentedSurface = surface
             transitionTracker.lastRecordedSurface = surface
             if didChangeSurface {
@@ -203,6 +235,11 @@ struct WorkbenchWorkspaceView: View {
                     dataReadyAt: swapAt,
                     coverStats: appState.cachedFirstScreenCoverStats(for: surface),
                     containerSwapAt: swapAt
+                )
+            }
+            DispatchQueue.main.async {
+                PointerHoverScrollState.shared.completeWorkbenchTransitionSuppression(
+                    through: transitionRevision
                 )
             }
             return

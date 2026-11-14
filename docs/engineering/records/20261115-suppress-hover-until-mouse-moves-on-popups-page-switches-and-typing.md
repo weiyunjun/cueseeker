@@ -64,3 +64,19 @@
   - `swift test --package-path apps/macos-native --no-parallel --filter "CardHighlightModelTests|InterfaceLayerFreezeTests|MenuHighlightModelTests|MenuInputBarrierTests|PointerHoverGateTests|PointerShapeModelTests"`: `68 passed` (`0` failed, `0.890s`).
   - `swift test --package-path apps/macos-native --no-parallel --filter "PlaybackCollagePreview|PlaybackProgressScrubberThumbnailTests|PlaybackCueQueue|WorkbenchAccessibilityStep4Tests"`: `26 passed` (`0` failed, `1.141s`).
   - End-to-end UI/hover acceptance remains with the user.
+
+## Incremental Update 3 (Workbench Surface Presentation Suppression Lock, Press-Hold Hover Freeze, and Card Hand Lifecycle Closure)
+
+- **Locked Workbench route-switch hover suppression across full surface presentation** (`Shared/PointerHover.swift`, `App/WorkbenchLayoutState.swift`, `Workbench/WorkbenchWorkspaceView.swift`):
+  - Added `beginWorkbenchTransitionSuppression()` / `completeWorkbenchTransitionSuppression(through:)` and `isAwaitingWorkbenchTransitionPresentation` on `PointerHoverScrollState`, driven by `WorkbenchRouteState.transitionRevision` and completed on the post-render turn after `WorkbenchWorkspaceView` actually commits the target surface (both immediate swaps and async `prepareWorkbenchSurfaceForPresentation` prewarms).
+  - While a Workbench surface switch is awaiting presentation, incoming window `.mouseMoved` events refresh `suppressedOriginScreenLocation` without waking the outgoing page, preventing post-click wrist inertia from re-activating outgoing Level 1 cards or bouncing cursor shape (`Arrow -> Grab -> Arrow`).
+- **Aligned mouse press-drag-release with `UI Interaction Rules.md` §5.1** (`Shared/CueSeekerMainWindow.swift`, `Shared/PointerHover.swift`, `Shared/AppPointerShape.swift`):
+  - Stopped `.leftMouseDragged` / `.rightMouseDragged` from waking `PointerHoverScrollState` or re-evaluating non-text-drag pointer shapes (`AppPointerShape.hasActiveTextDrag`), and ignored raw hover transitions on non-location `PointerHoverSession`s while primary/secondary mouse buttons remain pressed in a window.
+  - Added `PointerHoverScrollState.syncAfterMouseButtonReleased(atScreenLocation:)` on mouse button release (including AppKit modal control tracking loops) to reconcile exited/entered hover probes and pointer shape once at the release point when not suppressed.
+- **Closed card hand-cursor registration lifecycle** (`Shared/CardHighlightModel.swift`, `Shared/PointerHover.swift`):
+  - Unregistered replaced `rawHoveredID` entries in `CardHighlightModel.noteHover` / `notePress` and silently cleared card hover registrations (`followsPointer: false`) when `CardHighlightModel` or `PointerHoverModifier` unmounts or deallocates.
+- **Incremental Verification 3**:
+  - `swift build --package-path apps/macos-native`: Build complete (`14.48s`).
+  - `swift test --package-path apps/macos-native --no-parallel --filter "PointerShapeModelTests|CardHighlightModelTests|MenuHighlightModelTests|InterfaceLayerFreezeTests"`: `38 passed` (`0` failed, `0.256s`).
+  - `swift test --package-path apps/macos-native --no-parallel --filter "WorkbenchAccessibilityStep1Tests"`: `10 passed` (`0` failed, `0.795s`).
+  - End-to-end interactive UI/cursor acceptance remains with the user.
