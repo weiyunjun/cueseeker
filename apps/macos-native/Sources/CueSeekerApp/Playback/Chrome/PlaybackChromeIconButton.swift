@@ -86,8 +86,15 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
             .onPointerHover { isHovered = $0 }
             .onChange(of: configuration.isPressed) { newValue in
                 if newValue {
-                    isHovered = true
-                } else if (NSEvent.pressedMouseButtons & 1) != 0 {
+                    if !PointerHoverScrollState.shared.isHoverSuppressed
+                        && !AppCursorVisibility.isCursorHidden
+                    {
+                        isHovered = true
+                    }
+                } else if PointerHoverScrollState.shared.isHoverSuppressed
+                    || AppCursorVisibility.isCursorHidden
+                    || (NSEvent.pressedMouseButtons & 1) != 0
+                {
                     isHovered = false
                 }
             }

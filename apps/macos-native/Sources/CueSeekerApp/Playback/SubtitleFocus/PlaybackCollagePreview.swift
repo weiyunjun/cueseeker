@@ -8,6 +8,7 @@ struct PlaybackCollagePreviewPane: View {
     @EnvironmentObject private var localization: AppLocalizationStore
     // Covered by the Command Panel, or under an open menu, the preview keeps
     // its hover where it is and takes no click.
+    @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
     @ObservedObject var store: PlaybackCollagePreviewStore
     var isEmpty: Bool = false
@@ -26,6 +27,7 @@ struct PlaybackCollagePreviewPane: View {
                 image: store.image,
                 segments: store.segments,
                 isInteractionEnabled: !layerContext.isFrozen && !isEmpty,
+                interfaceLayers: interfaceLayers,
                 onJumpToCue: onJumpToCue,
                 uiProbeScope: uiProbeScope
             )
@@ -49,6 +51,7 @@ struct PlaybackCollagePreviewImageScrollView: NSViewRepresentable {
     let image: CGImage?
     let segments: [PlaybackCollagePreviewSegment]
     let isInteractionEnabled: Bool
+    var interfaceLayers: InterfaceLayerRegistry? = nil
     let onJumpToCue: (Int) -> Void
     let uiProbeScope: String?
 
@@ -75,6 +78,7 @@ struct PlaybackCollagePreviewImageScrollView: NSViewRepresentable {
 
     private func configure(_ view: PlaybackCollagePreviewScrollContainerView) {
         view.isInteractionEnabled = isInteractionEnabled
+        view.interfaceLayers = interfaceLayers
         view.onJumpToCue = onJumpToCue
         view.updateImage(image, segments: segments)
     }
@@ -106,6 +110,7 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
     private var retiringStrips: [PlaybackCollagePreviewStrip] = []
     nonisolated(unsafe) private var pointerMonitor: Any?
 
+    weak var interfaceLayers: InterfaceLayerRegistry?
     var isInteractionEnabled = true
     var onJumpToCue: (Int) -> Void = { _ in }
 
@@ -171,6 +176,12 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
     }
 
     @objc private func hoverDidSuppress(_ notification: Notification) {
+        let clearsFrozenHover =
+            (notification.userInfo?["clearsFrozenHover"] as? Bool) == true
+        let isFrozen = interfaceLayers?.isFrozen(.playbackOverlay) ?? !isInteractionEnabled
+        guard clearsFrozenHover || !isFrozen else {
+            return
+        }
         setHoveredSegment(nil)
     }
 
@@ -213,7 +224,7 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             }
             return
         }
-        guard !PointerHoverScrollState.shared.isScrolling else {
+        guard !PointerHoverScrollState.shared.isHoverSuppressed else {
             return
         }
         pointerMoved(toWindowPoint: event.locationInWindow)
@@ -322,7 +333,11 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         else {
             return
         }
-        setHoveredSegment(index)
+        if !PointerHoverScrollState.shared.isHoverSuppressed
+            && !AppCursorVisibility.isCursorHidden
+        {
+            setHoveredSegment(index)
+        }
         onJumpToCue(segments[index].firstCueOrdinal)
     }
 

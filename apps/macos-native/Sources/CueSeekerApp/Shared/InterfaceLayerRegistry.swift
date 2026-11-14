@@ -205,7 +205,8 @@ final class InterfaceLayerRegistry: ObservableObject {
         } else {
             openMenuCounts[owner] = count - 1
         }
-        if !isFrozen(owner) {
+        let shouldUnsuppressOwner = isOpen(owner) && !isFrozen(owner)
+        if shouldUnsuppressOwner {
             PointerHoverScrollState.shared.clearSuppressionForOverlayClose(recalculate: false)
         }
         PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { layer in
@@ -214,7 +215,7 @@ final class InterfaceLayerRegistry: ObservableObject {
         CardHighlightModel.broadcastLayerFrozenChanged(false, in: self) { layer in
             !self.isFrozen(layer)
         }
-        if !isFrozen(owner) {
+        if shouldUnsuppressOwner {
             PointerHoverScrollState.shared.clearSuppressionForOverlayClose(recalculate: true)
         }
     }

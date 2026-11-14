@@ -48,3 +48,19 @@
   - `swift test --package-path apps/macos-native --no-parallel --filter "PlaybackProgressScrubberThumbnailTests|PlaybackSubtitleFocusSessionStoreTests|TableScrollbarPrimitiveTests|SubtitleTableRowActionMenuTests|WorkbenchAccessibilityStep1Tests|PlaybackCollagePreview"`: `81/83` passed (`2` issues from the pre-existing `PlaybackSubtitleFocusSessionStoreTests.subtitleFocusOverlayCommitsKeyboardTargetQueuedBeforeMount()`).
   - `swift test --package-path apps/macos-native --no-parallel --filter "SubtitleTable|WorkbenchDialogLayerTests|WorkbenchAccessibilityStep4Tests"`: `214 passed` (`0` failed).
   - End-to-end UI/hover acceptance remains with the user.
+
+## Incremental Update 2 (Playback Button Press Alignment, Collage Preview Hover Freeze/Suppression Guards, and Menu Owner Open Check)
+
+- **Aligned `isPressed` hover transitions across Playback chrome and Cue Queue button styles** (`Playback/Chrome/PlaybackChromeIconButton.swift`, `Playback/Chrome/PlaybackChromeView.swift`, `Playback/Chrome/PlaybackCueQueueControlBar.swift`):
+  - Updated `PlaybackChromeIconButtonStyle`, `PlaybackSpeedChromeButtonStyle`, `PlaybackCueQueueToggleButtonStyle`, and `PlaybackCueQueueStepperIconButtonStyle` to match `PressableButtonStyle`: pressing only sets `isHovered = true` when `!PointerHoverScrollState.shared.isHoverSuppressed && !AppCursorVisibility.isCursorHidden`, and releasing clears `isHovered = false` if suppressed, cursor is hidden, or the primary mouse button remains held.
+- **Fixed `PlaybackCollagePreview` frozen-hover retention and click/exit suppression guards** (`Playback/SubtitleFocus/PlaybackCollagePreview.swift`):
+  - Passed `@Environment(\.interfaceLayers)` into `PlaybackCollagePreviewScrollContainerView` so `hoverDidSuppress(_:)` queries `interfaceLayers?.isFrozen(.playbackOverlay)` synchronously instead of reading SwiftUI's frame-delayed `isInteractionEnabled`; frozen magnification stays intact when a local overlay (`Command Panel`, `Task Panel`, or menu) opens over `Playback Overlay`, clearing only when `clearsFrozenHover` is `true` or `.playbackOverlay` is unfrozen.
+  - Guarded `release(atWindowPoint:)` with `!PointerHoverScrollState.shared.isHoverSuppressed && !AppCursorVisibility.isCursorHidden` before activating `setHoveredSegment(index)`, and unified `mouseExited(with:)` from `!isScrolling` to `!isHoverSuppressed`.
+- **Tightened menu-close owner check and normalized overlay tab switching** (`Shared/InterfaceLayerRegistry.swift`, `Playback/SubtitleFocus/PlaybackSubtitleFocusSessionStore.swift`):
+  - Guarded `InterfaceLayerRegistry.menuDidClose(ownedBy:)` with `isOpen(owner) && !isFrozen(owner)` so a full-window owner dismissed with an open menu cannot trigger `clearSuppressionForOverlayClose` on menu teardown.
+  - Restored `PlaybackSubtitleFocusSessionStore.selectedModule` `didSet` to standard `suppressHoverUntilMouseMoves()` after cross-window full clear became self-contained in `InterfaceLayerRegistry`.
+- **Incremental Verification 2**:
+  - `swift build --package-path apps/macos-native`: Build complete (`6.79s`).
+  - `swift test --package-path apps/macos-native --no-parallel --filter "CardHighlightModelTests|InterfaceLayerFreezeTests|MenuHighlightModelTests|MenuInputBarrierTests|PointerHoverGateTests|PointerShapeModelTests"`: `68 passed` (`0` failed, `0.890s`).
+  - `swift test --package-path apps/macos-native --no-parallel --filter "PlaybackCollagePreview|PlaybackProgressScrubberThumbnailTests|PlaybackCueQueue|WorkbenchAccessibilityStep4Tests"`: `26 passed` (`0` failed, `1.141s`).
+  - End-to-end UI/hover acceptance remains with the user.
