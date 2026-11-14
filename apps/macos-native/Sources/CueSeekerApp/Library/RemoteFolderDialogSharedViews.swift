@@ -471,7 +471,7 @@ struct RemoteFolderBreadcrumbBar: View {
                     Text(node.title)
                         .font(.system(
                             size: WorkbenchControlMetrics.redesignFontSizeBody,
-                            weight: .semibold
+                            weight: WorkbenchControlMetrics.redesignFontWeightControl
                         ))
                         .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                         .lineLimit(1)

@@ -91,13 +91,20 @@ struct TaskPanel: View {
         .frame(height: WorkbenchControlMetrics.redesignTaskPanelHeight)
         .background(WorkbenchRedesignColors.bgDialog)
         .subtitleTableTextSelectionNonInteractiveRegion()
+        .workbenchDialogCloseButton(
+            closesOnEscape: confirmation.session == nil && tasks.detailTaskID == nil,
+            onClose: {
+                dismissMenu()
+                tasks.closePanel()
+            }
+        )
     }
 
     private func headerRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         let titleText = L("task.title")
         let titleFont = Font.system(
             size: WorkbenchControlMetrics.redesignDialogTitleFontSize,
-            weight: .semibold
+            weight: WorkbenchControlMetrics.redesignFontWeightDialogTitle
         )
         let focusedTab = TaskQueueTab.allCases.first {
             accessibility?.isDialogFocused(.taskPanelTab($0), dialogID: dialogID) == true
@@ -112,7 +119,7 @@ struct TaskPanel: View {
                 titleText,
                 fullCopyText: titleText,
                 fontSize: WorkbenchControlMetrics.redesignDialogTitleFontSize,
-                weight: .semibold,
+                weight: WorkbenchControlMetrics.redesignFontWeightDialogTitle,
                 color: WorkbenchRedesignColors.textPrimary,
                 lineLimit: 1,
                 truncationMode: .tail,
@@ -155,25 +162,11 @@ struct TaskPanel: View {
                 )
             }
         } trailing: {
-            WorkbenchIconButton(
-                icon: .x,
-                isFocused: accessibility?.isDialogFocused(.dialogCloseButton, dialogID: dialogID) == true,
-                iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
-                boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
-                action: {
-                    dismissMenu()
-                    tasks.closePanel()
-                }
-            )
-            .workbenchTooltip(
-                scenarioID: "dialog.header.close",
-                label: L("common.close"),
-                shortcut: .fixed("Esc")
-            )
-            .keyboardShortcut(confirmation.session == nil && tasks.detailTaskID == nil ? .cancelAction : nil)
-            .accessibilityLabel(L("common.close"))
+            Color.clear
+                .frame(width: WorkbenchControlMetrics.redesignDialogCloseGlyphInk, height: 1)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
-        .frame(height: WorkbenchControlMetrics.redesignSegmentedControlHeight)
     }
 
     @ViewBuilder

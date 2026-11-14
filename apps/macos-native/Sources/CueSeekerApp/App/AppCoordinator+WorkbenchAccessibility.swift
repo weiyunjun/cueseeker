@@ -254,9 +254,7 @@ extension AppCoordinator {
 
         let nodes = FileBreadcrumbResolver.nodes(
             for: workbenchLayout.currentRoute,
-            folderCount: indexing.selectedFolders.count,
-            singularRootTitle: L("file.all_folders.one"),
-            pluralRootTitle: L("file.all_folders.other")
+            rootTitle: L("file.all_folders")
         )
         for node in nodes where node.destination != nil {
             targets.append(.fileBreadcrumb(node.id))
@@ -794,9 +792,7 @@ extension AppCoordinator {
         case .fileBreadcrumb(let nodeID):
             let nodes = FileBreadcrumbResolver.nodes(
                 for: workbenchLayout.currentRoute,
-                folderCount: indexing.selectedFolders.count,
-                singularRootTitle: L("file.all_folders.one"),
-                pluralRootTitle: L("file.all_folders.other")
+                rootTitle: L("file.all_folders")
             )
             guard let destination = nodes.first(where: { $0.id == nodeID })?.destination else {
                 return false

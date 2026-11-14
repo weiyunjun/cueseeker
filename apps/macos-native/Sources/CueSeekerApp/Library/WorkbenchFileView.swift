@@ -969,23 +969,15 @@ struct WorkbenchFileView: View {
     private var breadcrumbNodes: [FileBreadcrumbNode] {
         FileBreadcrumbResolver.nodes(
             for: routeState.currentRoute,
-            folderCount: indexing.selectedFolders.count,
-            singularRootTitle: L("file.all_folders.one"),
-            pluralRootTitle: L("file.all_folders.other")
+            rootTitle: L("file.all_folders")
         )
     }
 
     private var rootFoldersHeaderRow: some View {
-        let folders = FileFolderGroupingResolver.rootFolders(for: indexing.selectedFolders)
-
-        return WorkbenchSelectableText(
-            FileBreadcrumbResolver.allFoldersTitle(
-                folderCount: folders.count,
-                singularTitle: L("file.all_folders.one"),
-                pluralTitle: L("file.all_folders.other")
-            ),
+        WorkbenchSelectableText(
+            L("file.all_folders"),
             fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
-            weight: .semibold,
+            weight: WorkbenchControlMetrics.redesignFontWeightControl,
             color: WorkbenchRedesignColors.textPrimary
         )
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1013,7 +1005,7 @@ struct WorkbenchFileView: View {
                     Text(node.title)
                         .font(.system(
                             size: WorkbenchControlMetrics.redesignFontSizeBody,
-                            weight: .semibold
+                            weight: WorkbenchControlMetrics.redesignFontWeightControl
                         ))
                         .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                         .lineLimit(1)
@@ -1101,7 +1093,6 @@ struct BreadcrumbLink: View {
     let title: String
     var isFocused: Bool = false
     let action: () -> Void
-    @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
@@ -1110,11 +1101,7 @@ struct BreadcrumbLink: View {
                     size: WorkbenchControlMetrics.redesignFontSizeBody,
                     weight: WorkbenchControlMetrics.redesignFontWeightControl
                 ))
-                .foregroundStyle(
-                    isHovered
-                        ? WorkbenchRedesignColors.textPrimary
-                        : WorkbenchRedesignColors.textSecondary
-                )
+                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .workbenchAccessibilityFocusRing(
@@ -1125,7 +1112,6 @@ struct BreadcrumbLink: View {
         }
         .buttonStyle(StaticButtonStyle())
         .focusable(false)
-        .onPointerHover { isHovered = $0 }
     }
 }
 
@@ -1426,31 +1412,16 @@ struct FileBreadcrumbNode: Identifiable, Equatable, Sendable {
 }
 
 enum FileBreadcrumbResolver {
-    static func allFoldersTitle(
-        folderCount: Int,
-        singularTitle: String,
-        pluralTitle: String
-    ) -> String {
-        folderCount > 1 ? pluralTitle : singularTitle
-    }
-
     static func nodes(
         for route: WorkbenchRoute,
-        folderCount: Int,
-        singularRootTitle: String,
-        pluralRootTitle: String
+        rootTitle: String
     ) -> [FileBreadcrumbNode] {
-        let rootHeaderTitle = allFoldersTitle(
-            folderCount: folderCount,
-            singularTitle: singularRootTitle,
-            pluralTitle: pluralRootTitle
-        )
         switch route {
         case .fileFolder(let rootPath):
             let rootURL = URL.fromMediaPath(rootPath)
             let allNode = FileBreadcrumbNode(
                 id: "all",
-                title: rootHeaderTitle,
+                title: rootTitle,
                 destination: .file
             )
             let rootName = IndexingStore.displayName(for: rootURL)
@@ -1465,7 +1436,7 @@ enum FileBreadcrumbResolver {
             let rootURL = URL.fromMediaPath(rootPath)
             let allNode = FileBreadcrumbNode(
                 id: "all",
-                title: rootHeaderTitle,
+                title: rootTitle,
                 destination: .file
             )
             let rootName = IndexingStore.displayName(for: rootURL)

@@ -98,9 +98,13 @@ func workbenchTopbarIsTallerThanTheWindowControlsBand() {
     #expect(WorkbenchControlMetrics.redesignAppTopbarHeight == 54)
     #expect(WorkbenchControlMetrics.redesignWindowControlsBandHeight == 45)
     #expect(AppShellLayout.topBarHeight == WorkbenchControlMetrics.redesignWorkbenchTopbarHeight)
-    #expect(WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding == 24)
+    #expect(WorkbenchControlMetrics.redesignSpacing6 == 24)
     #expect(WorkbenchControlMetrics.redesignWorkbenchPageScrollbarChannel == 16)
     #expect(WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding == 40)
+    #expect(WorkbenchControlMetrics.redesignFontWeightDialogTitle == .semibold)
+    #expect(WorkbenchControlMetrics.redesignBreadcrumbSeparatorSize == 12)
+    #expect(PlaybackChromeMetrics.topbarHorizontalPadding == 16)
+    #expect(PlaybackChromeMetrics.windowControlsReturnGap == 16)
 }
 
 @Test
@@ -368,9 +372,13 @@ func topbarTabsStylingGeometryAndSlidingMotionMatchSpecification() {
     #expect(PlaybackOverlayMetrics.tabHorizontalPadding == 8)
     #expect(PlaybackOverlayMetrics.tabIndicatorGap == 4)
     #expect(PlaybackOverlayMetrics.tabFontSize == 14)
-    #expect(PlaybackOverlayMetrics.tabFontWeight == .semibold)
-    #expect(PlaybackOverlayMetrics.tabIndicatorWidth == 24)
-    #expect(PlaybackOverlayMetrics.tabIndicatorHeight == 2)
+    #expect(WorkbenchControlMetrics.redesignFontWeightTab == .semibold)
+    #expect(PlaybackOverlayMetrics.tabFontWeight == WorkbenchControlMetrics.redesignFontWeightTab)
+    #expect(WorkbenchControlMetrics.redesignTabIndicatorWidth == 24)
+    #expect(PlaybackOverlayMetrics.tabIndicatorWidth == WorkbenchControlMetrics.redesignTabIndicatorWidth)
+    #expect(WorkbenchControlMetrics.redesignTabIndicatorHeight == 2)
+    #expect(PlaybackOverlayMetrics.tabIndicatorHeight == WorkbenchControlMetrics.redesignTabIndicatorHeight)
+    #expect(WorkbenchControlMetrics.redesignTabMotionEasing == UnitBezier(x1: 0.22, y1: 1, x2: 0.36, y2: 1))
     #expect(PlaybackOverlayMetrics.tabSelectionMotionDuration == 0.18)
 
     let tabRect = CGRect(x: 100, y: 10, width: 80, height: 24)

@@ -114,15 +114,21 @@ enum WorkbenchControlMetrics {
             - redesignSpacing2
             - (label + redesignSpacing2)
     }()
-    /// Dialog title type. The cap-line give-back below is derived from it, so
+    /// --font-size-dialog-title: 20px. The cap-line give-back below is derived from it, so
     /// the two must stay together.
     static let redesignDialogTitleFontSize: CGFloat = 20
+    /// --font-weight-dialog-title: 600
+    static let redesignFontWeightDialogTitle: Font.Weight = .semibold
+    static let redesignNSFontWeightDialogTitle: NSFont.Weight = .semibold
     /// A single line of text starts below its own top edge by the half-leading
     /// plus the run from the ascender down to the cap height. The inset is
     /// measured to the cap line, so the container's top padding gives that
     /// distance back. This is what CSS spells `text-box-edge: cap`.
     static let redesignDialogTitleCapTopInset: CGFloat = {
-        let font = NSFont.systemFont(ofSize: redesignDialogTitleFontSize, weight: .semibold)
+        let font = NSFont.systemFont(
+            ofSize: redesignDialogTitleFontSize,
+            weight: redesignNSFontWeightDialogTitle
+        )
         let lineHeight = NSLayoutManager().defaultLineHeight(for: font)
         let halfLeading = (lineHeight - (font.ascender - font.descender)) / 2
         return halfLeading + font.ascender - font.capHeight
@@ -341,6 +347,14 @@ enum WorkbenchControlMetrics {
     static let redesignWindowMinimumHeight: CGFloat = 560
     /// --duration-sidebar-motion: 0.18s
     static let redesignSidebarMotionDuration: Double = 0.18
+    /// --font-weight-tab: 600
+    static let redesignFontWeightTab: Font.Weight = .semibold
+    /// --width-tab-indicator: 24px
+    static let redesignTabIndicatorWidth: CGFloat = 24
+    /// --height-tab-indicator: 2px
+    static let redesignTabIndicatorHeight: CGFloat = 2
+    /// --easing-tab-motion: cubic-bezier(0.22, 1, 0.36, 1)
+    static let redesignTabMotionEasing = UnitBezier(x1: 0.22, y1: 1, x2: 0.36, y2: 1)
     /// --width-border-hairline: 1px
     static let redesignBorderHairlineWidth: CGFloat = 1
     /// --width-settings-sidebar: 184px
@@ -402,12 +416,11 @@ enum WorkbenchControlMetrics {
     static let redesignAppSidebarVerticalPadding: CGFloat = 12
     /// --padding-app-sidebar-item-x: 10px
     static let redesignAppSidebarItemHorizontalPadding: CGFloat = 10
-    /// Provisional --padding-app-topbar-content-x: 24px
-    static let redesignAppTopbarContentHorizontalPadding: CGFloat = 24
-    /// Trailing padding for App topbars: leading margin (24px) plus the Scrollbar channel (16px) = 40px,
-    /// so the rightmost button visually aligns with the content boundary below.
+    /// Trailing padding for App topbars: leading margin (`--spacing-6`: 24px)
+    /// plus the Scrollbar channel (16px) = 40px, so the rightmost button
+    /// visually aligns with the content boundary below.
     static let redesignAppTopbarContentTrailingPadding: CGFloat =
-        redesignAppTopbarContentHorizontalPadding + redesignWorkbenchPageScrollbarChannel
+        redesignSpacing6 + redesignWorkbenchPageScrollbarChannel
     /// --font-size-app-sidebar-item: 13px
     static let redesignFontSizeAppSidebarItem: CGFloat = 13
 

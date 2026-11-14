@@ -463,13 +463,15 @@ enum PlaybackOverlayMetrics {
     static let tabHorizontalPadding = WorkbenchControlMetrics.redesignSpacing2
     static let tabIndicatorGap = WorkbenchControlMetrics.redesignSpacing1
     static let tabFontSize = WorkbenchControlMetrics.redesignFontSizeBody
-    static let tabFontWeight: Font.Weight = .semibold
-    static let tabIndicatorWidth: CGFloat = 24
-    static let tabIndicatorHeight: CGFloat = 2
+    static let tabFontWeight = WorkbenchControlMetrics.redesignFontWeightTab
+    static let tabIndicatorWidth = WorkbenchControlMetrics.redesignTabIndicatorWidth
+    static let tabIndicatorHeight = WorkbenchControlMetrics.redesignTabIndicatorHeight
     static let tabSelectionMotionDuration = WorkbenchControlMetrics.redesignSidebarMotionDuration
 
     static var tabSelectionAnimation: Animation {
-        .timingCurve(0.22, 1, 0.36, 1, duration: tabSelectionMotionDuration)
+        WorkbenchControlMetrics.redesignTabMotionEasing.animation(
+            duration: tabSelectionMotionDuration
+        )
     }
 
     static func tabIndicatorFrame(for tabRect: CGRect) -> CGRect {
@@ -599,16 +601,16 @@ enum PlaybackChromeMetrics {
     static let chromeBottomPadding: CGFloat = 12
     static let progressTopPadding: CGFloat = 16
     static let progressTimeCapsuleHorizontalPadding: CGFloat = 8
-    static let topbarHorizontalPadding: CGFloat = 16
+    /// --padding-player-topbar-x: 16px
+    static let topbarHorizontalPadding = WorkbenchControlMetrics.redesignSpacing4
 
     /// --spacing-1: 4px
     static let controlsGap = WorkbenchControlMetrics.redesignSpacing1
     /// --spacing-3: 12px
     static let progressTimeGap = WorkbenchControlMetrics.redesignSpacing3
     static let windowControlsGap: CGFloat = 8
-    /// Provisional --gap-player-window-controls-return: after the window
-    /// controls to the return button, pending the owner's value.
-    static let windowControlsReturnGap = topbarHorizontalPadding
+    /// --gap-player-window-controls-return: 16px
+    static let windowControlsReturnGap = WorkbenchControlMetrics.redesignSpacing4
     static let speedMenuGap: CGFloat = 8
 
     /// Provisional --max-width-player-audio-track-menu: the widest the audio

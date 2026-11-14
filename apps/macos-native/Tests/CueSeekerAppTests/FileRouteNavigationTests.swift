@@ -94,57 +94,34 @@ struct FileRouteNavigationTests {
 
     @Test
     func fileBreadcrumbResolution() {
-        let singularTitle = "All Folder"
-        let pluralTitle = "All Folders"
+        let rootTitle = "All Folders"
 
-        // 1. Level 1 header title singular vs plural
-        #expect(
-            FileBreadcrumbResolver.allFoldersTitle(
-                folderCount: 1,
-                singularTitle: singularTitle,
-                pluralTitle: pluralTitle
-            ) == "All Folder"
-        )
-        #expect(
-            FileBreadcrumbResolver.allFoldersTitle(
-                folderCount: 2,
-                singularTitle: singularTitle,
-                pluralTitle: pluralTitle
-            ) == "All Folders"
-        )
-
-        // 2. Level 1: No breadcrumb nodes (header is rendered directly in Level 1)
+        // 1. Level 1: No breadcrumb nodes (header is rendered directly in Level 1)
         let level1Nodes = FileBreadcrumbResolver.nodes(
             for: .file,
-            folderCount: 1,
-            singularRootTitle: singularTitle,
-            pluralRootTitle: pluralTitle
+            rootTitle: rootTitle
         )
         #expect(level1Nodes.isEmpty)
 
-        // 3. Level 2 (1 folder total): All Folder > Anime
+        // 2. Level 2 (Local folder): All Folders > Anime
         let localRootPath = "/Volumes/Media/Anime"
         let level2SingleFolderNodes = FileBreadcrumbResolver.nodes(
             for: .fileFolder(rootPath: localRootPath),
-            folderCount: 1,
-            singularRootTitle: singularTitle,
-            pluralRootTitle: pluralTitle
+            rootTitle: rootTitle
         )
         #expect(level2SingleFolderNodes.count == 2)
         #expect(level2SingleFolderNodes[0].id == "all")
-        #expect(level2SingleFolderNodes[0].title == "All Folder")
+        #expect(level2SingleFolderNodes[0].title == "All Folders")
         #expect(level2SingleFolderNodes[0].destination == .file)
         #expect(level2SingleFolderNodes[1].id == "root")
         #expect(level2SingleFolderNodes[1].title == "Anime")
         #expect(level2SingleFolderNodes[1].destination == nil)
 
-        // 4. Level 2 (WebDAV with >1 folders total): All Folders > MyCloud
+        // 3. Level 2 (WebDAV): All Folders > MyCloud
         let webdavRootPath = "https://dav.example.com/dav/MyCloud"
         let level2WebDAVNodes = FileBreadcrumbResolver.nodes(
             for: .fileFolder(rootPath: webdavRootPath),
-            folderCount: 2,
-            singularRootTitle: singularTitle,
-            pluralRootTitle: pluralTitle
+            rootTitle: rootTitle
         )
         #expect(level2WebDAVNodes.count == 2)
         #expect(level2WebDAVNodes[0].id == "all")
@@ -154,13 +131,11 @@ struct FileRouteNavigationTests {
         #expect(level2WebDAVNodes[1].title == "MyCloud")
         #expect(level2WebDAVNodes[1].destination == nil)
 
-        // 5. Level 3 (>1 folders total): All Folders > Anime > SeriesA
+        // 4. Level 3: All Folders > Anime > SeriesA
         let folderPath = "/Volumes/Media/Anime/SeriesA"
         let level3Nodes = FileBreadcrumbResolver.nodes(
             for: .fileFiles(rootPath: localRootPath, folderPath: folderPath),
-            folderCount: 3,
-            singularRootTitle: singularTitle,
-            pluralRootTitle: pluralTitle
+            rootTitle: rootTitle
         )
         #expect(level3Nodes.count == 3)
         #expect(level3Nodes[0].id == "all")

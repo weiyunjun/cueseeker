@@ -10,7 +10,7 @@ struct WorkbenchDialogHeader: View {
         WorkbenchSelectableText(
             title,
             fontSize: WorkbenchControlMetrics.redesignDialogTitleFontSize,
-            weight: .semibold,
+            weight: WorkbenchControlMetrics.redesignFontWeightDialogTitle,
             color: WorkbenchRedesignColors.textPrimary,
             lineLimit: nil,
             alignment: .leading

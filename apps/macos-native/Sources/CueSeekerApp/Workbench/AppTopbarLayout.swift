@@ -376,11 +376,11 @@ struct AppTopbarLayout<
 
     private var rowLeadingInset: CGFloat {
         if isDockedSidebarVisible {
-            return WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding
+            return WorkbenchControlMetrics.redesignSpacing6
         }
 
         return max(
-            WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding,
+            WorkbenchControlMetrics.redesignSpacing6,
             sidebarToggleHandleX
                 + AppShellLayout.sidebarToggleSize
                 + WorkbenchControlMetrics.redesignAppTopbarContentAfterToggleGap
