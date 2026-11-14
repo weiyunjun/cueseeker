@@ -1118,6 +1118,7 @@
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-table-header`
+  - Line Height：`--line-height-table-cell`
   - Font Weight：Medium
   - Color：`--color-text-secondary`
   - Alignment：Vertical Center

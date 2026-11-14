@@ -170,6 +170,7 @@
 - Height：`--height-control`
 - Font Family：`--font-family-base`
 - Font Size：`--font-size-control`
+- Line Height：`--line-height-status-indicator`
 - Font Weight：`--font-weight-control`
 - Text Color：`--color-text-secondary`
 - Icon Size：`--size-control-icon`

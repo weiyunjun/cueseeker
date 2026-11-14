@@ -227,6 +227,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-control`: `14px`
 - `--font-weight-control`: `500`
 - `--line-height-detail-file-title`: `20px`
+- `--line-height-status-indicator`: `20px`
 - `--font-size-segmented-control`: `12px`
 - `--font-size-table`: `14px`
 - `--font-size-table-header`: `14px`
@@ -272,6 +273,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - `--width-interactive-text-underline`: `1px`
 - `--offset-interactive-text-underline`: `2px`
+
+下划线偏移自当前行字体的默认下划线位置起向下计算（同行混排时取最低默认下划线位置）。
 
 ## 1.3 尺寸
 
