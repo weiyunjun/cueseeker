@@ -167,6 +167,7 @@ struct TaskPanel: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
