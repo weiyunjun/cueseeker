@@ -68,7 +68,8 @@
 #### Sizes
 
 - Height：`--height-workbench-topbar`
-- Sidebar Toggle：在 `--height-app-topbar` 内垂直居中，与 Window Controls 同一中线
+- Sidebar Toggle：在 `--height-window-controls-band` 内垂直居中，与 Window Controls 同一中线
+- Function Region Leading Padding（Sidebar Docked）：`--spacing-6`
 - Function Region Gap：`--gap-app-topbar-content`
 - Back to Forward Gap：`--spacing-1`
 - Task to Settings Gap：`--spacing-1`
@@ -532,15 +533,15 @@
 
 1. Level 1: Root Folder Card List
    1. Status and Action Row：Action Buttons（`Add Folder`、`Index All`）、Status Indicator
-   2. All Folder(s) Header & Root Folder Card List（按数量显示 `All Folder` 或 `All Folders`，统一展示全部根目录卡片）
+   2. All Folders Header & Root Folder Card List（统一展示全部根目录卡片）
 2. Level 2: Subfolder & Direct File List
    1. Status and Action Row
-   2. Breadcrumb Navigation：`All Folder(s)` > `[Indexed Path]`
+   2. Breadcrumb Navigation：`All Folders` > `[Indexed Path]`
    3. Subfolder Card List（存在子文件夹时）
    4. Episode File Groups（根目录存在直属文件时，排列在子文件夹下方）
 3. Level 3: File Card List
    1. Status and Action Row
-   2. Breadcrumb Navigation：`All Folder(s)` > `[Indexed Path]` > `[Folder]`
+   2. Breadcrumb Navigation：`All Folders` > `[Indexed Path]` > `[Folder]`
    3. Episode File Groups
 
 #### Components
@@ -564,9 +565,9 @@
 - Status and Action Row、列表标题、面包屑、单集 `Display Title` 与各级容器/卡片均左边缘对齐。
 - Status and Action Row 在已存在根目录的 Level 1 及 Level 2、Level 3 第一行常驻展示，高 36px（`--height-control`），左对齐：从左到右依次为 `Add Folder` 按钮、`Index All` 按钮、状态指示器。
 - Level 1 无任何已入库根目录时隐藏 Status and Action Row（仅保留主窗口顶栏 `File`），居中展示 Empty State（图标 `folder-hint`，文案 `Add a folder containing video and subtitle files.`，按钮为 `folder-plus` 图标 + `Add Folder`）；处于正在索引或索引失败状态时，在按钮正下方 `--spacing-3` 处另起一行居中展示可点击的 Status Indicator（出现或消失不改变上方主体位置）。
-- 所有带列表层级的第一行（Status and Action Row）与第二行（Level 1 的 `All Folder(s)` 标题行、Level 2 与 Level 3 的面包屑行）在顶部固定冻结，纵向滚动时仅下方列表区域滚动。
-- Level 1 统一按添加顺序展示全部根文件夹卡片，顶部标题为 `All Folder`（根目录数量为 1 时）或 `All Folders`（根目录数量大于 1 时），样式为 14px Semibold `--color-text-primary`；Level 2 子文件夹按文件夹名称升序排列。
-- 面包屑节点（Level 2 与 Level 3 第二行）：以 `All Folder` / `All Folders` 为起点（点击返回 Level 1）；未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
+- 所有带列表层级的第一行（Status and Action Row）与第二行（Level 1 的 `All Folders` 标题行、Level 2 与 Level 3 的面包屑行）在顶部固定冻结，纵向滚动时仅下方列表区域滚动。
+- Level 1 统一按添加顺序展示全部根文件夹卡片，顶部标题固定为 `All Folders`，样式为 `--font-size-body`、`--font-weight-control`、`--color-text-primary`；Level 2 子文件夹按文件夹名称升序排列。
+- 面包屑节点（Level 2 与 Level 3 第二行）：以 `All Folders` 为起点（点击返回 Level 1），样式遵循 `C-05.6 Breadcrumb`。
 - Episode File Group（单集文件分组）：视频与字幕按单集 `Display Title` 合一展示为单张圆角卡片容器（视频在上，下方配对字幕按 Data 中的字幕顺序排列；背景 `--color-table-bg`、边框 `--color-border-control`、宽度 `--border-width-control`、圆角 `--radius-settings-group`、内边距 `0`，占满内容区宽度并裁剪圆角）。卡片顶部为标题栏（最小高度 `--height-control`，水平内边距 `--spacing-4`，背景 `--color-file-group-header-bg`），左对齐展示 `Display Title`（14px Medium `--color-text-muted`）；标题栏底部及下方各文件行之间均以与卡片容器等宽的 `--color-border-divider`（宽度 `--border-width-control`）分隔。
 - 二、三级空状态与失效态均在顶部固定栏下方的剩余区域居中展示 Empty State：Level 2 无内容时展示图标 `folder`；Level 3 子文件夹内容被清空或 Level 2 / Level 3 路径已不在索引中（`This page no longer exists.`）时展示图标 `folder-question`。异步加载期间展示居中 `Spinner`。
 - 移除根目录前弹出 Confirmation Dialog。
@@ -577,7 +578,7 @@
 - Status and Action Row to Breadcrumb / Content：`--spacing-4`
 - Breadcrumb to Content：`--spacing-3`
 - Subfolders to Direct Episode Groups Gap：`--spacing-6`
-- All Folder(s) Title to Card List：`--spacing-3`
+- All Folders Title to Card List：`--spacing-3`
 - Episode Group Gap：`--spacing-4`
 - Episode Header Bar Padding Inline：`--spacing-4`
 - Action Row Gap：`--spacing-4`
@@ -1208,7 +1209,7 @@
 
 1. Header
    1. Title：`Task`
-   2. Tabs：`Current`、`Completed`、`Incomplete`，默认水平居中（间距与避让截断规则同 Recent 顶栏）
+   2. Tabs：`Current`、`Completed`、`Incomplete`，与标题垂直居中、默认水平居中（间距与避让截断规则同 Recent 顶栏）
    3. Close Button
 2. Task Card List
 

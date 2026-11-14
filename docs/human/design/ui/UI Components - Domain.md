@@ -589,6 +589,11 @@
   - Outline：`--color-dialog-outline`，容器外侧 1 物理像素
   - Edge Highlight：`--color-dialog-edge-highlight`，容器内侧 `1px`
 - Header
+  - Title
+    - Font Family：`--font-family-base`
+    - Font Size：`--font-size-dialog-title`
+    - Font Weight：`--font-weight-dialog-title`
+    - Color：`--color-text-primary`
 - Content
 - Footer
 - Close Button

@@ -33,7 +33,7 @@
 - Height：`--height-app-topbar`
 - Task to Settings Gap：`--spacing-1`
 - Padding Inline：Leading `--padding-player-topbar-x`，Trailing `--padding-app-topbar-trailing`
-- Window Controls：与 App Topbar Layout 同一位置，起点 `--spacing-6`，在 45px 控制带内垂直居中
+- Window Controls：与 App Topbar Layout 同一位置，起点 `--spacing-6`，在 `--height-window-controls-band` 控制带内垂直居中
 - Return Action：与 Window Controls 同一水平中线
 - Return Action Gap：`--gap-player-window-controls-return`
 - Fullscreen：Window Controls 由系统标题栏显示，Return Action 起点改为 `--padding-player-topbar-x`

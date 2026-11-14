@@ -257,6 +257,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-section-title`: `18px`
 - `--font-size-page-title`: `20px`
 - `--font-weight-page-title`: `600`
+- `--font-size-dialog-title`: `20px`
+- `--font-weight-dialog-title`: `600`
+- `--font-weight-tab`: `600`
 - `--font-size-library-title`: `14px`
 - `--font-size-library-meta`: `12px`
 - `--font-size-library-time-badge`: `10px`
@@ -294,6 +297,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--height-app-sidebar-item`: `32px`
 - `--height-app-topbar`: `54px`
 - `--height-workbench-topbar`: `54px`
+- `--height-window-controls-band`: `45px`
+- `--height-tab-indicator`: `2px`
 - `--height-player-bottom-control-bar`: `90px`
 - `--height-player-bottom-controls-row`: `44px`
 - `--height-player-progress-hit-area`: `18px`
@@ -344,6 +349,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-page-scrollbar-channel`: `16px`
 - `--width-app-sidebar`: `240px`
 - `--size-app-sidebar-item-icon`: `23px`
+- `--width-tab-indicator`: `24px`
+- `--size-breadcrumb-separator`: `12px`
 - `--size-task-count-badge-compact`: `18px`
 - `--size-card-icon-container`: `36px`
 - `--size-card-chevron`: `16px`
@@ -572,6 +579,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--scale-collage-group-hover`: `1.02`
 - `--duration-collage-group-hover`: `0.12s`
 - `--duration-sidebar-motion`: `0.18s`
+- `--easing-tab-motion`: `cubic-bezier(0.22, 1, 0.36, 1)`
 - `--duration-player-volume-expand`: `0.18s`
 - `--delay-tooltip-hover`: `1s`
 - `--delay-tooltip-skip-window`: `0.3s`

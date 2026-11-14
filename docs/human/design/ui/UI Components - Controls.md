@@ -1001,12 +1001,12 @@
 ##### Sizes
 
 - Tab Gap：`--spacing-4`
-- Indicator Width：`24px`
-- Indicator Height：`2px`
+- Indicator Width：`--width-tab-indicator`
+- Indicator Height：`--height-tab-indicator`
 
 ##### States
 
-- Default：切换选项时，Selection Indicator 以 `--duration-sidebar-motion`（`0.18s`，`cubic-bezier(0.22, 1, 0.36, 1)`）水平滑动至目标选项正下方，Label Color 同步过渡；首次进入或窗口缩放不触发滑动动画
+- Default：切换选项时，Selection Indicator 以 `--duration-sidebar-motion` 与 `--easing-tab-motion` 水平滑动至目标选项正下方，Label Color 同步过渡；首次进入或窗口缩放不触发滑动动画
 - Disabled
 
 ### C-05.5 Tab
@@ -1018,7 +1018,7 @@
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-body`
-  - Font Weight：`600`（Selected 与 Unselected 保持一致，切换不改变字重）
+  - Font Weight：`--font-weight-tab`（Selected 与 Unselected 保持一致，切换不改变字重）
 - Leading Icon
   - Presence：Optional
 - Selection Indicator
@@ -1050,25 +1050,25 @@
   - Link Item（未激活上级节点）
   - Current Item（当前所在末级节点）
 - Separator
-  - Icon：`caret-right`（12px，线宽 1.15px）
+  - Icon：`caret-right`
+  - Size：`--size-breadcrumb-separator`
   - Color：`--color-text-muted`
 
 ##### Sizes
 
 - Item to Separator Gap：`--spacing-2`
 - Font Family：`--font-family-base`
-- Font Size：`--font-size-body`（14px）
+- Font Size：`--font-size-body`
 - Wrapping：所有节点单行展示，超出时尾部省略号
 
 ##### States
 
-- Link Item (Default)
-  - Font Weight：`--font-weight-control`（500 Medium）
+- Link Item
+  - Font Weight：`--font-weight-control`
   - Label Color：`--color-text-secondary`
-- Link Item (Hover)
-  - Label Color：`--color-text-primary`
+  - Hover：None
 - Current Item
-  - Font Weight：Semibold（600）
+  - Font Weight：`--font-weight-control`
   - Label Color：`--color-text-primary`
   - Interaction：不可点击，无 Hover 变化
 
