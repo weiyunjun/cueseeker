@@ -217,6 +217,7 @@ private struct PlaybackCueQueueGapStepper: View {
             "tooltip.player.auto_switch_gap.increase.disabled",
             SettingsStore.autoSwitchCueSequenceGapMaximumMilliseconds
         )
+        let gapText = "\(gapMilliseconds) ms"
 
         HStack(spacing: 0) {
             PlaybackCueQueueStepperIconButton(
@@ -232,7 +233,7 @@ private struct PlaybackCueQueueGapStepper: View {
                 label: canDecrease ? decreaseLabel : decreaseDisabledLabel
             )
 
-            Text("\(gapMilliseconds) ms")
+            Text(gapText)
                 .font(
                     .system(
                         size: PlaybackChromeMetrics.timeFontSize,
@@ -252,7 +253,7 @@ private struct PlaybackCueQueueGapStepper: View {
                 )
                 .allowsHitTesting(false)
                 .accessibilityLabel(L("settings.play.auto_switch_gap"))
-                .accessibilityValue("\(gapMilliseconds) ms")
+                .accessibilityValue(gapText)
 
             PlaybackCueQueueStepperIconButton(
                 icon: .plus,

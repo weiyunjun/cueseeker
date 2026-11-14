@@ -71,7 +71,7 @@ struct TaskCountBadge: View {
         let padding = isCompact
             ? metrics.redesignTaskCountBadgeCompactHorizontalPadding
             : metrics.redesignTaskCountBadgeHorizontalPadding
-        Text("\(count)")
+        Text(String(count))
             .font(.system(
                 size: isCompact ? metrics.redesignFontSizeCaption : metrics.redesignFontSizeTaskCountBadge,
                 weight: metrics.redesignFontWeightTaskCountBadge
