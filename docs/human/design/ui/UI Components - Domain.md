@@ -94,7 +94,7 @@
 - Font Size：`--font-size-library-time-badge`
 - Text Color：`--color-library-time-badge-text`
 - States
-  - Time
+  - Time：`MM:SS/MM:SS`（达 1 小时为 `HH:MM:SS`；未知总时长时仅显示已播放时间）
   - Count
   - Hidden
 
@@ -921,11 +921,12 @@
 ##### Anatomy
 
 - Current Time
+  - 格式：`MM:SS`（达 1 小时为 `HH:MM:SS`）
   - Font Design：Monospaced
   - Font Weight：`600`
   - Color：`--color-player-text-primary`
 - Remaining Time
-  - 带前导负号 `-`
+  - 格式：`-MM:SS`（达 1 小时为 `-HH:MM:SS`）
   - Font Design：Monospaced
   - Font Weight：`600`
   - Color：`--color-player-text-primary`
@@ -987,6 +988,7 @@
   - Background：`--color-player-menu-bg`
   - Radius：`--radius-field`
 - Time Label
+  - 格式：`MM:SS`（达 1 小时为 `HH:MM:SS`）
   - Font Size：`--font-size-player-progress-time`
   - Font Weight：`600`
   - Color：`--color-player-text-primary`

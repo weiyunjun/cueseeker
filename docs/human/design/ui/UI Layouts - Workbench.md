@@ -488,7 +488,7 @@
 - Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
 - Cover Summary 内容：
   - Supporting Content 第 1 行为视频与字幕数量（`xx videos  yy subtitles`，中间以 2 个英文空格分隔），第 2 行为文件夹路径（本地文件夹路径支持点击在 Finder 中打开，Hover 显示同色下划线与 Grab 指针）。
-  - Progress Label（仅 Resume 态显示）：`EPxx  mm:ss / mm:ss`（集数与时间戳之间以 2 个英文空格分隔，不显示百分比）。
+  - Progress Label（仅 Resume 态显示）：`EPxx  MM:SS / MM:SS`（达 1 小时为 `HH:MM:SS`；集数与时间戳之间以 2 个英文空格分隔，不显示百分比）。
   - Action Row：`Resume` / `Play`、`View in File`（图标 `folder`，点击跳转至 File 对应目录视图；若文件夹已不在媒体库中则拦截并弹出 Toast）、`More`（图标 `dots-three`，弹出菜单内容与 Library 一级界面文件夹卡片右键菜单一致）。
 
 #### Spacing
@@ -610,7 +610,7 @@
   - Mapping：本地文件夹为 `folder`，WebDAV 文件夹为 `folder-webdav`，SMB 文件夹为 `folder-smb`，FTP 文件夹为 `folder-ftp`，NFS 文件夹为 `folder-nfs`，视频为 `video`，字幕为 `subtitles`
 - Text Column：
   - Line 1：Title（`--font-size-body` / `--font-weight-control` / `--color-text-primary`）
-  - Line 2：Subtitle（`--font-size-caption` / Regular / `--color-text-muted`；WebDAV、SMB、FTP 与 NFS 路径解码为可读字符展示）
+  - Line 2：Subtitle（`--font-size-caption` / Regular / `--color-text-muted`）：文件夹卡片展示路径（WebDAV、SMB、FTP 与 NFS 路径解码为可读字符展示）；视频文件行依次展示 `<简化分辨率>  <视频编码>  <时长>  <文件大小>`（分辨率归为 `8K`、`4K`、`2K`、`1080P`、`720P`、`576P`、`480P`、`360P`、`240P`、`144P` 十档，编码采用 `HEVC`、`AVC` 等简写，时长为 `MM:SS` / `HH:MM:SS`；`File Info` 保持原始像素宽高与完整编码写法不变）；字幕文件行依次展示 `<原始台词数>  <有效台词数>  <文件大小>`；文件行相邻项以 2 个英文空格分隔，未就绪或缺失项直接省略
   - Line Gap：`--spacing-1`
   - Wrapping：所有文本完整展示，字符折行，不截断
 - Trailing Actions：
