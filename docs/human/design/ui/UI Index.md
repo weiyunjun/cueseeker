@@ -14,7 +14,7 @@
 
 | 文档名称 | 内容范围 |
 | --- | --- |
-| [`UI Design Rules.md`](UI%20Design%20Rules.md) | **全局视觉与度量约束**：按下态（Pressed）组件白名单、选中态组件白名单、Dialog 四边等距与 Cap 顶测量法则、Light/Dark 明暗表面海拔层级、页面/网格/滚动条槽位边距体系、封面加载防闪烁。 |
+| [`UI Design Rules.md`](UI%20Design%20Rules.md) | **全局视觉与度量约束**：按下态（Pressed）组件白名单、选中态组件白名单、Dialog 四边等距与 Cap 顶测量法则、Light/Dark 明暗表面海拔层级、页面/网格/滚动条槽位边距体系、封面加载防闪烁、连续阿拉伯数字格式。 |
 | [`UI Interaction Rules.md`](UI%20Interaction%20Rules.md) | **全局交互与输入规则**：界面层级与上层屏蔽、菜单模态、Hover 与选中更新条件、按下触发时机、焦点与 Tab、快捷键录入、尺寸过渡禁点、全屏行为、Player UI 与指针显隐、鼠标指针形状（Arrow/Grab/I-beam）优先级。 |
 | [`UI Text Selection Rules.md`](UI%20Text%20Selection%20Rules.md) | **全局文本选择与复制规则**：文本选择元素四分类与指针映射、四类选区作用域与层级屏蔽、跨区拖拽起选与边缘滚屏、剪贴板复制格式与截断还原、`Cmd + C` / `Cmd + A` 边界、全界面与弹窗可选范围速查。 |
 | [`UI Accessibility Rules.md`](UI%20Accessibility%20Rules.md) | **键盘与手柄无障碍规则**：屏蔽系统焦点环、外圈光圈规范、白名单组件遍历顺序、`Hover` / `Select` 联动与逐级退出规则。 |
