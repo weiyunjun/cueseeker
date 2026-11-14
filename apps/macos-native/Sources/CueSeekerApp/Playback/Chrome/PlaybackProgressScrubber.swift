@@ -1,4 +1,5 @@
 import CoreGraphics
+import CueSeekerCore
 import CueSeekerPlayback
 import SwiftUI
 
@@ -450,7 +451,12 @@ struct PlaybackProgressScrubber: View {
                             containerOriginXInWindow: scrubberOriginXInWindow,
                             windowWidth: windowWidth
                         ) {
-                            Text(formatPlaybackTime(tooltipTime))
+                            Text(
+                                MediaDetailFormatter.formattedDuration(
+                                    seconds: tooltipTime,
+                                    roundingRule: .down
+                                )
+                            )
                                 .font(.system(
                                     size: PlaybackChromeMetrics.progressTimeFontSize,
                                     weight: .semibold,
@@ -539,20 +545,6 @@ struct PlaybackProgressScrubber: View {
     private func seekTime(for xPosition: CGFloat, width: CGFloat, duration: Double) -> Double {
         let progress = Double(min(max(xPosition / max(width, 1), 0), 1))
         return progress * duration
-    }
-
-    private func formatPlaybackTime(_ seconds: Double) -> String {
-        let safeSeconds = seconds.isFinite ? max(0, seconds) : 0
-        let totalSeconds = Int(safeSeconds.rounded(.down))
-        let hours = totalSeconds / 3_600
-        let minutes = (totalSeconds % 3_600) / 60
-        let seconds = totalSeconds % 60
-
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        }
-
-        return String(format: "%02d:%02d", minutes, seconds)
     }
 }
 

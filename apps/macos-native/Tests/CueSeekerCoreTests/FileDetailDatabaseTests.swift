@@ -581,4 +581,100 @@ func testFileDetailPairedItemsOrderingAndFrozenSnapshot() throws {
     }
 }
 
+@Test
+func testMediaDetailFormatterShortResolutionTiersAndNilGuards() {
+    // Standard landscape, vertical portrait, widescreen letterbox, 4:3, and crop tolerance
+    #expect(MediaDetailFormatter.shortResolutionText(width: 7680, height: 4320) == "8K")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 3840, height: 2160) == "4K")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 3840, height: 1600) == "4K")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 2560, height: 1440) == "2K")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 2560, height: 1600) == "2K")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 3440, height: 1440) == "2K")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 1440, height: 2560) == "2K")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 1920, height: 1080) == "1080P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 2560, height: 1080) == "1080P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 1920, height: 800) == "1080P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 1916, height: 1076) == "1080P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 1440, height: 1080) == "1080P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 1080, height: 1920) == "1080P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 1280, height: 720) == "720P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 1024, height: 576) == "576P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 720, height: 576) == "576P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 607, height: 1080) == "576P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 854, height: 480) == "480P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 720, height: 480) == "480P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 640, height: 480) == "480P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 640, height: 360) == "360P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 426, height: 240) == "240P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 256, height: 144) == "144P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 176, height: 144) == "144P")
+    #expect(MediaDetailFormatter.shortResolutionText(width: 160, height: 120) == "144P")
+
+    #expect(MediaDetailFormatter.shortResolutionText(width: nil, height: 1080) == nil)
+    #expect(MediaDetailFormatter.shortResolutionText(width: 1920, height: nil) == nil)
+    #expect(MediaDetailFormatter.shortResolutionText(width: 0, height: 1080) == nil)
+    #expect(MediaDetailFormatter.shortResolutionText(width: 1920, height: -4) == nil)
+
+    // File Info exact dimension formatting stays unchanged
+    #expect(MediaDetailFormatter.resolutionText(width: 1920, height: 1080) == "1920 × 1080")
+    #expect(MediaDetailFormatter.resolutionText(width: nil, height: 1080) == "-")
+}
+
+@Test
+func testMediaDetailFormatterShortVideoCodecsAndFileInfoPreservation() {
+    let cases: [(raw: String, short: String)] = [
+        ("hevc", "HEVC"),
+        ("h265", "HEVC"),
+        ("h264", "AVC"),
+        ("avc", "AVC"),
+        ("av1", "AV1"),
+        ("vp9", "VP9"),
+        ("vp8", "VP8"),
+        ("vvc", "VVC"),
+        ("h266", "VVC"),
+        ("mpeg4", "MPEG-4"),
+        ("mpeg2video", "MPEG-2"),
+        ("mpeg1video", "MPEG-1"),
+        ("prores", "ProRes"),
+        ("wmv3", "WMV"),
+        ("vc1", "VC-1"),
+        ("theora", "Theora"),
+        ("rv40", "RealVideo"),
+        ("h263", "H.263"),
+        ("flv1", "FLV1"),
+        ("ffv1", "FFV1")
+    ]
+    for item in cases {
+        #expect(MediaDetailFormatter.shortVideoCodecText(item.raw) == item.short)
+    }
+    #expect(MediaDetailFormatter.shortVideoCodecText(nil) == nil)
+    #expect(MediaDetailFormatter.shortVideoCodecText("   ") == nil)
+
+    // File Info continues showing detailed codec names
+    #expect(MediaDetailFormatter.codecText("hevc") == "HEVC / H.265")
+    #expect(MediaDetailFormatter.codecText("h264") == "H.264 / AVC")
+    #expect(MediaDetailFormatter.codecText("flv1") == "Sorenson Spark (FLV1)")
+    #expect(MediaDetailFormatter.codecText(nil) == "-")
+}
+
+@Test
+func testMediaDetailFormatterUnifiedZeroPaddedDurations() {
+    #expect(MediaDetailFormatter.formattedDuration(seconds: 0) == "00:00")
+    #expect(MediaDetailFormatter.formattedDuration(seconds: 185) == "03:05")
+    #expect(MediaDetailFormatter.formattedDuration(seconds: 1422) == "23:42")
+    #expect(MediaDetailFormatter.formattedDuration(seconds: 3600) == "01:00:00")
+    #expect(MediaDetailFormatter.formattedDuration(seconds: 3930) == "01:05:30")
+    #expect(MediaDetailFormatter.formattedDuration(seconds: 185.9, roundingRule: .down) == "03:05")
+    #expect(MediaDetailFormatter.formattedDuration(seconds: 3930.8, roundingRule: .down) == "01:05:30")
+    #expect(MediaDetailFormatter.formattedDuration(seconds: -5) == "00:00")
+    #expect(MediaDetailFormatter.formattedDuration(seconds: Double.nan) == "00:00")
+
+    #expect(MediaDetailFormatter.shortDurationText(185.0) == "03:05")
+    #expect(MediaDetailFormatter.shortDurationText(3930.0) == "01:05:30")
+    #expect(MediaDetailFormatter.shortDurationText(0.0) == nil)
+    #expect(MediaDetailFormatter.shortDurationText(nil) == nil)
+    #expect(MediaDetailFormatter.durationText(185.0) == "03:05")
+    #expect(MediaDetailFormatter.durationText(nil) == "-")
+}
+
 

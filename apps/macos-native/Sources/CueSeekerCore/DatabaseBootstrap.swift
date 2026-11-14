@@ -20,7 +20,7 @@ public struct DatabaseBootstrapResult: Equatable, Sendable {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 67
+    public static let currentSchemaVersion = 68
 
     @discardableResult
     public static func prepare(at path: URL) throws -> DatabaseBootstrapResult {
@@ -89,6 +89,7 @@ extension DatabaseBootstrap {
                 || previousVersion == 64
                 || previousVersion == 65
                 || previousVersion == 66
+                || previousVersion == 67
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             AppLogger.shared.error(
@@ -248,6 +249,9 @@ extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 66 {
             try migrateSchema66To67(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 67 {
+            try migrateSchema67To68(on: database)
             return false
         }
         guard previousVersion == 0 else {
@@ -476,6 +480,9 @@ extension DatabaseBootstrap {
 
             CREATE INDEX IF NOT EXISTS idx_subtitle_cue_groups_file_time
                 ON subtitle_cue_groups(subtitle_file_id, start_ms, end_ms, id);
+
+            CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_subtitle_file
+                ON subtitle_cue_lines(subtitle_file_id);
 
             CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_group_order
                 ON subtitle_cue_lines(cue_group_id, display_order, event_index);

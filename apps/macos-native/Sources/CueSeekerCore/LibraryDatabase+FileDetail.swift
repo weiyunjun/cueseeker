@@ -434,22 +434,38 @@ public struct MediaDetailPropertyItem: Equatable, Sendable {
 }
 
 public enum MediaDetailFormatter {
-    private static let videoCodecMappings: [(tokens: [String], displayName: String)] = [
-        (["hevc", "h265", "h.265"], "HEVC / H.265"),
-        (["h264", "avc", "h.264"], "H.264 / AVC"),
-        (["av1"], "AV1"),
-        (["vp9"], "VP9"),
-        (["vp8"], "VP8"),
-        (["mpeg4"], "MPEG-4"),
-        (["mpeg2video", "mpeg2"], "MPEG-2"),
-        (["mpeg1video", "mpeg1"], "MPEG-1"),
-        (["prores"], "ProRes"),
-        (["wmv3", "wmv2", "wmv1"], "WMV"),
-        (["vc1"], "VC-1"),
-        (["theora"], "Theora"),
-        (["rv40", "rv30"], "RealVideo"),
-        (["h263", "h263p", "h263i", "h.263"], "H.263"),
-        (["flv1"], "Sorenson Spark (FLV1)")
+    private static let resolutionCropToleranceRatio = 0.05
+
+    private static let videoResolutionBenchmarks: [(label: String, width: Int, height: Int)] = [
+        ("8K", 7_680, 4_320),
+        ("4K", 3_840, 2_160),
+        ("2K", 2_560, 1_440),
+        ("1080P", 1_920, 1_080),
+        ("720P", 1_280, 720),
+        ("576P", 1_024, 576),
+        ("480P", 854, 480),
+        ("360P", 640, 360),
+        ("240P", 426, 240),
+        ("144P", 256, 144)
+    ]
+
+    private static let videoCodecMappings: [(tokens: [String], detailDisplayName: String, cardDisplayName: String)] = [
+        (["hevc", "h265", "h.265"], "HEVC / H.265", "HEVC"),
+        (["h264", "avc", "h.264"], "H.264 / AVC", "AVC"),
+        (["av1"], "AV1", "AV1"),
+        (["vp9"], "VP9", "VP9"),
+        (["vp8"], "VP8", "VP8"),
+        (["vvc", "h266", "h.266"], "VVC", "VVC"),
+        (["mpeg4"], "MPEG-4", "MPEG-4"),
+        (["mpeg2video", "mpeg2"], "MPEG-2", "MPEG-2"),
+        (["mpeg1video", "mpeg1"], "MPEG-1", "MPEG-1"),
+        (["prores"], "ProRes", "ProRes"),
+        (["wmv3", "wmv2", "wmv1"], "WMV", "WMV"),
+        (["vc1"], "VC-1", "VC-1"),
+        (["theora"], "Theora", "Theora"),
+        (["rv40", "rv30"], "RealVideo", "RealVideo"),
+        (["h263", "h263p", "h263i", "h.263"], "H.263", "H.263"),
+        (["flv1"], "Sorenson Spark (FLV1)", "FLV1")
     ]
 
     private static let audioCodecMappings: [(tokens: [String], displayName: String)] = [
@@ -526,21 +542,65 @@ public enum MediaDetailFormatter {
         return detailDateFormatter.string(from: date)
     }
 
-    public static func durationText(_ duration: Double?) -> String {
-        guard let duration, duration > 0 else { return "-" }
-        let totalSeconds = Int(duration.rounded())
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        let seconds = totalSeconds % 60
+    /// Formats a non-negative integer second count as zero-padded `MM:SS`
+    /// under one hour or `HH:MM:SS` at one hour and above.
+    public static func formattedDuration(seconds totalSeconds: Int) -> String {
+        let clamped = max(0, totalSeconds)
+        let hours = clamped / 3_600
+        let minutes = (clamped % 3_600) / 60
+        let seconds = clamped % 60
         if hours > 0 {
             return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
         }
         return String(format: "%02d:%02d", minutes, seconds)
     }
 
+    /// Formats a non-negative second count using the specified rounding rule
+    /// and zero-padded `MM:SS` / `HH:MM:SS` output.
+    public static func formattedDuration(
+        seconds: Double,
+        roundingRule: FloatingPointRoundingRule = .toNearestOrAwayFromZero
+    ) -> String {
+        let clamped = seconds.isFinite ? max(0, seconds) : 0
+        return formattedDuration(seconds: Int(clamped.rounded(roundingRule)))
+    }
+
+    public static func durationText(_ duration: Double?) -> String {
+        guard let duration, duration.isFinite, duration > 0 else { return "-" }
+        return formattedDuration(seconds: duration)
+    }
+
+    /// Returns a zero-padded duration string for file cards, or `nil` when missing.
+    public static func shortDurationText(_ duration: Double?) -> String? {
+        guard let duration, duration.isFinite, duration > 0 else { return nil }
+        return formattedDuration(seconds: duration)
+    }
+
     public static func resolutionText(width: Int?, height: Int?) -> String {
         guard let width, let height, width > 0, height > 0 else { return "-" }
         return "\(width) × \(height)"
+    }
+
+    /// Maps positive video dimensions onto 10 simplified resolution tiers derived
+    /// from standard benchmarks, a uniform crop tolerance ratio, and lower-tier short-edge floors.
+    public static func shortResolutionText(width: Int?, height: Int?) -> String? {
+        guard let width, let height, width > 0, height > 0 else { return nil }
+        let longSide = max(width, height)
+        let shortSide = min(width, height)
+        let minimumRetentionRatio = 1.0 - resolutionCropToleranceRatio
+        for index in videoResolutionBenchmarks.dropLast().indices {
+            let tier = videoResolutionBenchmarks[index]
+            let lowerTierShortEdge = videoResolutionBenchmarks[index + 1].height
+            let meetsShortEdgeThreshold =
+                Double(shortSide) >= Double(tier.height) * minimumRetentionRatio
+            let meetsLetterboxThreshold =
+                Double(longSide) >= Double(tier.width) * minimumRetentionRatio
+                && shortSide > lowerTierShortEdge
+            if meetsShortEdgeThreshold || meetsLetterboxThreshold {
+                return tier.label
+            }
+        }
+        return videoResolutionBenchmarks.last?.label
     }
 
     public static func frameRateText(_ fps: Double?) -> String {
@@ -564,16 +624,25 @@ public enum MediaDetailFormatter {
         return "\(roundedKbps) kbps"
     }
 
-    public static func codecText(_ codec: String?) -> String {
+    private static func resolvedVideoCodecName(_ codec: String?, forCard: Bool) -> String? {
         guard let trimmed = codec?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else {
-            return "-"
+            return nil
         }
         let lower = trimmed.lowercased()
         for mapping in videoCodecMappings where mapping.tokens.contains(where: { lower.contains($0) }) {
-            return mapping.displayName
+            return forCard ? mapping.cardDisplayName : mapping.detailDisplayName
         }
         return trimmed.uppercased()
+    }
+
+    public static func codecText(_ codec: String?) -> String {
+        resolvedVideoCodecName(codec, forCard: false) ?? "-"
+    }
+
+    /// Returns a concise video codec name for file cards, or `nil` when missing.
+    public static func shortVideoCodecText(_ codec: String?) -> String? {
+        resolvedVideoCodecName(codec, forCard: true)
     }
 
     public static func audioCodecText(_ codec: String?) -> String? {

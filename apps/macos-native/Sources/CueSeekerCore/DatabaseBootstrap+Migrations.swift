@@ -611,6 +611,24 @@ extension DatabaseBootstrap {
         }
     }
 
+    /// Schema 68 adds an index on `subtitle_cue_lines(subtitle_file_id)` so
+    /// File card valid cue counts aggregate directly by foreign key without
+    /// scanning the entire cue lines table.
+    static func migrateSchema67To68(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let lineColumns = try columnNames(of: "subtitle_cue_lines", in: database)
+            if lineColumns.contains("subtitle_file_id") {
+                try database.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_subtitle_file
+                        ON subtitle_cue_lines(subtitle_file_id);
+                    """
+                )
+            }
+            try database.execute("PRAGMA user_version = 68;")
+        }
+    }
+
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(

@@ -47,7 +47,11 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                         displayTitle: video.displayTitle,
                         videoPath: video.videoPath,
                         videoName: video.videoName,
-                        fileSize: videoLocations[video.videoFileID]?.fileSize ?? 0,
+                        fileSize: videoLocations[video.videoFileID]?.fileSize,
+                        videoWidth: videoLocations[video.videoFileID]?.videoWidth,
+                        videoHeight: videoLocations[video.videoFileID]?.videoHeight,
+                        videoCodec: videoLocations[video.videoFileID]?.videoCodec,
+                        duration: videoLocations[video.videoFileID]?.duration,
                         subtitles: []
                     )
                 }
@@ -160,7 +164,11 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                    lvr.display_title,
                    lvr.video_path,
                    lvr.video_name,
-                   COALESCE(vf.file_size, 0)
+                   vf.file_size,
+                   vf.video_width,
+                   vf.video_height,
+                   vf.video_codec,
+                   vf.duration
             FROM library_video_rows lvr
             JOIN video_files vf ON vf.id = lvr.video_file_id
             WHERE lvr.folder_path = ? OR lvr.folder_path = ?
@@ -182,14 +190,17 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             let displayTitle = statement.stringColumn(1)
             let videoPath = statement.stringColumn(2)
             let videoName = statement.stringColumn(3)
-            let fileSize = statement.int64Column(4)
 
             objects.append(IndexedContentObject(
                 id: videoFileID,
                 displayTitle: displayTitle,
                 videoPath: videoPath,
                 videoName: videoName,
-                fileSize: fileSize,
+                fileSize: statement.nullableInt64Column(4),
+                videoWidth: statement.nullableIntColumn(5),
+                videoHeight: statement.nullableIntColumn(6),
+                videoCodec: statement.nullableStringColumn(7),
+                duration: statement.nullableDoubleColumn(8),
                 subtitles: []
             ))
             videoIDs.append(videoFileID)
@@ -223,33 +234,25 @@ public final class IndexedContentDatabase: @unchecked Sendable {
     }
 
     private func loadVideoLocations(forRootID rootID: Int64? = nil) throws -> [Int64: VideoLocation] {
-        let sql: String
-        if let rootID {
-            sql = """
+        let fromClause = rootID == nil
+            ? "FROM search_paths sp JOIN video_files vf ON vf.library_id = sp.id"
+            : "FROM video_files vf"
+        let whereClause = rootID == nil ? "" : "WHERE vf.library_id = ?"
+        let sql = """
             SELECT vf.id,
                    vf.library_id,
                    vf.folder_id,
                    lf.relative_path,
-                   COALESCE(vf.file_size, 0)
-            FROM video_files vf
+                   vf.file_size,
+                   vf.video_width,
+                   vf.video_height,
+                   vf.video_codec,
+                   vf.duration
+            \(fromClause)
             JOIN library_folders lf
               ON lf.id = vf.folder_id
-            WHERE vf.library_id = ?;
+            \(whereClause);
             """
-        } else {
-            sql = """
-            SELECT vf.id,
-                   vf.library_id,
-                   vf.folder_id,
-                   lf.relative_path,
-                   COALESCE(vf.file_size, 0)
-            FROM search_paths sp
-            JOIN video_files vf
-              ON vf.library_id = sp.id
-            JOIN library_folders lf
-              ON lf.id = vf.folder_id;
-            """
-        }
         let statement = try database.prepare(sql)
         if let rootID {
             try statement.bind(rootID, at: 1)
@@ -261,7 +264,11 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                 rootID: statement.int64Column(1),
                 folderID: statement.int64Column(2),
                 relativePath: statement.stringColumn(3),
-                fileSize: statement.int64Column(4)
+                fileSize: statement.nullableInt64Column(4),
+                videoWidth: statement.nullableIntColumn(5),
+                videoHeight: statement.nullableIntColumn(6),
+                videoCodec: statement.nullableStringColumn(7),
+                duration: statement.nullableDoubleColumn(8)
             )
         }
         return locations
@@ -280,7 +287,8 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                    sf.id,
                    sf.subtitle_path,
                    sf.format,
-                   COALESCE(sf.file_size, 0)
+                   sf.file_size,
+                   sf.raw_cue_count
             FROM subtitle_video_matches match
             JOIN subtitle_files sf
               ON sf.id = match.subtitle_file_id
@@ -294,41 +302,11 @@ public final class IndexedContentDatabase: @unchecked Sendable {
         for (i, id) in videoIDs.enumerated() {
             try statement.bind(id, at: Int32(i + 1))
         }
-        var subtitlesByVideoID: [Int64: [(subtitle: IndexedContentSubtitle, format: SubtitleFormat)]] = [:]
-        while try statement.step() {
-            let videoID = statement.int64Column(0)
-            let subtitlePath = statement.stringColumn(2)
-            let format = SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt
-            subtitlesByVideoID[videoID, default: []].append((
-                subtitle: IndexedContentSubtitle(
-                    id: statement.int64Column(1),
-                    path: subtitlePath,
-                    name: URL.fromMediaPath(subtitlePath).lastPathComponent,
-                    fileSize: statement.int64Column(4)
-                ),
-                format: format
-            ))
-        }
-        for (videoID, subs) in subtitlesByVideoID {
+        let parsed = try readMatchedSubtitles(from: statement, filteringVideoID: { _ in true })
+        for (videoID, subs) in parsed {
             if let index = objectIndices[videoID] {
-                let videoPath = objects[index].videoPath
-                let sortedSubs = subs.sorted { lhs, rhs in
-                    VideoSubtitles.compareSubtitles(
-                        lhsSubtitlePath: lhs.subtitle.path,
-                        lhsFormat: lhs.format,
-                        rhsSubtitlePath: rhs.subtitle.path,
-                        rhsFormat: rhs.format,
-                        forVideoPath: videoPath
-                    )
-                }.map(\.subtitle)
-                objects[index] = IndexedContentObject(
-                    id: objects[index].id,
-                    displayTitle: objects[index].displayTitle,
-                    videoPath: videoPath,
-                    videoName: objects[index].videoName,
-                    fileSize: objects[index].fileSize,
-                    subtitles: sortedSubs
-                )
+                let sortedSubs = Self.sortedSubtitles(subs, forVideoPath: objects[index].videoPath)
+                objects[index] = objects[index].withSubtitles(sortedSubs)
             }
         }
     }
@@ -343,7 +321,8 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                    sf.id,
                    sf.subtitle_path,
                    sf.format,
-                   COALESCE(sf.file_size, 0)
+                   sf.file_size,
+                   sf.raw_cue_count
             FROM subtitle_video_matches match
             JOIN subtitle_files sf
               ON sf.id = match.subtitle_file_id
@@ -354,27 +333,12 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             """
         )
 
-        var subtitlesByVideoID: [Int64: [(subtitle: IndexedContentSubtitle, format: SubtitleFormat)]] = [:]
-        while try statement.step() {
-            let videoID = statement.int64Column(0)
-            guard objectLocations[videoID] != nil else {
-                continue
-            }
+        let parsed = try readMatchedSubtitles(
+            from: statement,
+            filteringVideoID: { objectLocations[$0] != nil }
+        )
 
-            let subtitlePath = statement.stringColumn(2)
-            let format = SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt
-            subtitlesByVideoID[videoID, default: []].append((
-                subtitle: IndexedContentSubtitle(
-                    id: statement.int64Column(1),
-                    path: subtitlePath,
-                    name: URL.fromMediaPath(subtitlePath).lastPathComponent,
-                    fileSize: statement.int64Column(4)
-                ),
-                format: format
-            ))
-        }
-
-        for (videoID, subs) in subtitlesByVideoID {
+        for (videoID, subs) in parsed {
             guard let objectLocation = objectLocations[videoID] else {
                 continue
             }
@@ -382,20 +346,102 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                 .folders[objectLocation.folderIndex]
                 .objects[objectLocation.objectIndex]
                 .videoPath
-            let sortedSubs = subs.sorted { lhs, rhs in
-                VideoSubtitles.compareSubtitles(
-                    lhsSubtitlePath: lhs.subtitle.path,
-                    lhsFormat: lhs.format,
-                    rhsSubtitlePath: rhs.subtitle.path,
-                    rhsFormat: rhs.format,
-                    forVideoPath: videoPath
-                )
-            }.map(\.subtitle)
+            let sortedSubs = Self.sortedSubtitles(subs, forVideoPath: videoPath)
             roots[objectLocation.rootIndex]
                 .folders[objectLocation.folderIndex]
                 .objects[objectLocation.objectIndex]
                 .subtitles = sortedSubs
         }
+    }
+
+    private func readMatchedSubtitles(
+        from statement: SQLiteStatement,
+        filteringVideoID: (Int64) -> Bool
+    ) throws -> [Int64: [(subtitle: IndexedContentSubtitle, format: SubtitleFormat)]] {
+        var subtitlesByVideoID: [Int64: [(subtitle: IndexedContentSubtitle, format: SubtitleFormat)]] = [:]
+        var subtitleIDs: [Int64] = []
+
+        while try statement.step() {
+            let videoID = statement.int64Column(0)
+            guard filteringVideoID(videoID) else {
+                continue
+            }
+
+            let subtitleID = statement.int64Column(1)
+            let subtitlePath = statement.stringColumn(2)
+            let format = SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt
+            subtitleIDs.append(subtitleID)
+            subtitlesByVideoID[videoID, default: []].append((
+                subtitle: IndexedContentSubtitle(
+                    id: subtitleID,
+                    path: subtitlePath,
+                    name: URL.fromMediaPath(subtitlePath).lastPathComponent,
+                    fileSize: statement.nullableInt64Column(4),
+                    rawCueCount: statement.nullableIntColumn(5)
+                ),
+                format: format
+            ))
+        }
+
+        let validCueCounts = try loadValidCueCounts(for: subtitleIDs)
+        for videoID in subtitlesByVideoID.keys {
+            subtitlesByVideoID[videoID] = subtitlesByVideoID[videoID]?.map { entry in
+                (
+                    subtitle: entry.subtitle.withValidCueCount(validCueCounts[entry.subtitle.id] ?? 0),
+                    format: entry.format
+                )
+            }
+        }
+        return subtitlesByVideoID
+    }
+
+    /// Queries valid cue counts directly from `subtitle_cue_lines` using the
+    /// `subtitle_file_id` foreign-key index without joining intermediate group tables.
+    private func loadValidCueCounts(for subtitleIDs: [Int64]) throws -> [Int64: Int] {
+        let uniqueIDs = Array(Set(subtitleIDs)).sorted()
+        guard !uniqueIDs.isEmpty else { return [:] }
+
+        let batchSize = 500
+        var counts: [Int64: Int] = [:]
+        var startIndex = 0
+        while startIndex < uniqueIDs.count {
+            let endIndex = min(startIndex + batchSize, uniqueIDs.count)
+            let batch = Array(uniqueIDs[startIndex..<endIndex])
+            let placeholders = Array(repeating: "?", count: batch.count).joined(separator: ", ")
+            let statement = try database.prepare(
+                """
+                SELECT subtitle_file_id, COUNT(*)
+                FROM subtitle_cue_lines
+                WHERE subtitle_file_id IN (\(placeholders))
+                GROUP BY subtitle_file_id;
+                """
+            )
+            for (offset, subtitleID) in batch.enumerated() {
+                try statement.bind(subtitleID, at: Int32(offset + 1))
+            }
+            while try statement.step() {
+                if let subtitleID = statement.nullableInt64Column(0) {
+                    counts[subtitleID] = statement.intColumn(1)
+                }
+            }
+            startIndex = endIndex
+        }
+        return counts
+    }
+
+    private static func sortedSubtitles(
+        _ subtitles: [(subtitle: IndexedContentSubtitle, format: SubtitleFormat)],
+        forVideoPath videoPath: String
+    ) -> [IndexedContentSubtitle] {
+        subtitles.sorted { lhs, rhs in
+            VideoSubtitles.compareSubtitles(
+                lhsSubtitlePath: lhs.subtitle.path,
+                lhsFormat: lhs.format,
+                rhsSubtitlePath: rhs.subtitle.path,
+                rhsFormat: rhs.format,
+                forVideoPath: videoPath
+            )
+        }.map(\.subtitle)
     }
 }
 
@@ -434,7 +480,11 @@ private struct ObjectBuilder {
     let displayTitle: String
     let videoPath: String
     let videoName: String
-    let fileSize: Int64
+    let fileSize: Int64?
+    let videoWidth: Int?
+    let videoHeight: Int?
+    let videoCodec: String?
+    let duration: Double?
     var subtitles: [IndexedContentSubtitle]
 
     var snapshot: IndexedContentObject {
@@ -444,6 +494,10 @@ private struct ObjectBuilder {
             videoPath: videoPath,
             videoName: videoName,
             fileSize: fileSize,
+            videoWidth: videoWidth,
+            videoHeight: videoHeight,
+            videoCodec: videoCodec,
+            duration: duration,
             subtitles: subtitles
         )
     }
@@ -453,7 +507,11 @@ private struct VideoLocation {
     let rootID: Int64
     let folderID: Int64
     let relativePath: String
-    let fileSize: Int64
+    let fileSize: Int64?
+    let videoWidth: Int?
+    let videoHeight: Int?
+    let videoCodec: String?
+    let duration: Double?
 }
 
 private struct ObjectLocation {

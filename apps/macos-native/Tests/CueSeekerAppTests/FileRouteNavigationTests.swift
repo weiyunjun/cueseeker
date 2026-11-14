@@ -624,5 +624,123 @@ struct FileRouteNavigationTests {
         coordinator.unregisterFileCardAction(id: "folder-1", ownerToken: secondOwner)
         #expect(coordinator.activateFileCardAction(id: "folder-1") == false)
     }
+
+    @Test
+    func fileCardSubtitleFormatterFormatsRichMetadataAndOmitsNullsPreservingZerosAcrossLanguages() {
+        defer { AppLocalization.apply(.english) }
+        AppLocalization.apply(.english)
+
+        let completeVideo = IndexedContentObject(
+            id: 1,
+            displayTitle: "Show - 01",
+            videoPath: "/Media/Show/EP01.mkv",
+            videoName: "EP01.mkv",
+            fileSize: 831_650_000,
+            videoWidth: 1920,
+            videoHeight: 1080,
+            videoCodec: "hevc",
+            duration: 1422.0
+        )
+        #expect(
+            FileCardSubtitleFormatter.videoSubtitle(for: completeVideo)
+                == "1080P  HEVC  23:42  831.65 MB"
+        )
+
+        let partialNullVideo = IndexedContentObject(
+            id: 2,
+            displayTitle: "Show - 02",
+            videoPath: "/Media/Show/EP02.mkv",
+            videoName: "EP02.mkv",
+            fileSize: nil,
+            videoWidth: nil,
+            videoHeight: nil,
+            videoCodec: nil,
+            duration: 185.0
+        )
+        #expect(FileCardSubtitleFormatter.videoSubtitle(for: partialNullVideo) == "03:05")
+
+        let zeroByteVideo = IndexedContentObject(
+            id: 3,
+            displayTitle: "Show - 03",
+            videoPath: "/Media/Show/EP03.mkv",
+            videoName: "EP03.mkv",
+            fileSize: 0,
+            videoWidth: 3840,
+            videoHeight: 1600,
+            videoCodec: "h264",
+            duration: 3930.0
+        )
+        #expect(
+            FileCardSubtitleFormatter.videoSubtitle(for: zeroByteVideo)
+                == "4K  AVC  01:05:30  0 B"
+        )
+
+        let completeSubtitle = IndexedContentSubtitle(
+            id: 10,
+            path: "/Media/Show/EP01.ass",
+            name: "EP01.ass",
+            fileSize: 128_400,
+            rawCueCount: 523,
+            validCueCount: 500
+        )
+        #expect(
+            FileCardSubtitleFormatter.subtitleSubtitle(for: completeSubtitle)
+                == "523 raw cues  500 valid cues  128.40 KB"
+        )
+
+        let singularSubtitle = IndexedContentSubtitle(
+            id: 11,
+            path: "/Media/Show/EP02.srt",
+            name: "EP02.srt",
+            fileSize: 0,
+            rawCueCount: 1,
+            validCueCount: 1
+        )
+        #expect(
+            FileCardSubtitleFormatter.subtitleSubtitle(for: singularSubtitle)
+                == "1 raw cue  1 valid cue  0 B"
+        )
+
+        let zeroAndNullSubtitle = IndexedContentSubtitle(
+            id: 12,
+            path: "/Media/Show/EP03.srt",
+            name: "EP03.srt",
+            fileSize: nil,
+            rawCueCount: nil,
+            validCueCount: 0
+        )
+        #expect(
+            FileCardSubtitleFormatter.subtitleSubtitle(for: zeroAndNullSubtitle)
+                == "0 valid cues"
+        )
+
+        AppLocalization.apply(.simplifiedChinese)
+        #expect(
+            FileCardSubtitleFormatter.subtitleSubtitle(for: completeSubtitle)
+                == "523 条原始台词  500 条有效台词  128.40 KB"
+        )
+        #expect(
+            FileCardSubtitleFormatter.subtitleSubtitle(for: singularSubtitle)
+                == "1 条原始台词  1 条有效台词  0 B"
+        )
+        #expect(
+            FileCardSubtitleFormatter.subtitleSubtitle(for: zeroAndNullSubtitle)
+                == "0 条有效台词"
+        )
+
+        AppLocalization.apply(.traditionalChinese)
+        #expect(
+            FileCardSubtitleFormatter.subtitleSubtitle(for: completeSubtitle)
+                == "523 條原始台詞  500 條有效台詞  128.40 KB"
+        )
+        #expect(
+            FileCardSubtitleFormatter.subtitleSubtitle(for: singularSubtitle)
+                == "1 條原始台詞  1 條有效台詞  0 B"
+        )
+        #expect(
+            FileCardSubtitleFormatter.subtitleSubtitle(for: zeroAndNullSubtitle)
+                == "0 條有效台詞"
+        )
+    }
 }
 

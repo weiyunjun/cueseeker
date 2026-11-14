@@ -351,6 +351,10 @@
 "file.description" = "A subtitle file is paired with the video that shares its file name. Videos and subtitles in the same folder form one group, named after that folder; subfolders are not included.";
 "file.empty_folder_items" = "No items in this folder are in the library.";
 "file.direct_content_suffix" = " (Direct Content)";
+"file.card.raw_cue_count.one" = "1 raw cue";
+"file.card.raw_cue_count.other" = "%d raw cues";
+"file.card.valid_cue_count.one" = "1 valid cue";
+"file.card.valid_cue_count.other" = "%d valid cues";
 
 /* Settings: Library */
 "settings.library.description" = "Manage subtitle folders used for indexing and search.";

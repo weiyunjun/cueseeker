@@ -277,3 +277,119 @@ func indexedContentDatabaseSortsSubfoldersNaturallyAndSubtitlesByVideoSubtitlePr
     ])
 }
 
+@Test
+func indexedContentDatabasePreservesNullVsZeroAndLoadsRichCardMetadata() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        INSERT INTO search_paths(id, path, created_at, updated_at)
+        VALUES (1, '/Volumes/Alpha', 'created', 'updated');
+
+        INSERT INTO library_folders(id, library_id, relative_path)
+        VALUES (10, 1, 'Show');
+
+        INSERT INTO video_files(
+            id, library_id, folder_id, relative_path, path, video_name,
+            file_size, video_width, video_height, video_codec, duration
+        ) VALUES
+            (100, 1, 10, 'Show/Ep1.mkv', '/Volumes/Alpha/Show/Ep1.mkv', 'Ep1.mkv',
+                831650000, 1920, 1080, 'hevc', 1422.0),
+            (101, 1, 10, 'Show/Ep2.mkv', '/Volumes/Alpha/Show/Ep2.mkv', 'Ep2.mkv',
+                NULL, NULL, NULL, NULL, NULL),
+            (102, 1, 10, 'Show/Ep3.mkv', '/Volumes/Alpha/Show/Ep3.mkv', 'Ep3.mkv',
+                0, 1280, 720, 'h264', 185.0);
+
+        INSERT INTO subtitle_files(
+            id, library_id, folder_id, relative_path, subtitle_path,
+            format, file_size, raw_cue_count, indexed_at
+        ) VALUES
+            (200, 1, 10, 'Show/Ep1.ass', '/Volumes/Alpha/Show/Ep1.ass',
+                'ass', 128400, 523, 'indexed'),
+            (201, 1, 10, 'Show/Ep2.srt', '/Volumes/Alpha/Show/Ep2.srt',
+                'srt', NULL, NULL, 'indexed'),
+            (202, 1, 10, 'Show/Ep3.srt', '/Volumes/Alpha/Show/Ep3.srt',
+                'srt', 0, 0, 'indexed');
+
+        INSERT INTO subtitle_video_matches(
+            subtitle_file_id, video_file_id, match_method, confidence, is_active
+        ) VALUES
+            (200, 100, 'test', 1, 1),
+            (201, 101, 'test', 1, 1),
+            (202, 102, 'test', 1, 1);
+
+        INSERT INTO subtitle_cue_groups(
+            id, subtitle_file_id, subtitle_path, seq, start_time, end_time, start_ms, end_ms, search_content
+        ) VALUES
+            (300, 200, '/Volumes/Alpha/Show/Ep1.ass', 1, '0:00:01.00', '0:00:02.00', 1000, 2000, 'a'),
+            (301, 200, '/Volumes/Alpha/Show/Ep1.ass', 2, '0:00:03.00', '0:00:04.00', 3000, 4000, 'b');
+
+        INSERT INTO subtitle_cue_lines(
+            id, subtitle_file_id, cue_group_id, fts_rowid, language_mask, event_index,
+            source_format, start_time, end_time, start_ms, end_ms, content, display_order
+        ) VALUES
+            (400, 200, 300, 1, 1, 0, 'ass', '0:00:01.00', '0:00:02.00', 1000, 2000, 'a', 0),
+            (401, 200, 301, 2, 1, 1, 'ass', '0:00:03.00', '0:00:04.00', 3000, 4000, 'b', 0),
+            (402, 200, 301, 2, 1, 2, 'ass', '0:00:03.00', '0:00:04.00', 3000, 4000, 'c', 1);
+
+        INSERT INTO library_video_rows(
+            video_path, video_file_id, subtitle_file_id, video_name, duration,
+            subtitle_path, subtitle_format, folder_path, folder_title,
+            display_title, file_extension, folder_order, video_order, updated_at
+        ) VALUES
+            ('/Volumes/Alpha/Show/Ep1.mkv', 100, 200, 'Ep1.mkv', 1422.0,
+                '/Volumes/Alpha/Show/Ep1.ass', 'ass', '/Volumes/Alpha/Show', 'Show',
+                'Show - 01', 'mkv', 0, 0, 'updated'),
+            ('/Volumes/Alpha/Show/Ep2.mkv', 101, 201, 'Ep2.mkv', NULL,
+                '/Volumes/Alpha/Show/Ep2.srt', 'srt', '/Volumes/Alpha/Show', 'Show',
+                'Show - 02', 'mkv', 0, 1, 'updated'),
+            ('/Volumes/Alpha/Show/Ep3.mkv', 102, 202, 'Ep3.mkv', 185.0,
+                '/Volumes/Alpha/Show/Ep3.srt', 'srt', '/Volumes/Alpha/Show', 'Show',
+                'Show - 03', 'mkv', 0, 2, 'updated');
+        """
+    )
+
+    let indexedDatabase = try IndexedContentDatabase(path: databaseURL)
+    let folderObjects = try indexedDatabase.objects(in: "/Volumes/Alpha/Show")
+    let treeObjects = try indexedDatabase.contentTree()[0].folders[0].objects
+
+    for objects in [folderObjects, treeObjects] {
+        #expect(objects.count == 3)
+
+        // Full metadata video + subtitle
+        #expect(objects[0].fileSize == 831_650_000)
+        #expect(objects[0].videoWidth == 1920)
+        #expect(objects[0].videoHeight == 1080)
+        #expect(objects[0].videoCodec == "hevc")
+        #expect(objects[0].duration == 1422.0)
+        #expect(objects[0].subtitles[0].fileSize == 128_400)
+        #expect(objects[0].subtitles[0].rawCueCount == 523)
+        #expect(objects[0].subtitles[0].validCueCount == 3)
+
+        // NULL metadata must stay nil (never coerced to 0)
+        #expect(objects[1].fileSize == nil)
+        #expect(objects[1].videoWidth == nil)
+        #expect(objects[1].videoHeight == nil)
+        #expect(objects[1].videoCodec == nil)
+        #expect(objects[1].duration == nil)
+        #expect(objects[1].subtitles[0].fileSize == nil)
+        #expect(objects[1].subtitles[0].rawCueCount == nil)
+        #expect(objects[1].subtitles[0].validCueCount == 0)
+
+        // Authentic zero byte size & zero cue counts must remain 0 (not nil)
+        #expect(objects[2].fileSize == 0)
+        #expect(objects[2].videoWidth == 1280)
+        #expect(objects[2].videoHeight == 720)
+        #expect(objects[2].videoCodec == "h264")
+        #expect(objects[2].duration == 185.0)
+        #expect(objects[2].subtitles[0].fileSize == 0)
+        #expect(objects[2].subtitles[0].rawCueCount == 0)
+        #expect(objects[2].subtitles[0].validCueCount == 0)
+    }
+}
+

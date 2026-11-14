@@ -1,4 +1,5 @@
 import AppKit
+import CueSeekerCore
 import SwiftUI
 
 @MainActor
@@ -375,7 +376,7 @@ private struct PlaybackProgressScrubberRow: View {
 
     var body: some View {
         HStack(spacing: PlaybackChromeMetrics.progressTimeGap) {
-            Text(formatPlaybackSeconds(displayedCurrentSeconds))
+            Text(MediaDetailFormatter.formattedDuration(seconds: displayedCurrentSeconds))
                 .font(.system(
                     size: PlaybackChromeMetrics.timeFontSize,
                     weight: .semibold,
@@ -391,7 +392,7 @@ private struct PlaybackProgressScrubberRow: View {
                 windowWidth: windowWidth
             )
 
-            Text("-\(formatPlaybackSeconds(displayedRemainingSeconds))")
+            Text("-\(MediaDetailFormatter.formattedDuration(seconds: displayedRemainingSeconds))")
                 .font(.system(
                     size: PlaybackChromeMetrics.timeFontSize,
                     weight: .semibold,
@@ -460,19 +461,6 @@ private struct PlaybackSpeedChromeButton: View {
             alignment: .center
         )
     }
-}
-
-private func formatPlaybackSeconds(_ totalSeconds: Int) -> String {
-    let clampedSeconds = max(0, totalSeconds)
-    let hours = clampedSeconds / 3_600
-    let minutes = (clampedSeconds % 3_600) / 60
-    let seconds = clampedSeconds % 60
-
-    if hours > 0 {
-        return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-    }
-
-    return String(format: "%02d:%02d", minutes, seconds)
 }
 
 private struct PlaybackSpeedChromeButtonStyle: ButtonStyle {

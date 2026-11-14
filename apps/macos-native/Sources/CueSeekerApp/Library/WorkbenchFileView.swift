@@ -817,7 +817,7 @@ struct WorkbenchFileView: View {
                             cardID: object.videoPath,
                             icon: .video,
                             title: object.videoName,
-                            subtitle: FileSizeFormatter.format(bytes: object.fileSize),
+                            subtitle: FileCardSubtitleFormatter.videoSubtitle(for: object),
                             showsChevron: false,
                             showsCardChrome: false,
                             isCardFocused: false,
@@ -867,7 +867,7 @@ struct WorkbenchFileView: View {
                             cardID: subtitle.path,
                             icon: .subtitles,
                             title: subtitle.name,
-                            subtitle: FileSizeFormatter.format(bytes: subtitle.fileSize),
+                            subtitle: FileCardSubtitleFormatter.subtitleSubtitle(for: subtitle),
                             showsChevron: false,
                             showsCardChrome: false,
                             isCardFocused: false,
@@ -1542,6 +1542,60 @@ enum FileStatusResolver {
         } else {
             return .idle(L("file.status.last_updated_never"))
         }
+    }
+}
+
+/// Formats line 2 subtitles for `File` page video and subtitle cards without
+/// altering underlying static text layout or line-breaking behavior.
+enum FileCardSubtitleFormatter {
+    static let fieldSeparator = "  "
+
+    static func videoSubtitle(for object: IndexedContentObject) -> String {
+        let sizeText = object.fileSize.map { FileSizeFormatter.format(bytes: $0) }
+        return [
+            MediaDetailFormatter.shortResolutionText(
+                width: object.videoWidth,
+                height: object.videoHeight
+            ),
+            MediaDetailFormatter.shortVideoCodecText(object.videoCodec),
+            MediaDetailFormatter.shortDurationText(object.duration),
+            sizeText
+        ]
+        .compactMap { $0 }
+        .joined(separator: fieldSeparator)
+    }
+
+    static func subtitleSubtitle(for subtitle: IndexedContentSubtitle) -> String {
+        let rawText = subtitle.rawCueCount.map {
+            cueCountText(
+                $0,
+                oneKey: "file.card.raw_cue_count.one",
+                otherKey: "file.card.raw_cue_count.other"
+            )
+        }
+        let validText = subtitle.validCueCount.map {
+            cueCountText(
+                $0,
+                oneKey: "file.card.valid_cue_count.one",
+                otherKey: "file.card.valid_cue_count.other"
+            )
+        }
+        let sizeText = subtitle.fileSize.map { FileSizeFormatter.format(bytes: $0) }
+        return [rawText, validText, sizeText]
+            .compactMap { $0 }
+            .joined(separator: fieldSeparator)
+    }
+
+    private static func cueCountText(
+        _ count: Int,
+        oneKey: String,
+        otherKey: String
+    ) -> String {
+        let clamped = max(0, count)
+        if clamped == 1 {
+            return L(oneKey)
+        }
+        return L(otherKey, clamped)
     }
 }
 

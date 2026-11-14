@@ -198,6 +198,140 @@ struct WorkbenchInvalidationTests {
             #expect(librarySession.isReadyForPresentation)
         }
     }
+
+    @MainActor
+    @Test
+    func backgroundAuxiliaryVideoMetadataMutationInvalidatesAndRefreshesFileTreeCache() async throws {
+        try await withWorkbenchInvalidationTestApp { app in
+            let rootURL = URL(fileURLWithPath: "/Media")
+            let folderPath = "/Media/Show"
+            let videoPath = "/Media/Show/EP01.mkv"
+            let subtitlePath = "/Media/Show/EP01.ass"
+            let databaseURL = app.databaseURL
+
+            try SQLiteDatabase(path: databaseURL).execute(
+                """
+                INSERT INTO search_paths(id, type, path, created_at, updated_at)
+                VALUES (1, 'local', '/Media', '2026-11-14T00:00:00Z', '2026-11-14T00:00:00Z');
+
+                INSERT INTO library_root_folders(path, created_at, updated_at)
+                VALUES ('/Media', '2026-11-14T00:00:00Z', '2026-11-14T00:00:00Z');
+
+                INSERT INTO library_folders(id, library_id, relative_path)
+                VALUES (10, 1, 'Show');
+
+                INSERT INTO video_files(
+                    id, library_id, folder_id, relative_path, path, video_name, file_size
+                ) VALUES (
+                    100, 1, 10, 'Show/EP01.mkv', '\(videoPath)', 'EP01.mkv', 831650000
+                );
+
+                INSERT INTO subtitle_files(
+                    id, library_id, folder_id, relative_path, subtitle_path,
+                    format, file_size, raw_cue_count, indexed_at
+                ) VALUES (
+                    200, 1, 10, 'Show/EP01.ass', '\(subtitlePath)',
+                    'ass', 128400, 12, '2026-11-14T00:00:00Z'
+                );
+
+                INSERT INTO subtitle_video_matches(
+                    subtitle_file_id, video_file_id, match_method, confidence, is_active
+                ) VALUES (200, 100, 'same-directory-basename', 1.0, 1);
+
+                INSERT INTO library_video_rows(
+                    video_path, video_file_id, subtitle_file_id, video_name, duration,
+                    subtitle_path, subtitle_format, folder_path, folder_title,
+                    display_title, file_extension, folder_order, video_order, updated_at
+                ) VALUES (
+                    '\(videoPath)', 100, 200, 'EP01.mkv', NULL,
+                    '\(subtitlePath)', 'ass', '\(folderPath)', 'Show',
+                    'Show - 01', 'mkv', 0, 0, '2026-11-14T00:00:00Z'
+                );
+                """
+            )
+            app.indexing.selectedFolders = [rootURL]
+
+            // Populate File page cache before video metadata enrichment runs
+            app.loadFileObjects(folderPath: folderPath)
+            let initialObjects = app.library.fileObjects(for: folderPath)
+            #expect(initialObjects.count == 1)
+            #expect(initialObjects[0].videoWidth == nil)
+            #expect(initialObjects[0].videoCodec == nil)
+            #expect(initialObjects[0].duration == nil)
+            #expect(FileCardSubtitleFormatter.videoSubtitle(for: initialObjects[0]) == "831.65 MB")
+
+            // Backfill video metadata in SQLite as background indexing does
+            let libraryDB = try LibraryDatabase(path: databaseURL)
+            try libraryDB.updateVideoMetadata(
+                videoFile: URL(fileURLWithPath: videoPath),
+                duration: 1422.0,
+                videoWidth: 1920,
+                videoHeight: 1080,
+                frameRate: 23.976,
+                videoCodec: "hevc",
+                videoBitDepth: 10,
+                videoPixelFormat: "yuv420p10le",
+                containerFormat: "matroska",
+                audioTracks: []
+            )
+
+            // Non-File route: finishing auxiliary-only index run must immediately invalidate cache
+            let revisionBefore = app.library.fileTreeRevision
+            app.navigateWorkbench(to: .library)
+            app.finishIndexRun(
+                SubtitleIndexingResult(),
+                folders: [rootURL],
+                auxiliaryFailures: [],
+                refreshedAuxiliaryData: true,
+                status: .completed(rootURL, SubtitleIndexingResult())
+            )
+            #expect(app.library.fileObjectsByFolderPath[folderPath] == nil)
+            #expect(app.library.fileTreeRevision == revisionBefore + 1)
+
+            // Reloading File objects reflects the enriched video metadata
+            app.loadFileObjects(folderPath: folderPath)
+            let refreshedObjects = app.library.fileObjects(for: folderPath)
+            #expect(refreshedObjects.count == 1)
+            #expect(
+                FileCardSubtitleFormatter.videoSubtitle(for: refreshedObjects[0])
+                    == "1080P  HEVC  23:42  831.65 MB"
+            )
+
+            // Active Level 3 File route defers until reappearance and then reloads fresh metadata
+            try libraryDB.updateVideoMetadata(
+                videoFile: URL(fileURLWithPath: videoPath),
+                duration: 3930.0,
+                videoWidth: 3840,
+                videoHeight: 2160,
+                frameRate: 24.0,
+                videoCodec: "av1",
+                videoBitDepth: 10,
+                videoPixelFormat: "yuv420p10le",
+                containerFormat: "matroska",
+                audioTracks: []
+            )
+            app.navigateWorkbench(to: .fileFiles(rootPath: rootURL.mediaPath, folderPath: folderPath))
+            app.finishIndexRun(
+                SubtitleIndexingResult(),
+                folders: [rootURL],
+                auxiliaryFailures: [],
+                refreshedAuxiliaryData: true,
+                status: .completed(rootURL, SubtitleIndexingResult())
+            )
+            #expect(app.fileNeedsReloadAfterIndexedMutation)
+
+            app.navigateWorkbench(to: .fileFolder(rootPath: rootURL.mediaPath))
+            #expect(!app.fileNeedsReloadAfterIndexedMutation)
+            #expect(app.library.fileObjectsByFolderPath[folderPath] == nil)
+
+            app.hydrateFileObjectsAsync(folderPath: folderPath)
+            await app.library.fileObjectTasks[URL.fromMediaPath(folderPath).mediaPath]?.value
+            #expect(
+                FileCardSubtitleFormatter.videoSubtitle(for: app.library.fileObjects(for: folderPath)[0])
+                    == "4K  AV1  01:05:30  831.65 MB"
+            )
+        }
+    }
 }
 
 @MainActor

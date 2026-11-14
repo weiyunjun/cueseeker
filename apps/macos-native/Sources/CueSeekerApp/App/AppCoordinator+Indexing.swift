@@ -875,7 +875,7 @@ extension AppCoordinator {
     /// Publishes what the run produced: the status the File page shows, the
     /// auxiliary failures under it, and the refresh every page needs once the
     /// indexed content has moved.
-    private func finishIndexRun(
+    func finishIndexRun(
         _ aggregateResult: SubtitleIndexingResult?,
         folders: [URL],
         auxiliaryFailures: [IndexingAuxiliaryFailure],
@@ -952,6 +952,7 @@ extension AppCoordinator {
         refreshRecentWatching()
         refreshLoadedTestRecentWatching()
         refreshCompleteLibrary()
+        invalidateFileTreeCache()
     }
 
     func holdActiveWorkbenchRouteBeforeContentMutation() {

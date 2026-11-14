@@ -34,7 +34,8 @@ func migratesFreshDatabaseToCurrentSchemaVersion() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 67)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 68)
+    #expect(try sqliteIndexExists("idx_subtitle_cue_lines_subtitle_file", databaseURL: databaseURL))
     #expect(try !sqliteTableExists("ass_render_segments", databaseURL: databaseURL))
     #expect(try sqliteTableExists("ass_event_offset_indexes", databaseURL: databaseURL))
     #expect(try sqliteColumnNames(in: "ass_event_offset_indexes", databaseURL: databaseURL) == Set([
@@ -1353,7 +1354,8 @@ func migratesSchema58ByDroppingASSRenderSegmentsTable() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 67)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 68)
+    #expect(try sqliteIndexExists("idx_subtitle_cue_lines_subtitle_file", databaseURL: databaseURL))
     #expect(try !sqliteTableExists("ass_render_segments", databaseURL: databaseURL))
     #expect(try sqliteTableExists("ass_event_offset_indexes", databaseURL: databaseURL))
     #expect(try sqliteColumnNames(in: "ass_event_offset_indexes", databaseURL: databaseURL) == Set([
@@ -1698,7 +1700,7 @@ func schema66UpgradesTo67PreservingAllLibrariesAndUserStateWithoutScanningMediaF
         let bootstrapResult = try DatabaseBootstrap.prepare(at: databaseURL)
 
         #expect(!bootstrapResult.didCreateSchema)
-        #expect(try sqliteSchemaVersion(at: databaseURL) == 67)
+        #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
         #expect(try sqliteTableExists("ass_event_offset_indexes", databaseURL: databaseURL))
         #expect(try sqliteRowCount(in: "ass_event_offset_indexes", databaseURL: databaseURL) == 0)
 
@@ -1724,5 +1726,54 @@ func schema66UpgradesTo67PreservingAllLibrariesAndUserStateWithoutScanningMediaF
         )
         #expect(validated == nil)
     }
+}
+
+@Test
+func schema67UpgradesTo68WithSubtitleFileCueLineIndexAndUsesIndexForCounts() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        DROP INDEX IF EXISTS idx_subtitle_cue_lines_subtitle_file;
+        INSERT INTO subtitle_files(id, subtitle_path, format, raw_cue_count, indexed_at)
+        VALUES (1, '/Media/ep01.ass', 'ass', 10, '2026-11-14T00:00:00Z');
+        INSERT INTO subtitle_cue_groups(
+            id, subtitle_file_id, subtitle_path, seq, start_time, end_time, start_ms, end_ms, search_content
+        ) VALUES (1, 1, '/Media/ep01.ass', 1, '0:00:01.00', '0:00:02.00', 1000, 2000, 'line');
+        INSERT INTO subtitle_cue_lines(
+            id, subtitle_file_id, cue_group_id, fts_rowid, language_mask, event_index,
+            source_format, start_time, end_time, start_ms, end_ms, content, display_order
+        ) VALUES (1, 1, 1, 1, 1, 0, 'ass', '0:00:01.00', '0:00:02.00', 1000, 2000, 'line', 0);
+        PRAGMA user_version = 67;
+        """
+    )
+    #expect(try !sqliteIndexExists("idx_subtitle_cue_lines_subtitle_file", databaseURL: databaseURL))
+
+    let bootstrapResult = try DatabaseBootstrap.prepare(at: databaseURL)
+    #expect(!bootstrapResult.didCreateSchema)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 68)
+    #expect(try sqliteIndexExists("idx_subtitle_cue_lines_subtitle_file", databaseURL: databaseURL))
+    #expect(try sqliteRowCount(in: "subtitle_cue_lines", databaseURL: databaseURL) == 1)
+
+    let sqliteDB = try SQLiteDatabase(path: databaseURL, access: .readOnly)
+    let planStatement = try sqliteDB.prepare(
+        """
+        EXPLAIN QUERY PLAN
+        SELECT subtitle_file_id, COUNT(*)
+        FROM subtitle_cue_lines
+        WHERE subtitle_file_id IN (1)
+        GROUP BY subtitle_file_id;
+        """
+    )
+    var planDetails: [String] = []
+    while try planStatement.step() {
+        planDetails.append(planStatement.stringColumn(3))
+    }
+    #expect(planDetails.joined(separator: " | ").contains("idx_subtitle_cue_lines_subtitle_file"))
 }
 
