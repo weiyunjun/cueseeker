@@ -45,20 +45,28 @@
    - `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchNativeTextFields.swift`:
      - Updated `WorkbenchSingleLineContainerOverlayView.findTextField(in:within:)` to inspect `view.subviews.reversed()` top-down and skip any `WorkbenchNativeSingleLineTextField` whose owning `CueSeekerMainWindow` reports `isLayerCovered(nativeField.interfaceLayer) == true` (pure set check without calling `isUncovered` to avoid recursion).
 
-6. **Unit test updates and additions**
+6. **Zero-count filter snapshot settlement & input selection reset cleanup**
+   - `apps/macos-native/Sources/CueSeekerApp/Search/SearchStore.swift` & `apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator+PlaybackCommandPanel.swift`:
+     - Removed `promoteZeroCountOnlySearchToCompletedEmptyResults()` and its conditional caller inside `presentPlaybackCommandPanelSearch(query:startsSearch:)`.
+     - Unified zero-count settlement in `SearchStore.commitCountOnlySearch(totalCount:generation:)`: when `resolvedTotalCount == 0 && resultFacetFilter.isEmpty && searchFacetFilter.isEmpty` (unfiltered empty library hit), immediately settles `isCountOnlySearchSnapshot = false`, `setSearchFacetSnapshot(.empty, precomputedDistribution: .zero)`, and `pendingReappearanceRefreshMode = .none`; otherwise (any positive hit, or zero hits under an active `CueFacetFilter`), preserves `isCountOnlySearchSnapshot = true` and `pendingReappearanceRefreshMode = .rerunSearch` so submitting Search or exiting back to Workbench Search runs a full scan and populates real facet counts.
+   - `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/{WorkbenchNativeTextFields.swift,WorkbenchFormControls.swift}`:
+     - Marked `needsScrollSelectionVisibleOnLayout = true` on initial non-select-all focus in `applyInitialFocusSelectionInCurrentEditor()`, removed the redundant `layout()` branch that overwrote `editor.selectedRange()` before user interaction, simplified `setFrameSize(_:)` visibility scrolling to `if widthChanged, isCurrentlyFocused`, added `@objc(textViewDidChangeSelection:)` in `WorkbenchNativeSingleLineTextField` to mark `didUserInteractSinceAutofocus = true` on keyboard/selection divergence, and preserved valid selection lengths (`min(max(0, selection.length), length - clampedLocation)`) in `WorkbenchSingleLineTextInput.updateNSView`.
+
+7. **Unit test updates and additions**
    - `apps/macos-native/Tests/CueSeekerAppTests/{SettingsStoreSearchTests.swift,WorkbenchAccessibilityStep3Tests.swift,WorkbenchInputControlsTests.swift,PlaybackSubtitleFocusKeyboardActionTests.swift}`:
      - Removed obsolete `prefillCommandPanelWithFocusedCue` / `.searchPrefillCommandPanel` references and updated Search field autofocus expectations to end-caret placement while preserving Rename dialog select-all coverage.
-     - Added pure-logic tests `playbackCommandPanelPersistsSearchQueryAndReusesValidSearchSnapshot`, `playbackCommandPanelResolvesCopyCurrentCueAcrossPlaybackAndOverlayStates`, and `playbackCommandPanelCopyCurrentCueFooterAndExecutionPreservePanelAndSearchFocus`.
+     - Added pure-logic tests `playbackCommandPanelPersistsSearchQueryAndReusesValidSearchSnapshot`, `playbackCommandPanelResolvesCopyCurrentCueAcrossPlaybackAndOverlayStates`, `playbackCommandPanelCopyCurrentCueFooterAndExecutionPreservePanelAndSearchFocus`, and `playbackCommandPanelFilteredZeroCountRecomputesFullFacetSnapshotOnSubmitAndReappearance`, and aligned zero-count assertions in `playbackCommandPanelRootLiveSearchUpdatesExactCountAndLoadsResultsOnDemand`.
 
 ## Compilation & Unit Test Verification
 
-1. **After the final window-layer focus fix (`fix:` commit)**:
-   - `swift build` (`apps/macos-native`): `Build complete! (6.20s)` (`0.31s` incremental), `0` errors.
-   - `swift test --filter InterfaceLayerFreezeTests`: `7` Swift Testing cases passed (`0` failed).
+1. **After the zero-count filter snapshot & input selection fix**:
+   - `swift build` (`apps/macos-native`): `Build complete! (9.64s)`, `0` errors.
+   - `swift test --filter PlaybackSubtitleFocusKeyboardActionTests`: `37` Swift Testing cases passed (`0` failed).
    - `swift test --filter PlaybackReelCopyAndCommandPanelRoutingTests`: `4` Swift Testing cases passed (`0` failed).
-2. **Earlier feature implementation run (`feat:` baseline `b3c2486`)**:
-   - `swift build --package-path apps/macos-native --build-tests`: `Build complete! (20.88s)`, `0` errors.
-   - Targeted headless `CueSeekerAppTests` filter (`SettingsStoreSearchTests`, `WorkbenchAccessibilityStep3Tests`, `commandPanelAccessibilityCoordinatesRootRecentGridsAndSearchResults`, `PlaybackSubtitleFocusKeyboardActionTests`, `PlaybackSearchOverlayTests`, localization parity/plural/bundle checks): `73` Swift Testing cases passed (`0` failed).
-   - `CueSeekerCoreTests` subtitle/focus filter (`CueSeekerCoreTests.*subtitleFocus|CueSeekerCoreTests.*PlaybackSubtitle`): `18` Swift Testing cases passed (`0` failed).
-3. **End-to-end acceptance**:
-   - Live end-caret focus, Command Panel search typing without playback shortcut interception, horizontal scrolling in overflowing Search Fields, `Command Panel` visual layout, `Rename` dialog selection behavior, clipboard/toast feedback, and `Settings -> General -> Search` visual cleanup remain with the user for interactive acceptance.
+   - `swift test --filter CueFacetFilterTests`: `14` Swift Testing cases passed (`0` failed).
+2. **Earlier window-layer focus fix (`1375bb0`)**:
+   - `swift build` (`apps/macos-native`): `Build complete! (6.20s)` (`0.31s` incremental), `0` errors; `swift test --filter InterfaceLayerFreezeTests` (`7` passed), `swift test --filter PlaybackReelCopyAndCommandPanelRoutingTests` (`4` passed).
+3. **Earlier feature baseline (`b3c2486`)**:
+   - Targeted headless `CueSeekerAppTests` filter (`73` passed) and `CueSeekerCoreTests` subtitle/focus filter (`18` passed).
+4. **End-to-end acceptance**:
+   - Live end-caret focus, arrow/selection preservation (`Cmd+A`, Left/Option+Left), horizontal scrolling in overflowing Search Fields, Filter modal behavior under empty/filtered zero counts, and `Copy Current Cue` visual presentation remain with the user for interactive acceptance.

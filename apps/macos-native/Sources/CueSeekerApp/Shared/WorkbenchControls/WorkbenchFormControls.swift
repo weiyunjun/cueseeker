@@ -71,9 +71,10 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
                         editor.scrollRangeToVisible(targetRange)
                     }
                 } else {
+                    let clampedLocation = min(max(0, selection.location), length)
                     let clampedRange = NSRange(
-                        location: min(selection.location, length),
-                        length: 0
+                        location: clampedLocation,
+                        length: min(max(0, selection.length), length - clampedLocation)
                     )
                     editor.setSelectedRange(clampedRange)
                     editor.scrollRangeToVisible(clampedRange)

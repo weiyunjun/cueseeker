@@ -109,13 +109,6 @@ extension AppCoordinator {
                 in: .whitespacesAndNewlines
             ) == trimmedQuery
             && !search.hasMutatedSinceSearchSnapshot
-        if matchesCurrentSnapshotQuery,
-           search.isCountOnlySearchSnapshot,
-           search.searchStatus == .completed,
-           search.searchCountState == .exact,
-           search.searchResultTotalCount == 0 {
-            search.promoteZeroCountOnlySearchToCompletedEmptyResults()
-        }
         let isReusingRootLiveSearch = matchesCurrentSnapshotQuery
             && !search.isCountOnlySearchSnapshot
             && (search.searchStatus == .searching

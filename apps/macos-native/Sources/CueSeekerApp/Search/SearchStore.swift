@@ -836,9 +836,12 @@ final class SearchStore: ObservableObject {
             return false
         }
         let resolvedTotalCount = max(0, totalCount)
+        let isUnfilteredZeroMatch = resolvedTotalCount == 0
+            && resultFacetFilter.isEmpty
+            && searchFacetFilter.isEmpty
         commitResultMutation {
             setLoadedSearchResults([], orderedCueIDs: [])
-            isCountOnlySearchSnapshot = true
+            isCountOnlySearchSnapshot = !isUnfilteredZeroMatch
             searchResultTotalCount = resolvedTotalCount
             searchFileSummaries = []
             searchCountState = .exact
@@ -848,26 +851,14 @@ final class SearchStore: ObservableObject {
             loadedGlobalResultCount = 0
             nextGlobalCursor = nil
             searchNavigationSnapshot = nil
+            if isUnfilteredZeroMatch {
+                setSearchFacetSnapshot(.empty, precomputedDistribution: .zero)
+            }
             searchStatus = .completed
             updateSearchSnapshotMutationRevision()
         }
-        pendingReappearanceRefreshMode = resolvedTotalCount > 0 ? .rerunSearch : .none
+        pendingReappearanceRefreshMode = isUnfilteredZeroMatch ? .none : .rerunSearch
         return true
-    }
-
-    func promoteZeroCountOnlySearchToCompletedEmptyResults() {
-        guard isCountOnlySearchSnapshot,
-              searchStatus == .completed,
-              searchCountState == .exact,
-              searchResultTotalCount == 0
-        else {
-            return
-        }
-        commitResultMutation {
-            isCountOnlySearchSnapshot = false
-            pendingReappearanceRefreshMode = .none
-            setSearchFacetSnapshot(.empty, precomputedDistribution: .zero)
-        }
     }
 
     func activatePlaybackPruning() {

@@ -1277,22 +1277,27 @@ func playbackCommandPanelRootLiveSearchUpdatesExactCountAndLoadsResultsOnDemand(
         #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 30)
         #expect(app.playback.commandPanelSearchWindow?.snapshot.loadedItemCount == 30)
 
-        // Returning to root with a zero-hit query promotes the count-only
-        // snapshot in-place without starting a second database scan.
+        // Unfiltered zero-hit live count directly settles as completed empty results with
+        // an empty facet snapshot, avoiding both Calculating hangs and second scans.
         #expect(app.returnPlaybackCommandPanelToRoot())
         app.updatePlaybackCommandPanelQuery("definitely-not-a-matching-cue")
         await app.search.searchTask?.value
-        #expect(app.search.isCountOnlySearchSnapshot)
+        #expect(!app.search.isCountOnlySearchSnapshot)
+        #expect(app.search.searchFacetSnapshot == .empty)
+        #expect(!app.search.isFacetSnapshotCalculating)
         #expect(
             app.search.exactSearchResultTotalCount(
                 matchingQuery: "definitely-not-a-matching-cue"
             ) == 0
         )
         let zeroCountGeneration = app.search.resultListGeneration
+        app.refreshSearchOnReappearanceIfNeeded()
+        #expect(app.search.resultListGeneration == zeroCountGeneration)
         #expect(app.submitPlaybackCommandPanelSearch())
         #expect(app.playback.commandPanelPresentation?.page == .searchResults)
         #expect(app.search.resultListGeneration == zeroCountGeneration)
         #expect(!app.search.isCountOnlySearchSnapshot)
+        #expect(app.search.searchFacetSnapshot == .empty)
         #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 0)
 
         // Exiting Playback after a Root count-only search automatically loads
@@ -1307,6 +1312,61 @@ func playbackCommandPanelRootLiveSearchUpdatesExactCountAndLoadsResultsOnDemand(
         #expect(!app.search.isCountOnlySearchSnapshot)
         #expect(app.search.loadedSearchResultCount > 0)
         #expect(app.search.searchFacetSnapshot != nil)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelFilteredZeroCountRecomputesFullFacetSnapshotOnSubmitAndReappearance() async throws {
+    try await withKeyboardActionApp { app, _ in
+        app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media")]
+        let zeroMatchingDurationFilter = CueFacetFilter(durations: [.fiveSecondsOrMore])
+        app.applySearchFacetFilter(zeroMatchingDurationFilter)
+        await app.search.searchTask?.value
+        app.playback.isPlaybackSurfaceExpanded = true
+        #expect(app.presentPlaybackCommandPanel())
+
+        // (a) Submitting Return from Command Panel Root when filtered count is 0 runs full search
+        //     to populate true facet counts and allow Reset to restore all hits.
+        app.updatePlaybackCommandPanelQuery("keyboard action")
+        await app.search.searchTask?.value
+        #expect(app.search.isCountOnlySearchSnapshot)
+        #expect(app.search.exactSearchResultTotalCount(matchingQuery: "keyboard action") == 0)
+
+        #expect(app.submitPlaybackCommandPanelSearch())
+        await app.search.searchTask?.value
+        #expect(!app.search.isCountOnlySearchSnapshot)
+        #expect(app.search.searchFacetSnapshot?.cueIDs.count == 30)
+        #expect(app.search.searchResultTotalCount == 0)
+
+        app.applySearchFacetFilter(CueFacetFilter())
+        await app.search.searchTask?.value
+        #expect(app.search.searchResultTotalCount == 30)
+        #expect(app.search.loadedSearchResultCount == 30)
+
+        // (b) Returning to Workbench Search without pressing Return also refreshes full facet counts
+        //     when a filter kept a zero-hit live count in count-only mode.
+        #expect(app.returnPlaybackCommandPanelToRoot())
+        app.applySearchFacetFilter(zeroMatchingDurationFilter)
+        await app.search.searchTask?.value
+
+        app.updatePlaybackCommandPanelQuery("keyboard action cue 1")
+        await app.search.searchTask?.value
+        #expect(app.search.isCountOnlySearchSnapshot)
+        #expect(app.search.exactSearchResultTotalCount(matchingQuery: "keyboard action cue 1") == 0)
+
+        #expect(app.dismissPlaybackCommandPanelFromUser())
+        app.refreshSearchOnReappearanceIfNeeded()
+        await app.search.searchTask?.value
+        #expect(!app.search.isCountOnlySearchSnapshot)
+        let unfilteredFacetCount = try #require(app.search.searchFacetSnapshot?.cueIDs.count)
+        #expect(unfilteredFacetCount > 0)
+        #expect(app.search.searchResultTotalCount == 0)
+
+        app.applySearchFacetFilter(CueFacetFilter())
+        await app.search.searchTask?.value
+        #expect(app.search.searchResultTotalCount == unfilteredFacetCount)
+        #expect(app.search.loadedSearchResultCount == unfilteredFacetCount)
     }
 }
 
