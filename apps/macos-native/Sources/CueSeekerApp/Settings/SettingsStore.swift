@@ -215,6 +215,19 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    enum ReleaseUpdateState: Equatable {
+        case idle
+        case checking
+        case upToDate
+        case available(version: String, releaseURL: URL)
+        case failed
+    }
+
+    /// Release check state lives only in memory for the current app run.
+    @Published private(set) var releaseUpdateState: ReleaseUpdateState = .idle
+    private var releaseUpdateTask: Task<Void, Never>?
+    private var cachedAboutAppIconImage: NSImage?
+
     private let userDefaults: UserDefaults
 
     init(
@@ -636,6 +649,83 @@ final class SettingsStore: ObservableObject {
 
     private static func applyAppAppearanceMode(_ mode: AppAppearanceMode) {
         NSApp?.appearance = mode.nsAppearance
+    }
+
+    var appShortVersion: String {
+        let raw = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let raw, !raw.isEmpty {
+            return raw
+        }
+        return "0.1.0"
+    }
+
+    var aboutAppIconImage: NSImage {
+        if let cachedAboutAppIconImage {
+            return cachedAboutAppIconImage
+        }
+        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+           let image = NSImage(contentsOf: url)
+        {
+            cachedAboutAppIconImage = image
+            return image
+        }
+        if let image = Bundle.main.image(forResource: NSImage.Name("AppIcon")) {
+            cachedAboutAppIconImage = image
+            return image
+        }
+        if let url = Bundle.appResources.url(forResource: "AppIcon", withExtension: "icns"),
+           let image = NSImage(contentsOf: url)
+        {
+            cachedAboutAppIconImage = image
+            return image
+        }
+        if let fallback = NSApp?.applicationIconImage {
+            cachedAboutAppIconImage = fallback
+            return fallback
+        }
+        return NSImage()
+    }
+
+    func checkForUpdates() {
+        guard releaseUpdateState != .checking else {
+            return
+        }
+        releaseUpdateTask?.cancel()
+        releaseUpdateState = .checking
+        let currentVersion = appShortVersion
+        releaseUpdateTask = Task { [weak self] in
+            let result = await GitHubReleaseUpdateChecker.checkLatestRelease(
+                currentVersion: currentVersion
+            )
+            guard let self, !Task.isCancelled else {
+                return
+            }
+            switch result {
+            case .upToDate:
+                self.releaseUpdateState = .upToDate
+            case .updateAvailable(let version, let releaseURL):
+                self.releaseUpdateState = .available(version: version, releaseURL: releaseURL)
+            case .failed:
+                self.releaseUpdateState = .failed
+            }
+            self.releaseUpdateTask = nil
+        }
+    }
+
+    func performAboutUpdateAction() {
+        switch releaseUpdateState {
+        case .available(_, let releaseURL):
+            NSWorkspace.shared.open(releaseURL)
+        case .idle, .upToDate, .failed:
+            checkForUpdates()
+        case .checking:
+            break
+        }
+    }
+
+    func openGitHubRepository() {
+        NSWorkspace.shared.open(GitHubReleaseUpdateChecker.repositoryURL)
     }
 
 }

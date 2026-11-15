@@ -8,6 +8,7 @@
 "app.name" = "字幕求索";
 
 /* Menu bar */
+"menu.about" = "关于%@";
 "menu.settings" = "设置…";
 "menu.quit" = "退出%@";
 "menu.edit" = "编辑";
@@ -335,6 +336,20 @@
 "settings.category.decode" = "解码";
 "settings.category.maintenance" = "维护";
 "settings.category.developer" = "开发者选项";
+"settings.category.about" = "关于";
+
+/* Settings: About category */
+"settings.about.version" = "版本 %@";
+"settings.about.description" = "字幕求索是一个以搜索字幕、摘录字幕和队列播放字幕为核心的语言学习工具，兼具导出 Anki 卡片、Deep Link、长截图等诸多实用功能。";
+"settings.about.update.title" = "版本更新";
+"settings.about.update.check" = "检查更新";
+"settings.about.update.checking" = "正在检查…";
+"settings.about.update.up_to_date" = "当前已是最新版本";
+"settings.about.update.available" = "发现新版本 %@";
+"settings.about.update.download" = "前往下载 %@";
+"settings.about.update.failed" = "检查更新失败，请稍后重试";
+"settings.about.repository.title" = "开源仓库";
+"settings.about.repository.link" = "GitHub 仓库";
 
 /* File page */
 "file.breadcrumb.home" = "首页";

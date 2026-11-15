@@ -387,6 +387,8 @@ enum WorkbenchControlMetrics {
     static let redesignSettingsRowMinHeight: CGFloat = 52
     /// --padding-settings-row-y: 6px
     static let redesignSettingsRowVerticalPadding: CGFloat = 6
+    /// --size-about-app-icon: 80px
+    static let redesignAboutAppIconSize: CGFloat = 80
     /// --height-segmented-control: 32px
     static let redesignSegmentedControlHeight: CGFloat = 32
     /// --padding-segmented-control: 3px

@@ -40,13 +40,13 @@ struct SettingsPage<Content: View>: View {
     }
 }
 
-/// A group on a page: its title, then its rows on one card as wide as the page.
+/// A group on a page: its optional title, then its rows on one card as wide as the page.
 struct SettingsGroup<Content: View>: View {
-    private let title: String
+    private let title: String?
     private let content: Content
 
     init(
-        title: String,
+        title: String? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
@@ -55,16 +55,18 @@ struct SettingsGroup<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            WorkbenchSelectableText(
-                title,
-                fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
-                weight: .semibold,
-                color: WorkbenchRedesignColors.textPrimary,
-                lineLimit: nil,
-                alignment: .leading
-            )
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+            if let title {
+                WorkbenchSelectableText(
+                    title,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .semibold,
+                    color: WorkbenchRedesignColors.textPrimary,
+                    lineLimit: nil,
+                    alignment: .leading
+                )
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+            }
 
             VStack(spacing: 0) {
                 content

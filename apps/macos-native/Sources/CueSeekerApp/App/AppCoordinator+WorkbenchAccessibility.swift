@@ -2202,6 +2202,9 @@ extension AppCoordinator {
             targets.append(.numberField(.subtitleShadowOffset))
 
             targets.append(.subtitleRestoreDefaults)
+        case .about:
+            targets.append(.aboutUpdateAction)
+            targets.append(.aboutRepositoryLink)
         }
 
         return targets
@@ -2232,6 +2235,8 @@ extension AppCoordinator {
             return !settings.playbackShortcuts.keymap.isDefault(action)
         case .subtitleRestoreDefaults:
             return settings.srtSubtitleStyle != SRTSubtitleStyle()
+        case .aboutUpdateAction:
+            return settings.releaseUpdateState != .checking
         default:
             return true
         }
@@ -2408,6 +2413,14 @@ extension AppCoordinator {
             workbenchAccessibility.activeSubtitleColorPopover = nil
             workbenchAccessibility.unfocusAllSettingsTextInputs()
             settings.srtSubtitleStyle = SRTSubtitleStyle()
+            return true
+
+        case .aboutUpdateAction:
+            settings.performAboutUpdateAction()
+            return true
+
+        case .aboutRepositoryLink:
+            settings.openGitHubRepository()
             return true
 
         case .numberField(let id):

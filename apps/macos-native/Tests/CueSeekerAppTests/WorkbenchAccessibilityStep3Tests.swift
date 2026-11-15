@@ -231,7 +231,7 @@ struct WorkbenchAccessibilityStep3Tests {
         let (app, suiteName, userDefaults) = makeTestCoordinator()
         defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
 
-        #expect(SettingsCategory.allCases == [.general, .play, .shortcuts, .subtitle])
+        #expect(SettingsCategory.allCases == [.general, .play, .shortcuts, .subtitle, .about])
 
         // Main window focus is preserved independently while interacting with Settings.
         app.workbenchAccessibility.setFocus(.topbarSettingsButton)

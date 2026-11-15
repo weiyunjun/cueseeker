@@ -6,6 +6,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
     case play
     case shortcuts
     case subtitle
+    case about
 
     var id: String { rawValue }
 
@@ -19,6 +20,8 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
             L("settings.category.shortcuts")
         case .subtitle:
             L("settings.category.subtitle")
+        case .about:
+            L("settings.category.about")
         }
     }
 
@@ -32,6 +35,8 @@ enum SettingsCategory: String, CaseIterable, Identifiable, Hashable {
             .keyboard
         case .subtitle:
             .subtitles
+        case .about:
+            .info
         }
     }
 
@@ -313,6 +318,8 @@ struct SettingsView: View {
             SettingsShortcutsCategory()
         case .subtitle:
             SettingsSubtitleCategory()
+        case .about:
+            SettingsAboutCategory()
         }
     }
 }

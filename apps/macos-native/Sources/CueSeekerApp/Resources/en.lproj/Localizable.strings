@@ -8,6 +8,7 @@
 "app.name" = "CueSeeker";
 
 /* Menu bar */
+"menu.about" = "About %@";
 "menu.settings" = "Settings...";
 "menu.quit" = "Quit %@";
 "menu.edit" = "Edit";
@@ -335,6 +336,20 @@
 "settings.category.decode" = "Decode";
 "settings.category.maintenance" = "Maintenance";
 "settings.category.developer" = "Developer";
+"settings.category.about" = "About";
+
+/* Settings: About category */
+"settings.about.version" = "Version %@";
+"settings.about.description" = "CueSeeker is a language learning tool centered around subtitle search, excerpt, and queue playback, complemented by practical features such as Anki card export, deep links, and collage.";
+"settings.about.update.title" = "Software Update";
+"settings.about.update.check" = "Check for Updates";
+"settings.about.update.checking" = "Checking…";
+"settings.about.update.up_to_date" = "CueSeeker is up to date";
+"settings.about.update.available" = "New version %@ available";
+"settings.about.update.download" = "Download %@";
+"settings.about.update.failed" = "Failed to check for updates";
+"settings.about.repository.title" = "Repository";
+"settings.about.repository.link" = "GitHub Repository";
 
 /* File page */
 "file.breadcrumb.home" = "Home";

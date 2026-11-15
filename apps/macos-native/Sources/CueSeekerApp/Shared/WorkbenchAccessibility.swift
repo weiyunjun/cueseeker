@@ -105,6 +105,10 @@ enum SettingsAccessibilityTarget: Equatable, Hashable {
     case subtitleBorderType(SRTSubtitleStyle.BorderType)
     case subtitleRestoreDefaults
 
+    // About (L-02.6)
+    case aboutUpdateAction
+    case aboutRepositoryLink
+
     var textInputKind: SettingsTextInputKind? {
         switch self {
         case .numberField(let id):

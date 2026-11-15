@@ -228,6 +228,9 @@ struct WorkbenchButton: View {
 
     var title: String? = nil
     var icon: AppIcon? = nil
+    /// A spinner in the icon's place, while the button waits for what its
+    /// title needs.
+    var showsSpinner: Bool = false
     var count: Int = 0
     var countBackground: Color = WorkbenchRedesignColors.badgeNeutralBg
     var countTextColor: Color = WorkbenchRedesignColors.textSecondary
@@ -275,7 +278,9 @@ struct WorkbenchButton: View {
 
     private var content: some View {
         HStack(spacing: contentSpacing) {
-            if let icon {
+            if showsSpinner {
+                WorkbenchSpinner()
+            } else if let icon {
                 AppIconImage(icon, size: iconSize)
                     .foregroundStyle(iconForegroundColor)
             }

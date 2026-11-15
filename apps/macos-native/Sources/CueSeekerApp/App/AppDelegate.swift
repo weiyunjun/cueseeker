@@ -476,6 +476,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         showSettings(notification.object)
     }
 
+    @objc private func showAboutSettings(_ sender: Any?) {
+        _ = appState.workbenchAccessibility.navigateSettingsCategory(to: .about)
+        showSettings(sender)
+    }
+
     @objc private func showSettings(_ sender: Any?) {
         let startedAt = DebugInteractionLatencyProbe.now()
         let wasCreated = settingsWindow != nil
@@ -646,6 +651,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         // App Menu
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
+        let aboutItem = NSMenuItem(
+            title: L("menu.about", L("app.name")),
+            action: #selector(showAboutSettings(_:)),
+            keyEquivalent: ""
+        )
+        aboutItem.target = self
+        appMenu.addItem(aboutItem)
+        appMenu.addItem(NSMenuItem.separator())
         let settingsItem = NSMenuItem(
             title: L("menu.settings"),
             action: #selector(showSettings(_:)),
