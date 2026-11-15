@@ -60,18 +60,6 @@ final class InterfaceLayerRegistry: ObservableObject {
     /// Dialogs are centred in the main window, so this is where it keeps the
     /// keyboard.
     var topDialogSize: CGSize?
-    /// Whether a system sheet — a file panel, or Export to Anki's replace
-    /// warning — is attached to the main window.
-    /// The system dims the whole window under it, so the dialog layer's own
-    /// veil steps aside rather than dimming the page twice.
-    @Published private(set) var isSystemSheetAttached = false
-
-    func setSystemSheetAttached(_ isAttached: Bool) {
-        guard isSystemSheetAttached != isAttached else {
-            return
-        }
-        isSystemSheetAttached = isAttached
-    }
 
     func setOpen(_ layer: InterfaceLayer, _ isOpen: Bool) {
         guard openLayers.contains(layer) != isOpen else {
@@ -305,10 +293,6 @@ private struct IsDialogOpenKey: EnvironmentKey {
     static let defaultValue = false
 }
 
-private struct IsSystemSheetAttachedKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
 extension EnvironmentValues {
     /// The registry, for surfaces that report menu transitions or need a
     /// direct answer. nil in hierarchies outside the main window.
@@ -344,12 +328,6 @@ extension EnvironmentValues {
         get { self[IsDialogOpenKey.self] }
         set { self[IsDialogOpenKey.self] = newValue }
     }
-
-    /// See `InterfaceLayerRegistry.isSystemSheetAttached`.
-    var isSystemSheetAttached: Bool {
-        get { self[IsSystemSheetAttachedKey.self] }
-        set { self[IsSystemSheetAttachedKey.self] = newValue }
-    }
 }
 
 /// Publishes the registry's answers as plain environment values, so consumers
@@ -377,7 +355,6 @@ struct InterfaceLayerCoverageBridge: ViewModifier {
                 layers.isCovered(.playbackOverlay)
             )
             .environment(\.isDialogOpen, layers.isOpen(.dialog))
-            .environment(\.isSystemSheetAttached, layers.isSystemSheetAttached)
     }
 }
 

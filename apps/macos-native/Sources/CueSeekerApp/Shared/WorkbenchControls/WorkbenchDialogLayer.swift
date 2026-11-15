@@ -25,39 +25,32 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
     /// The height of the page's top bar.
     let topBandHeight: CGFloat
     @ViewBuilder let dialogs: () -> Dialogs
-    /// A file panel dims the whole window itself, as the sheet over a sheet
-    /// did, so the veil steps aside for it and the page is dimmed once.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.isSystemSheetAttached) private var isSystemSheetAttached
     @Environment(\.interfaceLayers) private var interfaceLayers
     @State private var previousDialogIDs: [AnyHashable] = []
 
     var body: some View {
         let hasOpenDialogs = !dialogIDs.isEmpty
-        let showsScrim = WorkbenchDialogMotion.showsScrim(
-            hasOpenDialogs: hasOpenDialogs,
-            isSystemSheetAttached: isSystemSheetAttached
-        )
 
         GeometryReader { proxy in
             ZStack {
-                // Keep the scrim mounted across open/sheet transitions so toggling
-                // `showsScrim` always crossfades opacity smoothly instead of snapping
-                // when an attached system sheet begins dismissing.
+                // Keep the scrim mounted across open/close transitions so toggling
+                // `hasOpenDialogs` always crossfades opacity smoothly, and keep it
+                // active underneath any stacked macOS file panel or alert.
                 WorkbenchRedesignColors.dialogScrim
-                    .opacity(showsScrim ? 1 : 0)
+                    .opacity(hasOpenDialogs ? 1 : 0)
                     .allowsHitTesting(hasOpenDialogs)
                     .accessibilityHidden(true)
                     .animation(
                         WorkbenchDialogMotion.scrimAnimation(reducesMotion: reduceMotion),
-                        value: showsScrim
+                        value: hasOpenDialogs
                     )
                     .zIndex(0)
 
                 if hasOpenDialogs {
                     // Moving and zooming the window belong to the window, not to
                     // the veil covering the page below. Keeping it separate avoids
-                    // tearing down or fading the band during scrim/sheet switches.
+                    // tearing down or fading the band during scrim transitions.
                     TitlebarBackgroundView(
                         backgroundColor: Color.clear,
                         onDoubleClickZoom: { window in
@@ -73,8 +66,7 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
                     .zIndex(0.5)
                 }
 
-                // Isolate the dialog stack animation from scrim/sheet state so
-                // system sheet dismissal never interferes with dialog transitions
+                // Isolate the dialog stack animation from scrim transitions
                 // while preserving sibling `.zIndex(level)` ordering inside `dialogs()`.
                 ZStack {
                     dialogs()
@@ -430,10 +422,6 @@ enum WorkbenchDialogMotion {
 
     static var animation: Animation {
         dialogTransactionAnimation(reducesMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
-    }
-
-    static func showsScrim(hasOpenDialogs: Bool, isSystemSheetAttached: Bool) -> Bool {
-        hasOpenDialogs && !isSystemSheetAttached
     }
 
     /// Computes the synchronized container opacity and vertical offset for a

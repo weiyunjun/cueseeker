@@ -62,11 +62,6 @@ func dialogMotionTokensCurvesAndExteriorClipMatchSpec() {
         #expect(mid < q3 && q3 < 1)
     }
 
-    #expect(!WorkbenchDialogMotion.showsScrim(hasOpenDialogs: false, isSystemSheetAttached: false))
-    #expect(WorkbenchDialogMotion.showsScrim(hasOpenDialogs: true, isSystemSheetAttached: false))
-    #expect(!WorkbenchDialogMotion.showsScrim(hasOpenDialogs: true, isSystemSheetAttached: true))
-    #expect(!WorkbenchDialogMotion.showsScrim(hasOpenDialogs: false, isSystemSheetAttached: true))
-
     let clipPath = WorkbenchExteriorClipShape(
         cornerRadius: 12,
         outset: 1.5,
@@ -166,57 +161,9 @@ func dialogTransitionFrameComputesSynchronizedOpacityAndOffset() {
 }
 
 @MainActor
-@Test
-func systemSheetCompletionRestoresScrimEarlyAndPreservesDialogLayerState() {
-    let layers = InterfaceLayerRegistry()
-    let hostingView = NSHostingView(
-        rootView: dialogLayer(
-            dialogIDs: ["ankiExport"],
-            layers: layers,
-            isSystemSheetAttached: layers.isSystemSheetAttached
-        )
-    )
-    hostingView.frame = CGRect(x: 0, y: 0, width: 800, height: 600)
-    hostingView.layoutSubtreeIfNeeded()
-    #expect(layers.isOpen(.dialog))
-    #expect(layers.isCovered(.workbenchPage))
-
-    layers.setSystemSheetAttached(true)
-    hostingView.rootView = dialogLayer(
-        dialogIDs: ["ankiExport"],
-        layers: layers,
-        isSystemSheetAttached: layers.isSystemSheetAttached
-    )
-    hostingView.layoutSubtreeIfNeeded()
-    #expect(layers.isSystemSheetAttached)
-    #expect(layers.isOpen(.dialog))
-
-    // Another sheet underneath keeps the custom scrim yields intact.
-    SystemSheetPresentation.releaseScrimOnCompletion(for: layers, activeSheetCount: 2)
-    #expect(layers.isSystemSheetAttached)
-
-    // Dismissing the active file panel restores custom scrim immediately while
-    // keeping the underlying dialog layer open and covering the page.
-    SystemSheetPresentation.releaseScrimOnCompletion(for: layers, activeSheetCount: 1)
-    #expect(!layers.isSystemSheetAttached)
-    #expect(layers.isOpen(.dialog))
-    #expect(layers.isCovered(.workbenchPage))
-
-    hostingView.rootView = dialogLayer(
-        dialogIDs: ["ankiExport", "confirmation"],
-        layers: layers,
-        isSystemSheetAttached: layers.isSystemSheetAttached
-    )
-    hostingView.layoutSubtreeIfNeeded()
-    #expect(layers.isOpen(.dialog))
-    withExtendedLifetime(hostingView) {}
-}
-
-@MainActor
 private func dialogLayer(
     dialogIDs: [AnyHashable],
-    layers: InterfaceLayerRegistry,
-    isSystemSheetAttached: Bool = false
+    layers: InterfaceLayerRegistry
 ) -> AnyView {
     AnyView(
         WorkbenchDialogLayer(dialogIDs: dialogIDs, topBandHeight: 40) {
@@ -230,7 +177,6 @@ private func dialogLayer(
             }
         }
         .environment(\.interfaceLayers, layers)
-        .environment(\.isSystemSheetAttached, isSystemSheetAttached)
         .frame(width: 800, height: 600)
     )
 }

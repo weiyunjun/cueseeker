@@ -161,21 +161,6 @@ enum SystemSheetPresentation {
         NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow
     }
 
-    static func releaseScrimOnCompletion(
-        for interfaceLayers: InterfaceLayerRegistry?,
-        activeSheetCount: Int
-    ) {
-        // When the panel/alert completion handler runs while it is still the
-        // only sheet on the window, macOS has just started its dismiss animation.
-        // Clear `isSystemSheetAttached` now so our Scrim crossfades back in
-        // lockstep with the system backdrop rather than snapping after
-        // `windowDidEndSheet`.
-        guard activeSheetCount <= 1 else {
-            return
-        }
-        interfaceLayers?.setSystemSheetAttached(false)
-    }
-
     static func presentFilePanel(
         _ panel: NSOpenPanel,
         completionHandler: @escaping (NSApplication.ModalResponse) -> Void
@@ -211,15 +196,6 @@ enum SystemSheetPresentation {
             completionHandler(fallback())
             return
         }
-        let layers = (window as? CueSeekerWindow)?.interfaceLayers
-        present(window) { response in
-            MainActor.assumeIsolated {
-                releaseScrimOnCompletion(
-                    for: layers,
-                    activeSheetCount: window.sheets.count
-                )
-            }
-            completionHandler(response)
-        }
+        present(window, completionHandler)
     }
 }
