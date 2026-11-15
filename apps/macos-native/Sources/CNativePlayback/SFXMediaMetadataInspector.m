@@ -287,6 +287,7 @@ typedef struct SFXHDRProbeState {
     enum AVColorSpace matrix;
     int masteringPrimariesKind; // 1: display_p3, 2: dci_p3, 3: bt2020, 4: bt709
     BOOL hasMasteringLuminance;
+    BOOL masteringLuminanceIsExact;
     double masteringMinLuminance;
     double masteringMaxLuminance;
     unsigned int maxCLL;
@@ -335,7 +336,7 @@ static BOOL SFXIsBroadcastOrRawStreamFormatName(const char *formatName) {
         return NO;
     }
     static const char *const kStreamFormats[] = {
-        "mpegts", "mpeg", "hls", "applehttp", "flv", "hevc", "h264", "m4v", "ivf", "obu", "rawvideo"
+        "mpegts", "mpeg", "hls", "applehttp", "hevc", "h264", "m4v", "ivf", "obu", "rawvideo"
     };
     for (size_t i = 0; i < sizeof(kStreamFormats) / sizeof(kStreamFormats[0]); i++) {
         if (SFXHDRFormatNameTokenMatches(formatName, kStreamFormats[i])) {
@@ -345,32 +346,36 @@ static BOOL SFXIsBroadcastOrRawStreamFormatName(const char *formatName) {
     return NO;
 }
 
+static BOOL SFXHDRCodecSupportsBroadcastOrMidStreamHDR(enum AVCodecID codecID) {
+    return codecID == AV_CODEC_ID_HEVC
+        || codecID == AV_CODEC_ID_AV1
+        || codecID == AV_CODEC_ID_VP9
+        || codecID == AV_CODEC_ID_VVC;
+}
+
 static BOOL SFXHDRNearXY(double ax, double ay, double bx, double by) {
     return fabs(ax - bx) <= 0.005 && fabs(ay - by) <= 0.005;
 }
 
-static int SFXHDRClassifyMasteringPrimaries(const AVMasteringDisplayMetadata *md) {
-    if (md == NULL || !md->has_primaries) {
+static int SFXHDRClassifyCIExyPrimaries(AVCIExy r, AVCIExy g, AVCIExy b, AVCIExy w) {
+    if (r.x.den <= 0 || r.y.den <= 0
+        || g.x.den <= 0 || g.y.den <= 0
+        || b.x.den <= 0 || b.y.den <= 0) {
         return 0;
     }
-    for (int i = 0; i < 3; i++) {
-        if (md->display_primaries[i][0].den <= 0 || md->display_primaries[i][1].den <= 0) {
-            return 0;
-        }
-    }
-    double rx = av_q2d(md->display_primaries[0][0]);
-    double ry = av_q2d(md->display_primaries[0][1]);
-    double gx = av_q2d(md->display_primaries[1][0]);
-    double gy = av_q2d(md->display_primaries[1][1]);
-    double bx = av_q2d(md->display_primaries[2][0]);
-    double by = av_q2d(md->display_primaries[2][1]);
+    double rx = av_q2d(r.x);
+    double ry = av_q2d(r.y);
+    double gx = av_q2d(g.x);
+    double gy = av_q2d(g.y);
+    double bx = av_q2d(b.x);
+    double by = av_q2d(b.y);
     if (!isfinite(rx) || !isfinite(ry) || !isfinite(gx) || !isfinite(gy) || !isfinite(bx) || !isfinite(by)) {
         return 0;
     }
 
-    BOOL hasWhite = md->white_point[0].den > 0 && md->white_point[1].den > 0;
-    double wx = hasWhite ? av_q2d(md->white_point[0]) : 0.0;
-    double wy = hasWhite ? av_q2d(md->white_point[1]) : 0.0;
+    BOOL hasWhite = w.x.den > 0 && w.y.den > 0;
+    double wx = hasWhite ? av_q2d(w.x) : 0.0;
+    double wy = hasWhite ? av_q2d(w.y) : 0.0;
     hasWhite = hasWhite && isfinite(wx) && isfinite(wy) && (wx > 0.0 || wy > 0.0);
 
     if (SFXHDRNearXY(rx, ry, 0.680, 0.320)
@@ -398,6 +403,17 @@ static int SFXHDRClassifyMasteringPrimaries(const AVMasteringDisplayMetadata *md
     return 0;
 }
 
+static int SFXHDRClassifyMasteringPrimaries(const AVMasteringDisplayMetadata *md) {
+    if (md == NULL || !md->has_primaries) {
+        return 0;
+    }
+    AVCIExy r = { md->display_primaries[0][0], md->display_primaries[0][1] };
+    AVCIExy g = { md->display_primaries[1][0], md->display_primaries[1][1] };
+    AVCIExy b = { md->display_primaries[2][0], md->display_primaries[2][1] };
+    AVCIExy w = { md->white_point[0], md->white_point[1] };
+    return SFXHDRClassifyCIExyPrimaries(r, g, b, w);
+}
+
 static void SFXHDRMergeMasteringDisplay(SFXHDRProbeState *state, const AVMasteringDisplayMetadata *md) {
     if (md == NULL) {
         return;
@@ -405,7 +421,7 @@ static void SFXHDRMergeMasteringDisplay(SFXHDRProbeState *state, const AVMasteri
     if (state->masteringPrimariesKind == 0) {
         state->masteringPrimariesKind = SFXHDRClassifyMasteringPrimaries(md);
     }
-    if (!state->hasMasteringLuminance
+    if (!state->masteringLuminanceIsExact
         && md->has_luminance
         && md->min_luminance.den > 0
         && md->max_luminance.den > 0) {
@@ -413,8 +429,105 @@ static void SFXHDRMergeMasteringDisplay(SFXHDRProbeState *state, const AVMasteri
         double maxLum = av_q2d(md->max_luminance);
         if (isfinite(minLum) && isfinite(maxLum) && minLum >= 0.0 && maxLum > 0.0 && maxLum >= minLum) {
             state->hasMasteringLuminance = YES;
+            state->masteringLuminanceIsExact = YES;
             state->masteringMinLuminance = minLum;
             state->masteringMaxLuminance = maxLum;
+        }
+    }
+}
+
+static double SFXHDRPQ12BitCodeToNits(uint16_t pqCode) {
+    if (pqCode == 0) {
+        return 0.0;
+    }
+    double normalized = fmin(fmax((double)pqCode / 4095.0, 0.0), 1.0);
+    static const double m1 = 2610.0 / 16384.0;
+    static const double m2 = (2523.0 / 4096.0) * 128.0;
+    static const double c1 = 3424.0 / 4096.0;
+    static const double c2 = (2413.0 / 4096.0) * 32.0;
+    static const double c3 = (2392.0 / 4096.0) * 32.0;
+    double np = pow(normalized, 1.0 / m2);
+    double num = fmax(np - c1, 0.0);
+    double den = c2 - c3 * np;
+    if (den <= 0.0) {
+        return 0.0;
+    }
+    return 10000.0 * pow(num / den, 1.0 / m1);
+}
+
+static void SFXHDRMergeDOVIMetadata(SFXHDRProbeState *state, const AVFrameSideData *doviSD) {
+    if (doviSD == NULL || doviSD->data == NULL || doviSD->size < sizeof(AVDOVIMetadata)) {
+        return;
+    }
+    state->hasDolbyVision = YES;
+    const AVDOVIMetadata *doviMeta = (const AVDOVIMetadata *)doviSD->data;
+
+    if (doviMeta->num_ext_blocks > 0
+        && doviMeta->ext_block_size >= sizeof(AVDOVIDmData)
+        && doviMeta->ext_block_offset >= sizeof(AVDOVIMetadata)
+        && doviMeta->ext_block_offset <= doviSD->size) {
+        size_t maxBlocks = (doviSD->size - doviMeta->ext_block_offset) / doviMeta->ext_block_size;
+        int blockCount = doviMeta->num_ext_blocks;
+        if ((size_t)blockCount > maxBlocks) {
+            blockCount = (int)maxBlocks;
+        }
+        for (int i = 0; i < blockCount; i++) {
+            const AVDOVIDmData *ext = av_dovi_get_ext(doviMeta, i);
+            if (ext == NULL) {
+                continue;
+            }
+            if (ext->level == 9 && state->masteringPrimariesKind == 0) {
+                const AVColorPrimariesDesc *desc = &ext->l9.source_display_primaries;
+                if (desc->prim.r.x.den > 0 && desc->prim.r.y.den > 0
+                    && desc->prim.g.x.den > 0 && desc->prim.g.y.den > 0
+                    && desc->prim.b.x.den > 0 && desc->prim.b.y.den > 0
+                    && desc->wp.x.den > 0 && desc->wp.y.den > 0) {
+                    state->masteringPrimariesKind = SFXHDRClassifyCIExyPrimaries(
+                        desc->prim.r,
+                        desc->prim.g,
+                        desc->prim.b,
+                        desc->wp
+                    );
+                }
+            } else if (ext->level == 6) {
+                if (!state->masteringLuminanceIsExact && ext->l6.max_luminance > 0) {
+                    double minLum = (double)ext->l6.min_luminance / 10000.0;
+                    double maxLum = (double)ext->l6.max_luminance;
+                    if (maxLum >= minLum) {
+                        state->hasMasteringLuminance = YES;
+                        state->masteringLuminanceIsExact = YES;
+                        state->masteringMinLuminance = minLum;
+                        state->masteringMaxLuminance = maxLum;
+                    }
+                }
+                if (ext->l6.max_cll > 0 && state->maxCLL == 0) {
+                    state->maxCLL = ext->l6.max_cll;
+                }
+                if (ext->l6.max_fall > 0 && state->maxFALL == 0) {
+                    state->maxFALL = ext->l6.max_fall;
+                }
+            }
+        }
+    }
+
+    if (!state->hasMasteringLuminance
+        && doviMeta->color_offset >= sizeof(AVDOVIMetadata)
+        && sizeof(AVDOVIColorMetadata) <= doviSD->size
+        && doviMeta->color_offset <= doviSD->size - sizeof(AVDOVIColorMetadata)) {
+        const AVDOVIColorMetadata *color = av_dovi_get_color(doviMeta);
+        if (color != NULL && color->source_max_pq > 0) {
+            double minNits = SFXHDRPQ12BitCodeToNits(color->source_min_pq);
+            double maxNits = SFXHDRPQ12BitCodeToNits(color->source_max_pq);
+            double minLum = round(minNits * 10000.0) / 10000.0;
+            double maxLum = maxNits >= 10.0
+                ? round(maxNits)
+                : (round(maxNits * 10000.0) / 10000.0);
+            if (isfinite(minLum) && isfinite(maxLum) && minLum >= 0.0 && maxLum > 0.0 && maxLum >= minLum) {
+                state->hasMasteringLuminance = YES;
+                state->masteringLuminanceIsExact = NO;
+                state->masteringMinLuminance = minLum;
+                state->masteringMaxLuminance = maxLum;
+            }
         }
     }
 }
@@ -484,8 +597,11 @@ static void SFXHDRMergeFrame(SFXHDRProbeState *state, const AVFrame *frame) {
         state->matrix = frame->colorspace;
     }
 
-    if (av_frame_get_side_data(frame, AV_FRAME_DATA_DOVI_METADATA) != NULL
-        || av_frame_get_side_data(frame, AV_FRAME_DATA_DOVI_RPU_BUFFER) != NULL) {
+    const AVFrameSideData *doviSD = av_frame_get_side_data(frame, AV_FRAME_DATA_DOVI_METADATA);
+    if (doviSD != NULL) {
+        SFXHDRMergeDOVIMetadata(state, doviSD);
+    }
+    if (av_frame_get_side_data(frame, AV_FRAME_DATA_DOVI_RPU_BUFFER) != NULL) {
         state->hasDolbyVision = YES;
     }
     if (av_frame_get_side_data(frame, AV_FRAME_DATA_DYNAMIC_HDR_PLUS) != NULL) {
@@ -632,12 +748,28 @@ static SFXMediaHDRMetadata * _Nullable SFXBuildHDRMetadataFromState(const SFXHDR
     default: break;
     }
 
+    enum AVColorPrimaries effectivePrimaries = state->primaries;
+    enum AVColorTransferCharacteristic effectiveTransfer = state->transfer;
+    if (hasDOVI) {
+        BOOL isSingleLayerIPTPQ = (state->dolbyVisionProfile == 5 || state->matrix == AVCOL_SPC_IPT_C2);
+        if (SFXHDRColorPrimariesUnspecified(effectivePrimaries) || isSingleLayerIPTPQ) {
+            effectivePrimaries = AVCOL_PRI_BT2020;
+        }
+        if (SFXHDRColorTransferUnspecified(effectiveTransfer) || isSingleLayerIPTPQ) {
+            if (state->dolbyVisionProfile == 8 && state->dolbyVisionCompatibilityID == 4) {
+                effectiveTransfer = AVCOL_TRC_ARIB_STD_B67;
+            } else {
+                effectiveTransfer = AVCOL_TRC_SMPTE2084;
+            }
+        }
+    }
+
     return [[SFXMediaHDRMetadata alloc]
         initWithStandards:standards
         dolbyVisionProfile:state->dolbyVisionProfile > 0 ? @(state->dolbyVisionProfile) : nil
         dolbyVisionCompatibilityID:state->dolbyVisionCompatibilityID > 0 ? @(state->dolbyVisionCompatibilityID) : nil
-        colorPrimaries:SFXHDRCanonicalPrimariesToken(state->primaries)
-        transferFunction:SFXHDRCanonicalTransferToken(state->transfer)
+        colorPrimaries:SFXHDRCanonicalPrimariesToken(effectivePrimaries)
+        transferFunction:SFXHDRCanonicalTransferToken(effectiveTransfer)
         masteringDisplayPrimaries:masteringPrimaries
         masteringDisplayMinLuminance:state->hasMasteringLuminance ? @(state->masteringMinLuminance) : nil
         masteringDisplayMaxLuminance:state->hasMasteringLuminance ? @(state->masteringMaxLuminance) : nil
@@ -679,10 +811,14 @@ static SFXMediaHDRMetadata * _Nullable SFXInspectVideoHDRMetadata(
         || state.hasMasteringLuminance
         || state.maxCLL > 0
         || state.maxFALL > 0;
+    BOOL streamMaySwitchToHDR = isStreamFormat
+        && (SFXHDRCodecSupportsBroadcastOrMidStreamHDR(codecParameters->codec_id)
+            || bitDepth >= 10
+            || (bitDepth <= 0 && pixelFormat == AV_PIX_FMT_NONE));
     BOOL hasAmbiguousDeepColor = (bitDepth >= 10 || (bitDepth <= 0 && pixelFormat == AV_PIX_FMT_NONE))
         && (SFXHDRColorTransferUnspecified(state.transfer) || SFXHDRColorPrimariesUnspecified(state.primaries));
 
-    if (!isStreamFormat && !hasExplicitStreamHDR && !hasAmbiguousDeepColor) {
+    if (!hasExplicitStreamHDR && !hasAmbiguousDeepColor && !streamMaySwitchToHDR) {
         return nil;
     }
 
@@ -706,9 +842,44 @@ static SFXMediaHDRMetadata * _Nullable SFXInspectVideoHDRMetadata(
         && avcodec_open2(codecContext, decoder, NULL) >= 0) {
         SFXHDRSampleFramesFromCursor(formatContext, videoStreamIndex, codecContext, packet, frame, &state, 2, 48, 320, NO);
 
-        if (isStreamFormat && !SFXHDRStateHasAnyHDRSignal(&state)) {
-            if (isfinite(durationSeconds) && durationSeconds > 0.5) {
-                const double fractions[2] = { 0.35, 0.70 };
+        if (streamMaySwitchToHDR && !SFXHDRStateHasAnyHDRSignal(&state)) {
+            const double fractions[2] = { 0.35, 0.70 };
+            BOOL didMidStreamSample = NO;
+
+            // Branch A: Prefer single direct byte-offset seeks when total size is known.
+            if (formatContext->pb != NULL
+                && (formatContext->pb->seekable & AVIO_SEEKABLE_NORMAL) != 0) {
+                int64_t totalBytes = avio_size(formatContext->pb);
+                if (totalBytes > 0) {
+                    for (int i = 0; i < 2 && !SFXHDRStateHasAnyHDRSignal(&state); i++) {
+                        int64_t targetByte = (int64_t)llround((double)totalBytes * fractions[i]);
+                        if (av_seek_frame(formatContext, -1, targetByte, AVSEEK_FLAG_BYTE) >= 0) {
+                            didMidStreamSample = YES;
+                            avcodec_flush_buffers(codecContext);
+                            SFXHDRSampleFramesFromCursor(
+                                formatContext,
+                                videoStreamIndex,
+                                codecContext,
+                                packet,
+                                frame,
+                                &state,
+                                1,
+                                300,
+                                1200,
+                                YES
+                            );
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Branch B: Timestamp seek fallback only when byte seeking was unavailable or failed.
+            if (!didMidStreamSample
+                && !SFXHDRStateHasAnyHDRSignal(&state)
+                && isfinite(durationSeconds)
+                && durationSeconds > 0.5) {
                 for (int i = 0; i < 2 && !SFXHDRStateHasAnyHDRSignal(&state); i++) {
                     double targetSeconds = timelineOriginSeconds + durationSeconds * fractions[i];
                     int seekResult = -1;
@@ -721,6 +892,7 @@ static SFXMediaHDRMetadata * _Nullable SFXInspectVideoHDRMetadata(
                         seekResult = av_seek_frame(formatContext, -1, globalTarget, AVSEEK_FLAG_BACKWARD);
                     }
                     if (seekResult >= 0) {
+                        didMidStreamSample = YES;
                         avcodec_flush_buffers(codecContext);
                         SFXHDRSampleFramesFromCursor(
                             formatContext,
@@ -739,28 +911,9 @@ static SFXMediaHDRMetadata * _Nullable SFXInspectVideoHDRMetadata(
                     }
                 }
             }
-            if (!SFXHDRStateHasAnyHDRSignal(&state)
-                && formatContext->pb != NULL
-                && (formatContext->pb->seekable & AVIO_SEEKABLE_NORMAL) != 0) {
-                int64_t totalBytes = avio_size(formatContext->pb);
-                if (totalBytes > 0
-                    && av_seek_frame(formatContext, -1, totalBytes / 2, AVSEEK_FLAG_BYTE) >= 0) {
-                    avcodec_flush_buffers(codecContext);
-                    SFXHDRSampleFramesFromCursor(
-                        formatContext,
-                        videoStreamIndex,
-                        codecContext,
-                        packet,
-                        frame,
-                        &state,
-                        1,
-                        300,
-                        1200,
-                        YES
-                    );
-                }
-            }
-            if (!SFXHDRStateHasAnyHDRSignal(&state)) {
+
+            // Branch C: Sequential packet scan fallback only if neither seek branch sampled.
+            if (!didMidStreamSample && !SFXHDRStateHasAnyHDRSignal(&state)) {
                 SFXHDRSampleFramesFromCursor(
                     formatContext,
                     videoStreamIndex,

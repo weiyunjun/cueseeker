@@ -850,4 +850,130 @@ func testMediaDetailFormatterHDRFormattingEdgesAndLocales() {
     )
 }
 
+@Test
+func testIncompleteDolbyVisionRecordTriggersReprobeAndClearsOncePopulated() throws {
+    let tempDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerDoviReprobe-\(UUID().uuidString)", isDirectory: true)
+    let mediaDir = tempDir.appendingPathComponent("Media", isDirectory: true)
+    let databaseURL = tempDir.appendingPathComponent("library.sqlite")
+    try FileManager.default.createDirectory(at: mediaDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let dvVideoURL = mediaDir.appendingPathComponent("DVProfile5.mp4")
+    try Data("dv5".utf8).write(to: dvVideoURL)
+    try Data("1\n00:00:01,000 --> 00:00:02,000\nDV5\n".utf8)
+        .write(to: mediaDir.appendingPathComponent("DVProfile5.srt"))
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexingDB = try IndexingDatabase(path: databaseURL)
+    let libraryDB = try LibraryDatabase(path: databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let initialResult = try indexer.index(folder: mediaDir, into: indexingDB)
+    let canonicalDVPath = try #require(
+        initialResult.pendingVideoMetadataPaths.first { $0.hasSuffix("/DVProfile5.mp4") }
+    )
+
+    func retryPendingValue() throws -> Int {
+        let statement = try libraryDB.database.prepare(
+            "SELECT duration_retry_pending FROM video_files WHERE path = ?;"
+        )
+        try statement.bind(canonicalDVPath, at: 1)
+        #expect(try statement.step())
+        return statement.intColumn(0)
+    }
+
+    // Old incomplete Dolby Vision Profile 5 record: pending=0, missing both primaries and transfer.
+    try libraryDB.updateVideoMetadata(
+        videoFile: URL(fileURLWithPath: canonicalDVPath),
+        duration: 120.0,
+        videoWidth: 3840,
+        videoHeight: 2160,
+        frameRate: 24.0,
+        videoCodec: "hevc",
+        videoBitDepth: 10,
+        videoPixelFormat: "yuv420p10le",
+        containerFormat: "mp4",
+        hdrMetadata: VideoHDRMetadata(
+            standards: [.dolbyVision],
+            dolbyVisionProfile: 5,
+            dolbyVisionCompatibilityID: 0
+        ),
+        audioTracks: []
+    )
+    #expect(try retryPendingValue() == 0)
+    #expect(try indexer.index(folder: mediaDir, into: indexingDB).pendingVideoMetadataPaths == [canonicalDVPath])
+
+    // Still incomplete if only colorPrimaries is populated.
+    try libraryDB.updateVideoMetadata(
+        videoFile: URL(fileURLWithPath: canonicalDVPath),
+        duration: 120.0,
+        videoWidth: 3840,
+        videoHeight: 2160,
+        frameRate: 24.0,
+        videoCodec: "hevc",
+        videoBitDepth: 10,
+        videoPixelFormat: "yuv420p10le",
+        containerFormat: "mp4",
+        hdrMetadata: VideoHDRMetadata(
+            standards: [.dolbyVision],
+            dolbyVisionProfile: 5,
+            colorPrimaries: "bt2020",
+            transferFunction: nil
+        ),
+        audioTracks: []
+    )
+    #expect(try retryPendingValue() == 0)
+    #expect(try indexer.index(folder: mediaDir, into: indexingDB).pendingVideoMetadataPaths == [canonicalDVPath])
+
+    // Still incomplete if only transferFunction is populated.
+    try libraryDB.updateVideoMetadata(
+        videoFile: URL(fileURLWithPath: canonicalDVPath),
+        duration: 120.0,
+        videoWidth: 3840,
+        videoHeight: 2160,
+        frameRate: 24.0,
+        videoCodec: "hevc",
+        videoBitDepth: 10,
+        videoPixelFormat: "yuv420p10le",
+        containerFormat: "mp4",
+        hdrMetadata: VideoHDRMetadata(
+            standards: [.dolbyVision],
+            dolbyVisionProfile: 5,
+            colorPrimaries: nil,
+            transferFunction: "smpte2084"
+        ),
+        audioTracks: []
+    )
+    #expect(try retryPendingValue() == 0)
+    #expect(try indexer.index(folder: mediaDir, into: indexingDB).pendingVideoMetadataPaths == [canonicalDVPath])
+
+    // Complete Dolby Vision metadata clears future re-probe scheduling.
+    let completeDV = VideoHDRMetadata(
+        standards: [.dolbyVision],
+        dolbyVisionProfile: 5,
+        dolbyVisionCompatibilityID: 0,
+        colorPrimaries: "bt2020",
+        transferFunction: "smpte2084",
+        masteringDisplayPrimaries: "display_p3",
+        masteringDisplayMinLuminance: 0.005,
+        masteringDisplayMaxLuminance: 1000.0
+    )
+    try libraryDB.updateVideoMetadata(
+        videoFile: URL(fileURLWithPath: canonicalDVPath),
+        duration: 120.0,
+        videoWidth: 3840,
+        videoHeight: 2160,
+        frameRate: 24.0,
+        videoCodec: "hevc",
+        videoBitDepth: 10,
+        videoPixelFormat: "yuv420p10le",
+        containerFormat: "mp4",
+        hdrMetadata: completeDV,
+        audioTracks: []
+    )
+    #expect(try retryPendingValue() == 0)
+    #expect(try indexer.index(folder: mediaDir, into: indexingDB).pendingVideoMetadataPaths.isEmpty)
+}
+
 

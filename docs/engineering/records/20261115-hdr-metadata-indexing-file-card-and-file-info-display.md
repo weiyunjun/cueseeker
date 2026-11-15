@@ -1,33 +1,38 @@
-# HDR 元数据索引、File 卡片标签与 File Info 展示工程实现记录
+# 2026-11-15 HDR Metadata Indexing, File Card Badge, and File Info Display
 
-- 对应需求单：`docs/human/requirements/20261115-Feature-HDR Metadata Indexing File Card And File Info Display.md`
-- 分支 / 起始提交：`main`（变更前：`db00640`，需求单提交后：`c010af5`）
+## Covering Requirement
 
-## 修改摘要
+- `docs/human/requirements/20261115-Feature-HDR Metadata Indexing File Card And File Info Display.md`
+- Branch: `main` (prior commit `db00640`, requirement commit `c010af5`, initial feature commit `8e97adb`)
 
-1. **FFmpeg 底层流与有界轻量采样 HDR 探测（`CNativePlayback`）**
-   - `apps/macos-native/Sources/CNativePlayback/include/SFXNativePlaybackPlayer.h`：新增 `SFXMediaHDRMetadata` 值对象与 `SFXMediaMetadata.hdrMetadata` 属性。
-   - `apps/macos-native/Sources/CNativePlayback/SFXMediaMetadataInspector.m`：新增 `SFXInspectVideoHDRMetadata`、`SFXHDRSampleFramesFromCursor`、`SFXHDRMergePacketSideDataList`、`SFXHDRMergeFrame`、`SFXHDRMergeMasteringDisplay`、`SFXHDRMergeContentLight` 与 `SFXBuildHDRMetadataFromState`。
-     - 优先读取 `codecpar` 色彩属性（`color_primaries` / `color_trc`）与流级 `coded_side_data`（`DOVI_CONF`、母带显示、内容亮度、`HDR10+`）。
-     - 对已明确标记为常规 SDR 且无 HDR 附加数据的 MP4 / MKV 保持零额外解码开销；对需要补齐帧级动态元数据（`HDR10+` / 比特流 DOVI RPU / 混合标准）及广播流/裸流（`mpegts` / `hls` / `flv` 等片头普通信号切入正片 HDR）执行有界关键帧对齐轻量采样（首部采样 + `0.35` / `0.70` 时间戳跳转与 `AVSEEK_FLAG_BYTE` 50% 回退）。
+## Summary of Implementation & Post-Review Fixes
 
-2. **产品域结构化数据、SQLite Schema 69 与持久化链路（`CueSeekerCore` / `CueSeekerPlayback`）**
-   - `apps/macos-native/Sources/CueSeekerCore/LibraryDatabaseModels.swift`：新增 `VideoHDRStandard` 与 `VideoHDRMetadata`（仅保存标准列表、杜比视界 Profile/兼容配置号、色域/传递曲线规范标识、母带色域与亮度范围、MaxCLL / MaxFALL 等结构化原始数据，不存预拼接展示文案）。
-   - `apps/macos-native/Sources/CueSeekerCore/DatabaseBootstrap.swift` & `DatabaseBootstrap+Migrations.swift`：Schema 版本升至 `69`，为 `video_files` 新增可空 `hdr_metadata TEXT` 列，补全 `migrateSchema68To69`：旧库升级时增加 `hdr_metadata` 并将存量 `video_files.duration_retry_pending` 置为 `1`，不在迁移阶段扫描外部媒体文件。
-   - `apps/macos-native/Sources/CueSeekerCore/LibraryDatabaseProtocols.swift`、`LibraryDatabase.swift`、`IndexedContentDatabaseModels.swift`、`IndexedContentDatabase.swift`、`LibraryDatabase+FileDetail.swift`、`CueSeekerPlayback/PlaybackVideoMetadataIndexer.swift`：在探测结果 `ProbedVideoMediaMetadata`、`updateVideoMetadata`（写入 `hdr_metadata` 并在 HDR 与已确认普通 SDR 时统一将 `duration_retry_pending` 清零）、`IndexedContentObject` 及 `FileDetailVideoInfo` 全链路透传 `hdrMetadata`；应用内文件组与目录重命名自动保留该列。
+1. **Structured Raw HDR Domain Model & SQLite Schema 69 (`CueSeekerCore` / `CueSeekerPlayback`)**
+   - Added `VideoHDRStandard` and `VideoHDRMetadata` in `LibraryDatabaseModels.swift`, storing only structured raw HDR attributes (standards list, Dolby Vision profile and signal compatibility ID, color primaries token, transfer characteristic token, mastering display primaries and luminance range, MaxCLL, and MaxFALL) without pre-formatted localized strings.
+   - Bumped `DatabaseBootstrap.currentSchemaVersion` to `69` and added `migrateSchema68To69(on:)`, adding nullable `hdr_metadata TEXT` to `video_files` and setting `duration_retry_pending = 1` on existing rows without scanning external media files during migration.
+   - Propagated `hdrMetadata` across `SFXMediaMetadata`, `ProbedVideoMediaMetadata`, `PlaybackVideoMetadataIndexer`, `LibraryDatabase.updateVideoMetadata` (clearing `duration_retry_pending = 0` for both HDR and confirmed plain SDR `nil` writes), `IndexedContentObject`, and `FileDetailVideoInfo`, while preserving `hdr_metadata` across in-app file-group and folder renames.
+   - Updated `IndexingDatabase.pendingVideoMetadataPaths(libraryID:under:)` to also read `hdr_metadata` and schedule automatic re-probing when an already-indexed `.dolbyVision` record is missing `colorPrimaries` or `transferFunction` (`colorPrimaries == nil || transferFunction == nil`), clearing once complete metadata is written back.
 
-3. **纯函数格式化与 UI / 多语言原位接入（`CueSeekerCore` / `CueSeekerApp`）**
-   - `apps/macos-native/Sources/CueSeekerCore/LibraryDatabase+FileDetail.swift`：新增 `MediaDetailFormatter.shortHDRStandardText`（按 `Dolby Vision` / `杜比视界` / `杜比視界` > `HDR10+` > `HDR10` > `HLG` 返回最高优先级单一标准）与 `MediaDetailFormatter.hdrProperties`（输出至多 6 项，含多标准组合、杜比视界 Profile `.0` 省写及无配置号回退、母带亮度尾零裁剪、千分位无逗号、`MaxCLL`/`MaxFALL == 0` 及缺失项隐藏）。
-   - `apps/macos-native/Sources/CueSeekerApp/Library/WorkbenchFileView.swift`：复用 `FileCardSubtitleFormatter.videoSubtitle(for:locale:)`，在简化分辨率与视频编码之间以 `2` 个英文空格插入单一 HDR 标签（非 HDR 或未重索引省略）。
-   - `apps/macos-native/Sources/CueSeekerApp/Library/WorkbenchFileDetailDialog.swift` & `Resources/{en,zh-Hans,zh-Hant}.lproj/Localizable.strings`：复用现有 `FileDetailRow` 与 `SettingsRowDivider` 在 `Pixel Format` 与 `Duration` 之间通过 `hdrPropertyItems` 渲染至多 6 项 HDR 信息（非 HDR 全隐藏），并接入英/简/繁实时语言切换响应（`languageRevision` / `AppLocalizationStore`）。
+2. **FFmpeg Container/Stream Probing, Dolby Vision RPU Parsing & Bounded Sampling (`CNativePlayback`)**
+   - Added `SFXMediaHDRMetadata` in `SFXNativePlaybackPlayer.h` and `SFXInspectVideoHDRMetadata` in `SFXMediaMetadataInspector.m`.
+   - Prioritized stream-level `codecpar` color properties and `coded_side_data` (`AV_PKT_DATA_DOVI_CONF`, `AV_PKT_DATA_MASTERING_DISPLAY_METADATA`, `AV_PKT_DATA_CONTENT_LIGHT_LEVEL`, and `AV_PKT_DATA_DYNAMIC_HDR10_PLUS`), plus bounded frame-level inspection when needed.
+   - Added `AV_FRAME_DATA_DOVI_METADATA` (`AVDOVIMetadata`) extraction in `SFXHDRMergeDOVIMetadata` using `<libavutil/dovi_meta.h>` inline accessors (`av_dovi_get_ext` and `av_dovi_get_color`):
+     - Level 9 (`AVDOVIDmLevel9`): classifies `source_display_primaries` (`display_p3`, `dci_p3`, `bt2020`, `bt709`) via shared CIE 1931 xy tolerance matching (`SFXHDRClassifyCIExyPrimaries`) when mastering primaries are unset and denominators are positive.
+     - Level 6 (`AVDOVIDmLevel6`): extracts exact mastering luminance (`min_luminance / 10000.0` .. `max_luminance`) with precedence over RPU PQ estimates, plus `max_cll` / `max_fall`.
+     - RPU Color Header (`AVDOVIColorMetadata`): derives fallback mastering luminance from `source_min_pq` / `source_max_pq` using SMPTE ST 2084 EOTF rounded to `0.0001` nit precision (integer nit rounding for max values `>= 10.0` nits), allowing subsequent exact SEI or Level 6 values to override PQ estimates.
+   - Aligned `SFXBuildHDRMetadataFromState` with `SFXHDRColorPipeline.m` Dolby Vision color resolution: for `hasDOVI` streams with unspecified primaries or single-layer `dv_profile == 5` / `AVCOL_SPC_IPT_C2`, derives `"bt2020"` and `"smpte2084"` (or `"arib-std-b67"` for Profile `8.4`).
+   - Tightened broadcast/raw stream mid-stream sampling:
+     - Removed `"flv"` from `SFXIsBroadcastOrRawStreamFormatName` and gated mid-stream decode/seek on HDR-capable broadcast/streaming codecs (`AV_CODEC_ID_HEVC`, `AV_CODEC_ID_AV1`, `AV_CODEC_ID_VP9`, `AV_CODEC_ID_VVC`), bit depth `>= 10`, or unresolved pixel formats (`bitDepth <= 0 && pixelFormat == AV_PIX_FMT_NONE`), ensuring zero extra seeks or decodes for plain 8-bit SDR H.264/MPEG-2/MPEG-1 TS/MPEG/FLV videos while keeping spliced 8-bit SDR-to-HLG HEVC TS detection working.
+     - Made mid-stream sampling strictly mutually exclusive (`didMidStreamSample`): prefers direct `AVSEEK_FLAG_BYTE` seeks (`0.35`, `0.70`), falls back to timestamp seeks only when byte seeking was unavailable or failed, and falls back to sequential reading only if neither seek strategy sampled.
 
-4. **工程规范与文档同步**
-   - 严守奥卡姆剃刀与 UI 设计规范：全部在现有模块原位扩展，未新建独立引擎/管理层或硬编码特例，正式代码未引入任何测试专用属性或后门，未改动 `docs/human/`。
-   - 更新 `docs/engineering/05_database_rules.md`（Schema 版本更新至 `69`，补录 Schema `68` 与 Schema `69` 说明）与 `docs/changelog.md`。
+3. **Pure-Logic Formatting, UI Reuse & Localization (`CueSeekerCore` / `CueSeekerApp`)**
+   - Added `MediaDetailFormatter.shortHDRStandardText` (priority: Dolby Vision > `HDR10+` > `HDR10` > `HLG`) and `MediaDetailFormatter.hdrProperties` (rendering up to 6 conditional rows with `.0`-free profile formatting, zero-trimming on mastering nits, no thousands separators, and suppression of missing or zero `MaxCLL` / `MaxFALL` items).
+   - Updated `FileCardSubtitleFormatter.videoSubtitle(for:locale:)` in `WorkbenchFileView.swift` and `WorkbenchFileDetailDialog.hdrPropertyItems(for:locale:)` in `WorkbenchFileDetailDialog.swift`, reusing existing `FileDetailRow` / `SettingsRowDivider` controls and `AppLocalizationStore` / `languageRevision` live locale refresh with `en`, `zh-Hans`, and `zh-Hant` keys in `Localizable.strings`.
+   - Updated `docs/engineering/05_database_rules.md` (documenting Schema `68` and `69`) and `docs/changelog.md`.
 
-## 编译与单元测试验证
+## Compilation & Pure-Logic Test Verification
 
-- 全部代码与测试修改完成后执行定向无窗口纯逻辑回归测试：
-  `swift test --package-path apps/macos-native --filter "DatabaseBootstrapTests|FileDetailDatabaseTests|LibraryRenameTests|IndexedContentDatabaseTests|PlaybackVideoMetadataIndexerTests|FileRouteNavigationTests|hdrPropertyItemsAndLocalizationBundlesSwitchCleanly"`
-  - 共执行 `87` 项纯逻辑测试，全部通过（0 失败，包含 Schema 68 -> 69 升级与 `duration_retry_pending` 置位/清零、重命名保留、真实 FFmpeg SDR / HDR10 静态元数据 / 中途 SDR->HLG 广播流探测、卡片副标题优先级与多语言切换、File Info 至多 6 项裁剪与隐藏等用例）。
-- UI 视觉效果与真实 HDR/SDR 片源端到端验收交由用户实测确认。
+- Ran filtered headless pure-logic unit tests after the final code and test edits:
+  `swift test --package-path apps/macos-native --filter "DatabaseBootstrapTests|FileDetailDatabaseTests|LibraryRenameTests|IndexedContentDatabaseTests|IndexingDatabaseTests|PlaybackVideoMetadataIndexerTests|FileRouteNavigationTests|hdrPropertyItemsAndLocalizationBundlesSwitchCleanly"`
+  - Result: `106` tests executed, `106` passed (`0` failures, `0` skipped), covering Schema `68 -> 69` migration, `duration_retry_pending` clearing and incomplete Dolby Vision re-probing, rename preservation, synthetic FFmpeg SDR MP4/MPEG-TS/FLV fast paths, HDR10 static metadata, spliced broadcast SDR-to-HLG MPEG-TS sampling, card subtitle priority, `File Info` 6-row formatting, and live `en`/`zh-Hans`/`zh-Hant` localization switching.
+- End-to-end UI rendering and real-world HDR media file verification remain with the human owner for acceptance testing.

@@ -392,7 +392,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         let prefixes = Self.folderPathPrefixes(for: folder)
         let statement = try database.prepare(
             """
-            SELECT path, duration_retry_pending, duration, audio_tracks
+            SELECT path, duration_retry_pending, duration, audio_tracks, hdr_metadata
             FROM video_files
             WHERE library_id = ?
             ORDER BY path ASC;
@@ -409,6 +409,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             let retryPending = statement.intColumn(1) != 0
             let duration = statement.nullableDoubleColumn(2)
             let audioTracksJSON = statement.nullableStringColumn(3)
+            let hdrMetadataJSON = statement.nullableStringColumn(4)
             var needsProbe = retryPending
                 || duration == nil
                 || (duration ?? 0) <= 0
@@ -417,6 +418,13 @@ public final class IndexingDatabase: @unchecked Sendable {
                let audioTracksJSON,
                let decoded = try? decoder.decode([VideoAudioTrack].self, from: Data(audioTracksJSON.utf8)),
                decoded.contains(where: { !$0.isValidPlaybackTrack }) {
+                needsProbe = true
+            }
+            if !needsProbe,
+               let hdrMetadataJSON,
+               let decodedHDR = try? decoder.decode(VideoHDRMetadata.self, from: Data(hdrMetadataJSON.utf8)),
+               decodedHDR.standards.contains(.dolbyVision),
+               decodedHDR.colorPrimaries == nil || decodedHDR.transferFunction == nil {
                 needsProbe = true
             }
             if needsProbe {

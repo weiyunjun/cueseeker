@@ -400,4 +400,29 @@ func hdrMetadataProbingHandlesSDRHDR10StaticAndMidStreamBroadcastHLG() throws {
     #expect(hlgProbed.standards == [.hlg])
     #expect(hlgProbed.colorPrimaries == "bt2020")
     #expect(hlgProbed.transferFunction == "arib-std-b67")
+
+    // 5. Ordinary 8-bit H.264 SDR MPEG-TS & FLV -> must return nil HDR metadata without extra seeks/decodes
+    let sdrH264TS = tempDir.appendingPathComponent("sdr_h264.ts")
+    try runFFmpeg([
+        "-y", "-f", "lavfi", "-i", "color=c=black:s=160x90:r=25:d=0.5",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
+        "-f", "mpegts",
+        sdrH264TS.path
+    ])
+    let sdrTSProbed = try SFXMediaMetadataInspector.metadata(atMediaPath: sdrH264TS.path, httpHeaders: nil)
+    #expect(sdrTSProbed.videoCodec == "h264")
+    #expect(sdrTSProbed.hdrMetadata == nil)
+
+    let sdrFLV = tempDir.appendingPathComponent("sdr_h264.flv")
+    try runFFmpeg([
+        "-y", "-f", "lavfi", "-i", "color=c=black:s=160x90:r=25:d=0.5",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
+        "-f", "flv",
+        sdrFLV.path
+    ])
+    let sdrFLVProbed = try SFXMediaMetadataInspector.metadata(atMediaPath: sdrFLV.path, httpHeaders: nil)
+    #expect(sdrFLVProbed.videoCodec == "h264")
+    #expect(sdrFLVProbed.hdrMetadata == nil)
 }
