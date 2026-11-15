@@ -176,7 +176,7 @@
 - Icon Size：`--size-control-icon`
 - Gap：`--spacing-2`
 - Selection：Enabled（详见 `UI Text Selection Rules.md`）
-- Usage：File `Last Updated`、Search `xx results`、Excerpt `xx excerpts`、Select Mode `xx / yy rows selected`、Library `xx folders`、Excerpt `xx lists  yy cues`
+- Usage：File `Last Updated`、Search `xx results`、Excerpt `xx excerpts`、Select Mode `xx / yy rows selected`、Library `xx folders`、Excerpt `xx lists  yy cues`、Settings / About `Software Update`
 
 ##### Cue State Indicator
 

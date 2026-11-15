@@ -72,7 +72,7 @@
 | `folder-smb` | Regular | SMB 文件夹 | File Page / Add Folder 菜单 / SMB Folder；File Page / SMB 文件夹卡片 |
 | `folder-ftp` | Regular | FTP 文件夹 | File Page / Add Folder 菜单 / FTP Folder；File Page / FTP 文件夹卡片 |
 | `folder-nfs` | Regular | NFS 文件夹 | File Page / Add Folder 菜单 / NFS Folder；File Page / NFS 文件夹卡片 |
-| `arrow-clockwise` | Regular | 重新索引 | File Page / Index All、Root Folder Card 菜单 / Index Folder |
+| `arrow-clockwise` | Regular | 重新索引、检查更新 | File Page / Index All、Root Folder Card 菜单 / Index Folder；Settings / About / Check for Updates |
 | `minus-circle` | Regular | 移除 | Task Card 菜单 / Remove Task |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |
 | `stack` | Regular | 剧集 | Library File Tree / Display Title |
@@ -105,8 +105,8 @@
 | `trash` | Regular | 删除 | Excerpt List 卡片菜单 / Delete List；Task Card / Delete Action |
 | `copy` | Regular | 复制 | Search / Excerpt Toolbar / Copy Table；表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Playback Overlay 选中文字菜单 / Copy Selected Text；Toast（复制） |
 | `export` | Regular | 导出 | Search / Excerpt Toolbar / Export to Anki；Toast（导出长截图） |
-| `link-simple` | Regular | 链接 | Search / Excerpt Toolbar / Copy Deep Links；表格行菜单 / Copy Deep Link；Anki 卡片 / Deep Link，20px |
-| `info` | Regular | 简介、详情 | File Page 卡片菜单 / Get Info；Task Card 菜单 / Get Info |
+| `link-simple` | Regular | 链接 | Search / Excerpt Toolbar / Copy Deep Links；表格行菜单 / Copy Deep Link；Anki 卡片 / Deep Link，20px；Settings / About / GitHub Repository，18px |
+| `info` | Regular | 简介、详情、关于 | File Page 卡片菜单 / Get Info；Task Card 菜单 / Get Info；Settings / About |
 | `dots-three` | Regular | 更多 | 表格行 / More；File Page 卡片 / More；Task Card / More；Cover Summary / More |
 | `dots-three` | Fill | 更多 | Cover / More（21px 下圆点直径 3px） |
 | `anki-star` | 实心 | Anki | Task Card / Export to Anki |

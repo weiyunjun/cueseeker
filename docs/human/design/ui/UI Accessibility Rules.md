@@ -14,7 +14,7 @@
    - **不改变组件自身边框与背景底色**：所有按钮（含 `Neutral`、`Destructive` 等）被无障碍选中时自身边框颜色保持不变；无障碍在任何场合下都不会触发任何组件的鼠标 `Hover` 状态，也不会因无障碍本身改变组件的背景底色（任何背景底色变化均仅来源于组件所属区域的 `Select` 状态）；
    - **无可见外框组件的圆角光圈边界**：
      - 表格普通模式下 `Cues` 列的台词文字（`Interactive Text`）：光圈套在其圆角点击热区框（四周内边距 `--padding-table-cell-hover-x` / `--padding-table-cell-hover-y`，圆角 `--radius-table-cell-hover: 8px`）外围；
-     - 面包屑未激活链接节点（`Breadcrumb`）、顶栏与弹窗标签页（`Tab`）、File 页面状态指示器（`Workbench Status Indicator`）：光圈按各自的点击热区矩形配合圆角 `--radius-field`（`6px`）向外偏移 `2px` 绘制。
+     - 面包屑未激活链接节点（`Breadcrumb`）、顶栏与弹窗标签页（`Tab`）、File 页面状态指示器（`Workbench Status Indicator`）、Settings `About` 页 `GitHub Repository` 链接热区：光圈按各自的点击热区矩形配合圆角 `--radius-field`（`6px`）向外偏移 `2px` 绘制。
 3. **可选中范围（显式组件类型白名单原则）**：
    - **设计原则与白名单机制**：「鼠标左键点击可产生交互」是划分哪些组件类型纳入无障碍白名单的设计原则；在规则与代码实现上，按**显式指定的组件类型白名单**纳入当前最上层界面的无障碍序列，**不因组件当前处于 `Disabled`（禁用）状态或 `Selected`（已选中）状态而动态跳过**；
    - **禁用态与已选中态组件的表现**：
@@ -251,12 +251,13 @@
 
 ## 3.2 设置窗口布局（`L-02 Settings`）
 
-1. **全局顺序**：**右侧顶栏（`L-02.1 Settings Topbar`）**（`Back` → `Forward`，含 `Disabled` 态） → **左侧分类导航栏（`L-02.2 Settings Sidebar`）**（从上到下依次遍历全部 4 个分类项：`General` → `Play` → `Shortcuts` → `Subtitle`，含当前 `Selected` 项） → **右侧分类内容区（`L-02.3 Category Content`）**（按各分组卡片从上到下、每行控件从左到右依次遍历）。
+1. **全局顺序**：**右侧顶栏（`L-02.1 Settings Topbar`）**（`Back` → `Forward`，含 `Disabled` 态） → **左侧分类导航栏（`L-02.2 Settings Sidebar`）**（从上到下依次遍历全部 5 个分类项：`General` → `Play` → `Shortcuts` → `Subtitle` → `About`，含当前 `Selected` 项） → **右侧分类内容区（`L-02.3 Category Content`）**（按各分组卡片从上到下、每行控件从左到右依次遍历）。
 2. **各分类页右侧内容区遍历顺序**：
    - **`General` 页**：`Appearance` 分段控制器的 3 个选项（从左到右，含当前已选项） → `Show Cue Group` 开关 → `Prefill Command Panel with Focused Cue` 开关 → `Language` 语言下拉按钮 → `Play First Search Result`（Deep Link）开关；
    - **`Play` 页**：`Auto Pause` 开关 → `Auto Switch` 开关 → `Auto Switch Gap` 数字框 → `Decoder` 分段控制器的 3 个选项（从左到右，含当前已选项）；
    - **`Shortcuts` 页（`L-02.4`）**：仅按从上到下遍历非默认键位行左侧显示的 `Restore Default`（`✕`）图标按钮（触发恢复默认后该 `✕` 按钮消失，按组件消失规则自动退出无障碍状态），所有 `Shortcut Field` 跳过；
-   - **`Subtitle` 页（`L-02.5`）**：按从上到下、从左到右依次遍历当前显示的各分组内控件（字体下拉按钮、数字框、Bold / Italic 复选框、`Color Well`［先十六进制输入框整体、再展开后的 12 个预设色块］、分段控制器的各选项），最后选中右下角的 `Restore Defaults` 按钮。
+   - **`Subtitle` 页（`L-02.5`）**：按从上到下、从左到右依次遍历当前显示的各分组内控件（字体下拉按钮、数字框、Bold / Italic 复选框、`Color Well`［先十六进制输入框整体、再展开后的 12 个预设色块］、分段控制器的各选项），最后选中右下角的 `Restore Defaults` 按钮；
+   - **`About` 页（`L-02.6`）**：`Software Update` 右侧操作按钮（含 `Checking…` 禁用态） → `GitHub Repository` 链接热区。
 
 ## 3.3 模态对话框布局（`L-06 Dialogs`）
 

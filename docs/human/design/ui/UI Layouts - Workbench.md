@@ -211,7 +211,7 @@
 
 #### Structure
 
-1. Category List：General、Play、Shortcuts、Subtitle；首次打开时选中 General
+1. Category List：General、Play、Shortcuts、Subtitle、About；常规入口首次打开时选中 General，系统菜单栏 `About CueSeeker` 打开时定位至 About
 
 #### Components
 
@@ -339,6 +339,46 @@
 - Font 名称与 Choose…：`--spacing-3`
 - Bold 与 Italic：`--spacing-6`
 - 最后一个 Card 与 Restore Defaults：`--spacing-6`
+
+### L-02.6 Settings About Layout
+
+#### Structure
+
+1. Project Header
+   1. App Icon、App Name、`Version X.Y.Z`（水平居中纵向排列）
+   2. Project Description
+2. Card（无标题）：`Software Update`、`Repository`
+
+#### Components
+
+- Workbench Status Indicator
+- Button / Neutral
+- Button / Primary
+- Spinner
+
+#### Layout
+
+- App Icon 宽高 `--size-about-app-icon`；App Name 为 `--font-size-page-title`、`--font-weight-page-title`、`--color-text-primary`；版本号为 `--font-size-caption`、`--color-text-muted`
+- Project Description 宽度与下方 Card 一致，左右内边距 `--spacing-4`（与 Card 内内容左右边缘对齐），左对齐自然折行，字号 `--font-size-body`、行高 `--line-height-cover-summary-description`、颜色 `--color-text-secondary`
+- `Software Update`：右侧为可选状态提示与操作按钮
+- `Repository`：右侧为 `GitHub Repository`（`--font-size-control`、`--font-weight-control`、`--color-text-secondary`）与 `link-simple` 图标（`--size-button-icon`、`--color-text-secondary`）；文字与图标整体为点击与 Hover 热区，Hover 时统一显示 `Grab` 指针且仅在文字下方显示同色下划线
+
+#### Spacing
+
+- Project Header Top Padding：`--spacing-4`
+- App Icon 与 App Name：`--spacing-3`
+- App Name 与版本号：`--spacing-1`
+- 版本号与 Project Description：`--spacing-4`
+- 状态提示与操作按钮：`--spacing-3`
+- `GitHub Repository` 文字与图标：`--spacing-2`
+
+#### States
+
+- Initial：仅显示 `Check for Updates`（Leading Icon `arrow-clockwise`）
+- Checking：仅显示 Disabled 的 `Checking…`（左侧展示 `Spinner`）
+- Up to Date：状态提示 `check-circle`（`--color-success-text`）与 `Up to Date`，按钮 `Check Again`（`arrow-clockwise`）
+- Update Available：状态提示 `CueSeeker vX.Y.Z is available`，`Button / Primary` `View Update`
+- Failed：状态提示 `warning`（`--color-danger-text`）与 `Update check failed`，按钮 `Retry`（`arrow-clockwise`）
 
 ## 3.3 Recent
 ### L-03.1 Recent Layout

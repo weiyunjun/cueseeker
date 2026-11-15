@@ -125,11 +125,11 @@ Toast、Tooltip、播放反馈与播放页报错条只有视觉，不接受输�
 1. 鼠标默认样式：即最常见的箭头样式。鼠标特殊样式：在 CueSeeker 中包括 Grab 样式和 I-beam 样式。
 2. 不可用或禁用的内容仍是箭头，不使用禁止指针。
 3. 卡片的手型指针需要 macOS 15 及以上；更低版本上卡片为箭头。
-4. 指针离开应用窗口即恢复默认样式；独立 `Settings` 窗口内的可输入文本与可选展示文本保持原生 `I-beam` 样式（不受 Hover 抑制态影响），其余区域为系统默认箭头。
+4. 指针离开应用窗口即恢复默认样式；独立 `Settings` 窗口内 `About` 页的 `GitHub Repository` 链接热区（未处于 Hover 抑制态时）为 `Grab` 样式，可输入文本与可选展示文本保持原生 `I-beam` 样式（不受 Hover 抑制态影响），其余区域为系统默认箭头。
 
 ## 11.2 规则
 1. 应用处于前台活跃状态、鼠标位于主窗口未被遮挡的暴露区域内、鼠标未隐藏且未处于 Hover 抑制态时，指针形状与 Hover 同步，实时由当前指针所在位置的最上层可交互界面元素决定（焦点位于其它外部应用时遵循系统前台光标归属；主窗口进入 Hover 抑制态且未处于鼠标拖拽选字过程中时，指针统一退回默认箭头，直至鼠标实际移动）：
-   - **Grab 样式**：表格（Search、Excerpt 二级）非批量选择模式下的有效字幕文字内容；File 界面除 `Last Updated: -` 外的状态指示器文字（左侧图标除外）；Library 二级界面的本地文件夹路径文字与 Excerpt 二级界面未完整显示的描述文字；各界面（Library 一/二级、Recent、Excerpt 一级、Playback Overlay Playlist、Command Panel）的封面卡片组件（封面右下角 `dots-three` 按钮除外）。
+   - **Grab 样式**：表格（Search、Excerpt 二级）非批量选择模式下的有效字幕文字内容；File 界面除 `Last Updated: -` 外的状态指示器文字（左侧图标除外）；Library 二级界面的本地文件夹路径文字与 Excerpt 二级界面未完整显示的描述文字；`Settings -> About` 的 `GitHub Repository` 链接文字与右侧图标；各界面（Library 一/二级、Recent、Excerpt 一级、Playback Overlay Playlist、Command Panel）的封面卡片组件（封面右下角 `dots-three` 按钮除外）。
    - **I-beam 样式**：可输入文本的区域，以及支持选词且不属于 Grab 样式的可选文本区域（完整边界与拖拽锁定规则详见 [`UI Text Selection Rules.md`](UI%20Text%20Selection%20Rules.md)）。
    - **默认箭头样式**：其余所有区域。
 2. 局部弹层（菜单、对话框、`Command Panel`）打开期间下层区域冻结，主窗口因进入 Hover 抑制态使初始指针恢复为默认箭头样式，鼠标实际移动后按弹层内元素更新；局部弹层关闭解除冻结后无需移动鼠标，立即按当前指针位置重新判定（`Workbench` ↔ `Playback` 与 `Playback` ↔ `Playback Overlay` 全窗口跨界面切换除外，保持默认箭头直至鼠标实际移动）。

@@ -18,11 +18,12 @@
    - **指针与交互**：指针悬停显示 `I-beam`；支持左键拖拽划选；除播放字幕流（`C-13.4 Playback Cue Reel`）仅响应拖拽划选外，其余纯静态可选文本均支持**双击选中所在词**、**三击选中当前单元格或段落全文**。
 
 3. **点击 + 拖选复合文本（`Grab`）**
-   - **范围**（全应用仅以下 **4 处**）：
+   - **范围**（全应用仅以下 **5 处**）：
      1. `Search` 与 `Excerpt` 二级页表格普通模式（非 `Select Mode`）下，有效数据行 `Cues` 列的主台词与 `Cue Group` 附加字幕（`C-06.4 Interactive Text`）：单击跳转播放；
      2. `File` 页面顶部操作栏（及一级空状态下方）除从未索引 `Last Updated: -` 外的可点击状态文字（`C-08.5 Workbench Status Indicator`，左侧图标除外）：单击打开对应任务的 `Task Info` 弹窗；
      3. `Library` 二级详情页 `C-11.2 Cover Summary` 第 2 行的本地文件夹路径文字（远程文件夹路径不可点击，归入纯静态 `I-beam` 文本）：单击在 Finder 中打开；
-     4. `Excerpt` 二级详情页 `C-11.2 Cover Summary` 第 2 行发生单行截断或包含换行的摘录列表描述文字（完整单行描述与 `No description` 占位文案不可点击，归入纯静态 `I-beam` 文本）：单击原地展开 `Description Detail Popover`。
+     4. `Excerpt` 二级详情页 `C-11.2 Cover Summary` 第 2 行发生单行截断或包含换行的摘录列表描述文字（完整单行描述与 `No description` 占位文案不可点击，归入纯静态 `I-beam` 文本）：单击原地展开 `Description Detail Popover`；
+     5. `Settings -> About` 页 `Repository` 行右侧的 `GitHub Repository` 链接文字（右侧 `link-simple` 图标不可选，与文字共用点击与 Hover 热区）：单击在默认浏览器中打开项目仓库。
    - **指针与分流规则**：悬停时显示与当前文字同色的下划线（线宽 `--width-interactive-text-underline`，自当前行字体默认下划线位置向下偏移 `--offset-interactive-text-underline`）及 `Grab` 手型指针；原地按下并松开左键触发对应单击动作；按住左键拖动达到起选阈值（或从外部拖入划过）时，立即转入文字划选并锁定 `I-beam` 指针，松开鼠标不触发单击动作。其中表格有效行 `Cues` 文本不响应双击与三击选词。
 
 4. **不可选文本与组件边界**
@@ -45,7 +46,7 @@
      - 在当前最上层可交互界面内，除输入框、表格与播放字幕流外，同一逻辑承载面内的全部可选展示文本（含 `I-beam` 纯静态文本与 `Grab` 复合文本）归入同一连续静态文本流，按**「纵向从上到下、同一水平行内从左到右」**的视觉阅读顺序跨行、跨元素连续划选，起止位置之间夹杂的图标、按钮、进度条等不可选元素自动跳过。
      - 全应用共 **5 类独立逻辑承载面**：
        1. 主窗口当前工作台页面内容区（`Recent`、`Library`、`File`、`Search` 非表格区、`Excerpt` 非表格区）；
-       2. 独立 `Settings` 窗口右侧当前分类内容区（`General`、`Play`、`Shortcuts`、`Subtitle`）；
+       2. 独立 `Settings` 窗口右侧当前分类内容区（`General`、`Play`、`Shortcuts`、`Subtitle`、`About`）；
        3. 当前最上层模态对话框或 `Task Panel` 内容区（多层对话框叠加时仅最上层生效）；
        4. 展开态 `Description Detail Popover` 浮层内部（遵循菜单模态，与下层 `Cover Summary` 隔离）；
        5. `Playback Overlay` 或 `Command Panel` 的非字幕流静态区（如 `Command Panel` 二级页顶栏标题、时间分组标题、空状态提示语与底部 `Playback Footer` 左侧状态计数）。
@@ -126,11 +127,12 @@
 | **Excerpt 一级**（`L-05.1`） | 搜索框（输入 `I-beam`）；`xx lists  yy cues` 统计文字、空状态提示语（`I-beam`） | 排序按钮、`+ New List` 按钮、全部摘录集封面卡片 |
 | **Excerpt 二级详情**（`L-05.3` ~ `L-05.5`） | `Cover Summary` 主标题、`xx excerpts  Created ...`、完整单行描述 / `No description`、进度文字（页面流 `I-beam`）；截断或含换行的描述（页面流 `Grab`，单击展开浮层）；展开态 `Description Detail Popover` 全文（独立浮层流 `I-beam`）；工具栏与表格（含 `Date Added` 列）同 `Search` | `Cover Summary` 封面图、进度条、底部按钮；工具栏按钮与表格非数据列槽位 |
 
-## 5.2 Settings 设置窗口（`L-02.1` ~ `L-02.5`）
+## 5.2 Settings 设置窗口（`L-02.1` ~ `L-02.6`）
 
 | 界面 / 模块 | 可选文本（及指针） | 不可选边界 |
 | --- | --- | --- |
 | **General / Play / Shortcuts / Subtitle** | 右侧当前分类内所有分组标题（`Group Title`）、每行左侧设置项名称或快捷键功能名称、`Shortcuts` 校验报错红字（分类页连续文本流 `I-beam`）；`Text Field` / `Text Area` / `Number Field` / `Color Well Hex Input`（输入 `I-beam`） | 设置窗口顶栏（红绿灯、前后退、顶栏分类标题）、左侧分类 `Sidebar`、开关/复选框/分段控制器/下拉按钮、颜色色块与预设面板、`C-01.5 Shortcut Field`（及内部 `Keycap`）、恢复默认图标按钮与底部 `Restore Defaults` 按钮 |
+| **About**（`L-02.6`） | 应用名称、版本号、项目简介、每行左侧名称、更新状态提示文字（分类页连续文本流 `I-beam`）；`GitHub Repository` 链接文字（`Grab`，单击打开仓库） | 顶部应用图标、状态提示左侧图标、右侧更新操作按钮、`GitHub Repository` 右侧 `link-simple` 图标 |
 
 ## 5.3 模态对话框与任务面板（`L-06.1` ~ `L-06.11`）
 
