@@ -110,6 +110,7 @@ public final class LibraryDatabase: @unchecked Sendable {
         videoBitDepth: Int? = nil,
         videoPixelFormat: String? = nil,
         containerFormat: String? = nil,
+        hdrMetadata: VideoHDRMetadata? = nil,
         audioTracks: [VideoAudioTrack]
     ) throws {
         let normalizedDuration = Self.normalizedDuration(duration)
@@ -117,6 +118,7 @@ public final class LibraryDatabase: @unchecked Sendable {
             decoding: try JSONEncoder().encode(audioTracks),
             as: UTF8.self
         )
+        let encodedHDRMetadata = try hdrMetadata?.encodedJSONString()
         try database.withImmediateTransaction {
             let statement = try database.prepare(
                 """
@@ -129,6 +131,7 @@ public final class LibraryDatabase: @unchecked Sendable {
                     video_bit_depth = ?,
                     video_pixel_format = ?,
                     container_format = ?,
+                    hdr_metadata = ?,
                     audio_tracks = ?,
                     duration_retry_pending = 0
                 WHERE path = ?;
@@ -185,8 +188,9 @@ public final class LibraryDatabase: @unchecked Sendable {
                 to: statement,
                 at: 8
             )
-            try statement.bind(encodedAudioTracks, at: 9)
-            try statement.bind(videoFile.mediaPath, at: 10)
+            try bind(encodedHDRMetadata, to: statement, at: 9)
+            try statement.bind(encodedAudioTracks, at: 10)
+            try statement.bind(videoFile.mediaPath, at: 11)
             try statement.run()
 
             try updatePresentationDuration(

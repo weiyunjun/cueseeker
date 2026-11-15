@@ -688,4 +688,166 @@ func testMediaDetailFormatterUnifiedZeroPaddedDurations() {
     #expect(MediaDetailFormatter.durationText(nil) == "-")
 }
 
+@Test
+func testVideoHDRMetadataPersistenceClearPendingForSDRAndIndexedReads() throws {
+    let tempDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerHDRPersistence-\(UUID().uuidString)", isDirectory: true)
+    let mediaDir = tempDir.appendingPathComponent("Media", isDirectory: true)
+    let databaseURL = tempDir.appendingPathComponent("library.sqlite")
+    try FileManager.default.createDirectory(at: mediaDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let hdrVideoURL = mediaDir.appendingPathComponent("HDR01.mkv")
+    let sdrVideoURL = mediaDir.appendingPathComponent("SDR02.mkv")
+    try Data("hdr".utf8).write(to: hdrVideoURL)
+    try Data("sdr".utf8).write(to: sdrVideoURL)
+    try Data("1\n00:00:01,000 --> 00:00:02,000\nHDR\n".utf8)
+        .write(to: mediaDir.appendingPathComponent("HDR01.srt"))
+    try Data("1\n00:00:01,000 --> 00:00:02,000\nSDR\n".utf8)
+        .write(to: mediaDir.appendingPathComponent("SDR02.srt"))
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexingDB = try IndexingDatabase(path: databaseURL)
+    let libraryDB = try LibraryDatabase(path: databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let initialResult = try indexer.index(folder: mediaDir, into: indexingDB)
+    let canonicalHDRPath = try #require(
+        initialResult.pendingVideoMetadataPaths.first { $0.hasSuffix("/HDR01.mkv") }
+    )
+    let canonicalSDRPath = try #require(
+        initialResult.pendingVideoMetadataPaths.first { $0.hasSuffix("/SDR02.mkv") }
+    )
+
+    let hdr = VideoHDRMetadata(
+        standards: [.hlg, .dolbyVision, .hdr10],
+        dolbyVisionProfile: 8,
+        dolbyVisionCompatibilityID: 1,
+        colorPrimaries: "bt2020",
+        transferFunction: "smpte2084",
+        masteringDisplayPrimaries: "display_p3",
+        masteringDisplayMinLuminance: 0.005,
+        masteringDisplayMaxLuminance: 1000.0,
+        maxCLL: 852,
+        maxFALL: 185
+    )
+    try libraryDB.updateVideoMetadata(
+        videoFile: URL(fileURLWithPath: canonicalHDRPath),
+        duration: 120.0,
+        videoWidth: 3840,
+        videoHeight: 2160,
+        frameRate: 23.976,
+        videoCodec: "hevc",
+        videoBitDepth: 10,
+        videoPixelFormat: "yuv420p10le",
+        containerFormat: "mkv",
+        hdrMetadata: hdr,
+        audioTracks: []
+    )
+    try libraryDB.updateVideoMetadata(
+        videoFile: URL(fileURLWithPath: canonicalSDRPath),
+        duration: 120.0,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        frameRate: 24.0,
+        videoCodec: "h264",
+        videoBitDepth: 8,
+        videoPixelFormat: "yuv420p",
+        containerFormat: "mkv",
+        hdrMetadata: nil,
+        audioTracks: []
+    )
+
+    // Confirmed SDR and HDR videos must clear duration_retry_pending and not re-probe when unchanged.
+    let repeatResult = try indexer.index(folder: mediaDir, into: indexingDB)
+    #expect(repeatResult.pendingVideoMetadataPaths.isEmpty)
+
+    let hdrDetail = try #require(try libraryDB.fileDetailVideoInfo(for: canonicalHDRPath))
+    #expect(hdrDetail.hdrMetadata == hdr)
+    #expect(hdrDetail.hdrMetadata?.standards == [.dolbyVision, .hdr10, .hlg])
+
+    let sdrDetail = try #require(try libraryDB.fileDetailVideoInfo(for: canonicalSDRPath))
+    #expect(sdrDetail.hdrMetadata == nil)
+
+    try libraryDB.refreshPresentationAfterIndexedContentChange()
+
+    let indexedDB = try IndexedContentDatabase(path: databaseURL)
+    let canonicalMediaDirPath = URL(fileURLWithPath: canonicalHDRPath).deletingLastPathComponent().path
+    let objects = try indexedDB.objects(in: canonicalMediaDirPath)
+    let hdrObject = try #require(objects.first(where: { $0.videoPath == canonicalHDRPath }))
+    #expect(hdrObject.hdrMetadata == hdr)
+    let sdrObject = try #require(objects.first(where: { $0.videoPath == canonicalSDRPath }))
+    #expect(sdrObject.hdrMetadata == nil)
+    let treeObjects = try indexedDB.contentTree().flatMap(\.folders).flatMap(\.objects)
+    let treeHDRObject = try #require(treeObjects.first(where: { $0.videoPath == canonicalHDRPath }))
+    #expect(treeHDRObject.hdrMetadata == hdr)
+    let treeSDRObject = try #require(treeObjects.first(where: { $0.videoPath == canonicalSDRPath }))
+    #expect(treeSDRObject.hdrMetadata == nil)
+}
+
+@Test
+func testMediaDetailFormatterHDRFormattingEdgesAndLocales() {
+    #expect(MediaDetailFormatter.shortHDRStandardText(nil) == nil)
+    #expect(MediaDetailFormatter.hdrProperties(for: nil).isEmpty)
+    #expect(MediaDetailFormatter.hdrProperties(for: VideoHDRMetadata(standards: [])).isEmpty)
+
+    let dvProfile81 = VideoHDRMetadata(
+        standards: [.hdr10, .dolbyVision],
+        dolbyVisionProfile: 8,
+        dolbyVisionCompatibilityID: 1,
+        colorPrimaries: "bt2020",
+        transferFunction: "smpte2084",
+        masteringDisplayPrimaries: "display_p3",
+        masteringDisplayMinLuminance: 0.005,
+        masteringDisplayMaxLuminance: 1000.0,
+        maxCLL: 1200,
+        maxFALL: 185
+    )
+    #expect(MediaDetailFormatter.shortHDRStandardText(dvProfile81, locale: Locale(identifier: "en")) == "Dolby Vision")
+    #expect(MediaDetailFormatter.shortHDRStandardText(dvProfile81, locale: Locale(identifier: "zh-Hans")) == "杜比视界")
+    #expect(MediaDetailFormatter.shortHDRStandardText(dvProfile81, locale: Locale(identifier: "zh-Hant")) == "杜比視界")
+
+    let enRows = MediaDetailFormatter.hdrProperties(for: dvProfile81, locale: Locale(identifier: "en"))
+    #expect(enRows == [
+        MediaDetailPropertyItem(labelKey: "file_detail.hdr", value: "Dolby Vision (Profile 8.1) / HDR10"),
+        MediaDetailPropertyItem(labelKey: "file_detail.color_primaries", value: "BT.2020"),
+        MediaDetailPropertyItem(labelKey: "file_detail.transfer_function", value: "PQ (SMPTE ST 2084)"),
+        MediaDetailPropertyItem(labelKey: "file_detail.mastering_display", value: "Display P3, 0.005 - 1000 nits"),
+        MediaDetailPropertyItem(labelKey: "file_detail.max_cll", value: "1200 nits"),
+        MediaDetailPropertyItem(labelKey: "file_detail.max_fall", value: "185 nits")
+    ])
+
+    let dvProfile5NoCompat = VideoHDRMetadata(
+        standards: [.dolbyVision],
+        dolbyVisionProfile: 5,
+        dolbyVisionCompatibilityID: 0
+    )
+    #expect(
+        MediaDetailFormatter.hdrProperties(for: dvProfile5NoCompat, locale: Locale(identifier: "zh-Hans")) == [
+            MediaDetailPropertyItem(labelKey: "file_detail.hdr", value: "杜比视界 (Profile 5)")
+        ]
+    )
+
+    let zeroLuminanceAndTrailingZero = VideoHDRMetadata(
+        standards: [.hlg, .hdr10Plus, .hdr10],
+        dolbyVisionProfile: nil,
+        colorPrimaries: "smpte432",
+        transferFunction: "arib-std-b67",
+        masteringDisplayPrimaries: nil,
+        masteringDisplayMinLuminance: 0.0001,
+        masteringDisplayMaxLuminance: 4000.0,
+        maxCLL: 0,
+        maxFALL: nil
+    )
+    #expect(MediaDetailFormatter.shortHDRStandardText(zeroLuminanceAndTrailingZero) == "HDR10+")
+    #expect(
+        MediaDetailFormatter.hdrProperties(for: zeroLuminanceAndTrailingZero) == [
+            MediaDetailPropertyItem(labelKey: "file_detail.hdr", value: "HDR10+ / HDR10 / HLG"),
+            MediaDetailPropertyItem(labelKey: "file_detail.color_primaries", value: "Display P3"),
+            MediaDetailPropertyItem(labelKey: "file_detail.transfer_function", value: "HLG (ARIB STD-B67)"),
+            MediaDetailPropertyItem(labelKey: "file_detail.mastering_display", value: "0.0001 - 4000 nits")
+        ]
+    )
+}
+
 

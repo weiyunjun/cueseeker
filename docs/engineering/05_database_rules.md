@@ -119,13 +119,13 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The implemented schema version is `67`.
+- The implemented schema version is `69`.
 - Schema version `33` adds durable user-selected video and folder cover
   overrides.
 - Schema `33` is the minimum supported native database and the baseline for the
   database architecture decomposition. Native schemas `1...32` are no longer
   opened or migrated by the active app.
-- Version `0` creates the complete current schema. Versions `33` through `66`
+- Version `0` creates the complete current schema. Versions `33` through `68`
   migrate forward to the current schema. Any unsupported lower version or
   version greater than the current implementation must be rejected without
   changing its `user_version`.
@@ -202,6 +202,17 @@ Current mechanism:
   `modified_at`), and zlib-compressed packed binary ASS/SSA event byte-offset
   records populated strictly during `Index` and validated read-only at query
   time without touching external media files during schema migration.
+- Schema version `68` adds `idx_subtitle_cue_lines_subtitle_file` on
+  `subtitle_cue_lines(subtitle_file_id)` when `subtitle_file_id` is present,
+  accelerating per-subtitle cue counts and deletes without altering durable
+  user state.
+- Schema version `69` adds the nullable `hdr_metadata TEXT` column to
+  `video_files` (populated with JSON-encoded structured HDR metadata on HDR
+  videos and SQL `NULL` on confirmed plain SDR videos) and sets
+  `duration_retry_pending = 1` on existing `video_files` rows so the next
+  `Index` run backfills HDR metadata lazily without scanning external media
+  files during schema migration; once `updateVideoMetadata` writes back probed
+  results (including plain SDR `nil`), `duration_retry_pending` clears to `0`.
 
 ## 5. Migration Rules
 

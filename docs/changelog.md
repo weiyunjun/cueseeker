@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Indexed videos now probe and store structured HDR metadata (Dolby Vision,
+  HDR10+, HDR10, HLG, color primaries, transfer characteristics, mastering
+  display, MaxCLL, and MaxFALL), displaying the highest-priority HDR standard
+  on `File` video cards and conditional localized HDR rows in `File Info`.
+
 - Release and Debug builds now keep separate local databases, covers, remote
   subtitle caches, system font-environment caches, and preferences suites
   (`release/` vs `debug/` under `Application Support/CueSeeker` and

@@ -74,6 +74,115 @@ public struct VideoAudioTrack: Codable, Equatable, Sendable {
     }
 }
 
+/// Supported HDR standards ordered from highest to lowest display priority.
+public enum VideoHDRStandard: String, Codable, Equatable, Hashable, Sendable, CaseIterable {
+    case dolbyVision
+    case hdr10Plus
+    case hdr10
+    case hlg
+
+    private var priorityOrder: Int {
+        switch self {
+        case .dolbyVision: return 0
+        case .hdr10Plus: return 1
+        case .hdr10: return 2
+        case .hlg: return 3
+        }
+    }
+
+    public static func normalized(_ standards: [VideoHDRStandard]) -> [VideoHDRStandard] {
+        var seen = Set<VideoHDRStandard>()
+        return standards
+            .filter { seen.insert($0).inserted }
+            .sorted { $0.priorityOrder < $1.priorityOrder }
+    }
+}
+
+/// Raw structured HDR metadata probed from a video stream during Index.
+/// Contains only protocol/stream values (no pre-rendered localized labels).
+public struct VideoHDRMetadata: Codable, Equatable, Sendable {
+    public let standards: [VideoHDRStandard]
+    public let dolbyVisionProfile: Int?
+    public let dolbyVisionCompatibilityID: Int?
+    public let colorPrimaries: String?
+    public let transferFunction: String?
+    public let masteringDisplayPrimaries: String?
+    public let masteringDisplayMinLuminance: Double?
+    public let masteringDisplayMaxLuminance: Double?
+    public let maxCLL: Int?
+    public let maxFALL: Int?
+
+    public init(
+        standards: [VideoHDRStandard],
+        dolbyVisionProfile: Int? = nil,
+        dolbyVisionCompatibilityID: Int? = nil,
+        colorPrimaries: String? = nil,
+        transferFunction: String? = nil,
+        masteringDisplayPrimaries: String? = nil,
+        masteringDisplayMinLuminance: Double? = nil,
+        masteringDisplayMaxLuminance: Double? = nil,
+        maxCLL: Int? = nil,
+        maxFALL: Int? = nil
+    ) {
+        self.standards = VideoHDRStandard.normalized(standards)
+        self.dolbyVisionProfile = dolbyVisionProfile
+        self.dolbyVisionCompatibilityID = dolbyVisionCompatibilityID
+        self.colorPrimaries = Self.normalizedToken(colorPrimaries)
+        self.transferFunction = Self.normalizedToken(transferFunction)
+        self.masteringDisplayPrimaries = Self.normalizedToken(masteringDisplayPrimaries)
+        self.masteringDisplayMinLuminance = masteringDisplayMinLuminance
+        self.masteringDisplayMaxLuminance = masteringDisplayMaxLuminance
+        self.maxCLL = maxCLL
+        self.maxFALL = maxFALL
+    }
+
+    private static func normalizedToken(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    public var isEmpty: Bool {
+        standards.isEmpty
+            && dolbyVisionProfile == nil
+            && dolbyVisionCompatibilityID == nil
+            && colorPrimaries == nil
+            && transferFunction == nil
+            && masteringDisplayPrimaries == nil
+            && masteringDisplayMinLuminance == nil
+            && masteringDisplayMaxLuminance == nil
+            && maxCLL == nil
+            && maxFALL == nil
+    }
+
+    public static func decode(jsonString: String?) -> VideoHDRMetadata? {
+        guard let jsonString,
+              let decoded = try? JSONDecoder().decode(VideoHDRMetadata.self, from: Data(jsonString.utf8))
+        else {
+            return nil
+        }
+        return VideoHDRMetadata(
+            standards: decoded.standards,
+            dolbyVisionProfile: decoded.dolbyVisionProfile,
+            dolbyVisionCompatibilityID: decoded.dolbyVisionCompatibilityID,
+            colorPrimaries: decoded.colorPrimaries,
+            transferFunction: decoded.transferFunction,
+            masteringDisplayPrimaries: decoded.masteringDisplayPrimaries,
+            masteringDisplayMinLuminance: decoded.masteringDisplayMinLuminance,
+            masteringDisplayMaxLuminance: decoded.masteringDisplayMaxLuminance,
+            maxCLL: decoded.maxCLL,
+            maxFALL: decoded.maxFALL
+        )
+    }
+
+    public func encodedJSONString() throws -> String? {
+        guard !isEmpty else { return nil }
+        return String(decoding: try JSONEncoder().encode(self), as: UTF8.self)
+    }
+}
+
 /// A video's recorded audio tracks and its default audio track.
 public struct VideoAudioTracks: Equatable, Sendable {
     public let tracks: [VideoAudioTrack]

@@ -8,7 +8,10 @@
 #include <libavcodec/codec_id.h>
 #include <libavformat/avformat.h>
 #include <libavutil/dict.h>
+#include <libavutil/dovi_meta.h>
 #include <libavutil/error.h>
+#include <libavutil/hdr_dynamic_metadata.h>
+#include <libavutil/mastering_display_metadata.h>
 #include <libavutil/pixdesc.h>
 #include <libavutil/rational.h>
 #include <libswscale/swscale.h>
@@ -181,6 +184,51 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
 
 @end
 
+@interface SFXMediaHDRMetadata ()
+
+- (instancetype)initWithStandards:(NSArray<NSString *> *)standards
+               dolbyVisionProfile:(nullable NSNumber *)dolbyVisionProfile
+       dolbyVisionCompatibilityID:(nullable NSNumber *)dolbyVisionCompatibilityID
+                   colorPrimaries:(nullable NSString *)colorPrimaries
+                 transferFunction:(nullable NSString *)transferFunction
+        masteringDisplayPrimaries:(nullable NSString *)masteringDisplayPrimaries
+     masteringDisplayMinLuminance:(nullable NSNumber *)masteringDisplayMinLuminance
+     masteringDisplayMaxLuminance:(nullable NSNumber *)masteringDisplayMaxLuminance
+                           maxCLL:(nullable NSNumber *)maxCLL
+                          maxFALL:(nullable NSNumber *)maxFALL NS_DESIGNATED_INITIALIZER;
+
+@end
+
+@implementation SFXMediaHDRMetadata
+
+- (instancetype)initWithStandards:(NSArray<NSString *> *)standards
+               dolbyVisionProfile:(nullable NSNumber *)dolbyVisionProfile
+       dolbyVisionCompatibilityID:(nullable NSNumber *)dolbyVisionCompatibilityID
+                   colorPrimaries:(nullable NSString *)colorPrimaries
+                 transferFunction:(nullable NSString *)transferFunction
+        masteringDisplayPrimaries:(nullable NSString *)masteringDisplayPrimaries
+     masteringDisplayMinLuminance:(nullable NSNumber *)masteringDisplayMinLuminance
+     masteringDisplayMaxLuminance:(nullable NSNumber *)masteringDisplayMaxLuminance
+                           maxCLL:(nullable NSNumber *)maxCLL
+                          maxFALL:(nullable NSNumber *)maxFALL {
+    self = [super init];
+    if (self != nil) {
+        _standards = [standards copy];
+        _dolbyVisionProfile = dolbyVisionProfile;
+        _dolbyVisionCompatibilityID = dolbyVisionCompatibilityID;
+        _colorPrimaries = [colorPrimaries copy];
+        _transferFunction = [transferFunction copy];
+        _masteringDisplayPrimaries = [masteringDisplayPrimaries copy];
+        _masteringDisplayMinLuminance = masteringDisplayMinLuminance;
+        _masteringDisplayMaxLuminance = masteringDisplayMaxLuminance;
+        _maxCLL = maxCLL;
+        _maxFALL = maxFALL;
+    }
+    return self;
+}
+
+@end
+
 @interface SFXMediaMetadata ()
 
 - (instancetype)initWithDurationSeconds:(NSNumber *)durationSeconds
@@ -192,6 +240,7 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
                        videoPixelFormat:(NSString *)videoPixelFormat
                              formatName:(nullable NSString *)formatName
                              majorBrand:(nullable NSString *)majorBrand
+                            hdrMetadata:(nullable SFXMediaHDRMetadata *)hdrMetadata
                             audioTracks:(NSArray<SFXMediaAudioTrack *> *)audioTracks NS_DESIGNATED_INITIALIZER;
 
 @end
@@ -207,6 +256,7 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
                        videoPixelFormat:(NSString *)videoPixelFormat
                              formatName:(nullable NSString *)formatName
                              majorBrand:(nullable NSString *)majorBrand
+                            hdrMetadata:(nullable SFXMediaHDRMetadata *)hdrMetadata
                             audioTracks:(NSArray<SFXMediaAudioTrack *> *)audioTracks {
     self = [super init];
     if (self != nil) {
@@ -219,12 +269,519 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
         _videoPixelFormat = [videoPixelFormat copy];
         _formatName = [formatName copy];
         _majorBrand = [majorBrand copy];
+        _hdrMetadata = hdrMetadata;
         _audioTracks = [audioTracks copy];
     }
     return self;
 }
 
 @end
+
+typedef struct SFXHDRProbeState {
+    BOOL hasDolbyVision;
+    int dolbyVisionProfile;
+    int dolbyVisionCompatibilityID;
+    BOOL hasHDR10Plus;
+    enum AVColorPrimaries primaries;
+    enum AVColorTransferCharacteristic transfer;
+    enum AVColorSpace matrix;
+    int masteringPrimariesKind; // 1: display_p3, 2: dci_p3, 3: bt2020, 4: bt709
+    BOOL hasMasteringLuminance;
+    double masteringMinLuminance;
+    double masteringMaxLuminance;
+    unsigned int maxCLL;
+    unsigned int maxFALL;
+} SFXHDRProbeState;
+
+static BOOL SFXHDRColorPrimariesUnspecified(enum AVColorPrimaries primaries) {
+    return primaries == AVCOL_PRI_RESERVED0
+        || primaries == AVCOL_PRI_UNSPECIFIED
+        || primaries == AVCOL_PRI_RESERVED;
+}
+
+static BOOL SFXHDRColorTransferUnspecified(enum AVColorTransferCharacteristic transfer) {
+    return transfer == AVCOL_TRC_RESERVED0
+        || transfer == AVCOL_TRC_UNSPECIFIED
+        || transfer == AVCOL_TRC_RESERVED;
+}
+
+static BOOL SFXHDRIsTransferSignalHDR(enum AVColorTransferCharacteristic transfer) {
+    return transfer == AVCOL_TRC_SMPTE2084 || transfer == AVCOL_TRC_ARIB_STD_B67;
+}
+
+static BOOL SFXHDRStateHasAnyHDRSignal(const SFXHDRProbeState *state) {
+    return state->hasDolbyVision
+        || state->hasHDR10Plus
+        || SFXHDRIsTransferSignalHDR(state->transfer)
+        || state->matrix == AVCOL_SPC_IPT_C2;
+}
+
+static BOOL SFXHDRFormatNameTokenMatches(const char *formatName, const char *target) {
+    size_t targetLen = strlen(target);
+    const char *cursor = formatName;
+    while (cursor != NULL && *cursor != '\0') {
+        const char *comma = strchr(cursor, ',');
+        size_t tokenLen = comma != NULL ? (size_t)(comma - cursor) : strlen(cursor);
+        if (tokenLen == targetLen && strncasecmp(cursor, target, tokenLen) == 0) {
+            return YES;
+        }
+        cursor = comma != NULL ? comma + 1 : NULL;
+    }
+    return NO;
+}
+
+static BOOL SFXIsBroadcastOrRawStreamFormatName(const char *formatName) {
+    if (formatName == NULL || formatName[0] == '\0') {
+        return NO;
+    }
+    static const char *const kStreamFormats[] = {
+        "mpegts", "mpeg", "hls", "applehttp", "flv", "hevc", "h264", "m4v", "ivf", "obu", "rawvideo"
+    };
+    for (size_t i = 0; i < sizeof(kStreamFormats) / sizeof(kStreamFormats[0]); i++) {
+        if (SFXHDRFormatNameTokenMatches(formatName, kStreamFormats[i])) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+static BOOL SFXHDRNearXY(double ax, double ay, double bx, double by) {
+    return fabs(ax - bx) <= 0.005 && fabs(ay - by) <= 0.005;
+}
+
+static int SFXHDRClassifyMasteringPrimaries(const AVMasteringDisplayMetadata *md) {
+    if (md == NULL || !md->has_primaries) {
+        return 0;
+    }
+    for (int i = 0; i < 3; i++) {
+        if (md->display_primaries[i][0].den <= 0 || md->display_primaries[i][1].den <= 0) {
+            return 0;
+        }
+    }
+    double rx = av_q2d(md->display_primaries[0][0]);
+    double ry = av_q2d(md->display_primaries[0][1]);
+    double gx = av_q2d(md->display_primaries[1][0]);
+    double gy = av_q2d(md->display_primaries[1][1]);
+    double bx = av_q2d(md->display_primaries[2][0]);
+    double by = av_q2d(md->display_primaries[2][1]);
+    if (!isfinite(rx) || !isfinite(ry) || !isfinite(gx) || !isfinite(gy) || !isfinite(bx) || !isfinite(by)) {
+        return 0;
+    }
+
+    BOOL hasWhite = md->white_point[0].den > 0 && md->white_point[1].den > 0;
+    double wx = hasWhite ? av_q2d(md->white_point[0]) : 0.0;
+    double wy = hasWhite ? av_q2d(md->white_point[1]) : 0.0;
+    hasWhite = hasWhite && isfinite(wx) && isfinite(wy) && (wx > 0.0 || wy > 0.0);
+
+    if (SFXHDRNearXY(rx, ry, 0.680, 0.320)
+        && SFXHDRNearXY(gx, gy, 0.265, 0.690)
+        && SFXHDRNearXY(bx, by, 0.150, 0.060)) {
+        if (hasWhite && SFXHDRNearXY(wx, wy, 0.314, 0.351)) {
+            return 2; // dci_p3
+        }
+        if (!hasWhite || SFXHDRNearXY(wx, wy, 0.3127, 0.3290)) {
+            return 1; // display_p3
+        }
+    }
+    if (SFXHDRNearXY(rx, ry, 0.708, 0.292)
+        && SFXHDRNearXY(gx, gy, 0.170, 0.797)
+        && SFXHDRNearXY(bx, by, 0.131, 0.046)
+        && (!hasWhite || SFXHDRNearXY(wx, wy, 0.3127, 0.3290))) {
+        return 3; // bt2020
+    }
+    if (SFXHDRNearXY(rx, ry, 0.640, 0.330)
+        && SFXHDRNearXY(gx, gy, 0.300, 0.600)
+        && SFXHDRNearXY(bx, by, 0.150, 0.060)
+        && (!hasWhite || SFXHDRNearXY(wx, wy, 0.3127, 0.3290))) {
+        return 4; // bt709
+    }
+    return 0;
+}
+
+static void SFXHDRMergeMasteringDisplay(SFXHDRProbeState *state, const AVMasteringDisplayMetadata *md) {
+    if (md == NULL) {
+        return;
+    }
+    if (state->masteringPrimariesKind == 0) {
+        state->masteringPrimariesKind = SFXHDRClassifyMasteringPrimaries(md);
+    }
+    if (!state->hasMasteringLuminance
+        && md->has_luminance
+        && md->min_luminance.den > 0
+        && md->max_luminance.den > 0) {
+        double minLum = av_q2d(md->min_luminance);
+        double maxLum = av_q2d(md->max_luminance);
+        if (isfinite(minLum) && isfinite(maxLum) && minLum >= 0.0 && maxLum > 0.0 && maxLum >= minLum) {
+            state->hasMasteringLuminance = YES;
+            state->masteringMinLuminance = minLum;
+            state->masteringMaxLuminance = maxLum;
+        }
+    }
+}
+
+static void SFXHDRMergeContentLight(SFXHDRProbeState *state, const AVContentLightMetadata *clm) {
+    if (clm == NULL) {
+        return;
+    }
+    if (clm->MaxCLL > 0 && state->maxCLL == 0) {
+        state->maxCLL = clm->MaxCLL;
+    }
+    if (clm->MaxFALL > 0 && state->maxFALL == 0) {
+        state->maxFALL = clm->MaxFALL;
+    }
+}
+
+static void SFXHDRMergePacketSideDataList(SFXHDRProbeState *state, const AVPacketSideData *sdList, int nbSd) {
+    if (sdList == NULL || nbSd <= 0) {
+        return;
+    }
+    const AVPacketSideData *doviSD = av_packet_side_data_get(sdList, nbSd, AV_PKT_DATA_DOVI_CONF);
+    if (doviSD != NULL && doviSD->data != NULL && doviSD->size >= sizeof(AVDOVIDecoderConfigurationRecord)) {
+        const AVDOVIDecoderConfigurationRecord *conf = (const AVDOVIDecoderConfigurationRecord *)doviSD->data;
+        state->hasDolbyVision = YES;
+        if (conf->dv_profile > 0 && state->dolbyVisionProfile <= 0) {
+            state->dolbyVisionProfile = conf->dv_profile;
+        }
+        if (conf->dv_bl_signal_compatibility_id > 0 && state->dolbyVisionCompatibilityID <= 0) {
+            state->dolbyVisionCompatibilityID = conf->dv_bl_signal_compatibility_id;
+        }
+    }
+    const AVPacketSideData *mdSD = av_packet_side_data_get(sdList, nbSd, AV_PKT_DATA_MASTERING_DISPLAY_METADATA);
+    if (mdSD != NULL && mdSD->data != NULL && mdSD->size >= sizeof(AVMasteringDisplayMetadata)) {
+        SFXHDRMergeMasteringDisplay(state, (const AVMasteringDisplayMetadata *)mdSD->data);
+    }
+    const AVPacketSideData *cllSD = av_packet_side_data_get(sdList, nbSd, AV_PKT_DATA_CONTENT_LIGHT_LEVEL);
+    if (cllSD != NULL && cllSD->data != NULL && cllSD->size >= sizeof(AVContentLightMetadata)) {
+        SFXHDRMergeContentLight(state, (const AVContentLightMetadata *)cllSD->data);
+    }
+    const AVPacketSideData *hdrPlusSD = av_packet_side_data_get(sdList, nbSd, AV_PKT_DATA_DYNAMIC_HDR10_PLUS);
+    if (hdrPlusSD != NULL && hdrPlusSD->data != NULL && hdrPlusSD->size > 0) {
+        state->hasHDR10Plus = YES;
+    }
+}
+
+static void SFXHDRMergeFrame(SFXHDRProbeState *state, const AVFrame *frame) {
+    if (frame == NULL) {
+        return;
+    }
+    BOOL frameIsHDR = SFXHDRIsTransferSignalHDR(frame->color_trc);
+    if (!SFXHDRColorTransferUnspecified(frame->color_trc)
+        && (SFXHDRColorTransferUnspecified(state->transfer) || frameIsHDR)) {
+        state->transfer = frame->color_trc;
+    }
+    if (!SFXHDRColorPrimariesUnspecified(frame->color_primaries)
+        && (SFXHDRColorPrimariesUnspecified(state->primaries)
+            || frame->color_primaries == AVCOL_PRI_BT2020
+            || frameIsHDR)) {
+        state->primaries = frame->color_primaries;
+    }
+    if (frame->colorspace != AVCOL_SPC_UNSPECIFIED
+        && frame->colorspace != AVCOL_SPC_RESERVED
+        && (state->matrix == AVCOL_SPC_UNSPECIFIED
+            || state->matrix == AVCOL_SPC_RESERVED
+            || frame->colorspace == AVCOL_SPC_IPT_C2
+            || frame->colorspace == AVCOL_SPC_ICTCP)) {
+        state->matrix = frame->colorspace;
+    }
+
+    if (av_frame_get_side_data(frame, AV_FRAME_DATA_DOVI_METADATA) != NULL
+        || av_frame_get_side_data(frame, AV_FRAME_DATA_DOVI_RPU_BUFFER) != NULL) {
+        state->hasDolbyVision = YES;
+    }
+    if (av_frame_get_side_data(frame, AV_FRAME_DATA_DYNAMIC_HDR_PLUS) != NULL) {
+        state->hasHDR10Plus = YES;
+    }
+    const AVFrameSideData *mdSD = av_frame_get_side_data(frame, AV_FRAME_DATA_MASTERING_DISPLAY_METADATA);
+    if (mdSD != NULL && mdSD->data != NULL && mdSD->size >= sizeof(AVMasteringDisplayMetadata)) {
+        SFXHDRMergeMasteringDisplay(state, (const AVMasteringDisplayMetadata *)mdSD->data);
+    }
+    const AVFrameSideData *cllSD = av_frame_get_side_data(frame, AV_FRAME_DATA_CONTENT_LIGHT_LEVEL);
+    if (cllSD != NULL && cllSD->data != NULL && cllSD->size >= sizeof(AVContentLightMetadata)) {
+        SFXHDRMergeContentLight(state, (const AVContentLightMetadata *)cllSD->data);
+    }
+}
+
+static void SFXHDRSampleFramesFromCursor(
+    AVFormatContext *formatContext,
+    int videoStreamIndex,
+    AVCodecContext *codecContext,
+    AVPacket *packet,
+    AVFrame *frame,
+    SFXHDRProbeState *state,
+    int maxDecodedFrames,
+    int maxVideoPackets,
+    int maxTotalPackets,
+    BOOL waitForKeyframe
+) {
+    int totalPackets = 0;
+    int videoPackets = 0;
+    int decodedFrames = 0;
+    BOOL seenKeyframe = !waitForKeyframe;
+
+    while (decodedFrames < maxDecodedFrames
+           && videoPackets < maxVideoPackets
+           && totalPackets < maxTotalPackets
+           && av_read_frame(formatContext, packet) >= 0) {
+        totalPackets += 1;
+        if (packet->stream_index != videoStreamIndex) {
+            av_packet_unref(packet);
+            continue;
+        }
+        videoPackets += 1;
+        SFXHDRMergePacketSideDataList(state, packet->side_data, packet->side_data_elems);
+
+        if (!seenKeyframe) {
+            if ((packet->flags & AV_PKT_FLAG_KEY) != 0) {
+                seenKeyframe = YES;
+            } else {
+                av_packet_unref(packet);
+                continue;
+            }
+        }
+
+        int sendResult = avcodec_send_packet(codecContext, packet);
+        av_packet_unref(packet);
+        if (sendResult < 0) {
+            continue;
+        }
+
+        while (decodedFrames < maxDecodedFrames && avcodec_receive_frame(codecContext, frame) >= 0) {
+            SFXHDRMergeFrame(state, frame);
+            decodedFrames += 1;
+            av_frame_unref(frame);
+        }
+    }
+
+    if (decodedFrames == 0 && seenKeyframe && videoPackets > 0) {
+        avcodec_send_packet(codecContext, NULL);
+        while (decodedFrames < maxDecodedFrames && avcodec_receive_frame(codecContext, frame) >= 0) {
+            SFXHDRMergeFrame(state, frame);
+            decodedFrames += 1;
+            av_frame_unref(frame);
+        }
+    }
+}
+
+static NSString * _Nullable SFXHDRCanonicalPrimariesToken(enum AVColorPrimaries primaries) {
+    if (SFXHDRColorPrimariesUnspecified(primaries)) {
+        return nil;
+    }
+    const char *name = av_color_primaries_name(primaries);
+    return (name != NULL && name[0] != '\0') ? [NSString stringWithUTF8String:name] : nil;
+}
+
+static NSString * _Nullable SFXHDRCanonicalTransferToken(enum AVColorTransferCharacteristic transfer) {
+    if (SFXHDRColorTransferUnspecified(transfer)) {
+        return nil;
+    }
+    const char *name = av_color_transfer_name(transfer);
+    return (name != NULL && name[0] != '\0') ? [NSString stringWithUTF8String:name] : nil;
+}
+
+static SFXMediaHDRMetadata * _Nullable SFXBuildHDRMetadataFromState(const SFXHDRProbeState *state) {
+    BOOL hasDOVI = state->hasDolbyVision || state->matrix == AVCOL_SPC_IPT_C2;
+    BOOL hasHDR10Plus = state->hasHDR10Plus;
+    BOOL hasHDR10 = NO;
+    BOOL hasHLG = NO;
+
+    if (hasDOVI) {
+        if (state->dolbyVisionProfile == 5) {
+            hasHDR10 = NO;
+            hasHLG = NO;
+        } else if (state->dolbyVisionProfile == 7
+                   || state->dolbyVisionCompatibilityID == 1
+                   || state->dolbyVisionCompatibilityID == 6) {
+            hasHDR10 = YES;
+        } else if (state->dolbyVisionCompatibilityID == 4) {
+            hasHLG = YES;
+        } else if (state->dolbyVisionCompatibilityID == 2) {
+            hasHDR10 = NO;
+            hasHLG = NO;
+        } else {
+            hasHDR10 = hasHDR10Plus || state->transfer == AVCOL_TRC_SMPTE2084;
+            hasHLG = state->transfer == AVCOL_TRC_ARIB_STD_B67;
+        }
+    } else {
+        hasHDR10 = hasHDR10Plus || state->transfer == AVCOL_TRC_SMPTE2084;
+        hasHLG = state->transfer == AVCOL_TRC_ARIB_STD_B67;
+    }
+
+    NSMutableArray<NSString *> *standards = [NSMutableArray array];
+    if (hasDOVI) {
+        [standards addObject:@"dolbyVision"];
+    }
+    if (hasHDR10Plus) {
+        [standards addObject:@"hdr10Plus"];
+    }
+    if (hasHDR10) {
+        [standards addObject:@"hdr10"];
+    }
+    if (hasHLG) {
+        [standards addObject:@"hlg"];
+    }
+    if (standards.count == 0) {
+        return nil;
+    }
+
+    NSString *masteringPrimaries = nil;
+    switch (state->masteringPrimariesKind) {
+    case 1: masteringPrimaries = @"display_p3"; break;
+    case 2: masteringPrimaries = @"dci_p3"; break;
+    case 3: masteringPrimaries = @"bt2020"; break;
+    case 4: masteringPrimaries = @"bt709"; break;
+    default: break;
+    }
+
+    return [[SFXMediaHDRMetadata alloc]
+        initWithStandards:standards
+        dolbyVisionProfile:state->dolbyVisionProfile > 0 ? @(state->dolbyVisionProfile) : nil
+        dolbyVisionCompatibilityID:state->dolbyVisionCompatibilityID > 0 ? @(state->dolbyVisionCompatibilityID) : nil
+        colorPrimaries:SFXHDRCanonicalPrimariesToken(state->primaries)
+        transferFunction:SFXHDRCanonicalTransferToken(state->transfer)
+        masteringDisplayPrimaries:masteringPrimaries
+        masteringDisplayMinLuminance:state->hasMasteringLuminance ? @(state->masteringMinLuminance) : nil
+        masteringDisplayMaxLuminance:state->hasMasteringLuminance ? @(state->masteringMaxLuminance) : nil
+        maxCLL:state->maxCLL > 0 ? @(state->maxCLL) : nil
+        maxFALL:state->maxFALL > 0 ? @(state->maxFALL) : nil];
+}
+
+static SFXMediaHDRMetadata * _Nullable SFXInspectVideoHDRMetadata(
+    AVFormatContext *formatContext,
+    int videoStreamIndex,
+    int bitDepth,
+    enum AVPixelFormat pixelFormat,
+    double timelineOriginSeconds,
+    double durationSeconds
+) {
+    if (formatContext == NULL || videoStreamIndex < 0 || videoStreamIndex >= (int)formatContext->nb_streams) {
+        return nil;
+    }
+    AVStream *videoStream = formatContext->streams[videoStreamIndex];
+    AVCodecParameters *codecParameters = videoStream != NULL ? videoStream->codecpar : NULL;
+    if (codecParameters == NULL) {
+        return nil;
+    }
+
+    SFXHDRProbeState state = {0};
+    state.primaries = codecParameters->color_primaries;
+    state.transfer = codecParameters->color_trc;
+    state.matrix = codecParameters->color_space;
+    SFXHDRMergePacketSideDataList(&state, codecParameters->coded_side_data, codecParameters->nb_coded_side_data);
+
+    const char *formatName = (formatContext->iformat != NULL) ? formatContext->iformat->name : NULL;
+    BOOL isStreamFormat = SFXIsBroadcastOrRawStreamFormatName(formatName);
+    BOOL hasExplicitStreamHDR = SFXHDRStateHasAnyHDRSignal(&state)
+        || state.primaries == AVCOL_PRI_BT2020
+        || state.matrix == AVCOL_SPC_BT2020_NCL
+        || state.matrix == AVCOL_SPC_BT2020_CL
+        || state.matrix == AVCOL_SPC_ICTCP
+        || state.masteringPrimariesKind != 0
+        || state.hasMasteringLuminance
+        || state.maxCLL > 0
+        || state.maxFALL > 0;
+    BOOL hasAmbiguousDeepColor = (bitDepth >= 10 || (bitDepth <= 0 && pixelFormat == AV_PIX_FMT_NONE))
+        && (SFXHDRColorTransferUnspecified(state.transfer) || SFXHDRColorPrimariesUnspecified(state.primaries));
+
+    if (!isStreamFormat && !hasExplicitStreamHDR && !hasAmbiguousDeepColor) {
+        return nil;
+    }
+
+    const AVCodec *decoder = SFXMetadataFindSoftwareVideoDecoder(codecParameters->codec_id);
+    if (decoder == NULL) {
+        return SFXBuildHDRMetadataFromState(&state);
+    }
+
+    AVCodecContext *codecContext = avcodec_alloc_context3(decoder);
+    AVPacket *packet = av_packet_alloc();
+    AVFrame *frame = av_frame_alloc();
+    if (codecContext == NULL || packet == NULL || frame == NULL) {
+        av_frame_free(&frame);
+        av_packet_free(&packet);
+        avcodec_free_context(&codecContext);
+        return SFXBuildHDRMetadataFromState(&state);
+    }
+
+    codecContext->thread_count = 1;
+    if (avcodec_parameters_to_context(codecContext, codecParameters) >= 0
+        && avcodec_open2(codecContext, decoder, NULL) >= 0) {
+        SFXHDRSampleFramesFromCursor(formatContext, videoStreamIndex, codecContext, packet, frame, &state, 2, 48, 320, NO);
+
+        if (isStreamFormat && !SFXHDRStateHasAnyHDRSignal(&state)) {
+            if (isfinite(durationSeconds) && durationSeconds > 0.5) {
+                const double fractions[2] = { 0.35, 0.70 };
+                for (int i = 0; i < 2 && !SFXHDRStateHasAnyHDRSignal(&state); i++) {
+                    double targetSeconds = timelineOriginSeconds + durationSeconds * fractions[i];
+                    int seekResult = -1;
+                    if (videoStream->time_base.num > 0 && videoStream->time_base.den > 0) {
+                        int64_t streamTarget = (int64_t)llround(targetSeconds / av_q2d(videoStream->time_base));
+                        seekResult = av_seek_frame(formatContext, videoStreamIndex, streamTarget, AVSEEK_FLAG_BACKWARD);
+                    }
+                    if (seekResult < 0) {
+                        int64_t globalTarget = (int64_t)llround(targetSeconds * AV_TIME_BASE);
+                        seekResult = av_seek_frame(formatContext, -1, globalTarget, AVSEEK_FLAG_BACKWARD);
+                    }
+                    if (seekResult >= 0) {
+                        avcodec_flush_buffers(codecContext);
+                        SFXHDRSampleFramesFromCursor(
+                            formatContext,
+                            videoStreamIndex,
+                            codecContext,
+                            packet,
+                            frame,
+                            &state,
+                            1,
+                            300,
+                            1200,
+                            YES
+                        );
+                    } else {
+                        break;
+                    }
+                }
+            }
+            if (!SFXHDRStateHasAnyHDRSignal(&state)
+                && formatContext->pb != NULL
+                && (formatContext->pb->seekable & AVIO_SEEKABLE_NORMAL) != 0) {
+                int64_t totalBytes = avio_size(formatContext->pb);
+                if (totalBytes > 0
+                    && av_seek_frame(formatContext, -1, totalBytes / 2, AVSEEK_FLAG_BYTE) >= 0) {
+                    avcodec_flush_buffers(codecContext);
+                    SFXHDRSampleFramesFromCursor(
+                        formatContext,
+                        videoStreamIndex,
+                        codecContext,
+                        packet,
+                        frame,
+                        &state,
+                        1,
+                        300,
+                        1200,
+                        YES
+                    );
+                }
+            }
+            if (!SFXHDRStateHasAnyHDRSignal(&state)) {
+                SFXHDRSampleFramesFromCursor(
+                    formatContext,
+                    videoStreamIndex,
+                    codecContext,
+                    packet,
+                    frame,
+                    &state,
+                    2,
+                    120,
+                    480,
+                    NO
+                );
+            }
+        }
+    }
+
+    av_frame_free(&frame);
+    av_packet_free(&packet);
+    avcodec_free_context(&codecContext);
+    return SFXBuildHDRMetadataFromState(&state);
+}
 
 static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     const AVFormatContext *formatContext,
@@ -545,6 +1102,7 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     NSString *videoCodec = nil;
     NSNumber *videoBitDepth = nil;
     NSString *videoPixelFormat = nil;
+    SFXMediaHDRMetadata *hdrMetadata = nil;
     if (videoStreamIndex >= 0 && videoStreamIndex < (int)formatContext->nb_streams) {
         AVStream *videoStream = formatContext->streams[videoStreamIndex];
         AVCodecParameters *codecParameters = videoStream != NULL ? videoStream->codecpar : NULL;
@@ -582,6 +1140,15 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
             if (bitDepth > 0) {
                 videoBitDepth = @(bitDepth);
             }
+
+            hdrMetadata = SFXInspectVideoHDRMetadata(
+                formatContext,
+                videoStreamIndex,
+                bitDepth,
+                pixFmt,
+                timelineOriginSeconds,
+                durationSeconds
+            );
         }
 
         AVRational frameRateRational = videoStream->avg_frame_rate.num > 0 && videoStream->avg_frame_rate.den > 0
@@ -636,6 +1203,7 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                                             videoPixelFormat:videoPixelFormat
                                                   formatName:formatName
                                                   majorBrand:majorBrand
+                                                 hdrMetadata:hdrMetadata
                                                  audioTracks:audioTracks];
 }
 

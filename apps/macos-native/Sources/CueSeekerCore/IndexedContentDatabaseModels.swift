@@ -44,6 +44,7 @@ public struct IndexedContentObject: Identifiable, Equatable, Sendable {
     public let videoHeight: Int?
     public let videoCodec: String?
     public let duration: Double?
+    public let hdrMetadata: VideoHDRMetadata?
     public let subtitles: [IndexedContentSubtitle]
 
     public init(
@@ -56,6 +57,7 @@ public struct IndexedContentObject: Identifiable, Equatable, Sendable {
         videoHeight: Int? = nil,
         videoCodec: String? = nil,
         duration: Double? = nil,
+        hdrMetadata: VideoHDRMetadata? = nil,
         subtitles: [IndexedContentSubtitle] = []
     ) {
         self.id = id
@@ -67,6 +69,7 @@ public struct IndexedContentObject: Identifiable, Equatable, Sendable {
         self.videoHeight = videoHeight
         self.videoCodec = videoCodec
         self.duration = duration
+        self.hdrMetadata = hdrMetadata
         self.subtitles = subtitles
     }
 
@@ -81,6 +84,7 @@ public struct IndexedContentObject: Identifiable, Equatable, Sendable {
             videoHeight: videoHeight,
             videoCodec: videoCodec,
             duration: duration,
+            hdrMetadata: hdrMetadata,
             subtitles: subtitles
         )
     }

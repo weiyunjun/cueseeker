@@ -439,6 +439,13 @@ struct WorkbenchFileDetailDialog: View {
                 label: L("file_detail.pixel_format"),
                 value: Self.pixelFormatText(info.videoPixelFormat)
             )
+            ForEach(
+                Array(Self.hdrPropertyItems(for: info.hdrMetadata).enumerated()),
+                id: \.offset
+            ) { _, item in
+                SettingsRowDivider()
+                FileDetailRow(label: L(item.labelKey), value: item.value)
+            }
             SettingsRowDivider()
             FileDetailRow(
                 label: L("file_detail.duration"),
@@ -471,6 +478,13 @@ struct WorkbenchFileDetailDialog: View {
             containerFormat: info.containerFormat,
             modifiedAt: info.modifiedAt
         )
+    }
+
+    static func hdrPropertyItems(
+        for hdrMetadata: VideoHDRMetadata?,
+        locale: Locale = AppLocalization.locale
+    ) -> [MediaDetailPropertyItem] {
+        MediaDetailFormatter.hdrProperties(for: hdrMetadata, locale: locale)
     }
 
     static func validAudioTrackPropertyGroups(

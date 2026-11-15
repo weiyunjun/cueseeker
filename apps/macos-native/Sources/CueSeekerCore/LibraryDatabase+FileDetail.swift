@@ -12,6 +12,7 @@ public struct FileDetailVideoInfo: Equatable, Sendable {
     public let videoBitDepth: Int?
     public let videoPixelFormat: String?
     public let containerFormat: String?
+    public let hdrMetadata: VideoHDRMetadata?
     public let audioTracks: [VideoAudioTrack]
     public let subtitles: [VideoSubtitle]
     public let createdAt: Date?
@@ -29,6 +30,7 @@ public struct FileDetailVideoInfo: Equatable, Sendable {
         videoBitDepth: Int? = nil,
         videoPixelFormat: String? = nil,
         containerFormat: String? = nil,
+        hdrMetadata: VideoHDRMetadata? = nil,
         audioTracks: [VideoAudioTrack],
         subtitles: [VideoSubtitle],
         createdAt: Date?,
@@ -45,6 +47,7 @@ public struct FileDetailVideoInfo: Equatable, Sendable {
         self.videoBitDepth = videoBitDepth
         self.videoPixelFormat = videoPixelFormat
         self.containerFormat = containerFormat
+        self.hdrMetadata = hdrMetadata
         self.audioTracks = audioTracks
         self.subtitles = subtitles.sorted { lhs, rhs in
             VideoSubtitles.compareSubtitles(
@@ -174,7 +177,7 @@ extension LibraryDatabase {
             SELECT vf.path, vf.video_name, vf.file_size, vf.duration,
                    vf.video_width, vf.video_height, vf.frame_rate,
                    vf.video_codec, vf.video_bit_depth, vf.video_pixel_format,
-                   vf.container_format, vf.audio_tracks, vf.modified_at
+                   vf.container_format, vf.hdr_metadata, vf.audio_tracks, vf.modified_at
             FROM video_files vf
             WHERE vf.path = ?;
             """
@@ -194,11 +197,12 @@ extension LibraryDatabase {
         let videoBitDepth = statement.nullableIntColumn(8)
         let videoPixelFormat = statement.nullableStringColumn(9)
         let containerFormat = statement.nullableStringColumn(10)
-        let tracks = (statement.nullableStringColumn(11)
+        let hdrMetadata = VideoHDRMetadata.decode(jsonString: statement.nullableStringColumn(11))
+        let tracks = (statement.nullableStringColumn(12)
             .flatMap { try? JSONDecoder().decode([VideoAudioTrack].self, from: Data($0.utf8)) }
             ?? [])
             .filter(\.isValidPlaybackTrack)
-        let modifiedAtSec = statement.nullableDoubleColumn(12)
+        let modifiedAtSec = statement.nullableDoubleColumn(13)
         let dbModifiedDate = modifiedAtSec.map { Date(timeIntervalSince1970: $0) }
 
         let fileURL = URL.fromMediaPath(path)
@@ -216,6 +220,7 @@ extension LibraryDatabase {
             videoBitDepth: videoBitDepth,
             videoPixelFormat: videoPixelFormat,
             containerFormat: containerFormat,
+            hdrMetadata: hdrMetadata,
             audioTracks: tracks,
             subtitles: subtitles,
             createdAt: nil,
@@ -923,6 +928,146 @@ public enum MediaDetailFormatter {
             items.append(MediaDetailPropertyItem(labelKey: "file_detail.track_title", value: title))
         }
         return items
+    }
+
+    public static func shortHDRStandardText(
+        _ hdrMetadata: VideoHDRMetadata?,
+        locale: Locale = Locale(identifier: "en")
+    ) -> String? {
+        guard let hdrMetadata,
+              let highest = VideoHDRStandard.normalized(hdrMetadata.standards).first
+        else {
+            return nil
+        }
+        return standardBaseName(highest, locale: locale)
+    }
+
+    public static func hdrProperties(
+        for hdrMetadata: VideoHDRMetadata?,
+        locale: Locale = Locale(identifier: "en")
+    ) -> [MediaDetailPropertyItem] {
+        guard let hdrMetadata else { return [] }
+        let standards = VideoHDRStandard.normalized(hdrMetadata.standards)
+        guard !standards.isEmpty else { return [] }
+
+        var items: [MediaDetailPropertyItem] = []
+        let standardsText = standards.map { standard in
+            guard standard == .dolbyVision else {
+                return standardBaseName(standard, locale: locale)
+            }
+            let name = dolbyVisionDisplayName(locale: locale)
+            guard let profile = hdrMetadata.dolbyVisionProfile, profile > 0 else {
+                return name
+            }
+            if let compat = hdrMetadata.dolbyVisionCompatibilityID, compat > 0 {
+                return "\(name) (Profile \(profile).\(compat))"
+            }
+            return "\(name) (Profile \(profile))"
+        }.joined(separator: " / ")
+        items.append(MediaDetailPropertyItem(labelKey: "file_detail.hdr", value: standardsText))
+
+        if let primaries = colorPrimariesText(hdrMetadata.colorPrimaries) {
+            items.append(MediaDetailPropertyItem(labelKey: "file_detail.color_primaries", value: primaries))
+        }
+        if let transfer = transferFunctionText(hdrMetadata.transferFunction) {
+            items.append(MediaDetailPropertyItem(labelKey: "file_detail.transfer_function", value: transfer))
+        }
+        if let mastering = masteringDisplayText(hdrMetadata) {
+            items.append(MediaDetailPropertyItem(labelKey: "file_detail.mastering_display", value: mastering))
+        }
+        if let maxCLL = hdrMetadata.maxCLL, maxCLL > 0 {
+            items.append(MediaDetailPropertyItem(labelKey: "file_detail.max_cll", value: "\(maxCLL) nits"))
+        }
+        if let maxFALL = hdrMetadata.maxFALL, maxFALL > 0 {
+            items.append(MediaDetailPropertyItem(labelKey: "file_detail.max_fall", value: "\(maxFALL) nits"))
+        }
+        return items
+    }
+
+    private static func dolbyVisionDisplayName(locale: Locale) -> String {
+        let id = locale.identifier.lowercased()
+        let isTraditionalChinese = id.contains("hant") || id.contains("tw") || id.contains("hk")
+        let isSimplifiedChinese = !isTraditionalChinese && id.hasPrefix("zh")
+        if isTraditionalChinese { return "杜比視界" }
+        if isSimplifiedChinese { return "杜比视界" }
+        return "Dolby Vision"
+    }
+
+    private static func standardBaseName(_ standard: VideoHDRStandard, locale: Locale) -> String {
+        switch standard {
+        case .dolbyVision: return dolbyVisionDisplayName(locale: locale)
+        case .hdr10Plus: return "HDR10+"
+        case .hdr10: return "HDR10"
+        case .hlg: return "HLG"
+        }
+    }
+
+    private static func colorPrimariesText(_ token: String?) -> String? {
+        guard let trimmed = token?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        switch trimmed.lowercased() {
+        case "unknown", "unspecified", "reserved", "reserved0": return nil
+        case "bt2020", "bt.2020", "itu-r bt.2020": return "BT.2020"
+        case "smpte432", "display_p3", "display p3", "p3-d65": return "Display P3"
+        case "smpte431", "dci_p3", "dci p3": return "DCI P3"
+        case "bt709", "bt.709": return "BT.709"
+        case "bt470bg": return "BT.470 BG"
+        case "smpte170m": return "SMPTE 170M"
+        case "bt470m": return "BT.470 M"
+        case "smpte240m": return "SMPTE 240M"
+        case "smpte428", "smptest428_1": return "SMPTE ST 428-1"
+        case "ebu3213", "jedec-p22": return "EBU Tech 3213"
+        case "film": return "Film"
+        default: return trimmed
+        }
+    }
+
+    private static func transferFunctionText(_ token: String?) -> String? {
+        guard let trimmed = token?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        switch trimmed.lowercased() {
+        case "unknown", "unspecified", "reserved", "reserved0": return nil
+        case "smpte2084", "smptest2084", "pq", "smpte st 2084", "pq (smpte st 2084)":
+            return "PQ (SMPTE ST 2084)"
+        case "arib-std-b67", "arib std-b67", "hlg", "hlg (arib std-b67)":
+            return "HLG (ARIB STD-B67)"
+        case "bt709", "bt.709": return "BT.709"
+        case "bt2020-10", "bt2020_10": return "BT.2020 (10-bit)"
+        case "bt2020-12", "bt2020_12": return "BT.2020 (12-bit)"
+        case "iec61966-2-1", "iec61966_2_1", "srgb": return "sRGB (IEC 61966-2-1)"
+        case "smpte170m": return "SMPTE 170M"
+        case "smpte240m": return "SMPTE 240M"
+        case "gamma22": return "Gamma 2.2"
+        case "gamma28": return "Gamma 2.8"
+        case "linear": return "Linear"
+        case "smpte428", "smptest428_1": return "SMPTE ST 428-1"
+        case "iec61966-2-4": return "xvYCC (IEC 61966-2-4)"
+        default: return trimmed
+        }
+    }
+
+    private static func masteringDisplayText(_ hdrMetadata: VideoHDRMetadata) -> String? {
+        let primaries = colorPrimariesText(hdrMetadata.masteringDisplayPrimaries)
+        let luminanceText: String?
+        if let minLum = hdrMetadata.masteringDisplayMinLuminance,
+           let maxLum = hdrMetadata.masteringDisplayMaxLuminance,
+           minLum.isFinite, maxLum.isFinite, minLum >= 0, maxLum > 0, maxLum >= minLum {
+            luminanceText = "\(formattedLuminanceNumber(minLum)) - \(formattedLuminanceNumber(maxLum)) nits"
+        } else {
+            luminanceText = nil
+        }
+        let parts = [primaries, luminanceText].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
+
+    private static func formattedLuminanceNumber(_ value: Double) -> String {
+        let rounded = (value * 1_000_000).rounded() / 1_000_000
+        let raw = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), rounded)
+        return trimTrailingFractionZeros(raw)
     }
 }
 

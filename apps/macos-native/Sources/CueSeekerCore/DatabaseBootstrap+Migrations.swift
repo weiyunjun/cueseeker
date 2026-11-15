@@ -629,6 +629,24 @@ extension DatabaseBootstrap {
         }
     }
 
+    /// Schema 69 stores structured HDR metadata on `video_files`, marking
+    /// existing videos so the next Index fills HDR info without scanning media
+    /// files during migration.
+    static func migrateSchema68To69(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let videoColumns = try columnNames(of: "video_files", in: database)
+            if !videoColumns.isEmpty {
+                if !videoColumns.contains("hdr_metadata") {
+                    try database.execute("ALTER TABLE video_files ADD COLUMN hdr_metadata TEXT;")
+                }
+                if videoColumns.contains("duration_retry_pending") {
+                    try database.execute("UPDATE video_files SET duration_retry_pending = 1;")
+                }
+            }
+            try database.execute("PRAGMA user_version = 69;")
+        }
+    }
+
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(

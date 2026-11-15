@@ -50,6 +50,25 @@ public struct PlaybackVideoMetadataIndexer {
         } else {
             containerFormat = nil
         }
+        let hdrMetadata: VideoHDRMetadata?
+        if let probedHDR = metadata.hdrMetadata {
+            let standards = probedHDR.standards.compactMap(VideoHDRStandard.init(rawValue:))
+            let candidate = VideoHDRMetadata(
+                standards: standards,
+                dolbyVisionProfile: probedHDR.dolbyVisionProfile?.intValue,
+                dolbyVisionCompatibilityID: probedHDR.dolbyVisionCompatibilityID?.intValue,
+                colorPrimaries: probedHDR.colorPrimaries,
+                transferFunction: probedHDR.transferFunction,
+                masteringDisplayPrimaries: probedHDR.masteringDisplayPrimaries,
+                masteringDisplayMinLuminance: probedHDR.masteringDisplayMinLuminance?.doubleValue,
+                masteringDisplayMaxLuminance: probedHDR.masteringDisplayMaxLuminance?.doubleValue,
+                maxCLL: probedHDR.maxCLL?.intValue,
+                maxFALL: probedHDR.maxFALL?.intValue
+            )
+            hdrMetadata = candidate.isEmpty ? nil : candidate
+        } else {
+            hdrMetadata = nil
+        }
         return ProbedVideoMediaMetadata(
             durationSeconds: metadata.durationSeconds?.doubleValue,
             videoWidth: metadata.videoWidth?.intValue,
@@ -59,6 +78,7 @@ public struct PlaybackVideoMetadataIndexer {
             videoBitDepth: metadata.videoBitDepth?.intValue,
             videoPixelFormat: metadata.videoPixelFormat,
             containerFormat: containerFormat,
+            hdrMetadata: hdrMetadata,
             audioTracks: metadata.audioTracks.map {
                 VideoAudioTrack(
                     language: $0.language,

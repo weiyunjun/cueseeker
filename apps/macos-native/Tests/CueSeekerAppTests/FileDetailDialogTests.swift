@@ -660,4 +660,54 @@ struct FileDetailDialogTests {
         #expect(fileDetailCenterInvalidateCount == 2)
         #expect(accessibilityInvalidateCount == 0)
     }
+
+    @Test
+    func hdrPropertyItemsAndLocalizationBundlesSwitchCleanly() {
+        let hdr = VideoHDRMetadata(
+            standards: [.dolbyVision, .hlg],
+            dolbyVisionProfile: 8,
+            dolbyVisionCompatibilityID: 4,
+            colorPrimaries: "bt2020",
+            transferFunction: "arib-std-b67",
+            masteringDisplayPrimaries: nil,
+            masteringDisplayMinLuminance: nil,
+            masteringDisplayMaxLuminance: nil,
+            maxCLL: 0,
+            maxFALL: 185
+        )
+        let enItems = WorkbenchFileDetailDialog.hdrPropertyItems(for: hdr, locale: Locale(identifier: "en"))
+        #expect(enItems.map(\.labelKey) == [
+            "file_detail.hdr",
+            "file_detail.color_primaries",
+            "file_detail.transfer_function",
+            "file_detail.max_fall"
+        ])
+        #expect(enItems.first?.value == "Dolby Vision (Profile 8.4) / HLG")
+
+        let zhHansItems = WorkbenchFileDetailDialog.hdrPropertyItems(for: hdr, locale: Locale(identifier: "zh-Hans"))
+        #expect(zhHansItems.first?.value == "杜比视界 (Profile 8.4) / HLG")
+
+        let zhHantItems = WorkbenchFileDetailDialog.hdrPropertyItems(for: hdr, locale: Locale(identifier: "zh-Hant"))
+        #expect(zhHantItems.first?.value == "杜比視界 (Profile 8.4) / HLG")
+
+        #expect(WorkbenchFileDetailDialog.hdrPropertyItems(for: nil).isEmpty)
+
+        let enBundle = AppLocalization._bundleForTesting(.english)
+        let hansBundle = AppLocalization._bundleForTesting(.simplifiedChinese)
+        let hantBundle = AppLocalization._bundleForTesting(.traditionalChinese)
+
+        let expectedTranslations: [(String, String, String, String)] = [
+            ("file_detail.hdr", "HDR", "HDR", "HDR"),
+            ("file_detail.color_primaries", "Color Primaries", "色域", "色域"),
+            ("file_detail.transfer_function", "Transfer Function", "传递曲线", "傳遞曲線"),
+            ("file_detail.mastering_display", "Mastering Display", "母带显示", "母帶顯示"),
+            ("file_detail.max_cll", "MaxCLL", "MaxCLL", "MaxCLL"),
+            ("file_detail.max_fall", "MaxFALL", "MaxFALL", "MaxFALL")
+        ]
+        for (key, en, hans, hant) in expectedTranslations {
+            #expect(enBundle.localizedString(forKey: key, value: key, table: nil) == en)
+            #expect(hansBundle.localizedString(forKey: key, value: key, table: nil) == hans)
+            #expect(hantBundle.localizedString(forKey: key, value: key, table: nil) == hant)
+        }
+    }
 }

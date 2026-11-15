@@ -717,5 +717,71 @@ struct FileRouteNavigationTests {
                 == "0 條有效台詞"
         )
     }
+
+    @Test
+    func videoCardSubtitleInsertsHighestPriorityHDRAndRespondsToLocale() {
+        let dvObject = IndexedContentObject(
+            id: 1,
+            displayTitle: "Movie",
+            videoPath: "/Media/Movie.mkv",
+            videoName: "Movie.mkv",
+            fileSize: 18_420_000_000,
+            videoWidth: 3840,
+            videoHeight: 2160,
+            videoCodec: "hevc",
+            duration: 7100.0,
+            hdrMetadata: VideoHDRMetadata(
+                standards: [.hlg, .hdr10, .hdr10Plus, .dolbyVision],
+                dolbyVisionProfile: 8,
+                dolbyVisionCompatibilityID: 1
+            )
+        )
+        #expect(
+            FileCardSubtitleFormatter.videoSubtitle(for: dvObject, locale: Locale(identifier: "en"))
+                == "4K  Dolby Vision  HEVC  01:58:20  18.42 GB"
+        )
+        #expect(
+            FileCardSubtitleFormatter.videoSubtitle(for: dvObject, locale: Locale(identifier: "zh-Hans"))
+                == "4K  杜比视界  HEVC  01:58:20  18.42 GB"
+        )
+        #expect(
+            FileCardSubtitleFormatter.videoSubtitle(for: dvObject, locale: Locale(identifier: "zh-Hant"))
+                == "4K  杜比視界  HEVC  01:58:20  18.42 GB"
+        )
+
+        let hdr10PlusObject = IndexedContentObject(
+            id: 2,
+            displayTitle: "Show - 01",
+            videoPath: "/Media/Show01.mkv",
+            videoName: "Show01.mkv",
+            fileSize: 1_850_000_000,
+            videoWidth: 3840,
+            videoHeight: 2160,
+            videoCodec: "hevc",
+            duration: 1422.0,
+            hdrMetadata: VideoHDRMetadata(standards: [.hdr10, .hdr10Plus])
+        )
+        #expect(
+            FileCardSubtitleFormatter.videoSubtitle(for: hdr10PlusObject, locale: Locale(identifier: "zh-Hans"))
+                == "4K  HDR10+  HEVC  23:42  1.85 GB"
+        )
+
+        let hlgOnlyObject = IndexedContentObject(
+            id: 3,
+            displayTitle: "Broadcast",
+            videoPath: "/Media/Broadcast.ts",
+            videoName: "Broadcast.ts",
+            fileSize: nil,
+            videoWidth: 1920,
+            videoHeight: 1080,
+            videoCodec: "hevc",
+            duration: 300.0,
+            hdrMetadata: VideoHDRMetadata(standards: [.hlg])
+        )
+        #expect(
+            FileCardSubtitleFormatter.videoSubtitle(for: hlgOnlyObject, locale: Locale(identifier: "en"))
+                == "1080P  HLG  HEVC  05:00"
+        )
+    }
 }
 

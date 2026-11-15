@@ -7,6 +7,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class SFXNativePlaybackPlayer;
 @class SFXMediaMetadata;
 @class SFXMediaContainerProbe;
+@class SFXMediaHDRMetadata;
 @class SFXMediaAudioTrack;
 @class SFXMediaCoverCandidateFrame;
 
@@ -267,8 +268,26 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
 @property (nonatomic, copy, readonly, nullable) NSString *videoPixelFormat;
 @property (nonatomic, copy, readonly, nullable) NSString *formatName;
 @property (nonatomic, copy, readonly, nullable) NSString *majorBrand;
+@property (nonatomic, strong, readonly, nullable) SFXMediaHDRMetadata *hdrMetadata;
 /// Every audio stream, in file order.
 @property (nonatomic, copy, readonly) NSArray<SFXMediaAudioTrack *> *audioTracks;
+
+- (instancetype)init NS_UNAVAILABLE;
+
+@end
+
+@interface SFXMediaHDRMetadata : NSObject
+
+@property (nonatomic, copy, readonly) NSArray<NSString *> *standards;
+@property (nonatomic, strong, readonly, nullable) NSNumber *dolbyVisionProfile;
+@property (nonatomic, strong, readonly, nullable) NSNumber *dolbyVisionCompatibilityID;
+@property (nonatomic, copy, readonly, nullable) NSString *colorPrimaries;
+@property (nonatomic, copy, readonly, nullable) NSString *transferFunction;
+@property (nonatomic, copy, readonly, nullable) NSString *masteringDisplayPrimaries;
+@property (nonatomic, strong, readonly, nullable) NSNumber *masteringDisplayMinLuminance;
+@property (nonatomic, strong, readonly, nullable) NSNumber *masteringDisplayMaxLuminance;
+@property (nonatomic, strong, readonly, nullable) NSNumber *maxCLL;
+@property (nonatomic, strong, readonly, nullable) NSNumber *maxFALL;
 
 - (instancetype)init NS_UNAVAILABLE;
 

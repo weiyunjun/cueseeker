@@ -9,6 +9,7 @@ public struct ProbedVideoMediaMetadata: Equatable, Sendable {
     public let videoBitDepth: Int?
     public let videoPixelFormat: String?
     public let containerFormat: String?
+    public let hdrMetadata: VideoHDRMetadata?
     public let audioTracks: [VideoAudioTrack]
 
     public init(
@@ -20,6 +21,7 @@ public struct ProbedVideoMediaMetadata: Equatable, Sendable {
         videoBitDepth: Int? = nil,
         videoPixelFormat: String? = nil,
         containerFormat: String? = nil,
+        hdrMetadata: VideoHDRMetadata? = nil,
         audioTracks: [VideoAudioTrack]
     ) {
         self.durationSeconds = durationSeconds
@@ -30,6 +32,7 @@ public struct ProbedVideoMediaMetadata: Equatable, Sendable {
         self.videoBitDepth = videoBitDepth
         self.videoPixelFormat = videoPixelFormat
         self.containerFormat = containerFormat
+        self.hdrMetadata = hdrMetadata
         self.audioTracks = audioTracks
     }
 }
@@ -78,11 +81,39 @@ public protocol PlaybackVideoMetadataPersistence: Sendable {
         videoBitDepth: Int?,
         videoPixelFormat: String?,
         containerFormat: String?,
+        hdrMetadata: VideoHDRMetadata?,
         audioTracks: [VideoAudioTrack]
     ) throws
 }
 
 public extension PlaybackVideoMetadataPersistence {
+    func updateVideoMetadata(
+        videoFile: URL,
+        duration: Double?,
+        videoWidth: Int?,
+        videoHeight: Int?,
+        frameRate: Double?,
+        videoCodec: String?,
+        videoBitDepth: Int?,
+        videoPixelFormat: String?,
+        containerFormat: String?,
+        audioTracks: [VideoAudioTrack]
+    ) throws {
+        try updateVideoMetadata(
+            videoFile: videoFile,
+            duration: duration,
+            videoWidth: videoWidth,
+            videoHeight: videoHeight,
+            frameRate: frameRate,
+            videoCodec: videoCodec,
+            videoBitDepth: videoBitDepth,
+            videoPixelFormat: videoPixelFormat,
+            containerFormat: containerFormat,
+            hdrMetadata: nil,
+            audioTracks: audioTracks
+        )
+    }
+
     func updateVideoMetadata(
         videoFile: URL,
         duration: Double?,
@@ -104,6 +135,7 @@ public extension PlaybackVideoMetadataPersistence {
             videoBitDepth: videoBitDepth,
             videoPixelFormat: videoPixelFormat,
             containerFormat: nil,
+            hdrMetadata: nil,
             audioTracks: audioTracks
         )
     }
@@ -127,6 +159,7 @@ public extension PlaybackVideoMetadataPersistence {
             videoBitDepth: nil,
             videoPixelFormat: nil,
             containerFormat: nil,
+            hdrMetadata: nil,
             audioTracks: audioTracks
         )
     }
@@ -183,6 +216,7 @@ public extension PlaybackVideoMetadataPersistence {
                     videoBitDepth: metadata.videoBitDepth,
                     videoPixelFormat: metadata.videoPixelFormat,
                     containerFormat: metadata.containerFormat,
+                    hdrMetadata: metadata.hdrMetadata,
                     audioTracks: metadata.audioTracks
                 )
                 updatedVideoPaths.insert(videoPath)

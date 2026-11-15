@@ -394,3 +394,48 @@ func renamingLocalSubfolderToComposedKanaNormalizesPathAndAllowsSubsequentRename
     #expect(try fixture.database.subtitleFiles().isEmpty)
 }
 
+@Test
+func fileGroupAndFolderRenamePreserveHDRMetadata() throws {
+    let fixture = try RenameFixture()
+    defer { fixture.cleanUp() }
+    try fixture.index()
+
+    let oldVideo = try fixture.storedVideoPath("EP01.mkv")
+    let expectedHDR = VideoHDRMetadata(
+        standards: [.dolbyVision, .hdr10],
+        dolbyVisionProfile: 8,
+        dolbyVisionCompatibilityID: 1,
+        colorPrimaries: "bt2020",
+        transferFunction: "smpte2084",
+        masteringDisplayPrimaries: "bt2020",
+        masteringDisplayMinLuminance: 0.0001,
+        masteringDisplayMaxLuminance: 1000.0,
+        maxCLL: 950,
+        maxFALL: 210
+    )
+    let library = try LibraryDatabase(path: fixture.databaseURL)
+    try library.updateVideoMetadata(
+        videoFile: URL(fileURLWithPath: oldVideo),
+        duration: 140.0,
+        videoWidth: 3840,
+        videoHeight: 2160,
+        frameRate: 23.976,
+        videoCodec: "hevc",
+        videoBitDepth: 10,
+        videoPixelFormat: "yuv420p10le",
+        containerFormat: "mkv",
+        hdrMetadata: expectedHDR,
+        audioTracks: []
+    )
+
+    let renamer = LibraryRenamer(database: fixture.database)
+    try renamer.perform(try renamer.checkConflicts(.fileGroup(videoPath: oldVideo, newBaseName: "EP09")))
+    let renamedEpisodePath = oldVideo.replacingOccurrences(of: "EP01.mkv", with: "EP09.mkv")
+    #expect(try library.fileDetailVideoInfo(for: renamedEpisodePath)?.hdrMetadata == expectedHDR)
+
+    let folderPlan = try renamer.checkConflicts(.folder(path: fixture.show.path, newName: "Show HDR"))
+    try renamer.perform(folderPlan)
+    let movedEpisodePath = renamedEpisodePath.replacingOccurrences(of: "/Show/", with: "/Show HDR/")
+    #expect(try library.fileDetailVideoInfo(for: movedEpisodePath)?.hdrMetadata == expectedHDR)
+}
+

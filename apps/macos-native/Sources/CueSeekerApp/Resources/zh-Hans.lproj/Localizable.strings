@@ -685,6 +685,12 @@
 "file_detail.codec" = "编码格式";
 "file_detail.bit_depth" = "位深度";
 "file_detail.pixel_format" = "像素格式";
+"file_detail.hdr" = "HDR";
+"file_detail.color_primaries" = "色域";
+"file_detail.transfer_function" = "传递曲线";
+"file_detail.mastering_display" = "母带显示";
+"file_detail.max_cll" = "MaxCLL";
+"file_detail.max_fall" = "MaxFALL";
 "file_detail.bitrate" = "码率";
 "file_detail.duration" = "时长";
 "file_detail.channels" = "声道";

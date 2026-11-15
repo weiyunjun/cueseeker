@@ -52,6 +52,7 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                         videoHeight: videoLocations[video.videoFileID]?.videoHeight,
                         videoCodec: videoLocations[video.videoFileID]?.videoCodec,
                         duration: videoLocations[video.videoFileID]?.duration,
+                        hdrMetadata: videoLocations[video.videoFileID]?.hdrMetadata,
                         subtitles: []
                     )
                 }
@@ -168,7 +169,8 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                    vf.video_width,
                    vf.video_height,
                    vf.video_codec,
-                   vf.duration
+                   vf.duration,
+                   vf.hdr_metadata
             FROM library_video_rows lvr
             JOIN video_files vf ON vf.id = lvr.video_file_id
             WHERE lvr.folder_path = ? OR lvr.folder_path = ?
@@ -201,6 +203,7 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                 videoHeight: statement.nullableIntColumn(6),
                 videoCodec: statement.nullableStringColumn(7),
                 duration: statement.nullableDoubleColumn(8),
+                hdrMetadata: VideoHDRMetadata.decode(jsonString: statement.nullableStringColumn(9)),
                 subtitles: []
             ))
             videoIDs.append(videoFileID)
@@ -247,7 +250,8 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                    vf.video_width,
                    vf.video_height,
                    vf.video_codec,
-                   vf.duration
+                   vf.duration,
+                   vf.hdr_metadata
             \(fromClause)
             JOIN library_folders lf
               ON lf.id = vf.folder_id
@@ -268,7 +272,8 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                 videoWidth: statement.nullableIntColumn(5),
                 videoHeight: statement.nullableIntColumn(6),
                 videoCodec: statement.nullableStringColumn(7),
-                duration: statement.nullableDoubleColumn(8)
+                duration: statement.nullableDoubleColumn(8),
+                hdrMetadata: VideoHDRMetadata.decode(jsonString: statement.nullableStringColumn(9))
             )
         }
         return locations
@@ -485,6 +490,7 @@ private struct ObjectBuilder {
     let videoHeight: Int?
     let videoCodec: String?
     let duration: Double?
+    let hdrMetadata: VideoHDRMetadata?
     var subtitles: [IndexedContentSubtitle]
 
     var snapshot: IndexedContentObject {
@@ -498,6 +504,7 @@ private struct ObjectBuilder {
             videoHeight: videoHeight,
             videoCodec: videoCodec,
             duration: duration,
+            hdrMetadata: hdrMetadata,
             subtitles: subtitles
         )
     }
@@ -512,6 +519,7 @@ private struct VideoLocation {
     let videoHeight: Int?
     let videoCodec: String?
     let duration: Double?
+    let hdrMetadata: VideoHDRMetadata?
 }
 
 private struct ObjectLocation {

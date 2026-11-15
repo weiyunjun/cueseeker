@@ -1521,12 +1521,19 @@ enum FileStatusResolver {
 enum FileCardSubtitleFormatter {
     static let fieldSeparator = "  "
 
-    static func videoSubtitle(for object: IndexedContentObject) -> String {
+    static func videoSubtitle(
+        for object: IndexedContentObject,
+        locale: Locale = AppLocalization.locale
+    ) -> String {
         let sizeText = object.fileSize.map { FileSizeFormatter.format(bytes: $0) }
         return [
             MediaDetailFormatter.shortResolutionText(
                 width: object.videoWidth,
                 height: object.videoHeight
+            ),
+            MediaDetailFormatter.shortHDRStandardText(
+                object.hdrMetadata,
+                locale: locale
             ),
             MediaDetailFormatter.shortVideoCodecText(object.videoCodec),
             MediaDetailFormatter.shortDurationText(object.duration),

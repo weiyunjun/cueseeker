@@ -34,7 +34,8 @@ func migratesFreshDatabaseToCurrentSchemaVersion() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 68)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 69)
+    #expect(try sqliteColumnNames(in: "video_files", databaseURL: databaseURL).contains("hdr_metadata"))
     #expect(try sqliteIndexExists("idx_subtitle_cue_lines_subtitle_file", databaseURL: databaseURL))
     #expect(try !sqliteTableExists("ass_render_segments", databaseURL: databaseURL))
     #expect(try sqliteTableExists("ass_event_offset_indexes", databaseURL: databaseURL))
@@ -1354,7 +1355,8 @@ func migratesSchema58ByDroppingASSRenderSegmentsTable() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 68)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 69)
+    #expect(try sqliteColumnNames(in: "video_files", databaseURL: databaseURL).contains("hdr_metadata"))
     #expect(try sqliteIndexExists("idx_subtitle_cue_lines_subtitle_file", databaseURL: databaseURL))
     #expect(try !sqliteTableExists("ass_render_segments", databaseURL: databaseURL))
     #expect(try sqliteTableExists("ass_event_offset_indexes", databaseURL: databaseURL))
@@ -1756,7 +1758,7 @@ func schema67UpgradesTo68WithSubtitleFileCueLineIndexAndUsesIndexForCounts() thr
 
     let bootstrapResult = try DatabaseBootstrap.prepare(at: databaseURL)
     #expect(!bootstrapResult.didCreateSchema)
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 68)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 69)
     #expect(try sqliteIndexExists("idx_subtitle_cue_lines_subtitle_file", databaseURL: databaseURL))
     #expect(try sqliteRowCount(in: "subtitle_cue_lines", databaseURL: databaseURL) == 1)
 
@@ -1775,5 +1777,44 @@ func schema67UpgradesTo68WithSubtitleFileCueLineIndexAndUsesIndexForCounts() thr
         planDetails.append(planStatement.stringColumn(3))
     }
     #expect(planDetails.joined(separator: " | ").contains("idx_subtitle_cue_lines_subtitle_file"))
+}
+
+@Test
+func schema68UpgradesTo69WithHDRMetadataColumnAndPendingProbe() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        ALTER TABLE video_files DROP COLUMN hdr_metadata;
+        INSERT INTO search_paths (id, type, path, created_at, updated_at)
+        VALUES (1, 'local', '/Media', '2026-11-14T00:00:00Z', '2026-11-14T00:00:00Z');
+        INSERT INTO video_files (id, library_id, path, video_name, duration, duration_retry_pending)
+        VALUES (1, 1, '/Media/ep01.mkv', 'ep01.mkv', 120.0, 0);
+        PRAGMA user_version = 68;
+        """
+    )
+
+    let result = try DatabaseBootstrap.prepare(at: databaseURL)
+    #expect(!result.didCreateSchema)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 69)
+    let columns = try sqliteColumnNames(in: "video_files", databaseURL: databaseURL)
+    #expect(columns.contains("hdr_metadata"))
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT CAST(duration_retry_pending AS TEXT) FROM video_files WHERE id = 1;"
+        ) == "1"
+    )
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT COALESCE(hdr_metadata, '<NULL>') FROM video_files WHERE id = 1;"
+        ) == "<NULL>"
+    )
 }
 

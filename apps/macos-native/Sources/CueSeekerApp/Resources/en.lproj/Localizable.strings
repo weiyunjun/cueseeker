@@ -685,6 +685,12 @@
 "file_detail.codec" = "Codec";
 "file_detail.bit_depth" = "Bit Depth";
 "file_detail.pixel_format" = "Pixel Format";
+"file_detail.hdr" = "HDR";
+"file_detail.color_primaries" = "Color Primaries";
+"file_detail.transfer_function" = "Transfer Function";
+"file_detail.mastering_display" = "Mastering Display";
+"file_detail.max_cll" = "MaxCLL";
+"file_detail.max_fall" = "MaxFALL";
 "file_detail.bitrate" = "Bitrate";
 "file_detail.duration" = "Duration";
 "file_detail.channels" = "Channels";
