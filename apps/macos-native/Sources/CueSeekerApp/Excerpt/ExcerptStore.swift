@@ -104,8 +104,9 @@ final class ExcerptStore: ObservableObject {
             return overview
         }
         return ExcerptListSummary(
-            list: overview.list,
+            list: recent.list,
             cueCount: overview.cueCount,
+            validCueIDs: overview.validCueIDs,
             resumeExcerpt: overview.cueCount > 0 ? recent.resumeExcerpt : nil,
             resumePosition: overview.cueCount > 0 ? recent.resumePosition : nil
         )
@@ -114,11 +115,61 @@ final class ExcerptStore: ObservableObject {
     var activeListHasPlayableContent: Bool {
         guard let activeListID,
               residentListID == activeListID,
-              residentDataRevision == tableDataRevision
+              tableHasLoadedInitialPage,
+              let validExcerptIDs = playbackTableResultExcerptIDs
         else {
             return (activeListSummary?.cueCount ?? 0) > 0
         }
-        return residentExcerptsByID.values.contains(where: \.isValid)
+        return !validExcerptIDs.isEmpty
+    }
+
+    func tableSearchQuery(forListID listID: Int64) -> String {
+        activeListID == listID
+            ? tableSearchDraft
+            : (tableSearchDraftsByListID[listID] ?? "")
+    }
+
+    func activeListCoverSummaryState(
+        for summary: ExcerptListSummary
+    ) -> (
+        actionKind: CoverSummaryActionKind,
+        isActionEnabled: Bool,
+        targetExcerpt: Excerpt?,
+        cueID: Int64?,
+        position: Int?,
+        totalCount: Int?
+    ) {
+        guard residentListID == summary.id,
+              tableHasLoadedInitialPage,
+              let validExcerptIDs = playbackTableResultExcerptIDs
+        else {
+            let isEnabled = summary.cueCount > 0
+            let actionKind: CoverSummaryActionKind = (
+                isEnabled && summary.list.recentCueID != nil && summary.resumeExcerpt != nil
+            ) ? .resume : .play
+            return (actionKind, isEnabled, nil, nil, nil, nil)
+        }
+        guard !validExcerptIDs.isEmpty else {
+            return (.play, false, nil, nil, nil, 0)
+        }
+        let hitOrdinal = summary.list.recentCueID.flatMap { targetCueID in
+            validExcerptIDs.firstIndex { excerptID in
+                residentRelations.first(where: { $0.id == excerptID })?.cueID == targetCueID
+            }
+        }
+        let resolvedOrdinal = hitOrdinal ?? 0
+        let actionKind: CoverSummaryActionKind = hitOrdinal != nil ? .resume : .play
+        let targetExcerptID = validExcerptIDs[resolvedOrdinal]
+        let cueID = residentRelations.first(where: { $0.id == targetExcerptID })?.cueID
+        let targetExcerpt = residentExcerptsByID[targetExcerptID]
+        return (
+            actionKind,
+            true,
+            targetExcerpt,
+            cueID,
+            resolvedOrdinal + 1,
+            validExcerptIDs.count
+        )
     }
 
     let tableRowStore = TableSandboxRowModelStore()
@@ -322,8 +373,10 @@ final class ExcerptStore: ObservableObject {
             var updatedValidCueIDs = summary.validCueIDs
             updatedValidCueIDs.subtract(removed)
             updatedValidCueIDs.formUnion(added)
+            let clearsRecentCue = summary.list.recentCueID.map { removed.contains($0) } == true
+            let updatedList = clearsRecentCue ? summary.list.clearingRecentCue() : summary.list
             return ExcerptListSummary(
-                list: summary.list,
+                list: updatedList,
                 cueCount: max(0, summary.cueCount + delta),
                 validCueIDs: updatedValidCueIDs
             )
@@ -355,16 +408,40 @@ final class ExcerptStore: ObservableObject {
             var updatedValidCueIDs = summary.validCueIDs
             updatedValidCueIDs.subtract(removed)
             updatedValidCueIDs.formUnion(added)
+            let clearsRecentCue = summary.list.recentCueID.map { removed.contains($0) } == true
+            let updatedList = clearsRecentCue ? summary.list.clearingRecentCue() : summary.list
+            let keepsResume = nextCueCount > 0 && !clearsRecentCue
             return ExcerptListSummary(
-                list: summary.list,
+                list: updatedList,
                 cueCount: nextCueCount,
                 validCueIDs: updatedValidCueIDs,
-                resumeExcerpt: nextCueCount > 0 ? summary.resumeExcerpt : nil,
-                resumePosition: nextCueCount > 0 ? summary.resumePosition : nil
+                resumeExcerpt: keepsResume ? summary.resumeExcerpt : nil,
+                resumePosition: keepsResume ? summary.resumePosition : nil
             )
         }
         installRecentListSummaries(updatedRecent)
         return true
+    }
+
+    func syncOverviewListMetadata(from summaries: [ExcerptListSummary]) {
+        guard hasLoadedListOverview else { return }
+        let byID = Dictionary(uniqueKeysWithValues: summaries.map { ($0.id, $0.list) })
+        let updated = listOverview.lists.map { summary -> ExcerptListSummary in
+            guard let updatedList = byID[summary.id], updatedList != summary.list else {
+                return summary
+            }
+            return ExcerptListSummary(
+                list: updatedList,
+                cueCount: summary.cueCount,
+                validCueIDs: summary.validCueIDs,
+                resumeExcerpt: summary.resumeExcerpt,
+                resumePosition: summary.resumePosition
+            )
+        }
+        installListOverview(ExcerptListOverview(
+            lists: updated,
+            uniqueCueCount: listOverview.uniqueCueCount
+        ))
     }
 
     func setRecentSaveListID(_ listID: Int64?) {
@@ -500,13 +577,25 @@ final class ExcerptStore: ObservableObject {
     func residentFacetProjection(
         using filter: CueFacetFilter
     ) -> (excerptIDs: [Int64], distribution: CueFacetDistribution) {
-        guard let residentFacetSnapshot else { return ([], .zero) }
-        let projection = residentFacetSnapshot.filteredCueIDs(
+        Self.facetProjection(
+            relations: residentRelations,
+            facetSnapshot: residentFacetSnapshot,
+            using: filter
+        )
+    }
+
+    static func facetProjection(
+        relations: [ExcerptRelation],
+        facetSnapshot: CueFacetSnapshot?,
+        using filter: CueFacetFilter
+    ) -> (excerptIDs: [Int64], distribution: CueFacetDistribution) {
+        guard let facetSnapshot else { return ([], .zero) }
+        let projection = facetSnapshot.filteredCueIDs(
             using: filter,
-            limit: residentFacetSnapshot.cueIDs.count
+            limit: facetSnapshot.cueIDs.count
         )
         let excerptIDByCueID = Dictionary(
-            uniqueKeysWithValues: residentRelations.map { ($0.cueID, $0.id) }
+            uniqueKeysWithValues: relations.map { ($0.cueID, $0.id) }
         )
         return (
             projection.cueIDs.compactMap { excerptIDByCueID[$0] },

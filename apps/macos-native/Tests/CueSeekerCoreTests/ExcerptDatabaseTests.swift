@@ -114,7 +114,7 @@ func excerptListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
 }
 
 @Test
-func recentExcerptPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
+func recentExcerptPlaybackClearsTargetAnchorOnRemovalAndMoveWithoutFallbackRebind() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         removeTemporaryDatabase(at: databaseURL)
@@ -187,12 +187,17 @@ func recentExcerptPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
     let listAfterRemoveOlder = try #require(
         try database.excerptList(id: primaryList.id)
     )
-    #expect(listAfterRemoveOlder.recentCueID == newerSelection.cueLineID)
+    #expect(listAfterRemoveOlder.recentCueID == nil)
+    #expect(listAfterRemoveOlder.recentPlayedAt == ISO8601DateFormatter().string(from: playedAt))
     summary = try #require(try database.recentExcerptListSummaries().first)
     #expect(summary.cueCount == 1)
-    #expect(summary.resumeExcerpt?.id == newer.id)
-    #expect(summary.resumePosition == 1)
+    #expect(summary.resumeExcerpt == nil)
+    #expect(summary.resumePosition == nil)
 
+    try database.recordRecentExcerptPlayback(
+        excerptID: newer.id,
+        playedAt: playedAt
+    )
     let destinationList = try database.createExcerptList(name: "Moved Target")
     _ = try database.moveExcerpt(id: newer.id, toListID: destinationList.id)
     let list = try #require(try database.excerptList(id: primaryList.id))
@@ -254,11 +259,13 @@ func readOnlyExcerptDatabaseLoadsRecentSummariesWithoutWriteAttemptWhenNoPlayabl
     let readOnlyDB = try ExcerptDatabase(path: databaseURL, access: .readOnly)
     let fallbackSummaries = try readOnlyDB.recentExcerptListSummaries()
     #expect(fallbackSummaries.count == 1)
-    #expect(fallbackSummaries.first?.resumeExcerpt?.id == saved.id)
-    #expect(fallbackSummaries.first?.list.recentCueID == selection.cueLineID)
+    #expect(fallbackSummaries.first?.resumeExcerpt == nil)
+    #expect(fallbackSummaries.first?.resumePosition == nil)
+    #expect(fallbackSummaries.first?.list.recentCueID == 999_999)
 
     let rwFallbackSummaries = try rwDatabase.recentExcerptListSummaries()
-    #expect(rwFallbackSummaries.first?.list.recentCueID == selection.cueLineID)
+    #expect(rwFallbackSummaries.first?.resumeExcerpt == nil)
+    #expect(rwFallbackSummaries.first?.list.recentCueID == 999_999)
     let persistedListAfterQuery = try #require(
         try rwDatabase.excerptList(id: defaultList.id)
     )
@@ -1456,7 +1463,7 @@ func deletingLastExcerptListCascadesRelationsAndCleansUnreferencedTombstones() t
 }
 
 @Test
-func playedExcerptListKeepsRecentPlayedTimestampWhenAllExcerptsBecomeUnavailableAndRecoversResumeOnRestore() throws {
+func playedExcerptListKeepsRecentPlayedTimestampAndDoesNotAutoRestoreCueAnchorOnFolderReAdd() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         removeTemporaryDatabase(at: databaseURL)
@@ -1507,6 +1514,7 @@ func playedExcerptListKeepsRecentPlayedTimestampWhenAllExcerptsBecomeUnavailable
     #expect(summariesWhileInvalid[0].cueCount == 0)
     #expect(summariesWhileInvalid[0].resumeExcerpt == nil)
     #expect(summariesWhileInvalid[0].resumePosition == nil)
+    #expect(summariesWhileInvalid[0].list.recentCueID == nil)
     #expect(summariesWhileInvalid[0].list.recentPlayedAt == expectedPlayedAtString)
     #expect(summariesWhileInvalid[1].cueCount == 0)
     #expect(summariesWhileInvalid[1].list.recentPlayedAt == nil)
@@ -1519,7 +1527,8 @@ func playedExcerptListKeepsRecentPlayedTimestampWhenAllExcerptsBecomeUnavailable
     let summariesAfterRestore = try excerptDatabase.recentExcerptListSummaries()
     #expect(summariesAfterRestore.map(\.id) == [playedList.id, unplayedList.id])
     #expect(summariesAfterRestore[0].cueCount == 1)
-    #expect(summariesAfterRestore[0].resumeExcerpt?.id == saved.id)
-    #expect(summariesAfterRestore[0].resumePosition == 1)
+    #expect(summariesAfterRestore[0].resumeExcerpt == nil)
+    #expect(summariesAfterRestore[0].resumePosition == nil)
+    #expect(summariesAfterRestore[0].list.recentCueID == nil)
     #expect(summariesAfterRestore[0].list.recentPlayedAt == expectedPlayedAtString)
 }

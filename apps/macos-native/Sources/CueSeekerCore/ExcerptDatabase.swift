@@ -445,30 +445,15 @@ public final class ExcerptDatabase: @unchecked Sendable {
                 continue
             }
 
-            if list.recentPlayedAt != nil {
-                let anchoredID = relations.first { relation in
-                    relation.cueID == list.recentCueID
-                        && resolvedByID[relation.id]?.isValid == true
-                }?.id
-                let position = anchoredID.flatMap { id in
-                    playable.firstIndex { $0.id == id }
-                } ?? 0
-                var resolvedList = list
-                if anchoredID == nil,
-                   let fallbackCueID = relations.first(where: { $0.id == playable[position].id })?.cueID {
-                    resolvedList = ExcerptList(
-                        id: list.id,
-                        name: list.name,
-                        description: list.description,
-                        coverPath: list.coverPath,
-                        createdAt: list.createdAt,
-                        recentCueID: fallbackCueID,
-                        recentSortOrder: list.recentSortOrder,
-                        recentPlayedAt: list.recentPlayedAt
-                    )
-                }
+            if list.recentPlayedAt != nil,
+               let recentCueID = list.recentCueID,
+               let anchoredID = relations.first(where: { relation in
+                   relation.cueID == recentCueID
+                       && resolvedByID[relation.id]?.isValid == true
+               })?.id,
+               let position = playable.firstIndex(where: { $0.id == anchoredID }) {
                 summaries.append(ExcerptListSummary(
-                    list: resolvedList,
+                    list: list,
                     cueCount: playable.count,
                     resumeExcerpt: playable[position],
                     resumePosition: position + 1
@@ -1226,7 +1211,7 @@ public final class ExcerptDatabase: @unchecked Sendable {
 
     private func reconcileRecentExcerptPlayback(forListID listID: Int64) throws {
         guard let list = try excerptList(id: listID),
-              list.recentPlayedAt != nil
+              let recentCueID = list.recentCueID
         else {
             return
         }
@@ -1234,24 +1219,12 @@ public final class ExcerptDatabase: @unchecked Sendable {
         let resolvedByID = Dictionary(
             uniqueKeysWithValues: try excerpts(listID: listID).map { ($0.id, $0) }
         )
-        let playableRelations = relations.filter { relation in
-            resolvedByID[relation.id]?.isValid == true
-        }
-        guard let firstPlayableRelation = playableRelations.first else {
-            if let recentCueID = list.recentCueID,
-               !relations.contains(where: { $0.cueID == recentCueID }) {
-                try clearRecentExcerptCueAnchor(listID: listID)
-            }
-            return
-        }
-        let hasAnchoredPlayableCue = playableRelations.contains { relation in
-            relation.cueID == list.recentCueID
+        let hasAnchoredPlayableCue = relations.contains { relation in
+            relation.cueID == recentCueID
+                && resolvedByID[relation.id]?.isValid == true
         }
         if !hasAnchoredPlayableCue {
-            try updateRecentExcerptFallbackCue(
-                listID: listID,
-                cueID: firstPlayableRelation.cueID
-            )
+            try clearRecentExcerptCueAnchor(listID: listID)
         }
     }
 
@@ -1264,22 +1237,6 @@ public final class ExcerptDatabase: @unchecked Sendable {
             """
         )
         try statement.bind(listID, at: 1)
-        try statement.run()
-    }
-
-    private func updateRecentExcerptFallbackCue(
-        listID: Int64,
-        cueID: Int64
-    ) throws {
-        let statement = try database.prepare(
-            """
-            UPDATE excerpt_lists
-            SET recent_cue_id = ?
-            WHERE id = ?;
-            """
-        )
-        try statement.bind(cueID, at: 1)
-        try statement.bind(listID, at: 2)
         try statement.run()
     }
 

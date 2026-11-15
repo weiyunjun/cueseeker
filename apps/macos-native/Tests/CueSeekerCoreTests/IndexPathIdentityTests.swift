@@ -408,7 +408,7 @@ func resurrectingVideoAndCueDoesNotAlterExistingFolderOrExcerptListResumeOrder()
             .first
     )
     _ = try excerptDatabase.createExcerptList(name: "Default")
-    let saved1 = try excerptDatabase.upsertExcerpt(selection: excerptSelection(cue1))
+    _ = try excerptDatabase.upsertExcerpt(selection: excerptSelection(cue1))
     let saved2 = try excerptDatabase.upsertExcerpt(selection: excerptSelection(cue2))
     try excerptDatabase.recordRecentExcerptPlayback(
         excerptID: saved2.id,
@@ -424,15 +424,16 @@ func resurrectingVideoAndCueDoesNotAlterExistingFolderOrExcerptListResumeOrder()
         clearingRetryForLibraryID: secondIndex.libraryID
     )
 
-    // Folder Resume and Recent watching fall back to Episode 1; Excerpt List Resume falls back to saved1.
+    // Folder Resume and Recent watching fall back to Episode 1; Excerpt List permanently clears target cue while keeping played timestamp.
     #expect(try libraryDatabase.recentLibraryWatching(under: [fixture.root]).map(\.videoPath) == [ep1.video.mediaPath])
     #expect(try libraryDatabase.completeLibraryPresentation(under: [fixture.root]).first?.lastWatchedEpisodeNumber == 1)
     let summaryDuringTombstone = try #require(try excerptDatabase.recentExcerptListSummaries().first)
-    #expect(summaryDuringTombstone.resumeExcerpt?.id == saved1.id)
-    #expect(summaryDuringTombstone.resumePosition == 1)
-    #expect(summaryDuringTombstone.list.recentCueID == cue1.id)
+    #expect(summaryDuringTombstone.resumeExcerpt == nil)
+    #expect(summaryDuringTombstone.resumePosition == nil)
+    #expect(summaryDuringTombstone.list.recentCueID == nil)
+    #expect(summaryDuringTombstone.list.recentPlayedAt != nil)
 
-    // Restore Episode2.mkv and re-index: Episode2 and Cue 2 resurrect, but neither hijacks Resume!
+    // Restore Episode2.mkv and re-index: Episode2 and Cue 2 resurrect, and Excerpt List still has no target cue until replayed.
     try Data([0x01]).write(to: ep2.video)
     let thirdIndex = try indexer.index(folder: fixture.root, into: database)
     try libraryDatabase.refreshPresentationAfterIndexedContentChange(
@@ -447,9 +448,11 @@ func resurrectingVideoAndCueDoesNotAlterExistingFolderOrExcerptListResumeOrder()
     let restoredExcerpt2 = try #require(try excerptDatabase.excerpt(id: saved2.id))
     #expect(restoredExcerpt2.isValid)
     let summaryAfterResurrection = try #require(try excerptDatabase.recentExcerptListSummaries().first)
-    #expect(summaryAfterResurrection.resumeExcerpt?.id == saved1.id)
-    #expect(summaryAfterResurrection.resumePosition == 1)
-    #expect(summaryAfterResurrection.list.recentCueID == cue1.id)
+    #expect(summaryAfterResurrection.cueCount == 2)
+    #expect(summaryAfterResurrection.resumeExcerpt == nil)
+    #expect(summaryAfterResurrection.resumePosition == nil)
+    #expect(summaryAfterResurrection.list.recentCueID == nil)
+    #expect(summaryAfterResurrection.list.recentPlayedAt == summaryDuringTombstone.list.recentPlayedAt)
 }
 
 /// Only content the current scan confirms is gone may leave; a scan that fails

@@ -6,6 +6,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Unify excerpt list entry playback resolution, three-state `Cover Summary` progress (`#x / yy` `Resume`, `#1 / yy` `Play`, and disabled `Play` when filtered empty), and permanent target excerpt clearing across Workbench, `Command Panel`, and `Excerpt` detail views.
 - Indexed videos now probe and store structured HDR metadata (Dolby Vision,
   HDR10+, HDR10, HLG, color primaries, transfer characteristics, mastering
   display, MaxCLL, and MaxFALL), displaying the highest-priority HDR standard

@@ -647,6 +647,218 @@ struct ExcerptLifecycleAndInvalidItemsTests {
         #expect(wideHeight == SchemaWorkbenchStyle.pinnedToolbarHeight)
         #expect(narrowHeight > wideHeight)
     }
+
+    @Test
+    func listCoverSummaryAndUnifiedPlaybackResolveSearchFilterSortAndTemporaryFallback() async throws {
+        try await withExcerptTestApp { app, database in
+            try database.replaceEntries(
+                subtitleFile: URL(fileURLWithPath: "/Media/Alpha.srt"),
+                videoFile: URL(fileURLWithPath: "/Media/Alpha.mkv"),
+                entries: [
+                    SubtitleEntry(
+                        sequenceNumber: 1,
+                        startTimecode: "00:00:01,000",
+                        endTimecode: "00:00:02,000",
+                        startMilliseconds: 1_000,
+                        endMilliseconds: 2_000,
+                        text: "alpha short"
+                    ),
+                ]
+            )
+            try database.replaceEntries(
+                subtitleFile: URL(fileURLWithPath: "/Media/Beta.srt"),
+                videoFile: URL(fileURLWithPath: "/Media/Beta.mkv"),
+                entries: [
+                    SubtitleEntry(
+                        sequenceNumber: 1,
+                        startTimecode: "00:00:01,000",
+                        endTimecode: "00:00:06,000",
+                        startMilliseconds: 1_000,
+                        endMilliseconds: 6_000,
+                        text: "beta target much longer cue"
+                    ),
+                ]
+            )
+
+            let excerptDB = try #require(app.excerptDatabase)
+            let list = try excerptDB.createExcerptList(name: "StudyList", description: "")
+            let cueA = try #require(try SearchDatabase(path: database.path).search("alpha").first)
+            let cueB = try #require(try SearchDatabase(path: database.path).search("beta").first)
+            let savedA = try excerptDB.upsertExcerpt(
+                cueID: cueA.entryID,
+                listID: list.id,
+                createdAt: Date(timeIntervalSince1970: 100)
+            )
+            let savedB = try excerptDB.upsertExcerpt(
+                cueID: cueB.entryID,
+                listID: list.id,
+                createdAt: Date(timeIntervalSince1970: 200)
+            )
+
+            // Saving alone never sets target excerpt: defaults to Play #1 / 2
+            app.excerpt.setActiveListID(list.id)
+            app.reloadExcerptTableRows()
+            await app.excerptTableRowsTask?.value
+            app.reloadExcerptListOverview()
+            await app.excerptListOverviewTask?.value
+
+            var summary = try #require(app.excerpt.activeListSummary)
+            #expect(summary.cueCount == 2)
+            #expect(summary.list.recentCueID == nil)
+            var state = app.excerpt.activeListCoverSummaryState(for: summary)
+            #expect(state.actionKind == .play)
+            #expect(state.isActionEnabled == true)
+            #expect(state.targetExcerpt?.id == savedA.id)
+            #expect(state.position == 1)
+            #expect(state.totalCount == 2)
+
+            // Record playback of savedB -> Resume #2 / 2
+            let playedAt = Date(timeIntervalSince1970: 1_700_000_000)
+            try excerptDB.recordRecentExcerptPlayback(excerptID: savedB.id, playedAt: playedAt)
+            app.reloadExcerptListOverview()
+            await app.excerptListOverviewTask?.value
+
+            summary = try #require(app.excerpt.activeListSummary)
+            state = app.excerpt.activeListCoverSummaryState(for: summary)
+            #expect(state.actionKind == .resume)
+            #expect(state.targetExcerpt?.id == savedB.id)
+            #expect(state.position == 2)
+            #expect(state.totalCount == 2)
+
+            // Changing sort order to mostCharacters puts savedB first -> Resume #1 / 2 and scope [savedB, savedA]
+            app.settings.setExcerptSortOrder(.mostCharacters, forListID: list.id)
+            app.updateExcerptSortOrder(.mostCharacters)
+            summary = try #require(app.excerpt.activeListSummary)
+            state = app.excerpt.activeListCoverSummaryState(for: summary)
+            #expect(state.actionKind == .resume)
+            #expect(state.targetExcerpt?.id == savedB.id)
+            #expect(state.position == 1)
+            #expect(state.totalCount == 2)
+            if case .resolved(let target, let scopeIDs, let ordinal) = app.resolveExcerptListPlayback(listID: list.id) {
+                #expect(target.id == savedB.id)
+                #expect(scopeIDs == [savedB.id, savedA.id])
+                #expect(ordinal == 0)
+            } else {
+                Issue.record("Expected resolved playback for sorted Resume list")
+            }
+
+            // Runtime search excludes savedB while savedA matches -> temporary Play #1 / 1 without clearing DB target
+            app.updateExcerptSearchQuery("alpha")
+            summary = try #require(app.excerpt.activeListSummary)
+            #expect(summary.cueCount == 2)
+            state = app.excerpt.activeListCoverSummaryState(for: summary)
+            #expect(state.actionKind == .play)
+            #expect(state.isActionEnabled == true)
+            #expect(state.targetExcerpt?.id == savedA.id)
+            #expect(state.position == 1)
+            #expect(state.totalCount == 1)
+            #expect(try excerptDB.excerptList(id: list.id)?.recentCueID == cueB.entryID)
+            if case .resolved(let target, let scopeIDs, let ordinal) = app.resolveExcerptListPlayback(listID: list.id) {
+                #expect(target.id == savedA.id)
+                #expect(scopeIDs == [savedA.id])
+                #expect(ordinal == 0)
+            } else {
+                Issue.record("Expected temporary fallback resolution to savedA")
+            }
+
+            // Persisted facet filter excluding target while keeping savedA -> temporary Play #1 / 1 without clearing DB target
+            app.updateExcerptSearchQuery("")
+            let targetExcludingFilter = CueFacetFilter(durations: [.oneToUnderThreeSeconds])
+            app.settings.setExcerptFacetFilter(targetExcludingFilter, forListID: list.id)
+            app.updateExcerptFacetFilter(targetExcludingFilter)
+            summary = try #require(app.excerpt.activeListSummary)
+            #expect(summary.cueCount == 2)
+            state = app.excerpt.activeListCoverSummaryState(for: summary)
+            #expect(state.actionKind == .play)
+            #expect(state.isActionEnabled == true)
+            #expect(state.targetExcerpt?.id == savedA.id)
+            #expect(state.position == 1)
+            #expect(state.totalCount == 1)
+            #expect(try excerptDB.excerptList(id: list.id)?.recentCueID == cueB.entryID)
+
+            // Persisted facet filter leaving yy = 0 -> Disabled + .noAvailableExcerpts
+            let strictFilter = CueFacetFilter(durations: [.fiveSecondsOrMore], characters: [.oneToTen])
+            app.settings.setExcerptFacetFilter(strictFilter, forListID: list.id)
+            app.updateExcerptFacetFilter(strictFilter)
+            summary = try #require(app.excerpt.activeListSummary)
+            #expect(summary.cueCount == 2)
+            state = app.excerpt.activeListCoverSummaryState(for: summary)
+            #expect(state.actionKind == .play)
+            #expect(state.isActionEnabled == false)
+            #expect(state.targetExcerpt == nil)
+            #expect(state.totalCount == 0)
+            if case .noAvailableExcerpts = app.resolveExcerptListPlayback(listID: list.id) {
+                // Expected interception when filtered yy = 0
+            } else {
+                Issue.record("Expected .noAvailableExcerpts when filtered sequence is empty")
+            }
+
+            // Clearing filter restores savedB Resume state automatically
+            let emptyFilter = CueFacetFilter()
+            app.settings.setExcerptFacetFilter(emptyFilter, forListID: list.id)
+            app.updateExcerptFacetFilter(emptyFilter)
+            summary = try #require(app.excerpt.activeListSummary)
+            state = app.excerpt.activeListCoverSummaryState(for: summary)
+            #expect(state.actionKind == .resume)
+            #expect(state.isActionEnabled == true)
+            #expect(state.targetExcerpt?.id == savedB.id)
+            #expect(state.position == 1)
+            #expect(state.totalCount == 2)
+        }
+    }
+
+    @Test
+    func removingTargetExcerptWhileFrozenRevertsCoverSummaryToPlaySynchronouslyAndPreservesPlayedAt() async throws {
+        try await withExcerptTestApp { app, database in
+            try indexExcerptVideo("Episode1", in: database)
+            try indexExcerptVideo("Episode2", in: database)
+            let excerptDB = try #require(app.excerptDatabase)
+            let list = try excerptDB.createExcerptList(name: "FrozenTargetRemove", description: "")
+            let cue1 = try #require(try SearchDatabase(path: database.path).search("Episode1").first)
+            let cue2 = try #require(try SearchDatabase(path: database.path).search("Episode2").first)
+            let saved1 = try excerptDB.upsertExcerpt(
+                cueID: cue1.entryID,
+                listID: list.id,
+                createdAt: Date(timeIntervalSince1970: 100)
+            )
+            let saved2 = try excerptDB.upsertExcerpt(
+                cueID: cue2.entryID,
+                listID: list.id,
+                createdAt: Date(timeIntervalSince1970: 200)
+            )
+            let playedAt = Date(timeIntervalSince1970: 1_700_000_000)
+            let expectedPlayedAt = ISO8601DateFormatter().string(from: playedAt)
+            try excerptDB.recordRecentExcerptPlayback(excerptID: saved2.id, playedAt: playedAt)
+
+            app.excerpt.setActiveListID(list.id)
+            app.reloadExcerptTableRows()
+            await app.excerptTableRowsTask?.value
+            app.reloadExcerptListOverview()
+            await app.excerptListOverviewTask?.value
+
+            app.prepareExcerptForIndexedContentMutation(under: [URL(fileURLWithPath: "/Media")])
+            app.reloadExcerptAfterIndexedContentMutation()
+
+            let displayedTarget = try #require(app.excerpt.tableRowStore.snapshot.excerpt(entryID: Int(saved2.id)))
+            #expect(app.removeExcerpt(displayedTarget, reloadPresentation: false))
+
+            let summaryImmediately = try #require(app.excerpt.activeListSummary)
+            #expect(summaryImmediately.list.recentCueID == nil)
+            #expect(summaryImmediately.list.recentPlayedAt == expectedPlayedAt)
+            #expect(summaryImmediately.cueCount == 1)
+            let stateImmediately = app.excerpt.activeListCoverSummaryState(for: summaryImmediately)
+            #expect(stateImmediately.actionKind == .play)
+            #expect(stateImmediately.isActionEnabled == true)
+            #expect(stateImmediately.targetExcerpt?.id == saved1.id)
+            #expect(stateImmediately.position == 1)
+            #expect(stateImmediately.totalCount == 1)
+
+            await app.excerptMutationTask?.value
+            let persisted = try #require(try excerptDB.excerptList(id: list.id))
+            #expect(persisted.recentCueID == nil)
+            #expect(persisted.recentPlayedAt == expectedPlayedAt)
+        }
+    }
 }
 
 // MARK: - Test Fixture

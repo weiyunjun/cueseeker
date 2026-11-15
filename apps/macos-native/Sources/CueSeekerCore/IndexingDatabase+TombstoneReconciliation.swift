@@ -231,70 +231,25 @@ extension IndexingDatabase {
     }
 
     func reconcileExcerptListRecentCues() throws {
-        let selectLists = try database.prepare(
+        try database.execute(
             """
-            SELECT el.id
-            FROM excerpt_lists el
-            WHERE el.recent_played_at IS NOT NULL
-              AND (
-                  el.recent_cue_id IS NULL
-                  OR NOT EXISTS (
-                      SELECT 1
-                      FROM excerpts s
-                      JOIN subtitle_cue_lines l ON l.id = s.cue_id
-                      JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
-                      JOIN subtitle_video_matches m
-                        ON m.subtitle_file_id = sf.id
-                       AND m.is_active = 1
-                      JOIN video_files vf ON vf.id = m.video_file_id
-                      WHERE s.list_id = el.id
-                        AND s.cue_id = el.recent_cue_id
-                  )
-              )
-            ORDER BY el.id ASC;
+            UPDATE excerpt_lists
+            SET recent_cue_id = NULL
+            WHERE recent_cue_id IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM excerpts s
+                  JOIN subtitle_cue_lines l ON l.id = s.cue_id
+                  JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+                  JOIN subtitle_video_matches m
+                    ON m.subtitle_file_id = sf.id
+                   AND m.is_active = 1
+                  JOIN video_files vf ON vf.id = m.video_file_id
+                  WHERE s.list_id = excerpt_lists.id
+                    AND s.cue_id = excerpt_lists.recent_cue_id
+              );
             """
         )
-        var listIDs: [Int64] = []
-        while try selectLists.step() {
-            listIDs.append(selectLists.int64Column(0))
-        }
-        guard !listIDs.isEmpty else {
-            return
-        }
-
-        let selectFirstPlayableCue = try database.prepare(
-            """
-            SELECT s.cue_id
-            FROM excerpts s
-            JOIN subtitle_cue_lines l ON l.id = s.cue_id
-            JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
-            JOIN subtitle_video_matches m
-              ON m.subtitle_file_id = sf.id
-             AND m.is_active = 1
-            JOIN video_files vf ON vf.id = m.video_file_id
-            WHERE s.list_id = ?
-            ORDER BY s.created_at ASC, s.id ASC
-            LIMIT 1;
-            """
-        )
-        let updateFallback = try database.prepare(
-            "UPDATE excerpt_lists SET recent_cue_id = ? WHERE id = ?;"
-        )
-
-        for listID in listIDs {
-            try selectFirstPlayableCue.bind(listID, at: 1)
-            let fallbackCueID: Int64? = try selectFirstPlayableCue.step()
-                ? selectFirstPlayableCue.int64Column(0)
-                : nil
-            try selectFirstPlayableCue.reset()
-
-            if let fallbackCueID {
-                try updateFallback.bind(fallbackCueID, at: 1)
-                try updateFallback.bind(listID, at: 2)
-                try updateFallback.run()
-                try updateFallback.reset()
-            }
-        }
     }
 
     func adoptTombstones(

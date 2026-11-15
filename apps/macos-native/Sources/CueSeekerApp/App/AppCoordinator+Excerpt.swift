@@ -93,41 +93,45 @@ extension AppCoordinator {
     }
 
     func openRecentExcerpt(_ summary: ExcerptListSummary) {
-        openExcerptListPlayback(
-            summary,
-            preferredExcerptID: summary.resumeExcerpt?.id
-        )
+        openExcerptListPlayback(summary)
     }
 
     func openExcerptListPlayback(_ summary: ExcerptListSummary) {
-        openExcerptListPlayback(
-            summary,
-            preferredExcerptID: summary.resumeExcerpt?.id
-        )
-    }
-
-    private func openExcerptListPlayback(
-        _ summary: ExcerptListSummary,
-        preferredExcerptID: Int64?
-    ) {
-        guard let resolution = excerpt.resolveListPlayback(
-            summary,
-            preferredExcerptID: preferredExcerptID
-        ) else {
+        guard let resolution = resolveExcerptListPlayback(listID: summary.list.id) else {
             return
         }
         switch resolution {
         case .resolved(let target, let navigationScopeIDs, let ordinal):
-            openExcerpt(
-                target,
+            openResolvedExcerptListPlayback(
+                target: target,
                 navigationScopeIDs: navigationScopeIDs,
-                playlistScope: .explicitIDs(navigationScopeIDs),
-                playlistSelectedOrdinal: ordinal,
-                displayTitle: target.displayTitle
+                ordinal: ordinal
             )
         case .noAvailableExcerpts:
             toast.show(PlaybackToastRequest.noAvailableExcerpts)
         }
+    }
+
+    func resolveExcerptListPlayback(listID: Int64) -> ExcerptListPlaybackResolution? {
+        excerpt.resolveListPlayback(
+            listID: listID,
+            settings: settings,
+            normalizeFacetFilter: search.normalizedFacetFilter
+        )
+    }
+
+    func openResolvedExcerptListPlayback(
+        target: Excerpt,
+        navigationScopeIDs: [Int64],
+        ordinal: Int
+    ) {
+        openExcerpt(
+            target,
+            navigationScopeIDs: navigationScopeIDs,
+            playlistScope: .explicitIDs(navigationScopeIDs),
+            playlistSelectedOrdinal: ordinal,
+            displayTitle: target.displayTitle
+        )
     }
 
     // MARK: - Excerpt List Editor Forwarding

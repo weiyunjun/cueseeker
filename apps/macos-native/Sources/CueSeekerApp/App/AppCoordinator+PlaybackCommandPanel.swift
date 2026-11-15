@@ -592,18 +592,25 @@ extension AppCoordinator {
             return false
         }
         let summary = summaries[ordinal]
-        guard (try? excerptDatabase?.excerpts(listID: summary.list.id))?
-            .contains(where: \.isValid) == true
-        else {
-            toast.show(PlaybackToastRequest.noAvailableExcerpts)
-            return true
-        }
-        guard dismissPlaybackCommandPanelForAction() else {
+        guard let resolution = resolveExcerptListPlayback(listID: summary.list.id) else {
             return false
         }
-        playback.clearError(on: .notInLibrary)
-        openRecentExcerpt(summary)
-        return true
+        switch resolution {
+        case .noAvailableExcerpts:
+            toast.show(PlaybackToastRequest.noAvailableExcerpts)
+            return true
+        case .resolved(let target, let navigationScopeIDs, let resolvedOrdinal):
+            guard dismissPlaybackCommandPanelForAction() else {
+                return false
+            }
+            playback.clearError(on: .notInLibrary)
+            openResolvedExcerptListPlayback(
+                target: target,
+                navigationScopeIDs: navigationScopeIDs,
+                ordinal: resolvedOrdinal
+            )
+            return true
+        }
     }
 
     @discardableResult

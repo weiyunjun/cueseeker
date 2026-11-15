@@ -61,6 +61,19 @@ public struct ExcerptList: Equatable, Sendable, Identifiable {
         self.recentSortOrder = recentSortOrder
         self.recentPlayedAt = recentPlayedAt
     }
+
+    public func clearingRecentCue() -> ExcerptList {
+        ExcerptList(
+            id: id,
+            name: name,
+            description: description,
+            coverPath: coverPath,
+            createdAt: createdAt,
+            recentCueID: nil,
+            recentSortOrder: recentSortOrder,
+            recentPlayedAt: recentPlayedAt
+        )
+    }
 }
 
 public enum ExcerptOverviewSortOrder: String, CaseIterable, Identifiable, Sendable {

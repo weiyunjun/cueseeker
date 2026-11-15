@@ -250,15 +250,21 @@ private struct WorkbenchExcerptTableContent: View {
             cueCount: summary.cueCount,
             createdAt: summary.list.createdAt
         )
-        let progress = coverSummaryProgress(for: summary)
+        let summaryState = excerptStore.activeListCoverSummaryState(for: summary)
+        let progress = coverSummaryProgress(
+            targetExcerpt: summaryState.targetExcerpt,
+            cueID: summaryState.cueID,
+            position: summaryState.position,
+            totalCount: summaryState.totalCount
+        )
 
         return AnyView(
             CoverSummaryCard(
                 title: summary.list.name,
                 supportingContent: supportingContent,
                 progress: progress,
-                actionKind: summary.resumeExcerpt == nil ? .play : .resume,
-                isActionEnabled: excerptStore.activeListHasPlayableContent,
+                actionKind: summaryState.actionKind,
+                isActionEnabled: summaryState.isActionEnabled,
                 action: {
                     appState.openExcerptListPlayback(summary)
                 },
@@ -283,29 +289,31 @@ private struct WorkbenchExcerptTableContent: View {
     }
 
     private func coverSummaryProgress(
-        for summary: ExcerptListSummary
+        targetExcerpt: Excerpt?,
+        cueID: Int64?,
+        position: Int?,
+        totalCount: Int?
     ) -> CoverSummaryProgress? {
-        guard let resumeExcerpt = summary.resumeExcerpt,
-              summary.cueCount > 0
+        guard let targetExcerpt,
+              let position,
+              let totalCount,
+              totalCount > 0
         else {
             return nil
         }
-        let position = min(max(1, summary.resumePosition ?? 1), summary.cueCount)
-        let cueID = excerptStore.residentRelations.first(
-            where: { $0.id == resumeExcerpt.id }
-        )?.cueID
+        let clampedPosition = min(max(1, position), totalCount)
         let rawContent = cueID.flatMap {
             appState.cueContent.content(for: $0)?.content
-        } ?? resumeExcerpt.content
+        } ?? targetExcerpt.content
         let cuePreview = excerptCoverSummaryCuePreviewText(rawContent)
         let fullCueText = excerptCoverSummaryCueFullText(rawContent)
         let labelText = cuePreview.isEmpty
-            ? "#\(position) / \(summary.cueCount)"
-            : "#\(position) / \(summary.cueCount)  \(cuePreview)"
+            ? "#\(clampedPosition) / \(totalCount)"
+            : "#\(clampedPosition) / \(totalCount)  \(cuePreview)"
         let fullCopyText: String? = (!fullCueText.isEmpty && fullCueText != cuePreview)
-            ? "#\(position) / \(summary.cueCount)  \(fullCueText)"
+            ? "#\(clampedPosition) / \(totalCount)  \(fullCueText)"
             : nil
-        let fraction = Double(position) / Double(summary.cueCount)
+        let fraction = Double(clampedPosition) / Double(totalCount)
         return CoverSummaryProgress(
             labelText: labelText,
             fraction: fraction,

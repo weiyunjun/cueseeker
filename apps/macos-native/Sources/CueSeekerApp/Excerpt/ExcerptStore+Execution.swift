@@ -72,29 +72,52 @@ extension ExcerptStore {
     }
 
     func resolveListPlayback(
-        _ summary: ExcerptListSummary,
-        preferredExcerptID: Int64?
+        listID: Int64,
+        settings: SettingsStore,
+        normalizeFacetFilter: (CueFacetFilter) -> CueFacetFilter
     ) -> ExcerptListPlaybackResolution? {
         guard let database else { return nil }
         do {
-            let relations = try database.excerptRelations(
-                listID: summary.list.id
-            )
+            guard let persistedList = try database.excerptList(id: listID) else {
+                return .noAvailableExcerpts
+            }
+            let snapshot = try database.excerptResidentSnapshot(listID: listID)
             let resolvedByID = Dictionary(
-                uniqueKeysWithValues: try database.excerpts(
-                    listID: summary.list.id
-                ).map { ($0.id, $0) }
+                uniqueKeysWithValues: snapshot.resolvedExcerpts.map { ($0.id, $0) }
             )
-            let navigationScopeIDs = relations.compactMap { relation -> Int64? in
+            let cueContentsByID = Dictionary(
+                uniqueKeysWithValues: snapshot.cueContents.map { ($0.cueID, $0) }
+            )
+            let projectedRelations = Self.projectRelations(
+                relations: snapshot.relations,
+                resolvedExcerptsByID: resolvedByID,
+                facetSnapshot: snapshot.facetSnapshot,
+                searchText: tableSearchQuery(forListID: listID),
+                facetFilter: settings.excerptFacetFilter(forListID: listID),
+                sortOrder: settings.excerptSortOrder(forListID: listID),
+                normalizeFacetFilter: normalizeFacetFilter,
+                cueContentProvider: { [cueContentStore] cueID in
+                    cueContentsByID[cueID] ?? cueContentStore.content(for: cueID)
+                }
+            ).relations
+            let relationByID = Dictionary(
+                uniqueKeysWithValues: projectedRelations.map { ($0.id, $0) }
+            )
+            let navigationScopeIDs = projectedRelations.compactMap { relation -> Int64? in
                 guard resolvedByID[relation.id]?.isValid == true else {
                     return nil
                 }
                 return relation.id
             }
-            let preferredTargetID = preferredExcerptID.flatMap { candidate in
-                navigationScopeIDs.contains(candidate) ? candidate : nil
+            guard !navigationScopeIDs.isEmpty else {
+                return .noAvailableExcerpts
             }
-            guard let targetID = preferredTargetID ?? navigationScopeIDs.first,
+            let anchoredTargetID: Int64? = persistedList.recentCueID.flatMap { targetCueID in
+                navigationScopeIDs.first { id in
+                    relationByID[id]?.cueID == targetCueID
+                }
+            }
+            guard let targetID = anchoredTargetID ?? navigationScopeIDs.first,
                   let target = resolvedByID[targetID],
                   let ordinal = navigationScopeIDs.firstIndex(of: targetID)
             else {
@@ -109,7 +132,7 @@ extension ExcerptStore {
             AppLogger.shared.error(
                 .database,
                 "Failed to open Excerpt list playback",
-                fields: [("list_id", "\(summary.list.id)"), ("error", error.localizedDescription)]
+                fields: [("list_id", "\(listID)"), ("error", error.localizedDescription)]
             )
             return nil
         }
@@ -932,18 +955,45 @@ extension ExcerptStore {
         sortOrder: ExcerptSortOrder? = nil,
         normalizeFacetFilter: (CueFacetFilter) -> CueFacetFilter = { $0 }
     ) -> (relations: [ExcerptRelation], distribution: CueFacetDistribution) {
+        Self.projectRelations(
+            relations: residentRelations,
+            resolvedExcerptsByID: residentExcerptsByID,
+            facetSnapshot: residentFacetSnapshot,
+            searchText: searchText,
+            facetFilter: facetFilter,
+            sortOrder: sortOrder ?? tableSortOrder,
+            normalizeFacetFilter: normalizeFacetFilter,
+            cueContentProvider: { [cueContentStore] cueID in
+                cueContentStore.content(for: cueID)
+            }
+        )
+    }
+
+    static func projectRelations(
+        relations: [ExcerptRelation],
+        resolvedExcerptsByID: [Int64: Excerpt],
+        facetSnapshot: CueFacetSnapshot?,
+        searchText: String,
+        facetFilter: CueFacetFilter,
+        sortOrder: ExcerptSortOrder,
+        normalizeFacetFilter: (CueFacetFilter) -> CueFacetFilter = { $0 },
+        cueContentProvider: (Int64) -> CueContent?
+    ) -> (relations: [ExcerptRelation], distribution: CueFacetDistribution) {
         let trimmedSearchText = searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
         let normalizedFilter = normalizeFacetFilter(facetFilter)
-        let facetProjection = residentFacetProjection(
-            using: normalizedFilter
+        let matchingExcerptIDs = Set(
+            facetProjection(
+                relations: relations,
+                facetSnapshot: facetSnapshot,
+                using: normalizedFilter
+            ).excerptIDs
         )
-        let matchingExcerptIDs = Set(facetProjection.excerptIDs)
         var validSearchMatchingCueIDs = Set<Int64>()
-        let relations = residentRelations.filter { relation in
-            let content = cueContentStore.content(for: relation.cueID)
-            guard let resolved = residentExcerptsByID[relation.id] else {
+        let filteredRelations = relations.filter { relation in
+            let content = cueContentProvider(relation.cueID)
+            guard let resolved = resolvedExcerptsByID[relation.id] else {
                 return false
             }
             let cueText = content?.content ?? resolved.content
@@ -960,34 +1010,33 @@ extension ExcerptStore {
             }
             return matchesSearch
         }
-        let resolvedSortOrder = sortOrder ?? tableSortOrder
         let sortedRelations: [ExcerptRelation]
-        switch resolvedSortOrder {
+        switch sortOrder {
         case .earliestDateAdded:
-            sortedRelations = relations
+            sortedRelations = filteredRelations
         case .latestDateAdded:
-            sortedRelations = relations.enumerated().sorted { lhs, rhs in
+            sortedRelations = filteredRelations.enumerated().sorted { lhs, rhs in
                 if lhs.element.createdAt != rhs.element.createdAt {
                     return lhs.element.createdAt > rhs.element.createdAt
                 }
                 return lhs.offset > rhs.offset
             }.map(\.element)
         case .mostCharacters, .fewestCharacters:
-            let widths = relations.map { relation -> Int in
-                cueContentStore.content(for: relation.cueID)?.characterWidth
-                    ?? residentExcerptsByID[relation.id]?.characterWidth
+            let widths = filteredRelations.map { relation -> Int in
+                cueContentProvider(relation.cueID)?.characterWidth
+                    ?? resolvedExcerptsByID[relation.id]?.characterWidth
                     ?? 0
             }
-            sortedRelations = relations.indices.sorted { lhs, rhs in
+            sortedRelations = filteredRelations.indices.sorted { lhs, rhs in
                 if widths[lhs] != widths[rhs] {
-                    return resolvedSortOrder == .mostCharacters
+                    return sortOrder == .mostCharacters
                         ? widths[lhs] > widths[rhs]
                         : widths[lhs] < widths[rhs]
                 }
                 return lhs < rhs
-            }.map { relations[$0] }
+            }.map { filteredRelations[$0] }
         }
-        let validFacetSnapshot = residentFacetSnapshot?.keeping(
+        let validFacetSnapshot = facetSnapshot?.keeping(
             cueIDs: validSearchMatchingCueIDs
         ) ?? .empty
         let validDistribution = validFacetSnapshot.filteredCueIDs(
@@ -1402,6 +1451,7 @@ extension ExcerptStore {
                 }
                 guard let self, !self.needsReloadAfterIndexedContentMutation else { return }
                 self.installRecentListSummaries(recentSummaries)
+                self.syncOverviewListMetadata(from: recentSummaries)
             } catch ExcerptTransferError.destinationUnavailable {
                 onToast(ExcerptToastRequest.destinationUnavailable(listName: destinationName))
                 self?.reloadListOverview()
@@ -1543,6 +1593,7 @@ extension ExcerptStore {
                 }
                 guard let self, !self.needsReloadAfterIndexedContentMutation else { return }
                 self.installRecentListSummaries(recentSummaries)
+                self.syncOverviewListMetadata(from: recentSummaries)
             } catch ExcerptTransferError.destinationUnavailable {
                 onToast(ExcerptToastRequest.destinationUnavailable(listName: destinationName))
                 self?.reloadListOverview()
@@ -1649,6 +1700,7 @@ extension ExcerptStore {
                 }
                 guard let self, !self.needsReloadAfterIndexedContentMutation else { return }
                 self.installRecentListSummaries(recentSummaries)
+                self.syncOverviewListMetadata(from: recentSummaries)
             } catch ExcerptTransferError.destinationUnavailable {
                 onToast(ExcerptToastRequest.destinationUnavailable(listName: destinationName))
                 self?.reloadListOverview()
@@ -1778,6 +1830,7 @@ extension ExcerptStore {
                 }
                 guard let self, !self.needsReloadAfterIndexedContentMutation else { return }
                 self.installRecentListSummaries(recentSummaries)
+                self.syncOverviewListMetadata(from: recentSummaries)
             } catch ExcerptTransferError.destinationUnavailable {
                 onToast(ExcerptToastRequest.destinationUnavailable(listName: destinationName))
                 self?.reloadListOverview()
@@ -1880,6 +1933,7 @@ extension ExcerptStore {
                     _ = self.adjustListCueCounts([sourceListID: 0], uniqueCueCount: uniqueCueCount)
                 }
                 self.installRecentListSummaries(recentSummaries)
+                self.syncOverviewListMetadata(from: recentSummaries)
             } catch {
                 AppLogger.shared.error(
                     .database,
@@ -1956,6 +2010,7 @@ extension ExcerptStore {
             var updated = recentListSummaries.filter { $0.id != list.id }
             updated.insert(newSummary, at: 0)
             installRecentListSummaries(updated)
+            syncOverviewListMetadata(from: updated)
         }
         let itemID = item.id
         Task { @MainActor [weak self] in
@@ -1968,6 +2023,7 @@ extension ExcerptStore {
                 guard let self else { return }
                 self.listOverviewTask?.cancel()
                 self.installRecentListSummaries(summaries)
+                self.syncOverviewListMetadata(from: summaries)
             } catch {
                 AppLogger.shared.warn(
                     .database,
