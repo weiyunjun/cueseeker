@@ -429,6 +429,168 @@ func filterDialogShowHandsOverOnlyAChangedSelection() {
 
 @MainActor
 @Test
+func filterDialogPrimaryActionTitleCoversEmptySearchTrilingualCountsAndPreservesNonEmptyAndExcerpt() {
+    defer { AppLocalization.apply(.english) }
+
+    let expectedEmptySearchByLanguage: [(AppLanguage, [Int: String])] = [
+        (.english, [
+            0: "Apply 0 filters",
+            1: "Apply 1 filter",
+            2: "Apply 2 filters",
+            1234: "Apply 1234 filters",
+        ]),
+        (.simplifiedChinese, [
+            0: "应用 0 个筛选条件",
+            1: "应用 1 个筛选条件",
+            2: "应用 2 个筛选条件",
+            1234: "应用 1234 个筛选条件",
+        ]),
+        (.traditionalChinese, [
+            0: "套用 0 個篩選條件",
+            1: "套用 1 個篩選條件",
+            2: "套用 2 個篩選條件",
+            1234: "套用 1234 個篩選條件",
+        ]),
+    ]
+
+    for (language, expectedByCount) in expectedEmptySearchByLanguage {
+        AppLocalization.apply(language)
+        for (count, expectedTitle) in expectedByCount {
+            #expect(
+                CueFacetFilterDialogSession.Source.search.primaryActionTitle(
+                    totalCount: nil,
+                    selectedFilterCount: count,
+                    isQueryEmpty: true
+                ) == expectedTitle
+            )
+            #expect(
+                CueFacetFilterDialogSession.Source.search.primaryActionTitle(
+                    totalCount: 0,
+                    selectedFilterCount: count,
+                    isQueryEmpty: true
+                ) == expectedTitle
+            )
+        }
+    }
+
+    AppLocalization.apply(.english)
+    #expect(
+        CueFacetFilterDialogSession.Source.search.primaryActionTitle(
+            totalCount: nil,
+            selectedFilterCount: 3,
+            isQueryEmpty: false
+        ) == "Calculating"
+    )
+    #expect(
+        CueFacetFilterDialogSession.Source.search.primaryActionTitle(
+            totalCount: 1,
+            selectedFilterCount: 3,
+            isQueryEmpty: false
+        ) == "Show 1 result"
+    )
+    #expect(
+        CueFacetFilterDialogSession.Source.search.primaryActionTitle(
+            totalCount: 1234,
+            selectedFilterCount: 3,
+            isQueryEmpty: false
+        ) == "Show 1234 results"
+    )
+
+    for isQueryEmpty in [false, true] {
+        #expect(
+            CueFacetFilterDialogSession.Source.excerpt.primaryActionTitle(
+                totalCount: nil,
+                selectedFilterCount: 2,
+                isQueryEmpty: isQueryEmpty
+            ) == "Calculating"
+        )
+        #expect(
+            CueFacetFilterDialogSession.Source.excerpt.primaryActionTitle(
+                totalCount: 1,
+                selectedFilterCount: 2,
+                isQueryEmpty: isQueryEmpty
+            ) == "Show 1 excerpt"
+        )
+        #expect(
+            CueFacetFilterDialogSession.Source.excerpt.primaryActionTitle(
+                totalCount: 2,
+                selectedFilterCount: 2,
+                isQueryEmpty: isQueryEmpty
+            ) == "Show 2 excerpts"
+        )
+    }
+}
+
+@MainActor
+@Test
+func filterDialogEmptyAndWhitespaceSearchQueriesStayApplyReadyWithMatchingSelectedCount() {
+    let search = SearchStore()
+
+    for query in ["", "   \t "] {
+        search.updateQuery(query)
+        let state = SearchFacetDialogSearchState(search)
+        let counts = state.counts(for: CueFacetFilter(durations: [.underOneSecond]))
+        #expect(state.isQueryEmpty)
+        #expect(!counts.isCalculating)
+        #expect(counts.totalCount == 0)
+    }
+
+    search.updateQuery("cue")
+    #expect(!SearchFacetDialogSearchState(search).isQueryEmpty)
+
+    let distribution = CueFacetDistribution(
+        totalCount: 3,
+        durationCounts: [:],
+        characterCounts: [:],
+        languageCounts: [.japanese: 3],
+        watchStateCounts: [:],
+        folderCounts: ["/Media/A": 1, "/Media/B": 1, "/Media/C": 1]
+    )
+    let availableLanguages = SubtitleLanguageCode.listed(
+        emptyDistribution: distribution,
+        snapshot: nil
+    )
+    let availableFolders = CueFacetFolderOption.listed(
+        emptyDistribution: distribution,
+        snapshot: nil
+    )
+    func sectionSelectedSum(_ selection: CueFacetFilter) -> Int {
+        CueFacetSection.sections(
+            counts: CueFacetFilterCounts(
+                distribution: .zero,
+                isCalculating: false,
+                totalCount: 0
+            ),
+            availableLanguages: availableLanguages,
+            availableFolders: availableFolders,
+            selection: selection,
+            update: { _ in }
+        )
+        .reduce(0) { $0 + $1.selectedCount }
+    }
+
+    var filter = CueFacetFilter()
+    #expect(sectionSelectedSum(filter) == 0)
+
+    filter.durations = [.underOneSecond]
+    #expect(sectionSelectedSum(filter) == 1)
+    #expect(filter.selectedOptionCount(emptyDistribution: distribution, snapshot: nil) == 1)
+
+    filter = CueFacetFilter(
+        durations: [.underOneSecond, .fiveSecondsOrMore],
+        languages: [.japanese],
+        watchStates: [.finished],
+        excludedFolders: ["/Media/B"]
+    )
+    #expect(sectionSelectedSum(filter) == 6)
+    #expect(filter.selectedOptionCount(emptyDistribution: distribution, snapshot: nil) == 6)
+
+    filter = CueFacetFilter()
+    #expect(sectionSelectedSum(filter) == 0)
+}
+
+@MainActor
+@Test
 func settingsStorePreservesKnownSelectionsBesideUnrecognizedExclusions() {
     withTemporarySearchSettingsUserDefaults { userDefaults in
         userDefaults.set([

@@ -48,6 +48,21 @@ final class CueFacetFilterDialogSession: ObservableObject, Identifiable {
 }
 
 extension CueFacetFilterDialogSession.Source {
+    func primaryActionTitle(
+        totalCount: Int?,
+        selectedFilterCount: Int,
+        isQueryEmpty: Bool
+    ) -> String {
+        if self == .search, isQueryEmpty {
+            let count = max(0, selectedFilterCount)
+            return count == 1
+                ? L("filter_dialog.apply_filters.one")
+                : L("filter_dialog.apply_filters.other", count)
+        }
+        return totalCount.map { showTitle(totalCount: $0) }
+            ?? L("facet.calculating")
+    }
+
     func showTitle(totalCount: Int) -> String {
         switch (self, totalCount) {
         case (.search, 1):
@@ -300,6 +315,7 @@ struct CueFacetFilterDialog: View {
     let counts: CueFacetFilterCounts
     let availableLanguages: [SubtitleLanguageCode]
     let availableFolders: [CueFacetFolderOption]
+    var isQueryEmpty: Bool = false
     let onClose: () -> Void
 
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
@@ -316,6 +332,7 @@ struct CueFacetFilterDialog: View {
             selection: session.filter,
             update: { change in change(&session.filter) }
         )
+        let selectedFilterCount = sections.reduce(0) { $0 + $1.selectedCount }
         WorkbenchAccessibilityReader { accessibility in
             let focusedDialogTarget = accessibility?.activeDialogID == dialogID
                 ? accessibility?.focusedDialogTarget
@@ -339,7 +356,10 @@ struct CueFacetFilterDialog: View {
                     .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
                 }
 
-                footer(accessibility: accessibility)
+                footer(
+                    accessibility: accessibility,
+                    selectedFilterCount: selectedFilterCount
+                )
                     .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
             }
         }
@@ -398,10 +418,15 @@ struct CueFacetFilterDialog: View {
         }
     }
 
-    private func footer(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
+    private func footer(
+        accessibility: WorkbenchAccessibilityCoordinator?,
+        selectedFilterCount: Int
+    ) -> some View {
         let isResetDisabled = session.filter.normalizingFolders(
             listed: availableFolders.map(\.path)
         ).isEmpty
+        let showsCalculatingPrimaryAction =
+            !(session.source == .search && isQueryEmpty) && counts.totalCount == nil
 
         return HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             // Reset clears the dialog's selection only; the table waits for
@@ -429,20 +454,23 @@ struct CueFacetFilterDialog: View {
             )
             .keyboardShortcut(.cancelAction)
 
-            // Show waits for the total: until it is known the button says it is
-            // calculating, and a selection is handed to the table only once it
-            // is.
+            // Show waits for the total when a query is active: until it is
+            // known the button says it is calculating, and a selection is
+            // handed to the table only once it is.
             WorkbenchPrimaryButton(
-                title: counts.totalCount.map { session.source.showTitle(totalCount: $0) }
-                    ?? L("facet.calculating"),
-                showsSpinner: counts.totalCount == nil,
+                title: session.source.primaryActionTitle(
+                    totalCount: counts.totalCount,
+                    selectedFilterCount: selectedFilterCount,
+                    isQueryEmpty: isQueryEmpty
+                ),
+                showsSpinner: showsCalculatingPrimaryAction,
                 isFocused: accessibility?.isDialogFocused(.filterShow, dialogID: dialogID) == true,
                 action: {
                     session.show()
                     onClose()
                 }
             )
-            .disabled(counts.totalCount == nil)
+            .disabled(showsCalculatingPrimaryAction)
         }
     }
 }
@@ -667,6 +695,7 @@ struct SearchFacetFilterDialog: View {
             counts: searchState.counts(for: session.filter),
             availableLanguages: searchState.availableLanguages,
             availableFolders: searchState.availableFolders,
+            isQueryEmpty: searchState.isQueryEmpty,
             onClose: onClose
         )
         .onReceive(search.objectWillChange.receive(on: DispatchQueue.main)) { _ in

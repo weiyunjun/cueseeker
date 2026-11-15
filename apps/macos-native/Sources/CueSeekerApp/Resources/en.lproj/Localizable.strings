@@ -75,6 +75,8 @@
 "filter_dialog.show_results.other" = "Show %d results";
 "filter_dialog.show_excerpts.one" = "Show 1 excerpt";
 "filter_dialog.show_excerpts.other" = "Show %d excerpts";
+"filter_dialog.apply_filters.one" = "Apply 1 filter";
+"filter_dialog.apply_filters.other" = "Apply %d filters";
 "table.select" = "Select";
 "table.exit_select" = "Exit Selection";
 "table.batch_selection_banner_hint" = "Batch selection active: click any row to select, Shift+click for range";

@@ -75,6 +75,8 @@
 "filter_dialog.show_results.other" = "顯示 %d 筆結果";
 "filter_dialog.show_excerpts.one" = "顯示 1 條摘錄";
 "filter_dialog.show_excerpts.other" = "顯示 %d 條摘錄";
+"filter_dialog.apply_filters.one" = "套用 1 個篩選條件";
+"filter_dialog.apply_filters.other" = "套用 %d 個篩選條件";
 "table.select" = "選取";
 "table.exit_select" = "退出選取";
 "table.batch_selection_banner_hint" = "已進入批量選取狀態：點擊任意行即可勾選，支援 Shift 連選";
