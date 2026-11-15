@@ -1108,7 +1108,7 @@
 3. Footer
    1. Reset
    2. Cancel
-   3. Show：Search 为 `Show N results`，Excerpt 为 `Show N excerpts`（仅统计有效台词）；总数未知时为 Spinner 与 `Calculating`
+   3. Show：Search 空搜索词时按对话框内已选筛选条件数为 `Apply 0 filters` / `Apply 1 filter` / `Apply N filters`，非空搜索词时为 `Show 1 result` / `Show N results`；Excerpt 为 `Show 1 excerpt` / `Show N excerpts`（仅统计有效台词）；总数未知时为 Spinner 与 `Calculating`
 
 #### Components
 
