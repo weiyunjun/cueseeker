@@ -212,9 +212,6 @@ enum SystemSheetPresentation {
             return
         }
         let layers = (window as? CueSeekerWindow)?.interfaceLayers
-        // Ensure windows whose delegate is not AppDelegate (e.g. Settings) still
-        // synchronize the custom Scrim if they host a sheet.
-        layers?.setSystemSheetAttached(true)
         present(window) { response in
             MainActor.assumeIsolated {
                 releaseScrimOnCompletion(

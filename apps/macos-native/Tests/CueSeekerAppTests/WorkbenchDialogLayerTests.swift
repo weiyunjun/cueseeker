@@ -82,6 +82,89 @@ func dialogMotionTokensCurvesAndExteriorClipMatchSpec() {
     #expect(WorkbenchDialogMotion.dialogTransactionAnimation(reducesMotion: false) != WorkbenchDialogMotion.reduceMotionAnimation)
 }
 
+@Test
+func dialogTransitionFrameComputesSynchronizedOpacityAndOffset() {
+    let enterStart = WorkbenchDialogMotion.transitionFrame(
+        progress: 0,
+        isEntering: true,
+        reducesMotion: false
+    )
+    #expect(enterStart == .init(opacity: 0, offsetY: -WorkbenchDialogMotion.distance))
+
+    let enterMidFade = WorkbenchDialogMotion.transitionFrame(
+        progress: (WorkbenchDialogMotion.fadeInDuration * 0.5) / WorkbenchDialogMotion.duration,
+        isEntering: true,
+        reducesMotion: false
+    )
+    #expect(abs(enterMidFade.opacity - WorkbenchDialogMotion.fadeInEasing.value(at: 0.5)) < 1e-6)
+    #expect(enterMidFade.offsetY > -WorkbenchDialogMotion.distance && enterMidFade.offsetY < 0)
+
+    let enterFadeComplete = WorkbenchDialogMotion.transitionFrame(
+        progress: WorkbenchDialogMotion.fadeInDuration / WorkbenchDialogMotion.duration,
+        isEntering: true,
+        reducesMotion: false
+    )
+    #expect(enterFadeComplete.opacity == 1)
+    #expect(enterFadeComplete.offsetY > -WorkbenchDialogMotion.distance && enterFadeComplete.offsetY < 0)
+
+    let enterEnd = WorkbenchDialogMotion.transitionFrame(
+        progress: 1,
+        isEntering: true,
+        reducesMotion: false
+    )
+    #expect(enterEnd == .init(opacity: 1, offsetY: 0))
+
+    let exitStart = WorkbenchDialogMotion.transitionFrame(
+        progress: 1,
+        isEntering: false,
+        reducesMotion: false
+    )
+    #expect(exitStart == .init(opacity: 1, offsetY: 0))
+
+    let exitMidFade = WorkbenchDialogMotion.transitionFrame(
+        progress: 1 - (WorkbenchDialogMotion.fadeOutDuration * 0.5) / WorkbenchDialogMotion.duration,
+        isEntering: false,
+        reducesMotion: false
+    )
+    #expect(abs(exitMidFade.opacity - (1 - WorkbenchDialogMotion.fadeOutEasing.value(at: 0.5))) < 1e-6)
+    #expect(exitMidFade.offsetY > -WorkbenchDialogMotion.distance && exitMidFade.offsetY < 0)
+
+    let exitFadeComplete = WorkbenchDialogMotion.transitionFrame(
+        progress: 1 - WorkbenchDialogMotion.fadeOutDuration / WorkbenchDialogMotion.duration,
+        isEntering: false,
+        reducesMotion: false
+    )
+    #expect(exitFadeComplete.opacity == 0)
+    #expect(exitFadeComplete.offsetY > -WorkbenchDialogMotion.distance && exitFadeComplete.offsetY < 0)
+
+    let exitEnd = WorkbenchDialogMotion.transitionFrame(
+        progress: 0,
+        isEntering: false,
+        reducesMotion: false
+    )
+    #expect(exitEnd == .init(opacity: 0, offsetY: -WorkbenchDialogMotion.distance))
+
+    for isEntering in [true, false] {
+        for progress in [0.0, 0.25, 0.5, 0.75, 1.0] {
+            let frame = WorkbenchDialogMotion.transitionFrame(
+                progress: progress,
+                isEntering: isEntering,
+                reducesMotion: true
+            )
+            #expect(frame == .init(opacity: progress, offsetY: 0))
+        }
+    }
+
+    #expect(
+        WorkbenchDialogMotion.transitionFrame(progress: -0.25, isEntering: true, reducesMotion: false)
+            == .init(opacity: 0, offsetY: -WorkbenchDialogMotion.distance)
+    )
+    #expect(
+        WorkbenchDialogMotion.transitionFrame(progress: 1.25, isEntering: false, reducesMotion: false)
+            == .init(opacity: 1, offsetY: 0)
+    )
+}
+
 @MainActor
 @Test
 func systemSheetCompletionRestoresScrimEarlyAndPreservesDialogLayerState() {

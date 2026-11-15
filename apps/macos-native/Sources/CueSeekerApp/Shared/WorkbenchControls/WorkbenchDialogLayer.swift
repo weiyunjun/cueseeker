@@ -411,20 +411,9 @@ enum WorkbenchDialogMotion {
     /// Alias for callers referencing the primary dialog enter curve.
     static let easing = enterEasing
 
-    static var enterAnimation: Animation {
-        enterEasing.animation(duration: duration)
-    }
-
-    static var exitAnimation: Animation {
-        exitEasing.animation(duration: duration)
-    }
-
-    static var fadeInAnimation: Animation {
-        fadeInEasing.animation(duration: fadeInDuration)
-    }
-
-    static var fadeOutAnimation: Animation {
-        fadeOutEasing.animation(duration: fadeOutDuration)
+    struct TransitionFrame: Equatable {
+        let opacity: Double
+        let offsetY: CGFloat
     }
 
     static var reduceMotionAnimation: Animation {
@@ -445,6 +434,34 @@ enum WorkbenchDialogMotion {
 
     static func showsScrim(hasOpenDialogs: Bool, isSystemSheetAttached: Bool) -> Bool {
         hasOpenDialogs && !isSystemSheetAttached
+    }
+
+    /// Computes the synchronized container opacity and vertical offset for a
+    /// single linear transition `progress` (`0 -> 1` on enter, `1 -> 0` on exit).
+    static func transitionFrame(
+        progress: Double,
+        isEntering: Bool,
+        reducesMotion: Bool
+    ) -> TransitionFrame {
+        let clampedProgress = min(1, max(0, progress))
+        guard !reducesMotion else {
+            return TransitionFrame(opacity: clampedProgress, offsetY: 0)
+        }
+
+        if isEntering {
+            let fadeProgress = min(1, clampedProgress * duration / fadeInDuration)
+            return TransitionFrame(
+                opacity: fadeInEasing.value(at: fadeProgress),
+                offsetY: -distance * (1 - enterEasing.value(at: clampedProgress))
+            )
+        }
+
+        let elapsed = 1 - clampedProgress
+        let fadeProgress = min(1, elapsed * duration / fadeOutDuration)
+        return TransitionFrame(
+            opacity: 1 - fadeOutEasing.value(at: fadeProgress),
+            offsetY: -distance * exitEasing.value(at: elapsed)
+        )
     }
 }
 
@@ -493,37 +510,59 @@ extension AnyTransition {
     }
 
     static func workbenchDialog(reducesMotion: Bool) -> AnyTransition {
-        if reducesMotion {
-            let fade = AnyTransition.opacity.animation(WorkbenchDialogMotion.reduceMotionAnimation)
-            return .asymmetric(insertion: fade, removal: fade)
-        }
-
-        let slideTransition = AnyTransition.modifier(
-            active: WorkbenchDialogSlideModifier(isActive: true),
-            identity: WorkbenchDialogSlideModifier(isActive: false)
-        )
-        return .asymmetric(
-            insertion: slideTransition
-                .animation(WorkbenchDialogMotion.enterAnimation)
-                .combined(
-                    with: .opacity.animation(WorkbenchDialogMotion.fadeInAnimation)
+        .asymmetric(
+            insertion: .modifier(
+                active: WorkbenchDialogMotionEffect(
+                    progress: 0,
+                    isEntering: true,
+                    reducesMotion: reducesMotion
                 ),
-            removal: slideTransition
-                .animation(WorkbenchDialogMotion.exitAnimation)
-                .combined(
-                    with: .opacity.animation(WorkbenchDialogMotion.fadeOutAnimation)
+                identity: WorkbenchDialogMotionEffect(
+                    progress: 1,
+                    isEntering: true,
+                    reducesMotion: reducesMotion
                 )
+            ),
+            removal: .modifier(
+                active: WorkbenchDialogMotionEffect(
+                    progress: 0,
+                    isEntering: false,
+                    reducesMotion: reducesMotion
+                ),
+                identity: WorkbenchDialogMotionEffect(
+                    progress: 1,
+                    isEntering: false,
+                    reducesMotion: reducesMotion
+                )
+            )
         )
     }
 }
 
-private struct WorkbenchDialogSlideModifier: ViewModifier {
-    let isActive: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+private struct WorkbenchDialogMotionEffect: ViewModifier, Animatable {
+    /// 0 is off its place and transparent, 1 is in place.
+    var progress: Double
+    let isEntering: Bool
+    let reducesMotion: Bool
+    @Environment(\.accessibilityReduceMotion) private var environmentReduceMotion
+
+    nonisolated var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
 
     func body(content: Content) -> some View {
-        content.offset(
-            y: (isActive && !reduceMotion) ? -WorkbenchDialogMotion.distance : 0
+        let _ = DebugInteractionLatencyProbe.recordDialogAnimationFrame(
+            progress: CGFloat(progress),
+            isEntering: isEntering
         )
+        let frame = WorkbenchDialogMotion.transitionFrame(
+            progress: progress,
+            isEntering: isEntering,
+            reducesMotion: reducesMotion || environmentReduceMotion
+        )
+        content
+            .opacity(frame.opacity)
+            .offset(y: frame.offsetY)
     }
 }
