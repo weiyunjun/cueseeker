@@ -870,15 +870,25 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
            !field.isHiddenOrHasHiddenAncestor,
            field.bounds.width > 0,
            field.bounds.height > 0 {
-            let centerInWindow = field.convert(
-                NSPoint(x: field.bounds.midX, y: field.bounds.midY),
-                to: nil
-            )
-            if windowRect.contains(centerInWindow) {
-                return field
+            let isCoveredNativeField: Bool = {
+                guard let nativeField = field as? WorkbenchNativeSingleLineTextField,
+                      let mainWindow = nativeField.window as? CueSeekerMainWindow
+                else {
+                    return false
+                }
+                return mainWindow.isLayerCovered(nativeField.interfaceLayer)
+            }()
+            if !isCoveredNativeField {
+                let centerInWindow = field.convert(
+                    NSPoint(x: field.bounds.midX, y: field.bounds.midY),
+                    to: nil
+                )
+                if windowRect.contains(centerInWindow) {
+                    return field
+                }
             }
         }
-        for subview in view.subviews {
+        for subview in view.subviews.reversed() {
             if let found = findTextField(in: subview, within: windowRect) {
                 return found
             }

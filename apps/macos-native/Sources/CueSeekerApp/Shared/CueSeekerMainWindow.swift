@@ -715,6 +715,9 @@ final class CueSeekerMainWindow: CueSeekerWindow {
     /// layer and its views are never blocked by layer coverage.
     var isWorkbenchCovered: () -> Bool = { false }
 
+    /// Whether a specific interface layer is currently covered by a higher open layer.
+    var isLayerCovered: (InterfaceLayer) -> Bool = { _ in false }
+
     override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
         // Giving the focus up is always allowed; that is how the menu cancels
         // it in the first place.
@@ -824,12 +827,14 @@ final class CueSeekerMainWindow: CueSeekerWindow {
             return false
         }
         if let field = target as? WorkbenchNativeSingleLineTextField,
-           field.interfaceLayer == .dialog,
+           field.interfaceLayer > .workbenchPage,
+           !isLayerCovered(field.interfaceLayer),
            !isBehindDialog(target) {
             return true
         }
         if let selectableText = target as? WorkbenchSelectableTextNSView,
-           selectableText.interfaceLayerContext.layer == .dialog,
+           selectableText.interfaceLayerContext.layer > .workbenchPage,
+           !isLayerCovered(selectableText.interfaceLayerContext.layer),
            !selectableText.isFrozenOrCovered,
            !isBehindDialog(target) {
             return true

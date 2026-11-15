@@ -327,6 +327,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 appState.interfaceLayers.isCovered(.workbenchPage)
             }
         }
+        window.isLayerCovered = { [appState] layer in
+            MainActor.assumeIsolated {
+                appState.interfaceLayers.isCovered(layer)
+            }
+        }
         window.handlesFullscreenRequest = { [appState] in
             MainActor.assumeIsolated {
                 guard appState.isPlaybackPageVisible,

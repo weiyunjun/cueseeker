@@ -38,20 +38,27 @@
    - `apps/macos-native/Sources/CueSeekerApp/Settings/{SettingsStore.swift,SettingsSearchCategory.swift}`, `WorkbenchAccessibility.swift`, `AppCoordinator+WorkbenchAccessibility.swift`:
      - Removed `prefillCommandPanelWithFocusedCue`, the `Settings -> General -> Search` toggle row, and `.searchPrefillCommandPanel`.
 
-5. **Unit test updates and additions**
+5. **Main window layer-coverage gate fix for `.commandPanel` text input**
+   - `apps/macos-native/Sources/CueSeekerApp/Shared/CueSeekerMainWindow.swift` & `apps/macos-native/Sources/CueSeekerApp/App/AppDelegate.swift`:
+     - Added `isLayerCovered: (InterfaceLayer) -> Bool = { _ in false }` on `CueSeekerMainWindow`, wired in `AppDelegate` to `appState.interfaceLayers.isCovered(layer)` alongside `isWorkbenchCovered`.
+     - Replaced the `.dialog`-only fast-path check in `CueSeekerMainWindow.isUncovered(_:)` with unified uncovered higher-layer checks (`field.interfaceLayer > .workbenchPage && !isLayerCovered(field.interfaceLayer) && !isBehindDialog(target)` for `WorkbenchNativeSingleLineTextField`, and matching `interfaceLayerContext.layer > .workbenchPage && !isLayerCovered(...) && !selectableText.isFrozenOrCovered && !isBehindDialog(target)` for `WorkbenchSelectableTextNSView`), keeping `.workbenchPage` fields on hit-test verification.
+   - `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchNativeTextFields.swift`:
+     - Updated `WorkbenchSingleLineContainerOverlayView.findTextField(in:within:)` to inspect `view.subviews.reversed()` top-down and skip any `WorkbenchNativeSingleLineTextField` whose owning `CueSeekerMainWindow` reports `isLayerCovered(nativeField.interfaceLayer) == true` (pure set check without calling `isUncovered` to avoid recursion).
+
+6. **Unit test updates and additions**
    - `apps/macos-native/Tests/CueSeekerAppTests/{SettingsStoreSearchTests.swift,WorkbenchAccessibilityStep3Tests.swift,WorkbenchInputControlsTests.swift,PlaybackSubtitleFocusKeyboardActionTests.swift}`:
      - Removed obsolete `prefillCommandPanelWithFocusedCue` / `.searchPrefillCommandPanel` references and updated Search field autofocus expectations to end-caret placement while preserving Rename dialog select-all coverage.
      - Added pure-logic tests `playbackCommandPanelPersistsSearchQueryAndReusesValidSearchSnapshot`, `playbackCommandPanelResolvesCopyCurrentCueAcrossPlaybackAndOverlayStates`, and `playbackCommandPanelCopyCurrentCueFooterAndExecutionPreservePanelAndSearchFocus`.
 
 ## Compilation & Unit Test Verification
 
-Executed after the final code and test edits:
-
-1. **Build verification**:
-   - `swift build --package-path apps/macos-native`: `Build complete! (0.37s)`, `0` errors.
-   - `swift build --package-path apps/macos-native --build-tests`: `Build complete! (20.88s)` after final test edits (`0.33s`–`10.54s` incremental test builds).
-2. **Targeted headless pure-logic tests (filtered, zero window popups)**:
-   - `swift test --package-path apps/macos-native --filter "SettingsStoreSearchTests|WorkbenchAccessibilityStep3Tests|commandPanelAccessibilityCoordinatesRootRecentGridsAndSearchResults|PlaybackSubtitleFocusKeyboardActionTests|PlaybackSearchOverlayTests|everyBundledLanguageDefinesTheSameKeys|singularCountKeysDoNotContainUnresolvedFormatPlaceholders|eachLanguageResolvesItsOwnLocalizationBundle"`: `73` Swift Testing cases passed (`0` failed).
-   - `swift test --package-path apps/macos-native --filter "CueSeekerCoreTests.*subtitleFocus|CueSeekerCoreTests.*PlaybackSubtitle"`: `18` Swift Testing cases passed (`0` failed).
+1. **After the final window-layer focus fix (`fix:` commit)**:
+   - `swift build` (`apps/macos-native`): `Build complete! (6.20s)` (`0.31s` incremental), `0` errors.
+   - `swift test --filter InterfaceLayerFreezeTests`: `7` Swift Testing cases passed (`0` failed).
+   - `swift test --filter PlaybackReelCopyAndCommandPanelRoutingTests`: `4` Swift Testing cases passed (`0` failed).
+2. **Earlier feature implementation run (`feat:` baseline `b3c2486`)**:
+   - `swift build --package-path apps/macos-native --build-tests`: `Build complete! (20.88s)`, `0` errors.
+   - Targeted headless `CueSeekerAppTests` filter (`SettingsStoreSearchTests`, `WorkbenchAccessibilityStep3Tests`, `commandPanelAccessibilityCoordinatesRootRecentGridsAndSearchResults`, `PlaybackSubtitleFocusKeyboardActionTests`, `PlaybackSearchOverlayTests`, localization parity/plural/bundle checks): `73` Swift Testing cases passed (`0` failed).
+   - `CueSeekerCoreTests` subtitle/focus filter (`CueSeekerCoreTests.*subtitleFocus|CueSeekerCoreTests.*PlaybackSubtitle`): `18` Swift Testing cases passed (`0` failed).
 3. **End-to-end acceptance**:
-   - Live end-caret horizontal scrolling in overflowing Search Fields, `Command Panel` visual layout, `Rename` dialog selection behavior, clipboard/toast feedback, and `Settings -> General -> Search` visual cleanup remain with the user for interactive acceptance.
+   - Live end-caret focus, Command Panel search typing without playback shortcut interception, horizontal scrolling in overflowing Search Fields, `Command Panel` visual layout, `Rename` dialog selection behavior, clipboard/toast feedback, and `Settings -> General -> Search` visual cleanup remain with the user for interactive acceptance.
