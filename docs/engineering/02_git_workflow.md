@@ -147,30 +147,48 @@ Before commit:
 
 ## 5. Commit Message Format
 
-Use concise English commit messages.
+Use single-line pure English (ASCII) Conventional Commit messages with mandatory
+requirement traceability in trailing parentheses.
 
 Format:
 
 ```text
-Area: concise change summary
+<type>: <summary> (docs/human/requirements/<requirement>.md)
 ```
 
 Examples:
 
 ```text
-Docs: add project governance rules
-Archive: move Flutter implementation under archive/flutter
-Native: add macOS app shell
-Search: implement local subtitle FTS query
-Playback: add local video seek prototype
+docs: add settings about page requirement (docs/human/requirements/20261115-Feature-Settings About Page.md)
+feat: add settings about page and release update check (docs/human/requirements/20261115-Feature-Settings About Page.md)
+fix: fallback debug icon on settings about page (docs/human/requirements/20261115-Feature-Settings About Page.md)
+docs: sync settings about page design spec (docs/human/requirements/20261115-Feature-Settings About Page.md)
+chore: enforce strict single-line conventional commit hook (docs/human/requirements/20261115-Engineering-Conventional Commit Format And Strict Single-Line Requirement Hook.md)
 ```
 
 Rules:
 
-- The area should describe the main change domain.
-- The summary should be imperative or descriptive, but concise.
-- Do not use vague summaries such as `update`, `fix`, or `changes` by themselves.
-- Commit messages must be in English.
+- Every commit message must be a single line of printable English ASCII
+  characters. Multi-line commit bodies, Chinese characters, and full-width
+  punctuation are forbidden (aside from Git's `#` comment lines during editing).
+- `<type>` must be one of the allowed lowercase prefixes: `feat`, `fix`, `docs`,
+  `refactor`, `perf`, `style`, `test`, `build`, `ci`, `chore`, `revert`.
+  Scoped prefixes such as `feat(ui):` and uppercase area prefixes such as
+  `Docs:` or `UI:` are forbidden.
+- `<summary>` must be a concise multi-word imperative or descriptive English
+  phrase. Do not use single-word vague summaries such as `update`, `fix`, or
+  `changes`, and do not embed bare `docs/human/` paths inside `<summary>`.
+- Whether a commit modifies code or documentation (including adding/updating a
+  requirement, syncing `docs/human/design/` after acceptance, or updating
+  engineering rules) must be expressed by `<type>` and `<summary>`.
+- Trailing parentheses must contain the single relative requirement path
+  `(docs/human/requirements/<requirement>.md)` without a leading `/`, without
+  `docs/human/design/` or other non-requirement paths, and without multiple
+  joined paths, and the referenced requirement file must exist in the
+  repository.
+- Local validation is enforced via `.git/hooks/commit-msg` delegating to
+  `scripts/verify_commit_msg.sh` (tested by `scripts/test_verify_commit_msg.sh`).
+  Historical commits prior to this rule remain unchanged.
 
 ## 6. Safety Rules
 
@@ -282,9 +300,12 @@ Rules:
   implementation record under `docs/engineering/records/` that cites the
   relevant human-owned document and records the steps taken, verification
   performed, and whether the result matched expectations.
-- Every commit must include the relevant `docs/human/` document path in the
-  commit message. For commits that change only `docs/human/`, cite the
-  human-owned document path or paths changed by that commit.
+- Every commit — whether changing code, engineering documentation, a
+  requirement document, or `docs/human/design/` specifications — must be a
+  single line ending with the single covering requirement path in parentheses:
+  `(docs/human/requirements/<requirement>.md)`. Do not append `docs/human/design/`
+  or multiple paths in the commit message; express whether the commit is a code
+  or documentation change through `<type>` and `<summary>`.
 
 ## 11. AI Assistant Interaction Rules
 
@@ -350,9 +371,11 @@ Rules:
   update a matching implementation record under `docs/engineering/records/`.
   The record must identify the relevant `docs/human/` document and summarize
   the implementation steps, verification, and outcome.
-- When committing, the AI must include the relevant `docs/human/` path in the
-  commit message. If multiple human-owned documents cover one commit, include
-  each relevant path.
+- When committing, the AI must format every commit message as a single pure
+  English ASCII line `<type>: <summary> (docs/human/requirements/<requirement>.md)`
+  following Section 5. Even when committing updates to `docs/human/design/` or
+  engineering documents, the trailing parentheses must cite only the single
+  covering requirement file under `docs/human/requirements/`.
 - Unless the user explicitly asks for a detailed explanation, AI responses
   should be concise and clear, with the most important conclusions emphasized in
   bold so the answer is easy to scan.

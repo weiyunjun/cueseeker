@@ -218,7 +218,7 @@ Implement
 Verify
 Update the implementation record
 Evaluate changelog trigger and update when required
-Commit changes with the relevant human-owned document path in the commit message
+Commit changes as a single-line Conventional Commit ending with (docs/human/requirements/<requirement>.md)
 ```
 
 ## 9. Review Rule

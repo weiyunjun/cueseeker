@@ -10,6 +10,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Create an isolated mock repo root with real requirement files for deterministic tests
+MOCK_ROOT="$TMP_DIR/repo"
+mkdir -p "$MOCK_ROOT/docs/human/requirements/archive"
+mkdir -p "$MOCK_ROOT/docs/human/design/ui"
+REQ_A="docs/human/requirements/20261115-Engineering-Conventional Commit Format And Strict Single-Line Requirement Hook.md"
+REQ_B="docs/human/requirements/20261115-Feature-Sample Requirement.md"
+printf "# Mock Requirement A\n" > "$MOCK_ROOT/$REQ_A"
+printf "# Mock Requirement B\n" > "$MOCK_ROOT/$REQ_B"
+printf "# Archived Requirement\n" > "$MOCK_ROOT/docs/human/requirements/archive/20260101-Old.md"
+printf "# Design Doc\n" > "$MOCK_ROOT/docs/human/design/ui/UI Index.md"
+
 pass_count=0
 fail_count=0
 
@@ -22,7 +33,7 @@ run_test() {
     printf "%s\n" "$content" > "$msg_file"
 
     set +e
-    "$VERIFY_SCRIPT" "$msg_file" > /dev/null 2>&1
+    CUESEEKER_REPO_ROOT="$MOCK_ROOT" "$VERIFY_SCRIPT" "$msg_file" > /dev/null 2>&1
     local actual_exit=$?
     set -e
 
@@ -37,49 +48,101 @@ run_test() {
 
 echo "=== Running commit message verification tests ==="
 
-# 1. Standard valid single-line message
-run_test "Standard valid single-line message" \
-    "Docs: add commit message verification (docs/human/requirements/20261007-Engineering-Commit Message Validation Hook.md)" \
+# Valid cases
+run_test "Valid feat commit" \
+    "feat: add settings about page ($REQ_B)" \
     0
 
-# 2. Standard valid multi-line message (docs path in body)
-run_test "Standard valid multi-line message" \
-    "Search: eliminate disk logs and enforce test isolation
-
-docs/human/requirements/20261003-Engineering-Eliminate Disk Logs And Enforce Clean Tests.md" \
+run_test "Valid docs commit for design sync citing only requirement" \
+    "docs: sync settings about design spec ($REQ_B)" \
     0
 
-# 3. Valid multi-word Area
-run_test "Valid multi-word Area" \
-    "Search & Excerpt: remove deferred refresh (docs/human/requirements/test.md)" \
+run_test "Valid chore commit with hook requirement" \
+    "chore: enforce strict single-line conventional commit hook ($REQ_A)" \
     0
 
-# 4. Reject: missing docs/human/ path
-run_test "Reject missing docs/human/ path" \
-    "UI: reduce button height to 32px" \
+run_test "Valid fix commit with git comment lines" \
+    "fix: fallback debug icon on about page ($REQ_B)
+
+# Please enter the commit message for your changes.
+# Lines starting with '#' will be ignored." \
+    0
+
+# Invalid cases
+run_test "Reject multi-line commit message with body" \
+    "feat: add settings about page ($REQ_B)
+
+Additional body paragraph is forbidden." \
     1
 
-# 5. Reject: lowercase area
-run_test "Reject lowercase area" \
-    "docs: update requirement (docs/human/requirements/test.md)" \
+run_test "Reject legacy uppercase area prefix" \
+    "Docs: update git workflow rules ($REQ_A)" \
     1
 
-# 6. Reject: conventional commit format
-run_test "Reject conventional commit format" \
-    "feat(file): direct query and instant rendering (docs/human/requirements/test.md)" \
+run_test "Reject scoped conventional commit prefix" \
+    "feat(settings): add about page ($REQ_B)" \
     1
 
-# 7. Reject: no colon in subject
-run_test "Reject subject without colon" \
-    "Update requirement docs (docs/human/requirements/test.md)" \
+run_test "Reject unknown lowercase type prefix" \
+    "update: adjust commit hook script ($REQ_A)" \
     1
 
-# 8. Reject: empty message
+run_test "Reject Chinese characters in summary" \
+    "feat: 新增设置关于页面 ($REQ_B)" \
+    1
+
+run_test "Reject full-width punctuation" \
+    "feat：add settings about page ($REQ_B)" \
+    1
+
+run_test "Reject single-word vague summary" \
+    "fix: update ($REQ_B)" \
+    1
+
+run_test "Reject missing requirement path" \
+    "feat: add settings about page" \
+    1
+
+run_test "Reject bare requirement path without parentheses" \
+    "feat: add settings about page for $REQ_B" \
+    1
+
+run_test "Reject bare requirement path embedded inside summary" \
+    "docs: add $REQ_B ($REQ_B)" \
+    1
+
+run_test "Reject leading or trailing spaces" \
+    " feat: add settings about page ($REQ_B)" \
+    1
+
+run_test "Reject leading slash in requirement path" \
+    "feat: add settings about page (/$REQ_B)" \
+    1
+
+run_test "Reject design document path in parentheses" \
+    "docs: sync dialog scrim spec (docs/human/design/ui/UI Index.md)" \
+    1
+
+run_test "Reject comma-joined requirement and design paths" \
+    "docs: sync dialog scrim spec ($REQ_B, docs/human/design/ui/UI Index.md)" \
+    1
+
+run_test "Reject multiple parenthesized requirement paths" \
+    "docs: sync specs ($REQ_A) ($REQ_B)" \
+    1
+
+run_test "Reject archived subdirectory requirement path" \
+    "docs: cite archived requirement (docs/human/requirements/archive/20260101-Old.md)" \
+    1
+
+run_test "Reject non-existent requirement file" \
+    "feat: add settings about page (docs/human/requirements/20991231-Feature-Does Not Exist.md)" \
+    1
+
 run_test "Reject empty message" \
     "" \
     1
 
-# 9. Reject: comment-only message
 run_test "Reject comment-only message" \
     "# This is a comment
 # Another comment line" \

@@ -202,20 +202,24 @@ Recommended commit boundaries:
 
 ### 6.3 Commit Message Format
 
-Use concise English commit messages:
+Use single-line pure English (ASCII) Conventional Commit messages with the
+single covering requirement path in trailing parentheses (detailed rules in
+`docs/engineering/02_git_workflow.md` Section 5):
 
 ```text
-Area: concise change summary
+<type>: <summary> (docs/human/requirements/<requirement>.md)
 ```
+
+Allowed `<type>` prefixes (lowercase only, no `(scope)`): `feat`, `fix`, `docs`,
+`refactor`, `perf`, `style`, `test`, `build`, `ci`, `chore`, `revert`.
 
 Examples:
 
 ```text
-Docs: add project governance rules
-Archive: move Flutter implementation under archive/flutter
-Native: add macOS app shell
-Search: implement local subtitle FTS query
-Playback: add local video seek prototype
+docs: add settings about page requirement (docs/human/requirements/20261115-Feature-Settings About Page.md)
+feat: add settings about page and release update check (docs/human/requirements/20261115-Feature-Settings About Page.md)
+fix: fallback debug icon on settings about page (docs/human/requirements/20261115-Feature-Settings About Page.md)
+docs: sync settings about page design spec (docs/human/requirements/20261115-Feature-Settings About Page.md)
 ```
 
 ### 6.4 Safety Rules
