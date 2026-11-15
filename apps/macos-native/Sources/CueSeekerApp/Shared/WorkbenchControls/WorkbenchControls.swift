@@ -122,6 +122,7 @@ struct WorkbenchSearchField: View {
                     : WorkbenchRedesignColors.textPlaceholder,
                 fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
                 autofocus: autofocus,
+                selectsAllOnAutofocus: false,
                 focus: nil,
                 accessibilityLabel: placeholder,
                 onFocusChange: { isNativeFocused = $0 },

@@ -1,5 +1,6 @@
 import AppKit
 import CueSeekerCore
+import CueSeekerPlayback
 import Foundation
 
 extension PlaybackCommandPanelPage {
@@ -51,21 +52,18 @@ extension AppCoordinator {
         guard var presentation = playback.commandPanelPresentation else {
             return false
         }
-        let focusedCueText = playback.subtitleFocusSession?
-            .focusedCueTextForCommandPanel
         presentation.page = .root
-        presentation.query = settings.prefillCommandPanelWithFocusedCue
-            ? SearchInputNormalizer.singleLine(focusedCueText ?? "")
-            : ""
+        presentation.query = SearchInputNormalizer.singleLine(search.searchQuery)
         presentation.selectedOrdinal = 0
+        presentation.currentCueText = resolveCurrentCueTextForCommandPanel()
         playback.presentCommandPanel(presentation)
         AppLogger.shared.info(
             .playback,
             "Command panel opened",
             fields: [
                 AppLogger.queryLogField(
-                    name: "prefilled_query",
-                    lengthName: "prefilled_query_len",
+                    name: "query",
+                    lengthName: "query_len",
                     value: presentation.query.isEmpty ? nil : presentation.query
                 )
             ]
@@ -178,10 +176,12 @@ extension AppCoordinator {
 
     private func updatePlaybackCommandPanelLiveSearchIfNeeded(_ query: String) {
         let normalizedQuery = SearchInputNormalizer.singleLine(query)
-        guard normalizedQuery != search.searchQuery
-            || search.searchStatus == .idle
-            || search.hasMutatedSinceSearchSnapshot
-        else {
+        let hasReusableSnapshot = normalizedQuery == search.searchQuery
+            && !search.hasMutatedSinceSearchSnapshot
+            && search.resultFacetFilter == search.searchFacetFilter
+            && (search.searchStatus == .searching
+                || search.searchStatus == .completed)
+        guard !hasReusableSnapshot else {
             return
         }
         search.updateQuery(normalizedQuery)
@@ -398,26 +398,21 @@ extension AppCoordinator {
 
         switch presentation.page {
         case .root:
-            guard let selectedOrdinal = presentation.selectedOrdinal else {
-                return false
-            }
-            let hasQuery = !presentation.query.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            ).isEmpty
-            if hasQuery, selectedOrdinal == 0 {
+            switch presentation.selectedRootOption {
+            case .search:
                 return presentPlaybackCommandPanelSearch(
                     query: presentation.query,
                     startsSearch: true
                 )
-            }
-            let recentOrdinal = selectedOrdinal - (hasQuery ? 1 : 0)
-            if recentOrdinal == 0 {
+            case .copyCurrentCue:
+                return copyPlaybackCommandPanelCurrentCue()
+            case .recentVideos:
                 return presentPlaybackCommandPanelPage(.recentVideos)
-            }
-            if recentOrdinal == 1 {
+            case .recentExcerpts:
                 return presentPlaybackCommandPanelPage(.recentExcerpts)
+            case nil:
+                return false
             }
-            return false
         case .searchResults:
             guard let selectedOrdinal = playback.commandPanelSearchWindow?
                 .selectedOrdinal
@@ -635,10 +630,32 @@ extension AppCoordinator {
         )
         var updated = presentation
         updated.page = .root
+        updated.query = SearchInputNormalizer.singleLine(search.searchQuery)
         updated.selectedOrdinal = 0
         playback.presentCommandPanel(updated)
         preparePlaybackKeyboardFocus()
         DebugInteractionLatencyProbe.markNavigationSyncPrepFinished(domain: "command_panel")
+        return true
+    }
+
+    @discardableResult
+    func copyPlaybackCommandPanelCurrentCue() -> Bool {
+        guard let presentation = playback.commandPanelPresentation,
+              presentation.page == .root,
+              let cueText = presentation.currentCueText,
+              !cueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return false
+        }
+        let copied = CueClipboard.copy(cueText, to: .general)
+        toast.show(PlaybackToastRequest.subtitleCopy(copied: copied))
+        if workbenchAccessibility.isPlaybackActive {
+            clearPlaybackAccessibilityFocus(keepTextInputFocus: true)
+        }
+        if let field = workbenchAccessibility.activeCommandPanelSearchTextField,
+           !field.isCurrentlyFocused {
+            field.focusFromAccessibility()
+        }
         return true
     }
 
@@ -675,12 +692,7 @@ extension AppCoordinator {
     ) -> Int {
         switch page {
         case .root:
-            guard let query = playback.commandPanelPresentation?.query else {
-                return 0
-            }
-            return query.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            ).isEmpty ? 2 : 3
+            return playback.commandPanelPresentation?.rootOptions.count ?? 0
         case .searchResults:
             return playback.commandPanelSearchWindow?.snapshot.totalCount ?? 0
         case .recentVideos:
@@ -914,12 +926,80 @@ extension AppCoordinator {
         playback.presentCommandPanel(
             PlaybackCommandPanelPresentation(
                 page: .root,
-                query: "",
+                query: SearchInputNormalizer.singleLine(search.searchQuery),
                 selectedOrdinal: 0,
                 resumesPlaybackOnDismiss:
-                    playback.subtitleFocusSession == nil && wasPlaying
+                    playback.subtitleFocusSession == nil && wasPlaying,
+                currentCueText: resolveCurrentCueTextForCommandPanel()
             )
         )
         return true
+    }
+
+    private func resolveCurrentCueTextForCommandPanel() -> String? {
+        let rawText: String?
+        if let session = playback.subtitleFocusSession {
+            if session.selectedModule == .playlist && session.libraryStore != nil {
+                rawText = resolveDefaultPlaybackCueTextForCommandPanel(
+                    source: session.openSnapshot.source,
+                    timestampMilliseconds: session.openSnapshot.timestampMilliseconds
+                )
+            } else if let focusedText = session.focusedCueTextForCommandPanel {
+                rawText = focusedText
+            } else if session.selectedModule == .current, session.state == .opening {
+                rawText = resolveDefaultPlaybackCueTextForCommandPanel(
+                    source: session.openSnapshot.source,
+                    timestampMilliseconds: session.openSnapshot.timestampMilliseconds
+                )
+            } else {
+                rawText = nil
+            }
+        } else if !currentPlaybackItemLeftLibrary,
+                  let playbackViewModel = playback.playbackViewModel,
+                  let videoPath = currentPlaybackVideoPath,
+                  let subtitlePath = currentPlaybackSubtitlePath,
+                  let subtitleFileID = currentPlaybackSubtitleFileID,
+                  let subtitleFormat = currentPlaybackSubtitleFormat,
+                  playbackViewModel.currentTime.isFinite {
+            let source = SubtitleFocusSourceIdentity(
+                subtitleFileID: subtitleFileID,
+                videoPath: URL.fromMediaPath(videoPath).mediaPath,
+                subtitlePath: URL.fromMediaPath(subtitlePath).mediaPath,
+                subtitleFormat: subtitleFormat
+            )
+            let timestampMilliseconds = PlaybackSeekTimestampAlignment.playbackMilliseconds(
+                atSeconds: playbackViewModel.currentTime
+            )
+            rawText = resolveDefaultPlaybackCueTextForCommandPanel(
+                source: source,
+                timestampMilliseconds: timestampMilliseconds
+            )
+        } else {
+            rawText = nil
+        }
+        guard let rawText,
+              !rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return nil
+        }
+        return rawText
+    }
+
+    private func resolveDefaultPlaybackCueTextForCommandPanel(
+        source: SubtitleFocusSourceIdentity,
+        timestampMilliseconds: Int
+    ) -> String? {
+        guard let subtitleFileID = source.subtitleFileID,
+              let playbackSubtitleDatabase,
+              isPlaybackSubtitleInLibrary(source),
+              let text = try? playbackSubtitleDatabase.subtitleFocusDefaultCueText(
+                  forSubtitleFileID: subtitleFileID,
+                  atMilliseconds: timestampMilliseconds
+              ),
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return nil
+        }
+        return text
     }
 }

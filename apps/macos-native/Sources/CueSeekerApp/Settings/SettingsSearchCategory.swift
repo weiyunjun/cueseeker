@@ -4,7 +4,6 @@ import SwiftUI
 struct SettingsSearchCategory: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
-    @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var cueGroupPresentation: CueGroupPresentationStore
 
     var body: some View {
@@ -23,25 +22,6 @@ struct SettingsSearchCategory: View {
                             isCapsule: true
                         )
                         .accessibilityIdentifier("settings.search.show-cue-group")
-                }
-
-                SettingsRowDivider()
-
-                SettingsRow(L("settings.search.prefill")) {
-                    Toggle(
-                        L("settings.search.prefill"),
-                        isOn: $settingsStore.prefillCommandPanelWithFocusedCue
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .focusable(false)
-                    .workbenchAccessibilityFocusRing(
-                        isFocused: accessibility?.isSettingsFocused(.searchPrefillCommandPanel) == true,
-                        isCapsule: true
-                    )
-                    .accessibilityIdentifier(
-                        "settings.search.prefill-command-panel-with-focused-cue"
-                    )
                 }
             }
         }

@@ -53,7 +53,6 @@ struct WorkbenchAccessibilityStep3Tests {
             .appearanceMode(.auto),
             .hdrScreenshot,
             .searchShowCueGroup,
-            .searchPrefillCommandPanel,
             .languageDropdown,
             .deepLinkPlayFirstSearchResult,
         ]

@@ -315,7 +315,9 @@
 "playback.result_preview_note" = "(Showing first %d results)";
 "playback.save_to_excerpt" = "Save to Excerpt List";
 "playback.command_panel.search_placeholder" = "Search cues";
+"playback.command_panel.copy_current_cue" = "Copy Current Cue";
 "playback.open" = "Open";
+"playback.copy" = "Copy";
 "playback.back" = "Back";
 "playback.current.left_library" = "This subtitle is no longer in the library.";
 "playback.playlist.left_library" = "No items in this playlist are in the library.";
@@ -476,8 +478,6 @@
 /* Settings: Search */
 "settings.search.description" = "Choose how cues are presented in Search.";
 "settings.search.show_cue_group" = "Show Cue Group";
-"settings.search.prefill" = "Prefill with Focused Cue";
-"settings.search.prefill_note" = "Automatically fill the Command Panel with the focused cue when opened from Playback Overlay.";
 
 /* Settings: Deep Link */
 "settings.deep_link.description" = "Choose how CueSeeker handles Deep Links.";

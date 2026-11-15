@@ -238,7 +238,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 return nil
             }
             return playlistWindow.item(at: selectedOrdinal)?.primaryCueText
-        case .collage, .none:
+        case .collage:
+            return collageSnapshot?.selectedCue?.text
+        case nil:
             return nil
         }
     }

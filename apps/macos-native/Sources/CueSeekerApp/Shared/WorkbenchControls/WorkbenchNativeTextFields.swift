@@ -19,6 +19,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     var onFocusChange: ((Bool) -> Void)?
     var normalizeDraft: ((String) -> String)?
     var autofocus = false
+    var selectsAllOnAutofocus = true
     var interfaceLayer: InterfaceLayer = .workbenchPage
     private(set) var hasPerformedInitialAutofocus = false
     var didUserInteractSinceAutofocus = false
@@ -144,6 +145,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         self.configuredAlignment = input.alignment
         self.normalizeDraft = input.normalizeDraft
         self.autofocus = input.autofocus
+        self.selectsAllOnAutofocus = input.selectsAllOnAutofocus
         self.interfaceLayer = input.resolvedInterfaceLayer
         self.setAccessibilityLabel(input.accessibilityLabel)
 
@@ -227,6 +229,21 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         editor.setSelectedRange(NSRange(location: 0, length: length))
     }
 
+    func applyInitialFocusSelectionInCurrentEditor() {
+        guard let editor = currentEditor() as? NSTextView else {
+            return
+        }
+        if selectsAllOnAutofocus {
+            selectAllInCurrentEditor()
+            return
+        }
+        applyTextStyle(to: editor)
+        let length = (editor.string as NSString).length
+        let endRange = NSRange(location: length, length: 0)
+        editor.setSelectedRange(endRange)
+        editor.scrollRangeToVisible(endRange)
+    }
+
     func focusFromAccessibility() {
         guard isEnabled && isEditable else {
             return
@@ -239,7 +256,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         if let editor = currentEditor() as? NSTextView {
             applyTextStyle(to: editor)
             let length = (editor.string as NSString).length
-            if !wasFocused && autofocus {
+            if !wasFocused && autofocus && selectsAllOnAutofocus {
                 let allRange = NSRange(location: 0, length: length)
                 editor.setSelectedRange(allRange)
                 editor.scrollRangeToVisible(allRange)
@@ -247,6 +264,9 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
                 let endRange = NSRange(location: length, length: 0)
                 editor.setSelectedRange(endRange)
                 editor.scrollRangeToVisible(endRange)
+                if !wasFocused && !selectsAllOnAutofocus {
+                    needsScrollSelectionVisibleOnLayout = true
+                }
             }
         }
         needsDisplay = true
@@ -296,7 +316,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
             return
         }
         let customCell = cell as? WorkbenchSingleLineTextFieldCell
-        customCell?.selectsAllOnEditSessionStart = true
+        customCell?.selectsAllOnEditSessionStart = selectsAllOnAutofocus
         let focused: Bool
         if isCurrentlyFocused {
             focused = true
@@ -312,7 +332,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         hasPerformedInitialAutofocus = true
         didUserInteractSinceAutofocus = false
         autofocusRetryCount = 0
-        selectAllInCurrentEditor()
+        applyInitialFocusSelectionInCurrentEditor()
     }
 
     func scheduleAutofocusIfNeeded() {
@@ -404,13 +424,13 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
 
     override func setFrameSize(_ newSize: NSSize) {
         let widthChanged = abs(frame.size.width - newSize.width) > 0.01
-        if widthChanged, isCurrentlyFocused, didUserInteractSinceAutofocus {
+        if widthChanged, isCurrentlyFocused, didUserInteractSinceAutofocus || !selectsAllOnAutofocus {
             needsScrollSelectionVisibleOnLayout = true
         }
         super.setFrameSize(newSize)
         if widthChanged,
            isCurrentlyFocused,
-           didUserInteractSinceAutofocus,
+           didUserInteractSinceAutofocus || !selectsAllOnAutofocus,
            let editor = currentEditor() as? NSTextView {
             applyTextStyle(to: editor)
             editor.scrollRangeToVisible(editor.selectedRange())
@@ -426,8 +446,15 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
             applyTextStyle(to: editor)
             if hasPerformedInitialAutofocus, !didUserInteractSinceAutofocus, isCurrentlyFocused {
                 let length = (editor.string as NSString).length
-                if editor.selectedRange() != NSRange(location: 0, length: length) {
-                    editor.setSelectedRange(NSRange(location: 0, length: length))
+                let targetRange = selectsAllOnAutofocus
+                    ? NSRange(location: 0, length: length)
+                    : NSRange(location: length, length: 0)
+                if editor.selectedRange() != targetRange {
+                    editor.setSelectedRange(targetRange)
+                }
+                if !selectsAllOnAutofocus {
+                    needsScrollSelectionVisibleOnLayout = false
+                    editor.scrollRangeToVisible(targetRange)
                 }
             } else if needsScrollSelectionVisibleOnLayout, isCurrentlyFocused, didUserInteractSinceAutofocus {
                 needsScrollSelectionVisibleOnLayout = false

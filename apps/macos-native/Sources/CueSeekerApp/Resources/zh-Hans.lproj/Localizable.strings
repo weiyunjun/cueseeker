@@ -315,7 +315,9 @@
 "playback.result_preview_note" = "（仅显示前 %d 条结果）";
 "playback.save_to_excerpt" = "保存到摘录集";
 "playback.command_panel.search_placeholder" = "搜索台词";
+"playback.command_panel.copy_current_cue" = "复制当前台词";
 "playback.open" = "打开";
+"playback.copy" = "复制";
 "playback.back" = "返回";
 "playback.current.left_library" = "此字幕已不在媒体库中。";
 "playback.playlist.left_library" = "此播放列表中没有仍在媒体库中的项目。";
@@ -476,8 +478,6 @@
 /* Settings: Search */
 "settings.search.description" = "选择台词在搜索中的呈现方式。";
 "settings.search.show_cue_group" = "显示台词组";
-"settings.search.prefill" = "用聚焦台词预填";
-"settings.search.prefill_note" = "从播放覆盖层打开命令面板时，自动填入当前聚焦的台词。";
 
 /* Settings: Deep Link */
 "settings.deep_link.description" = "选择字幕求索如何处理 Deep Links。";

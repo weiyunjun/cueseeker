@@ -18,6 +18,13 @@ enum PlaybackCommandPanelPage: Equatable {
     }
 }
 
+enum PlaybackCommandPanelRootOption: Equatable {
+    case search
+    case copyCurrentCue
+    case recentVideos
+    case recentExcerpts
+}
+
 struct PlaybackCommandPanelPresentation: Equatable {
     static let previewLimit = SearchStore.searchPageSize
 
@@ -25,6 +32,40 @@ struct PlaybackCommandPanelPresentation: Equatable {
     var query: String
     var selectedOrdinal: Int?
     let resumesPlaybackOnDismiss: Bool
+    var currentCueText: String? = nil
+
+    var hasSearchQuery: Bool {
+        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var hasCurrentCue: Bool {
+        currentCueText.map {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } ?? false
+    }
+
+    var rootOptions: [PlaybackCommandPanelRootOption] {
+        var options: [PlaybackCommandPanelRootOption] = []
+        if hasSearchQuery {
+            options.append(.search)
+        }
+        if hasCurrentCue {
+            options.append(.copyCurrentCue)
+        }
+        options.append(.recentVideos)
+        options.append(.recentExcerpts)
+        return options
+    }
+
+    var selectedRootOption: PlaybackCommandPanelRootOption? {
+        guard page == .root,
+              let selectedOrdinal,
+              rootOptions.indices.contains(selectedOrdinal)
+        else {
+            return nil
+        }
+        return rootOptions[selectedOrdinal]
+    }
 }
 
 /// What the open Command Panel page listed when the database changed under

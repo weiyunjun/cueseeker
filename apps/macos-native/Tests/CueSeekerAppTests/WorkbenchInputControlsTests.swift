@@ -1313,7 +1313,7 @@ struct WorkbenchInputControlsTests {
         renameHosting.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.03))
 
-        // 2. Workbench Search Toolbar with autofocusSearchOnAppear = true autofocuses & selects all on initial entry,
+        // 2. Workbench Search Toolbar with autofocusSearchOnAppear = true autofocuses & places caret at end on initial entry,
         //    and does NOT re-autofocus after exiting selection mode; autofocusSearchOnAppear = false (Excerpt detail) does not autofocus.
         final class ToolbarStateBox: ObservableObject {
             @Published var query = "existing query"
@@ -1351,7 +1351,7 @@ struct WorkbenchInputControlsTests {
         let toolbarSearchField = try #require(collectEditableTextFields(in: searchToolbarHosting).first as? WorkbenchNativeSingleLineTextField)
         #expect(toolbarSearchField.isCurrentlyFocused)
         let toolbarSearchEditor = try #require(toolbarSearchField.currentEditor() as? NSTextView)
-        #expect(toolbarSearchEditor.selectedRange() == NSRange(location: 0, length: "existing query".utf16.count))
+        #expect(toolbarSearchEditor.selectedRange() == NSRange(location: "existing query".utf16.count, length: 0))
 
         // Blur search field, enter selection mode, then exit selection mode -> must remain unfocused
         _ = window.makeFirstResponder(nil)
@@ -1379,8 +1379,8 @@ struct WorkbenchInputControlsTests {
         let excerptSearchField = try #require(collectEditableTextFields(in: excerptToolbarHosting).first as? WorkbenchNativeSingleLineTextField)
         #expect(!excerptSearchField.isCurrentlyFocused)
 
-        // 3. Command Panel search field (autofocus: true, including prefilled cue text and trailing onSubmit closure)
-        //    autofocuses and selects all text WITHOUT firing trailing onSubmit closure on open.
+        // 3. Command Panel search field (autofocus: true, including persistent query text and trailing onSubmit closure)
+        //    autofocuses with caret at end WITHOUT firing trailing onSubmit closure on open.
         let commandQueryBox = StringBox("prefilled subtitle cue")
         let commandHosting = NSHostingView(
             rootView: WorkbenchSearchField(
@@ -1402,7 +1402,7 @@ struct WorkbenchInputControlsTests {
         #expect(commandField.isCurrentlyFocused)
         #expect(commandQueryBox.submitCount == 0)
         let commandEditor = try #require(commandField.currentEditor() as? NSTextView)
-        #expect(commandEditor.selectedRange() == NSRange(location: 0, length: "prefilled subtitle cue".utf16.count))
+        #expect(commandEditor.selectedRange() == NSRange(location: "prefilled subtitle cue".utf16.count, length: 0))
 
         // 4. Pasting a single long string wider than the search box into an empty WorkbenchSearchField
         //    (which mounts the clear button + trailing status text and shrinks the text field width)

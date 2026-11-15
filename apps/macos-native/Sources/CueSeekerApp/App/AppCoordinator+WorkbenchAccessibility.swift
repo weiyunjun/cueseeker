@@ -2148,7 +2148,6 @@ extension AppCoordinator {
             }
             targets.append(.hdrScreenshot)
             targets.append(.searchShowCueGroup)
-            targets.append(.searchPrefillCommandPanel)
             targets.append(.languageDropdown)
             targets.append(.deepLinkPlayFirstSearchResult)
 
@@ -2331,10 +2330,6 @@ extension AppCoordinator {
 
         case .searchShowCueGroup:
             settings.cueGroupPresentation.setFromUser(!settings.cueGroupPresentation.isEnabled)
-            return true
-
-        case .searchPrefillCommandPanel:
-            settings.prefillCommandPanelWithFocusedCue.toggle()
             return true
 
         case .languageDropdown:

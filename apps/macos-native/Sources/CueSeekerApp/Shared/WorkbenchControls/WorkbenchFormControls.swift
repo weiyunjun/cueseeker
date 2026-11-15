@@ -10,6 +10,7 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
     var alignment: NSTextAlignment = .left
     var usesMonospacedDigits: Bool = false
     var autofocus: Bool = false
+    var selectsAllOnAutofocus: Bool = true
     var isDialogField: Bool = false
     var focus: FocusState<Bool>.Binding? = nil
     let accessibilityLabel: String
@@ -62,7 +63,13 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
                 nsView.applyTextStyle(to: editor)
                 let length = (normalizedText as NSString).length
                 if nsView.hasPerformedInitialAutofocus && !nsView.didUserInteractSinceAutofocus && nsView.isCurrentlyFocused {
-                    editor.setSelectedRange(NSRange(location: 0, length: length))
+                    let targetRange = nsView.selectsAllOnAutofocus
+                        ? NSRange(location: 0, length: length)
+                        : NSRange(location: length, length: 0)
+                    editor.setSelectedRange(targetRange)
+                    if !nsView.selectsAllOnAutofocus {
+                        editor.scrollRangeToVisible(targetRange)
+                    }
                 } else {
                     let clampedRange = NSRange(
                         location: min(selection.location, length),

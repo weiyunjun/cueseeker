@@ -75,6 +75,10 @@ struct PlaybackCommandPanel: View {
                                     appState
                                         .submitPlaybackCommandPanelSearch()
                                 },
+                                onCopyCurrentCue: {
+                                    appState
+                                        .copyPlaybackCommandPanelCurrentCue()
+                                },
                                 onOpenPage: {
                                     appState.presentPlaybackCommandPanelPage($0)
                                 },
@@ -341,6 +345,7 @@ private struct PlaybackCommandPanelRoot: View {
     let onSelect: (Int) -> Void
     @Binding var query: String
     let onSubmitSearch: () -> Bool
+    let onCopyCurrentCue: () -> Bool
     let onOpenPage: (PlaybackCommandPanelPage) -> Bool
     let onOpenSelectedItem: () -> Void
 
@@ -355,7 +360,7 @@ private struct PlaybackCommandPanelRoot: View {
                     isClearAccessibilityFocused: accessibility?.isPlaybackFocused(.commandPanelSearchClearButton) == true,
                     onSubmit: {
                         guard accessibility?.isPlaybackActive != true else { return }
-                        _ = onSubmitSearch()
+                        onOpenSelectedItem()
                     },
                     onBindAccessibilityTextField: { field in
                         accessibility?.activeCommandPanelSearchTextField = field
@@ -364,44 +369,66 @@ private struct PlaybackCommandPanelRoot: View {
                 .padding(PlaybackCommandPanelMetrics.contentInset)
 
                 VStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                    if !trimmedQuery.isEmpty {
-                        PlaybackCommandPanelRootRow(
-                            icon: .magnifyingGlass,
-                            title: L("sidebar.search"),
-                            detail: query,
-                            trailingText: searchResultCountText,
-                            isSelected: presentation.selectedOrdinal == 0,
-                            isFocused: accessibility?.isPlaybackFocused(.commandPanelRootOption(0)) == true,
-                            allowsHover: allowsHover
-                        ) {
-                            _ = onSubmitSearch()
+                    ForEach(
+                        Array(presentation.rootOptions.enumerated()),
+                        id: \.offset
+                    ) { ordinal, option in
+                        let isSelected = presentation.selectedOrdinal == ordinal
+                        let isFocused = accessibility?.isPlaybackFocused(
+                            .commandPanelRootOption(ordinal)
+                        ) == true
+                        switch option {
+                        case .search:
+                            PlaybackCommandPanelRootRow(
+                                icon: .magnifyingGlass,
+                                title: L("sidebar.search"),
+                                detail: query,
+                                trailingText: searchResultCountText,
+                                isSelected: isSelected,
+                                isFocused: isFocused,
+                                allowsHover: allowsHover
+                            ) {
+                                _ = onSubmitSearch()
+                            }
+                        case .copyCurrentCue:
+                            PlaybackCommandPanelRootRow(
+                                icon: .copy,
+                                title: L("playback.command_panel.copy_current_cue"),
+                                detail: presentation.currentCueText.map(
+                                    SearchInputNormalizer.singleLine
+                                ),
+                                trailingText: nil,
+                                isSelected: isSelected,
+                                isFocused: isFocused,
+                                allowsHover: allowsHover
+                            ) {
+                                _ = onCopyCurrentCue()
+                            }
+                        case .recentVideos:
+                            PlaybackCommandPanelRootRow(
+                                icon: .video,
+                                title: L("sidebar.recent_videos"),
+                                detail: nil,
+                                trailingText: nil,
+                                isSelected: isSelected,
+                                isFocused: isFocused,
+                                allowsHover: allowsHover
+                            ) {
+                                _ = onOpenPage(.recentVideos)
+                            }
+                        case .recentExcerpts:
+                            PlaybackCommandPanelRootRow(
+                                icon: .bookmarkSimple,
+                                title: L("sidebar.recent_excerpts"),
+                                detail: nil,
+                                trailingText: nil,
+                                isSelected: isSelected,
+                                isFocused: isFocused,
+                                allowsHover: allowsHover
+                            ) {
+                                _ = onOpenPage(.recentExcerpts)
+                            }
                         }
-                    }
-
-                    PlaybackCommandPanelRootRow(
-                        icon: .video,
-                        title: L("sidebar.recent_videos"),
-                        detail: nil,
-                        trailingText: nil,
-                        isSelected: presentation.selectedOrdinal
-                            == recentVideosOrdinal,
-                        isFocused: accessibility?.isPlaybackFocused(.commandPanelRootOption(recentVideosOrdinal)) == true,
-                        allowsHover: allowsHover
-                    ) {
-                        _ = onOpenPage(.recentVideos)
-                    }
-
-                    PlaybackCommandPanelRootRow(
-                        icon: .bookmarkSimple,
-                        title: L("sidebar.recent_excerpts"),
-                        detail: nil,
-                        trailingText: nil,
-                        isSelected: presentation.selectedOrdinal
-                            == recentExcerptsOrdinal,
-                        isFocused: accessibility?.isPlaybackFocused(.commandPanelRootOption(recentExcerptsOrdinal)) == true,
-                        allowsHover: allowsHover
-                    ) {
-                        _ = onOpenPage(.recentExcerpts)
                     }
                 }
                 .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
@@ -410,27 +437,19 @@ private struct PlaybackCommandPanelRoot: View {
 
                 PlaybackCommandPanelFooter(
                     status: nil,
+                    primaryActionTitle: presentation.selectedRootOption
+                        == .copyCurrentCue
+                        ? L("playback.copy")
+                        : L("playback.open"),
                     onOpenSelectedItem: onOpenSelectedItem
                 )
             }
         }
     }
 
-    private var trimmedQuery: String {
-        query.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private var searchResultCountText: String? {
         searchStore.exactSearchResultTotalCount(matchingQuery: query)
             .map(schemaWorkbenchResultCountText)
-    }
-
-    private var recentVideosOrdinal: Int {
-        trimmedQuery.isEmpty ? 0 : 1
-    }
-
-    private var recentExcerptsOrdinal: Int {
-        trimmedQuery.isEmpty ? 1 : 2
     }
 }
 
@@ -1340,6 +1359,7 @@ private struct PlaybackCommandPanelRecentExcerpts: View {
 private struct PlaybackCommandPanelFooter: View {
     @EnvironmentObject private var localization: AppLocalizationStore
     let status: String?
+    var primaryActionTitle: String? = nil
     let onOpenSelectedItem: () -> Void
 
     var body: some View {
@@ -1347,7 +1367,10 @@ private struct PlaybackCommandPanelFooter: View {
             surface: .commandPanel,
             status: status,
             actions: [
-                .primary(id: "open", title: L("playback.open")) {
+                .primary(
+                    id: "open",
+                    title: primaryActionTitle ?? L("playback.open")
+                ) {
                     onOpenSelectedItem()
                 },
             ]

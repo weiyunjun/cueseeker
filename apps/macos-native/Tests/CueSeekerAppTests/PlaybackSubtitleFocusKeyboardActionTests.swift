@@ -103,7 +103,6 @@ func playbackOverlayEnterQueuesPlayWhileSpaceRemainsInactive() async throws {
 @Test
 func playbackOverlayCollageTabHandlesSelectionNavigationAndDismissOnEsc() async throws {
     try await withKeyboardActionApp { app, _ in
-        app.settings.prefillCommandPanelWithFocusedCue = true
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
             availableModules: PlaybackOverlayModule.allCases
@@ -548,7 +547,6 @@ func playbackControllerRoutesThumbstickRepeatThroughEveryInterface() async throw
 func playbackCommandPanelKeyOpensRootAndEscapeCloses() async throws {
     try await withKeyboardActionApp { app, _ in
         app.playback.isPlaybackSurfaceExpanded = true
-        app.settings.prefillCommandPanelWithFocusedCue = true
 
         #expect(app.handlePlaybackKeyDown(
             keyCode: 40,
@@ -642,75 +640,333 @@ func playbackCommandPanelPreservesUnderlyingOverlay() async throws {
 
 @MainActor
 @Test
-func playbackCommandPanelPrefillsFocusedCurrentCueWithoutSearching() async throws {
+func playbackCommandPanelPersistsSearchQueryAndReusesValidSearchSnapshot() async throws {
     try await withKeyboardActionApp { app, _ in
+        app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media")]
+        app.updateSearchQuery("keyboard action")
+        await app.search.searchTask?.value
+
+        #expect(app.search.searchStatus == .completed)
+        #expect(!app.search.isCountOnlySearchSnapshot)
+        #expect(app.search.loadedSearchResultCount == 30)
+        let loadedGenerationBeforePanel = app.search.resultListGeneration
+        let loadedTotalBeforePanel = app.search.exactSearchResultTotalCount(
+            matchingQuery: "keyboard action"
+        )
+        #expect(loadedTotalBeforePanel == 30)
+
         app.playback.isPlaybackSurfaceExpanded = true
-        app.settings.prefillCommandPanelWithFocusedCue = true
+        #expect(app.presentPlaybackCommandPanel())
+        #expect(app.playback.commandPanelPresentation?.page == .root)
+        #expect(app.playback.commandPanelPresentation?.query == "keyboard action")
+        #expect(app.search.searchQuery == "keyboard action")
+        #expect(app.search.searchTask == nil || app.search.searchStatus == .completed)
+        #expect(!app.search.isCountOnlySearchSnapshot)
+        #expect(app.search.loadedSearchResultCount == 30)
+        #expect(app.search.resultListGeneration == loadedGenerationBeforePanel)
+
+        app.updatePlaybackCommandPanelQuery("keyboard action cue 1")
+        #expect(app.search.searchQuery == "keyboard action cue 1")
+        #expect(app.playback.commandPanelPresentation?.query == "keyboard action cue 1")
+        await app.search.searchTask?.value
+
+        #expect(app.presentPlaybackCommandPanelPage(.recentVideos))
+        #expect(app.playback.commandPanelPresentation?.page == .recentVideos)
+        #expect(app.returnPlaybackCommandPanelToRoot())
+        #expect(app.playback.commandPanelPresentation?.page == .root)
+        #expect(app.playback.commandPanelPresentation?.query == "keyboard action cue 1")
+
+        #expect(app.dismissPlaybackCommandPanelFromUser())
+        #expect(app.search.searchQuery == "keyboard action cue 1")
+        #expect(app.presentPlaybackCommandPanel())
+        #expect(app.playback.commandPanelPresentation?.query == "keyboard action cue 1")
+
+        app.updatePlaybackCommandPanelQuery("")
+        #expect(app.search.searchQuery.isEmpty)
+        #expect(app.dismissPlaybackCommandPanelFromUser())
+        #expect(app.presentPlaybackCommandPanel())
+        #expect(app.playback.commandPanelPresentation?.query.isEmpty == true)
+        #expect(app.search.searchQuery.isEmpty)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelResolvesCopyCurrentCueAcrossPlaybackAndOverlayStates() async throws {
+    try await withKeyboardActionApp { app, database in
+        let source = keyboardActionSource()
+        let libraryDatabase = try #require(app.libraryDatabase)
+        let playbackDatabase = try #require(app.playbackSubtitleDatabase)
+        let recordedSubtitles = try #require(
+            try libraryDatabase.videoSubtitles(
+                forVideoFile: URL(fileURLWithPath: source.videoPath)
+            )
+        )
+        let recordedSubtitle = try #require(recordedSubtitles.subtitles.first)
+        app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media")]
+        app.playbackSubtitle = recordedSubtitle
+        app.playback.isPlaybackSurfaceExpanded = true
+
+        // DB default cue rule: active -> nearest previous -> first cue
+        let gapSubtitleURL = URL(fileURLWithPath: "/Media/Gap-Test.srt")
+        let gapVideoURL = URL(fileURLWithPath: "/Media/Gap-Test.mkv")
+        try database.replaceEntries(
+            subtitleFile: gapSubtitleURL,
+            videoFile: gapVideoURL,
+            entries: [
+                SubtitleEntry(
+                    sequenceNumber: 1,
+                    startTimecode: "00:00:05,000",
+                    endTimecode: "00:00:08,000",
+                    startMilliseconds: 5_000,
+                    endMilliseconds: 8_000,
+                    text: "first cue"
+                ),
+                SubtitleEntry(
+                    sequenceNumber: 2,
+                    startTimecode: "00:00:12,000",
+                    endTimecode: "00:00:15,000",
+                    startMilliseconds: 12_000,
+                    endMilliseconds: 15_000,
+                    text: "second cue"
+                ),
+            ]
+        )
+        let gapSubtitleID = try #require(
+            try libraryDatabase.videoSubtitles(
+                forVideoFile: gapVideoURL
+            )?.subtitles.first?.subtitleFileID
+        )
+        #expect(
+            try playbackDatabase.subtitleFocusDefaultCueText(
+                forSubtitleFileID: gapSubtitleID,
+                atMilliseconds: 2_000
+            ) == "first cue"
+        )
+        #expect(
+            try playbackDatabase.subtitleFocusDefaultCueText(
+                forSubtitleFileID: gapSubtitleID,
+                atMilliseconds: 6_500
+            ) == "first cue"
+        )
+        #expect(
+            try playbackDatabase.subtitleFocusDefaultCueText(
+                forSubtitleFileID: gapSubtitleID,
+                atMilliseconds: 10_000
+            ) == "first cue"
+        )
+        #expect(
+            try playbackDatabase.subtitleFocusDefaultCueText(
+                forSubtitleFileID: gapSubtitleID,
+                atMilliseconds: 13_000
+            ) == "second cue"
+        )
+
+        // Normal playback with subtitles hidden still resolves current default cue.
+        app.playback.playbackViewModel?.setSubtitlesVisible(false, showsFeedback: false)
+        #expect(app.playback.playbackViewModel?.areSubtitlesVisible == false)
+        #expect(app.presentPlaybackCommandPanel())
+        #expect(
+            app.playback.commandPanelPresentation?.currentCueText
+                == "keyboard action cue 0"
+        )
+        #expect(
+            app.playback.commandPanelPresentation?.rootOptions
+                == [.copyCurrentCue, .recentVideos, .recentExcerpts]
+        )
+        #expect(app.dismissPlaybackCommandPanelFromUser())
+
+        // Overlay open: Current focuses raw multiline cue and snapshots it while panel is open.
+        let overlaySource = SubtitleFocusSourceIdentity(
+            subtitleFileID: recordedSubtitle.subtitleFileID,
+            videoPath: source.videoPath,
+            subtitlePath: source.subtitlePath,
+            subtitleFormat: source.subtitleFormat
+        )
         let session = try #require(app.playback.beginSubtitleFocusSession(
-            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
+            openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
+                source: overlaySource,
+                timestampMilliseconds: 15_500,
+                wasPlaying: false
+            ),
+            availableModules: PlaybackOverlayModule.allCases,
+            libraryStore: PlaybackLibrarySessionStore(
+                libraryStore: app.library,
+                folderPath: "/Media"
+            )
         ))
         #expect(session.publishInitialSnapshot(
             keyboardActionSnapshot(lines: ["focused first", "focused second"]),
             token: session.token
         ))
-
         #expect(app.presentPlaybackCommandPanel())
-
-        #expect(app.playback.commandPanelPresentation?.page == .root)
         #expect(
-            app.playback.commandPanelPresentation?.query
-                == "focused first focused second"
+            app.playback.commandPanelPresentation?.currentCueText
+                == "focused first\nfocused second"
         )
-        #expect(app.search.searchQuery == "focused first focused second")
-        #expect(app.playback.subtitleFocusSession === session)
-    }
-}
+        // Mutating the overlay selection while Command Panel stays open keeps snapshot stable.
+        #expect(session.commitNativeReelSelection(ordinal: 11))
+        #expect(
+            app.playback.commandPanelPresentation?.currentCueText
+                == "focused first\nfocused second"
+        )
+        #expect(app.dismissPlaybackCommandPanelFromUser())
 
-@MainActor
-@Test
-func playbackCommandPanelPrefillsFocusedPlaylistCue() async throws {
-    try await withKeyboardActionApp { app, _ in
-        let result = keyboardActionPlaylistSearchResult(
-            id: 1_001,
-            videoPath: keyboardActionSource().videoPath,
-            subtitlePath: keyboardActionSource().subtitlePath,
-            startMilliseconds: 12_000,
-            content: "playlist first\nplaylist second"
+        // Overlay open: Collage focuses selected Collage cue.
+        #expect(session.selectModule(.collage))
+        #expect(session.commitNativeReelSelection(ordinal: 11))
+        #expect(session.collageSnapshot?.selectedCue?.ordinal == 11)
+        #expect(app.presentPlaybackCommandPanel())
+        #expect(
+            app.playback.commandPanelPresentation?.currentCueText
+                == "keyboard action cue 11"
         )
-        let item = PlaybackPlaylistItem(searchResult: result, ordinal: 0)
-        let (session, _) = try await beginKeyboardActionPlaylistSession(
+        #expect(app.dismissPlaybackCommandPanelFromUser())
+
+        // Overlay open: Video Playlist uses current video's default cue rule instead of card selection.
+        #expect(session.selectModule(.playlist))
+        #expect(session.libraryStore != nil)
+        #expect(app.presentPlaybackCommandPanel())
+        #expect(
+            app.playback.commandPanelPresentation?.currentCueText
+                == "keyboard action cue 15"
+        )
+        #expect(app.dismissPlaybackCommandPanelFromUser())
+        #expect(app.dismissPlaybackSubtitleFocusFromUser())
+
+        // Cue Playlist tab focuses selected playlist cue.
+        let playlistItem = PlaybackPlaylistItem(
+            searchResult: keyboardActionPlaylistSearchResult(
+                id: 1_001,
+                videoPath: source.videoPath,
+                subtitlePath: source.subtitlePath,
+                startMilliseconds: 12_000,
+                content: "playlist first\nplaylist second"
+            ),
+            ordinal: 0
+        )
+        let (playlistSession, _) = try await beginKeyboardActionPlaylistSession(
             app: app,
-            item: item
+            item: playlistItem
         )
-        app.playback.isPlaybackSurfaceExpanded = true
-        app.settings.prefillCommandPanelWithFocusedCue = true
-
         #expect(app.presentPlaybackCommandPanel())
-
         #expect(
-            app.playback.commandPanelPresentation?.query
-                == "playlist first playlist second"
+            app.playback.commandPanelPresentation?.currentCueText
+                == "playlist first\nplaylist second"
         )
-        #expect(app.playback.subtitleFocusSession === session)
+        #expect(app.playback.subtitleFocusSession === playlistSession)
+        #expect(app.dismissPlaybackCommandPanelFromUser())
+        #expect(app.dismissPlaybackSubtitleFocusFromUser())
+
+        // Subtitle removed from database hides Copy Current Cue option.
+        try database.replaceEntries(
+            subtitleFile: URL(fileURLWithPath: source.subtitlePath),
+            videoFile: URL(fileURLWithPath: source.videoPath),
+            entries: []
+        )
+        #expect(app.presentPlaybackCommandPanel())
+        #expect(app.playback.commandPanelPresentation?.currentCueText == nil)
+        #expect(
+            app.playback.commandPanelPresentation?.rootOptions
+                == [.recentVideos, .recentExcerpts]
+        )
     }
 }
 
 @MainActor
 @Test
-func playbackCommandPanelKeepsQueryEmptyWhenFocusedCuePrefillIsOff() async throws {
+func playbackCommandPanelCopyCurrentCueFooterAndExecutionPreservePanelAndSearchFocus() async throws {
     try await withKeyboardActionApp { app, _ in
+        let source = keyboardActionSource()
+        let recordedSubtitle = try #require(
+            try app.libraryDatabase?.videoSubtitles(
+                forVideoFile: URL(fileURLWithPath: source.videoPath)
+            )?.subtitles.first
+        )
+        app.playbackSubtitle = recordedSubtitle
         app.playback.isPlaybackSurfaceExpanded = true
+
         let session = try #require(app.playback.beginSubtitleFocusSession(
-            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
+            openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
+                source: SubtitleFocusSourceIdentity(
+                    subtitleFileID: recordedSubtitle.subtitleFileID,
+                    videoPath: source.videoPath,
+                    subtitlePath: source.subtitlePath,
+                    subtitleFormat: source.subtitleFormat
+                ),
+                timestampMilliseconds: 12_500,
+                wasPlaying: false
+            ),
+            availableModules: PlaybackOverlayModule.allCases
         ))
         #expect(session.publishInitialSnapshot(
-            keyboardActionSnapshot(),
+            keyboardActionSnapshot(lines: ["  focused first  ", "focused second"]),
             token: session.token
         ))
 
-        #expect(app.presentPlaybackCommandPanel())
+        let openTitle = L("playback.open")
+        let copyTitle = L("playback.copy")
+        #expect(openTitle != copyTitle)
+        #expect(!L("playback.command_panel.copy_current_cue").isEmpty)
 
-        #expect(app.playback.commandPanelPresentation?.query.isEmpty == true)
+        #expect(app.presentPlaybackCommandPanel())
+        var presentation = try #require(app.playback.commandPanelPresentation)
+        #expect(presentation.rootOptions == [.copyCurrentCue, .recentVideos, .recentExcerpts])
+        #expect(presentation.selectedRootOption == .copyCurrentCue)
+
+        let editableInput = PlaybackKeyboardTextInputState(
+            isEditableFocused: true,
+            hasMarkedText: false
+        )
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 125,
+            modifierFlagsRawValue: 0,
+            textInputState: editableInput
+        ))
+        presentation = try #require(app.playback.commandPanelPresentation)
+        #expect(presentation.selectedOrdinal == 1)
+        #expect(presentation.selectedRootOption == .recentVideos)
+
+        // Non-empty query prepends Search <query>, shifting Copy Current Cue to index 1.
+        app.updatePlaybackCommandPanelQuery("cue")
+        presentation = try #require(app.playback.commandPanelPresentation)
+        #expect(presentation.rootOptions == [.search, .copyCurrentCue, .recentVideos, .recentExcerpts])
+        #expect(presentation.selectedOrdinal == 0)
+        #expect(presentation.selectedRootOption == .search)
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 125,
+            modifierFlagsRawValue: 0,
+            textInputState: editableInput
+        ))
+        presentation = try #require(app.playback.commandPanelPresentation)
+        #expect(presentation.selectedOrdinal == 1)
+        #expect(presentation.selectedRootOption == .copyCurrentCue)
+
+        // Focus footer button via accessibility and trigger Return -> copies raw cue, shows toast, keeps panel open, clears non-search focus.
+        app.applyPlaybackAccessibilityFocus(
+            .commandPanelFooterAction("open"),
+            surface: .commandPanel(.root)
+        )
+        NSPasteboard.general.clearContents()
+        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(
+            NSPasteboard.general.string(forType: .string)
+                == "  focused first  \nfocused second"
+        )
+        #expect(app.toast.visibleItems.last?.request.message == PlaybackToastRequest.cueTextCopied.message)
+        #expect(app.playback.commandPanelPresentation?.page == .root)
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == nil)
+
+        // Triggering via controller South (✕) when footer button isn't focused also copies raw cue cleanly.
+        NSPasteboard.general.clearContents()
+        #expect(app.handlePlaybackControllerInput(.button(.south)))
+        #expect(
+            NSPasteboard.general.string(forType: .string)
+                == "  focused first  \nfocused second"
+        )
+        #expect(app.playback.commandPanelPresentation?.page == .root)
+        #expect(app.workbenchAccessibility.focusedPlaybackTarget == nil)
     }
 }
 

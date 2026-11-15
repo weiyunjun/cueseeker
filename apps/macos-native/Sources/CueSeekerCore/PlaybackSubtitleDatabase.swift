@@ -708,6 +708,17 @@ extension PlaybackSubtitleDatabase {
         let id: Int64
         let startMilliseconds: Int
         let endMilliseconds: Int
+        let text: String
+    }
+
+    public func subtitleFocusDefaultCueText(
+        forSubtitleFileID subtitleFileID: Int64,
+        atMilliseconds milliseconds: Int
+    ) throws -> String? {
+        try resolveSubtitleFocusCueLine(
+            for: .id(subtitleFileID),
+            atMilliseconds: milliseconds
+        )?.text
     }
 
     public func subtitleFocusDefaultCueTiming(
@@ -955,7 +966,8 @@ extension PlaybackSubtitleDatabase {
             return SubtitleFocusResolvedCueLine(
                 id: cueLineID,
                 startMilliseconds: selection.startMilliseconds,
-                endMilliseconds: selection.endMilliseconds
+                endMilliseconds: selection.endMilliseconds,
+                text: selection.content
             )
         }
         if let previous = try subtitleFocusPreviousCueLine(
@@ -973,7 +985,7 @@ extension PlaybackSubtitleDatabase {
     ) throws -> SubtitleFocusResolvedCueLine? {
         let statement = try database.prepare(
             """
-            SELECT l.id, l.start_ms, l.end_ms
+            SELECT l.id, l.start_ms, l.end_ms, l.content
             FROM subtitle_cue_lines l
             JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
@@ -993,7 +1005,8 @@ extension PlaybackSubtitleDatabase {
         return SubtitleFocusResolvedCueLine(
             id: statement.int64Column(0),
             startMilliseconds: statement.intColumn(1),
-            endMilliseconds: statement.intColumn(2)
+            endMilliseconds: statement.intColumn(2),
+            text: statement.stringColumn(3)
         )
     }
 
@@ -1002,7 +1015,7 @@ extension PlaybackSubtitleDatabase {
     ) throws -> SubtitleFocusResolvedCueLine? {
         let statement = try database.prepare(
             """
-            SELECT l.id, l.start_ms, l.end_ms
+            SELECT l.id, l.start_ms, l.end_ms, l.content
             FROM subtitle_cue_lines l
             JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
@@ -1020,7 +1033,8 @@ extension PlaybackSubtitleDatabase {
         return SubtitleFocusResolvedCueLine(
             id: statement.int64Column(0),
             startMilliseconds: statement.intColumn(1),
-            endMilliseconds: statement.intColumn(2)
+            endMilliseconds: statement.intColumn(2),
+            text: statement.stringColumn(3)
         )
     }
 
