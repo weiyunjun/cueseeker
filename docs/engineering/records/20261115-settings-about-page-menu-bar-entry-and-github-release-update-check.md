@@ -27,3 +27,19 @@
 - `swift test --package-path apps/macos-native --no-parallel --filter GitHubReleaseUpdateCheckerTests`: `4 passed` (`0` failed, `0.001s`).
 - `swift test --package-path apps/macos-native --no-parallel --filter CueSeekerCoreTests`: XCTest `FileSizeFormatterTests` `5 passed` (`0` failed); Swift Testing `415` tests (`414 passed`, `1` pre-existing unrelated failure `CueFacetCountCacheTests.watchStateChangesUpdateOnlyWatchFacetCounts` at `CueFacetCountCacheTests.swift:174`).
 - End-to-end interactive UI, pointer/hover suppression, menu navigation, browser opening, and accessibility acceptance remain with the user.
+
+## Incremental Fix (Debug App Icon Fallback, Initial About History Origin, and Accessibility Step 3 Tests)
+
+- **Added `#if DEBUG` repository icon fallback in `SettingsStore.aboutAppIconImage`** (`Settings/SettingsStore.swift`):
+  - After checking `Bundle.main` and `Bundle.appResources` for `AppIcon.icns`, `#if DEBUG` builds resolve `packaging/macos/AppIcon.icns` 6 directories up from `#filePath` and cache the loaded `NSImage` before falling back to `NSApp?.applicationIconImage`, leaving Release builds free of `#filePath` references and adding no duplicate `.icns` copies or script changes.
+- **Reset Settings category history origin when first opening via About menu item** (`Shared/WorkbenchAccessibility.swift`, `App/AppDelegate.swift`):
+  - Added `WorkbenchAccessibilityCoordinator.resetSettingsCategoryHistory(to:)` to clear switching state and initialize `settingsCategoryHistory = [category]`, `settingsCategoryHistoryIndex = 0`, and `selectedSettingsCategory = category` without triggering a history append.
+  - Updated `AppDelegate.showAboutSettings(_:)` to call `resetSettingsCategoryHistory(to: .about)` when `settingsWindow == nil`, and `navigateSettingsCategory(to: .about)` when `settingsWindow != nil`.
+- **Updated `WorkbenchAccessibilityStep3Tests` expectations and coverage** (`Tests/CueSeekerAppTests/WorkbenchAccessibilityStep3Tests.swift`):
+  - Added `.sidebarCategory(.about)` to `expectedGeneralTargets` and `expectedPlayTargets` in `generalAndPlayCategoriesTraverseAllTargetsAndHandleSelectedOrDisabledControls`.
+  - Added `resetSettingsCategoryHistory(to: .about)` assertions in `settingsTopbarBackForwardHistoryNavigationAndFocusRetention`.
+- **Incremental Verification**:
+  - `swift build --package-path apps/macos-native`: Build complete (`8.95s`).
+  - `swift test --package-path apps/macos-native --no-parallel --filter WorkbenchAccessibilityStep3Tests`: `5 passed` (`0` failed, `0.199s`).
+  - `swift test --package-path apps/macos-native --no-parallel --filter GitHubReleaseUpdateCheckerTests`: `4 passed` (`0` failed, `0.001s`).
+  - End-to-end desktop launch/UI verification remains with the user.

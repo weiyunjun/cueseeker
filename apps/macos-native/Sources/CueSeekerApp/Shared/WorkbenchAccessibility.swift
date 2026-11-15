@@ -676,6 +676,15 @@ final class WorkbenchAccessibilityCoordinator: ObservableObject {
         unfocusAllSettingsTextInputs()
     }
 
+    func resetSettingsCategoryHistory(to category: SettingsCategory) {
+        performSettingsCategorySwitchCleanup()
+        isMutatingSettingsCategoryFromHistoryNavigation = true
+        defer { isMutatingSettingsCategoryFromHistoryNavigation = false }
+        settingsCategoryHistory = [category]
+        settingsCategoryHistoryIndex = 0
+        selectedSettingsCategory = category
+    }
+
     @discardableResult
     func navigateSettingsCategory(to category: SettingsCategory) -> Bool {
         TooltipCenter.shared.dismissFromUserInteraction()

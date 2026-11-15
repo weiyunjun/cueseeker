@@ -47,6 +47,7 @@ struct WorkbenchAccessibilityStep3Tests {
             .sidebarCategory(.play),
             .sidebarCategory(.shortcuts),
             .sidebarCategory(.subtitle),
+            .sidebarCategory(.about),
             .appearanceMode(.light),
             .appearanceMode(.dark),
             .appearanceMode(.auto),
@@ -85,6 +86,7 @@ struct WorkbenchAccessibilityStep3Tests {
             .sidebarCategory(.play),
             .sidebarCategory(.shortcuts),
             .sidebarCategory(.subtitle),
+            .sidebarCategory(.about),
             .playAutoPause,
             .playAutoSwitch,
             .numberField(.autoSwitchGap),
@@ -351,5 +353,13 @@ struct WorkbenchAccessibilityStep3Tests {
         #expect(!app.workbenchAccessibility.navigateSettingsCategory(to: .shortcuts))
         #expect(app.workbenchAccessibility.settingsCategoryHistory == [.general, .play, .shortcuts])
         #expect(app.workbenchAccessibility.settingsCategoryHistoryIndex == 2)
+
+        // Resetting the initial history origin keeps topbar Back/Forward disabled.
+        app.workbenchAccessibility.resetSettingsCategoryHistory(to: .about)
+        #expect(app.workbenchAccessibility.selectedSettingsCategory == .about)
+        #expect(app.workbenchAccessibility.settingsCategoryHistory == [.about])
+        #expect(app.workbenchAccessibility.settingsCategoryHistoryIndex == 0)
+        #expect(!app.workbenchAccessibility.canGoBackInSettings)
+        #expect(!app.workbenchAccessibility.canGoForwardInSettings)
     }
 }

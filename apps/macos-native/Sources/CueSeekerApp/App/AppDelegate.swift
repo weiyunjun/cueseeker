@@ -477,7 +477,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     @objc private func showAboutSettings(_ sender: Any?) {
-        _ = appState.workbenchAccessibility.navigateSettingsCategory(to: .about)
+        if settingsWindow == nil {
+            appState.workbenchAccessibility.resetSettingsCategoryHistory(to: .about)
+        } else {
+            _ = appState.workbenchAccessibility.navigateSettingsCategory(to: .about)
+        }
         showSettings(sender)
     }
 

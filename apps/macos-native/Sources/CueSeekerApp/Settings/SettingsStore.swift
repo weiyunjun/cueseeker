@@ -680,6 +680,20 @@ final class SettingsStore: ObservableObject {
             cachedAboutAppIconImage = image
             return image
         }
+#if DEBUG
+        let debugIconURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("packaging/macos/AppIcon.icns")
+        if let image = NSImage(contentsOf: debugIconURL) {
+            cachedAboutAppIconImage = image
+            return image
+        }
+#endif
         if let fallback = NSApp?.applicationIconImage {
             cachedAboutAppIconImage = fallback
             return fallback
