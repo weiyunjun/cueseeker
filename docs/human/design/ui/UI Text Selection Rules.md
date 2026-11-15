@@ -157,5 +157,5 @@
 | **Playback Current & Subtitle Playlist**（`L-08.1` ~ `L-08.5`） | 底部 `Playback Footer` 左侧状态计数、空状态提示语（浮层流 `I-beam`）；字幕流可用台词文字 `Primary Cue` / `Cue Group`（单条单逻辑行拖选 `I-beam`，松手弹菜单） | 顶栏标签页与按钮、字幕流左侧序号与下方 `Playback Cue Metadata`、底部右侧 `Shortcut Action Button`（含 `Keycap`） |
 | **Playback Video Playlist**（`L-08.5`） | 底部 `Playback Footer` 左侧视频数、空状态提示语（浮层流 `I-beam`） | 顶栏标签页与按钮、全部剧集封面卡片、底部右侧动作按钮 |
 | **Playback Collage Editor**（`L-08.6`） | 底部 `Playback Footer` 左侧已选/总条数计数、左侧或整页空状态提示语（浮层流 `I-beam`） | 顶栏标签页与按钮、左侧拼图预览区、右侧带复选框的整套字幕流、底部右侧动作按钮 |
-| **Command Panel 一级**（`L-09.1`） | 顶部搜索框（输入 `I-beam`） | 选项列表（`Search Action`、`Recent Videos`、`Recent Excerpt Lists`，含右侧 `xx results`）、底部动作按钮 |
+| **Command Panel 一级**（`L-09.1`） | 顶部搜索框（输入 `I-beam`） | 选项列表（`Search Action`、`Copy Current Cue`、`Recent Videos`、`Recent Excerpt Lists`，含右侧预览与 `xx results`）、底部动作按钮 |
 | **Command Panel 二级**（`L-09.2` / `L-09.3`） | 顶部标题（搜索词 / `Recent Videos` / `Recent Excerpt Lists`）、时间分组标题、空状态提示语、底部左侧状态计数（面板流 `I-beam`）；`Search Results` 字幕流可用台词（单条单逻辑行拖选 `I-beam`，松手弹菜单） | 返回/筛选/排序按钮、`Search Results` 左侧序号与下方 `Playback Cue Metadata`、`Recent Videos` / `Recent Excerpt Lists` 封面卡片网格、底部右侧动作按钮 |

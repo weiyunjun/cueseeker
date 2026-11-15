@@ -300,7 +300,7 @@
 | Playback Collage | 已选字幕条数 / 字幕条数 | Copy Collage `P`、Export Collage `E`、Select `Return` |
 | Playback Playlist / Subtitle Playlist | 字幕条数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
 | Playback Playlist / Video Playlist | 视频数 | Play `Return` |
-| Command Panel Root | None | Open `Return` |
+| Command Panel Root | None | Open `Return`（选中 Copy Current Cue 时为 Copy `Return`） |
 | Command Panel / Recent Videos | 视频数 | Open `Return` |
 | Command Panel / Recent Excerpt Lists | 摘录集数 | Open `Return` |
 | Command Panel / Search Results | 结果数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
@@ -437,8 +437,9 @@
 
 1. Search Field（占位提示 `Search cues`）
 2. Option List
-   1. Recent Videos
-   2. Recent Excerpt Lists
+   1. Copy Current Cue（存在可用台词时显示，标题右侧单行显示当前台词）
+   2. Recent Videos
+   3. Recent Excerpt Lists
 3. Footer
 
 #### Structure / Filled Query
@@ -446,8 +447,9 @@
 1. Search Field
 2. Option List
    1. Search Action（精确结果数统计完成后，右侧 Trailing Slot 显示 `xx results`）
-   2. Recent Videos
-   3. Recent Excerpt Lists
+   2. Copy Current Cue（存在可用台词时显示，标题右侧单行显示当前台词）
+   3. Recent Videos
+   4. Recent Excerpt Lists
 3. Footer
 
 #### Components
