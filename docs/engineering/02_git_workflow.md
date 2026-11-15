@@ -297,9 +297,16 @@ Rules:
   only report that the required human-owned documentation is missing or propose
   text outside `docs/human/` for the human owner to apply manually.
 - Each AI-performed change outside `docs/human/` must create or update an
-  implementation record under `docs/engineering/records/` that cites the
+  English implementation record under `docs/engineering/records/` that cites the
   relevant human-owned document and records the steps taken, verification
-  performed, and whether the result matched expectations.
+  performed, and whether the result matched expectations. All AI-maintained
+  documentation outside `docs/human/` (`docs/engineering/`, `docs/engineering/records/`,
+  and `docs/changelog.md`) must be written in English; literal non-English UI
+  strings, external titles, or query examples must be enclosed in fenced code
+  blocks, inline backticks, or ASCII quotes rather than written bare in headings
+  or prose (enforced on staged `docs/engineering/` and `docs/changelog.md` files
+  by `.git/hooks/pre-commit` delegating to `scripts/verify_engineering_doc_lang.sh`,
+  tested by `scripts/test_verify_engineering_doc_lang.sh`).
 - Every commit — whether changing code, engineering documentation, a
   requirement document, or `docs/human/design/` specifications — must be a
   single line ending with the single covering requirement path in parentheses:
@@ -368,9 +375,17 @@ Rules:
   fallback dependency selection, verification must check the actual linked or
   loaded dependency, not only that compilation succeeds.
 - For every AI-performed change outside `docs/human/`, the AI must create or
-  update a matching implementation record under `docs/engineering/records/`.
-  The record must identify the relevant `docs/human/` document and summarize
-  the implementation steps, verification, and outcome.
+  update a matching implementation record under `docs/engineering/records/`
+  written strictly in English. The record must identify the relevant
+  `docs/human/` document and summarize the implementation steps, verification,
+  and outcome. All AI-maintained documents outside `docs/human/` (including
+  `docs/engineering/` rules, `docs/engineering/records/` implementation records,
+  and `docs/changelog.md`) forbid Chinese headings, section titles, and
+  narrative prose even when the covering requirement and chat discussion are in
+  Chinese; any literal non-English UI copy, external source title, or query
+  example must be wrapped in fenced code blocks, inline backticks (`` `...` ``),
+  or ASCII quotes (`"..."` or `'...'`), enforced locally by `.git/hooks/pre-commit`
+  (`scripts/verify_engineering_doc_lang.sh`).
 - When committing, the AI must format every commit message as a single pure
   English ASCII line `<type>: <summary> (docs/human/requirements/<requirement>.md)`
   following Section 5. Even when committing updates to `docs/human/design/` or

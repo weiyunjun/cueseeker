@@ -1,30 +1,30 @@
-# 2026-11-14 工程实现记录：确定性 ASS 字幕字体环境复用与空 `[Fonts]` 占位段兼容
+# 2026-11-14 Deterministic ASS Subtitle Font Environment Reuse and Empty `[Fonts]` Section Compatibility
 
-- **关联需求**：`docs/human/requirements/20261114-Engineering-Deterministic Subtitle Font Environment Reuse And Empty Font Section Compatibility.md`
-- **需求提交**：`3ddc931`
-- **目标分支**：`main`
+- **Covering Requirement**: `docs/human/requirements/20261114-Engineering-Deterministic Subtitle Font Environment Reuse And Empty Font Section Compatibility.md`
+- **Requirement Commit**: `3ddc931`
+- **Target Branch**: `main`
 
-## 1. 变更摘要
+## 1. Summary of Changes
 
-1. **串行化 ASS 字幕渲染 worker 的释放与新建（`SourceFaithfulASSSubtitleOverlayView.swift`）**：
-   - 每个 `SourceFaithfulASSSubtitleOverlayView` 实例持有一条共享串行 `DispatchQueue`（`workerQueue`），在初始化及每次 `replaceRendererWorker()` 时将其注入新创建的 `SourceFaithfulASSRendererWorker(queue: workerQueue)`。
-   - 保留每次 `replaceRendererWorker()` 生成新 `SourceFaithfulASSRendererWorker` 实例的语义（保持 `rendererWorkerIdentityForTesting` 断言不变），并在构造新 worker 前同步调用 `previousWorker.invalidate()` 排入 `previousWorker.clearState()`；已失效 worker 在队列任务入口立即跳过加载与渲染，使旧会话 `session?.close()` 归还池化引擎严格先于新会话借用，消除跨集切轨或连续快切时的并发竞态冷建。
+1. **Serialize ASS subtitle renderer worker teardown and creation (`SourceFaithfulASSSubtitleOverlayView.swift`)**:
+   - Each `SourceFaithfulASSSubtitleOverlayView` instance now holds a shared serial `DispatchQueue` (`workerQueue`), injecting it into newly created `SourceFaithfulASSRendererWorker(queue: workerQueue)` instances during initialization and on every `replaceRendererWorker()`.
+   - Preserves the semantics of creating a fresh `SourceFaithfulASSRendererWorker` instance on each `replaceRendererWorker()` (keeping `rendererWorkerIdentityForTesting` assertions intact), while synchronously calling `previousWorker.invalidate()` before constructing the new worker to enqueue `previousWorker.clearState()`. Invalidated workers immediately skip loading and rendering at queue task entry so `session?.close()` returns the pooled engine strictly before the new session checks out from the pool, eliminating concurrent race cold-builds during cross-episode track switches or rapid consecutive jumps.
 
-2. **系统字库变更联动失效池化引擎（`SFXASSRenderer.h/.m`、`ASSFontAliasResolver.swift`）**：
-   - 在 `SFXASSRenderer` 新增 `+ (void)invalidateFontEnvironmentPool;` 并在全局引擎池中引入世代号 `gSFXASSEnginePoolGeneration`。失效时递增世代号、销毁池内全部空闲 `(ASS_Library *, ASS_Renderer *)` 实例并重置 `gSFXASSHasCompletedWarmup = NO`。
-   - `SFXASSRendererSession` 在借用池化引擎时记录借出世代 `_enginePoolGeneration`，归还时仅当世代与当前 `gSFXASSEnginePoolGeneration` 一致且池未满才放回复用；已过期会话维持本次正常渲染并在关闭时直接销毁旧世代引擎而不污染新池；并发预热与非预热创建同样校对捕获世代后再写回完成标记与池。
-   - 提取共享辅助 `SFXApplyASSRendererFrameSize`，统一 `SFXCreateASSEngineContext`、`SFXCheckoutASSEngineContext`（复用池化实例）与 `updateFrameWidth:frameHeight:` 的 `Int32` 正数边界钳制。
-   - 在 `ASSFontAliasResolver` 中区分共享实例 `ASSFontAliasResolver.shared`（开启 `invalidatesSharedRendererPool`）与隔离测试实例 `ASSFontAliasResolver(observeSystemFontChanges:)`（关闭 `invalidatesSharedRendererPool`），使运行期收到 `kCTFontManagerRegisteredFontsChangedNotification` 或共享环境刷新时联动调用 `SFXASSRenderer.invalidateFontEnvironmentPool()`，同时避免隔离单测误清全局引擎池，并以 `environmentGeneration` 防止扫描期间并发刷新通知覆盖待刷新标志。
+2. **Invalidate pooled engines on system font changes (`SFXASSRenderer.h/.m`, `ASSFontAliasResolver.swift`)**:
+   - Added `+ (void)invalidateFontEnvironmentPool;` to `SFXASSRenderer` and introduced generation counter `gSFXASSEnginePoolGeneration` in the global engine pool. Invalidation increments the generation, destroys all idle `(ASS_Library *, ASS_Renderer *)` instances in the pool, and resets `gSFXASSHasCompletedWarmup = NO`.
+   - `SFXASSRendererSession` records the borrowed `_enginePoolGeneration` on checkout and returns the engine to the pool only when the generation still matches `gSFXASSEnginePoolGeneration` and capacity remains; stale sessions continue rendering normally for their lifetime and destroy old-generation engines on close without polluting the refreshed pool. Concurrent warmup and non-warmup creation paths also verify the captured generation before updating completion flags or returning engines to the pool.
+   - Extracted shared helper `SFXApplyASSRendererFrameSize` to unify positive `Int32` clamping across `SFXCreateASSEngineContext`, `SFXCheckoutASSEngineContext` (pooled reuse), and `updateFrameWidth:frameHeight:`.
+   - Distinguished shared instance `ASSFontAliasResolver.shared` (`invalidatesSharedRendererPool = true`) from isolated test instances `ASSFontAliasResolver(observeSystemFontChanges:)` (`invalidatesSharedRendererPool = false`), so runtime `kCTFontManagerRegisteredFontsChangedNotification` events or shared environment refreshes invoke `SFXASSRenderer.invalidateFontEnvironmentPool()` without allowing isolated unit tests to clear the global pool, using `environmentGeneration` to prevent concurrent notifications during a scan from clearing pending refresh state.
 
-3. **整文件回退路径兼容空 `[Fonts]` 占位段（`SFXASSRenderer.m`）**：
-   - 重写 `SFXBytesContainEmbeddedFontsSection`，对齐 `ASSEventOffsetIndex` 的段解析口径：支持跳过 UTF-8 BOM，进入 `[Fonts]` 段并在遇到后续 `[...]` 段标题时退出；仅当 `[Fonts]` 段内出现至少一行去除首尾空白后非空且不以 `;` 或 `!:` 开头的实际内嵌字体数据行时才返回 `YES`；空 `[Fonts]` 占位段（含仅空白行或注释行）返回 `NO`，正常复用共享池。
+3. **Empty `[Fonts]` placeholder section compatibility in full-file fallback path (`SFXASSRenderer.m`)**:
+   - Rewrote `SFXBytesContainEmbeddedFontsSection` to align with `ASSEventOffsetIndex` section parsing: skips optional UTF-8 BOM, enters `[Fonts]`, exits on any subsequent `[...]` section header, and returns `YES` only when `[Fonts]` contains at least one trimmed non-empty embedded font data line that does not start with `;` or `!:`. Empty `[Fonts]` placeholder sections (including whitespace-only or comment-only lines) return `NO` and reuse the shared pool normally.
 
-4. **自动化回归测试补充与断言收紧**：
-   - 将 `PlaybackVerticalSyncAndIndexedASSTests.swift` 中跨集复用测试 `engineCountAfterEp2 <= 2` 收紧为严格的 `PlaybackPlayer.assEngineInitializationCountForTesting == 1`（含手动切轨与切回第 1 集校验）。
-   - 新增连续 5 集快速无等待 `player.open(...)` 跳切复用测试、无索引整文件回退路径空 `[Fonts]` 占位段与非空内嵌字体隔离（不污染原池）测试，以及系统字库变更通知下旧会话平滑渲染销毁并准确 `+1` 重建新世代池、后续跨集持续复用测试。
-   - 在 `CASSRenderingProbeTests.swift` 新增空 `[Fonts]` 占位段解析、内嵌字体隔离与 `SFXASSRenderer.invalidateFontEnvironmentPool()` 世代退役直接单测。
+4. **Automated regression test additions and tightened assertions**:
+   - Tightened cross-episode reuse assertion `engineCountAfterEp2 <= 2` in `PlaybackVerticalSyncAndIndexedASSTests.swift` to strict `PlaybackPlayer.assEngineInitializationCountForTesting == 1` (covering manual track switches and switching back to episode 1).
+   - Added rapid unawaited 5-episode `player.open(...)` jump reuse tests, unindexed full-file fallback tests for empty `[Fonts]` placeholder reuse vs. non-empty embedded font isolation (without polluting the shared pool), and system font change notification tests verifying graceful teardown of active sessions, exact `+1` new-generation pool rebuild, and continued cross-episode reuse afterward.
+   - Added direct unit tests in `CASSRenderingProbeTests.swift` covering empty `[Fonts]` placeholder parsing, embedded font isolation, and `SFXASSRenderer.invalidateFontEnvironmentPool()` generation retirement.
 
-## 2. 涉及文件
+## 2. Modified Files
 
 - `apps/macos-native/Sources/CueSeekerPlayback/SourceFaithfulASSSubtitleOverlayView.swift`
 - `apps/macos-native/Sources/CASSRendering/include/SFXASSRenderer.h`
@@ -33,7 +33,7 @@
 - `apps/macos-native/Tests/CueSeekerPlaybackTests/PlaybackVerticalSyncAndIndexedASSTests.swift`
 - `apps/macos-native/Tests/CASSRenderingTests/CASSRenderingProbeTests.swift`
 
-## 3. 验证结果
+## 3. Verification
 
-- `swift build --package-path apps/macos-native` — Build complete! (0 failures)
-- `swift test --package-path apps/macos-native --no-parallel --filter "CueSeekerPlaybackTests|CASSRenderingTests|PlaybackRequestTests|PlaybackVerticalSyncAndIndexedASSTests"` — 执行并通过 141 个测试（`CASSRenderingProbeTests` 10 个 XCTest + `CueSeekerPlaybackTests` 131 个 Swift Testing，含 `PlaybackRequestTests` 与 `PlaybackVerticalSyncAndIndexedASSTests`），0 失败，0 跳过。
+- `swift build --package-path apps/macos-native` — Build complete (`0` failures).
+- `swift test --package-path apps/macos-native --no-parallel --filter "CueSeekerPlaybackTests|CASSRenderingTests|PlaybackRequestTests|PlaybackVerticalSyncAndIndexedASSTests"` — `141` tests executed and passed (`10` XCTest in `CASSRenderingProbeTests` + `131` Swift Testing in `CueSeekerPlaybackTests`, including `PlaybackRequestTests` and `PlaybackVerticalSyncAndIndexedASSTests`), `0` failures, `0` skipped.

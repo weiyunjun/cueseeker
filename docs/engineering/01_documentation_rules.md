@@ -29,24 +29,32 @@ Principles:
 ## 3. Documentation Language
 
 AI-maintained documentation files outside `docs/human/` must be written in
-English.
+English. Chinese headings, section titles, and narrative prose are forbidden
+even when the covering requirement and chat discussion are in Chinese.
 
 This applies to:
 
-- Engineering documents.
-- Implementation records.
-- Changelog entries.
+- Engineering documents (`docs/engineering/`).
+- Implementation records (`docs/engineering/records/`).
+- Changelog entries (`docs/changelog.md`).
 - Release notes.
 
 Human-owned documents under `docs/human/` may use the human owner's chosen
 language. The AI must not edit them.
 
-Chinese may appear only when it is part of:
+Chinese or other CJK text may appear only when it is part of:
 
 - A literal UI string being discussed.
 - User-facing copy that must remain in Chinese.
 - An external title or quoted source.
-- A necessary example where translation would change meaning.
+- A necessary query or input example where translation would change meaning.
+
+Any such literal non-English string must be enclosed in a fenced code block,
+inline backticks (`` `...` ``), or ASCII quotes (`"..."` or `'...'`), and must
+never be written bare in headings or prose. Local pre-commit validation is
+enforced on staged `docs/engineering/` and `docs/changelog.md` files via
+`.git/hooks/pre-commit` delegating to `scripts/verify_engineering_doc_lang.sh`
+(tested by `scripts/test_verify_engineering_doc_lang.sh`).
 
 ## 4. Documentation Structure
 
@@ -163,7 +171,8 @@ Follow-ups
 Rules:
 
 - Each AI-performed change outside `docs/human/` must create or update one
-  implementation record.
+  implementation record written in English (wrapping any literal non-English UI
+  copy or query examples in backticks or ASCII quotes per Section 3).
 - The record must cite the current human-owned requirement and any human-owned
   design document it references.
 - The record should state each meaningful step, what was changed, what was

@@ -38,16 +38,20 @@ This applies to:
 - Engineering documents.
 - Proposals.
 - ADRs.
-- Chronicle entries.
-- Changelog entries.
+- Implementation records (`docs/engineering/records/`).
+- Changelog entries (`docs/changelog.md`).
 - Release notes.
 
 Human-owned documents under `docs/human/` may use the human owner's chosen
 language and must not be edited by the AI.
 
-Chinese may appear in AI-maintained documentation only when it is part of a
-literal UI string, user-facing copy being discussed, an external source title,
-or a necessary example.
+Chinese or other CJK text may appear in AI-maintained documentation only when
+it is part of a literal UI string, user-facing copy being discussed, an
+external source title, or a necessary query/input example, and must be enclosed
+in fenced code blocks, inline backticks (`` `...` ``), or ASCII quotes
+(`"..."` or `'...'`) rather than written bare in headings or prose. Local
+validation is enforced on staged `docs/engineering/` and `docs/changelog.md`
+files via `.git/hooks/pre-commit` (`scripts/verify_engineering_doc_lang.sh`).
 
 ## 4. Documentation System
 

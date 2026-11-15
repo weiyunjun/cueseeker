@@ -127,7 +127,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
   export follow a change at once; ASS subtitles keep their own styles. Faces
   without italic or bold are slanted or widened as libass does, which also
   makes SRT's own italic tags slant Japanese and Chinese text.
-- Renamed Shiori to Excerpt and Shiori List to Excerpt List (摘录 and 摘录集
+- Renamed Shiori to Excerpt and Shiori List to Excerpt List (`摘录` and `摘录集`
   in Chinese) in the App's copy and in the database, whose two tables migrate
   in place with every list, excerpt and cover kept. English counts in the
   footers and on the Excerpt page take the singular for one. Previous and next
