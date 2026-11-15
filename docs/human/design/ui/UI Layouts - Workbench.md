@@ -651,7 +651,7 @@
   - Mapping：本地文件夹为 `folder`，WebDAV 文件夹为 `folder-webdav`，SMB 文件夹为 `folder-smb`，FTP 文件夹为 `folder-ftp`，NFS 文件夹为 `folder-nfs`，视频为 `video`，字幕为 `subtitles`
 - Text Column：
   - Line 1：Title（`--font-size-body` / `--font-weight-control` / `--color-text-primary`）
-  - Line 2：Subtitle（`--font-size-caption` / Regular / `--color-text-muted`）：文件夹卡片展示路径（WebDAV、SMB、FTP 与 NFS 路径解码为可读字符展示）；视频文件行依次展示 `<简化分辨率>  <视频编码>  <时长>  <文件大小>`（分辨率归为 `8K`、`4K`、`2K`、`1080P`、`720P`、`576P`、`480P`、`360P`、`240P`、`144P` 十档，编码采用 `HEVC`、`AVC` 等简写，时长为 `MM:SS` / `HH:MM:SS`；`File Info` 保持原始像素宽高与完整编码写法不变）；字幕文件行依次展示 `<原始台词数>  <有效台词数>  <文件大小>`；文件行相邻项以 2 个英文空格分隔，未就绪或缺失项直接省略
+  - Line 2：Subtitle（`--font-size-caption` / Regular / `--color-text-muted`）：文件夹卡片展示路径（WebDAV、SMB、FTP 与 NFS 路径解码为可读字符展示）；视频文件行依次展示 `<简化分辨率>  <HDR 标准>  <视频编码>  <时长>  <文件大小>`（分辨率归为 `8K`、`4K`、`2K`、`1080P`、`720P`、`576P`、`480P`、`360P`、`240P`、`144P` 十档，HDR 标准仅对 HDR 视频按 `Dolby Vision` / `杜比视界` / `杜比視界` > `HDR10+` > `HDR10` > `HLG` 优先级展示单一最高项，编码采用 `HEVC`、`AVC` 等简写，时长为 `MM:SS` / `HH:MM:SS`；`File Info` 保持原始像素宽高与完整编码写法不变）；字幕文件行依次展示 `<原始台词数>  <有效台词数>  <文件大小>`；文件行相邻项以 2 个英文空格分隔，未就绪或缺失项直接省略
   - Line Gap：`--spacing-1`
   - Wrapping：所有文本完整展示，字符折行，不截断
 - Trailing Actions：
@@ -1229,7 +1229,7 @@
       - `File Info`：与 Header 一起固定在顶部不随下方滚动的配对文件下拉触发器（撑满内容宽，圆角 `--radius-settings-group`，边框 `--border-width-control`，内边距纵向 `--spacing-3`、横向 `--spacing-4`；Default 背景 `--color-table-bg`、边框 `--color-border-control`，Hover / Open 背景 `--color-bg-hover`、边框 `--color-border-control-hover`，Pressed 背景 `--color-bg-pressed`、边框 `--color-border-control-hover`），内部依次为文件大图标、文件名（最多 2 行，超出省略）与右侧 `caret-down`（`--size-card-chevron`，`--color-text-secondary`）。点击在正下方（间距 `--spacing-1`）弹出等宽下拉菜单，按「视频在上、配对字幕在下（按 Data 中的字幕顺序）」列出全部配对文件（包含当前文件；菜单项复用 `Action Menu Item`，无勾选标记，左侧 `18px` `video` / `subtitles` 图标对齐首行，右侧完整文件名多行自然折行、上下内边距 `--padding-settings-row-y`）；选择后切换详情并使下方滚动区回到顶部，弹窗打开期间配对列表与各文件详情保持冻结快照不变
    2. Property Groups：Settings 风格卡片组
       - Folder（Root Folder / Subfolder）：`Folder Info`（Path、Folder Count、Video Count、Subtitle Count）、`Index Info`（Added、Updated）
-      - Video File：`Video`（Resolution `W × H`、Frame Rate、Codec、Bit Depth、Pixel Format、Duration）、`Audio #N`（无有效音轨时不显示此分组；Codec、Channels、Sample Rate、Bit Depth、Language、Title，仅展示有效项）、`Associated Subtitles`、`File Details`（File Size、Bitrate、Format 按内部实际容器格式展示且同容器家族保持原后缀对应名称、Path、Modified）
+      - Video File：`Video`（Resolution `W × H`、Frame Rate、Codec、Bit Depth、Pixel Format、HDR、Color Primaries、Transfer Function、Mastering Display、MaxCLL、MaxFALL、Duration；其中 HDR 至 MaxFALL 共 6 项仅在 HDR 视频中按实际有效项展示，HDR 行支持多标准组合与已知杜比视界 Profile 标注）、`Audio #N`（无有效音轨时不显示此分组；Codec、Channels、Sample Rate、Bit Depth、Language、Title，仅展示有效项）、`Associated Subtitles`、`File Details`（File Size、Bitrate、Format 按内部实际容器格式展示且同容器家族保持原后缀对应名称、Path、Modified）
       - Subtitle File：`Subtitle Specifications`（Encoding、Raw Cues、Valid Cues）、`Associated Video`、`File Details`（File Size、Format、Path、Modified）
 
 #### Sizes
