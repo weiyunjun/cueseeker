@@ -475,7 +475,7 @@ extension SubtitleTableView.Coordinator {
             return
         }
         if hoveredCueStateRow == row {
-            WorkbenchRedesignColors.NS.tableRowSelected.setFill()
+            WorkbenchRedesignColors.NS.rowSelected.setFill()
             if model.cueState.isUnavailable {
                 let circleInset = rect.width * 32 / 256
                 NSBezierPath(

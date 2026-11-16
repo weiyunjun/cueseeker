@@ -105,8 +105,8 @@ struct FileCardMenuTests {
         // TableRowHover & TableRowSelected (Table Row Hover & Selected on bg-surface)
         #expect(hexString(WorkbenchRedesignColors.NS.tableRowHover, appearance: .aqua) == "#F9FAFB")
         #expect(hexString(WorkbenchRedesignColors.NS.tableRowHover, appearance: .darkAqua) == "#26262B")
-        #expect(hexString(WorkbenchRedesignColors.NS.tableRowSelected, appearance: .aqua) == "#ECEEF2")
-        #expect(hexString(WorkbenchRedesignColors.NS.tableRowSelected, appearance: .darkAqua) == "#313137")
+        #expect(hexString(WorkbenchRedesignColors.NS.tableRowSelected, appearance: .aqua) == "#F3F4F6")
+        #expect(hexString(WorkbenchRedesignColors.NS.tableRowSelected, appearance: .darkAqua) == "#2B2B31")
 
         // RowHover (Card Hover)
         #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .aqua) == "#F9FAFB")
@@ -117,12 +117,16 @@ struct FileCardMenuTests {
         #expect(hexString(WorkbenchRedesignColors.NS.fileFolderCardBgPressed, appearance: .darkAqua) == "#3E3E47")
 
         // RowSelected (Button Hover / Open)
-        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == "#ECEEF2")
-        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) == "#43434C")
+        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == "#E5E7EB")
+        #expect(alphaValue(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == 1.0)
+        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) == "#FFFFFF")
+        #expect(abs(alphaValue(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) - 0.08) < 0.001)
 
         // RowActionBgPressed (Button Pressed)
-        #expect(hexString(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .aqua) == "#DEE2E8")
-        #expect(hexString(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .darkAqua) == "#4E4E58")
+        #expect(hexString(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .aqua) == "#D1D5DB")
+        #expect(alphaValue(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .aqua) == 1.0)
+        #expect(hexString(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .darkAqua) == "#FFFFFF")
+        #expect(abs(alphaValue(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .darkAqua) - 0.14) < 0.001)
 
         // Card chevron metric & icon assets resolve
         #expect(WorkbenchControlMetrics.redesignCardChevronSize == 16)

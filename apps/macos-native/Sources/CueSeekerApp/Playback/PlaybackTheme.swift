@@ -8,11 +8,10 @@ public enum PlaybackTheme {
     // MARK: - Subtitle Focus Colors
 
     private static let subtitleFocusCueSelectedOpacity = 1.0
-    private static let subtitleFocusCueGroupSelectedOpacity = 0.68
-    private static let subtitleFocusCueUnselectedOpacity = 0.26
-    private static let cueMetadataSelectedOpacity = 0.56
-    private static let cueMetadataUnselectedLightOpacity = 0.22
-    private static let cueMetadataUnselectedDarkOpacity = 0.20
+    private static let subtitleFocusCueGroupSelectedOpacity = 0.75
+    private static let subtitleFocusCueUnselectedOpacity = 0.30
+    private static let cueMetadataSelectedOpacity = 0.54
+    private static let cueMetadataUnselectedOpacity = 0.24
 
     private static func subtitleFocusDynamicColor(
         light: NSColor,
@@ -31,18 +30,8 @@ public enum PlaybackTheme {
     }
 
     static let subtitleFocusOverlayBackgroundNative = subtitleFocusDynamicColor(
-        light: NSColor(
-            red: 250 / 255,
-            green: 251 / 255,
-            blue: 253 / 255,
-            alpha: 1
-        ),
-        dark: NSColor(
-            red: 24 / 255,
-            green: 24 / 255,
-            blue: 27 / 255,
-            alpha: 1
-        )
+        light: NSColor.hex("#F4F4F4"),
+        dark: NSColor.hex("#161616")
     )
 
     /// --color-subtitle-focus-cue-selected
@@ -61,68 +50,63 @@ public enum PlaybackTheme {
     }
 
     static let subtitleFocusCueSelectedNative = subtitleFocusDynamicColor(
-        light: NSColor(
-            red: 15 / 255,
-            green: 23 / 255,
-            blue: 42 / 255,
-            alpha: 1
+        light: NSColor.hex(
+            "#1A1A1A",
+            alpha: CGFloat(subtitleFocusCueSelectedOpacity)
         ),
-        dark: NSColor.white.withAlphaComponent(
-            CGFloat(subtitleFocusCueSelectedOpacity)
+        dark: NSColor.hex(
+            "#EDEDED",
+            alpha: CGFloat(subtitleFocusCueSelectedOpacity)
         )
     )
     static let subtitleFocusCueGroupSelectedNative = subtitleFocusDynamicColor(
-        light: NSColor(
-            red: 51 / 255,
-            green: 65 / 255,
-            blue: 85 / 255,
-            alpha: 1
+        light: NSColor.hex(
+            "#1A1A1A",
+            alpha: CGFloat(subtitleFocusCueGroupSelectedOpacity)
         ),
-        dark: NSColor.white.withAlphaComponent(
-            CGFloat(subtitleFocusCueGroupSelectedOpacity)
+        dark: NSColor.hex(
+            "#EDEDED",
+            alpha: CGFloat(subtitleFocusCueGroupSelectedOpacity)
         )
     )
     static let subtitleFocusCueUnselectedNative = subtitleFocusDynamicColor(
-        light: NSColor(
-            red: 15 / 255,
-            green: 23 / 255,
-            blue: 42 / 255,
+        light: NSColor.hex(
+            "#1A1A1A",
             alpha: CGFloat(subtitleFocusCueUnselectedOpacity)
         ),
-        dark: NSColor.white.withAlphaComponent(
-            CGFloat(subtitleFocusCueUnselectedOpacity)
+        dark: NSColor.hex(
+            "#EDEDED",
+            alpha: CGFloat(subtitleFocusCueUnselectedOpacity)
         )
     )
 
     /// --color-playback-cue-timeline-muted
     static let cueTimelineMutedNative = subtitleFocusDynamicColor(
-        light: NSColor.hex("#D0D5DD"),
-        dark: NSColor.hex("#52525B")
+        light: NSColor.hex("#D6D6D6"),
+        dark: NSColor.hex("#444444")
     )
 
     /// --color-playback-cue-metadata-selected
     static let cueMetadataSelectedNative = subtitleFocusDynamicColor(
-        light: NSColor(
-            red: 15 / 255,
-            green: 23 / 255,
-            blue: 42 / 255,
+        light: NSColor.hex(
+            "#1A1A1A",
             alpha: CGFloat(cueMetadataSelectedOpacity)
         ),
-        dark: NSColor.white.withAlphaComponent(
-            CGFloat(cueMetadataSelectedOpacity)
+        dark: NSColor.hex(
+            "#EDEDED",
+            alpha: CGFloat(cueMetadataSelectedOpacity)
         )
     )
 
     /// --color-playback-cue-metadata-unselected
     static let cueMetadataUnselectedNative = subtitleFocusDynamicColor(
-        light: NSColor(
-            red: 15 / 255,
-            green: 23 / 255,
-            blue: 42 / 255,
-            alpha: CGFloat(cueMetadataUnselectedLightOpacity)
+        light: NSColor.hex(
+            "#1A1A1A",
+            alpha: CGFloat(cueMetadataUnselectedOpacity)
         ),
-        dark: NSColor.white.withAlphaComponent(
-            CGFloat(cueMetadataUnselectedDarkOpacity)
+        dark: NSColor.hex(
+            "#EDEDED",
+            alpha: CGFloat(cueMetadataUnselectedOpacity)
         )
     )
 

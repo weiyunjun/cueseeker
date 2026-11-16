@@ -19,6 +19,7 @@ struct PlaybackCommandPanel: View {
     @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var pointerVisibility:
         PlaybackPointerVisibilityStore
+    @Environment(\.displayScale) private var displayScale
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var playback: PlaybackStore
     @ObservedObject var indexingStore: IndexingStore
@@ -53,6 +54,10 @@ struct PlaybackCommandPanel: View {
 
                 if let presentation = playback.commandPanelPresentation {
                     let presentedPage = activePage(for: presentation)
+                    let panelShape = RoundedRectangle(
+                        cornerRadius: PlaybackCommandPanelMetrics.cornerRadius,
+                        style: .circular
+                    )
                     Group {
                         switch presentedPage {
                         case .root:
@@ -209,26 +214,35 @@ struct PlaybackCommandPanel: View {
                     // They must answer for this layer, not for the page the
                     // panel is covering.
                     .interfaceLayer(.commandPanel)
-                    .clipShape(
-                        RoundedRectangle(
-                            cornerRadius: PlaybackCommandPanelMetrics.cornerRadius,
-                            style: .continuous
-                        )
+                    .background(WorkbenchRedesignColors.bgDialog)
+                    .clipShape(panelShape)
+                    .overlay(
+                        panelShape
+                            .strokeBorder(
+                                WorkbenchRedesignColors.dialogEdgeHighlight,
+                                lineWidth: 1
+                            )
+                            .allowsHitTesting(false)
                     )
-                    // The shadow belongs to the panel's shape, not to the
-                    // panel. Applied to the whole surface it is cast by every
-                    // leaf inside it. The backing shape sits behind the clip
-                    // so the clip cannot cut the shadow off.
+                    // One device pixel wide, left showing strictly outside the
+                    // circular panel shape so it never overlaps the panel or
+                    // its translucent interior edge highlight.
                     .background(
-                        RoundedRectangle(
-                            cornerRadius: PlaybackCommandPanelMetrics.cornerRadius,
-                            style: .continuous
-                        )
-                        .fill(WorkbenchRedesignColors.bgDialog)
-                        .shadowToken(
-                            WorkbenchRedesignColors.shadowPopover,
-                            cornerRadius: PlaybackCommandPanelMetrics.cornerRadius
-                        )
+                        panelShape
+                            .inset(by: -1 / displayScale)
+                            .fill(WorkbenchRedesignColors.dialogOutline)
+                            .clipShape(
+                                WorkbenchExteriorClipShape(
+                                    cornerRadius: PlaybackCommandPanelMetrics.cornerRadius,
+                                    outset: 1 / displayScale + 1,
+                                    cornerStyle: .circular
+                                ),
+                                style: FillStyle(eoFill: true)
+                            )
+                    )
+                    .shadowToken(
+                        WorkbenchRedesignColors.shadowDialog,
+                        cornerRadius: PlaybackCommandPanelMetrics.cornerRadius
                     )
                 }
             }
@@ -711,11 +725,9 @@ private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
                             )
                             .fill(
                                 isBackPressed
-                                    ? WorkbenchRedesignColors
-                                        .popoverSurfaceShortcutButtonPressedBg
+                                    ? WorkbenchRedesignColors.bgPressed
                                     : (isBackHovered
-                                        ? WorkbenchRedesignColors
-                                            .popoverSurfaceShortcutButtonHoverBg
+                                        ? WorkbenchRedesignColors.bgHover
                                         : Color.clear)
                             )
                         )

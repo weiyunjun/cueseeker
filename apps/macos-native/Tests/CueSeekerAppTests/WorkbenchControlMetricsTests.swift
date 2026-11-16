@@ -457,33 +457,37 @@ func buttonPressedAndHoverColorTokensMatchDesignSpecification() {
         #expect(abs(b - 24.0 / 255.0) < 0.005)
         #expect(abs(a - 0.50) < 0.005)
 
-        // --color-overlay-surface-shortcut-button-bg-pressed: Light #E1E4E9
+        // --color-overlay-surface-shortcut-button-bg-pressed: Light rgba(0,0,0,0.12)
         WorkbenchRedesignColors.NS.overlaySurfaceShortcutButtonPressedBg.usingColorSpace(.sRGB)!
             .getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - 225.0 / 255.0) < 0.005)
-        #expect(abs(g - 228.0 / 255.0) < 0.005)
-        #expect(abs(b - 233.0 / 255.0) < 0.005)
+        #expect(abs(r) < 0.005)
+        #expect(abs(g) < 0.005)
+        #expect(abs(b) < 0.005)
+        #expect(abs(a - 0.12) < 0.005)
 
-        // --color-overlay-surface-keycap-bg-pressed: Light #C4C9D3
+        // --color-overlay-surface-keycap-bg-pressed: Light rgba(0,0,0,0.20)
         WorkbenchRedesignColors.NS.overlaySurfaceKeycapPressedBg.usingColorSpace(.sRGB)!
             .getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - 196.0 / 255.0) < 0.005)
-        #expect(abs(g - 201.0 / 255.0) < 0.005)
-        #expect(abs(b - 211.0 / 255.0) < 0.005)
+        #expect(abs(r) < 0.005)
+        #expect(abs(g) < 0.005)
+        #expect(abs(b) < 0.005)
+        #expect(abs(a - 0.20) < 0.005)
 
-        // --color-popover-surface-shortcut-button-bg-pressed: Light #EDEFF2
+        // --color-popover-surface-shortcut-button-bg-pressed: Light #E5E7EB
         WorkbenchRedesignColors.NS.popoverSurfaceShortcutButtonPressedBg.usingColorSpace(.sRGB)!
             .getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - 237.0 / 255.0) < 0.005)
-        #expect(abs(g - 239.0 / 255.0) < 0.005)
-        #expect(abs(b - 242.0 / 255.0) < 0.005)
+        #expect(abs(r - 229.0 / 255.0) < 0.005)
+        #expect(abs(g - 231.0 / 255.0) < 0.005)
+        #expect(abs(b - 235.0 / 255.0) < 0.005)
+        #expect(abs(a - 1.0) < 0.005)
 
-        // --color-popover-surface-keycap-bg-pressed: Light #D2D6DE
+        // --color-popover-surface-keycap-bg-pressed: Light #C6C6C6
         WorkbenchRedesignColors.NS.popoverSurfaceKeycapPressedBg.usingColorSpace(.sRGB)!
             .getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - 210.0 / 255.0) < 0.005)
-        #expect(abs(g - 214.0 / 255.0) < 0.005)
-        #expect(abs(b - 222.0 / 255.0) < 0.005)
+        #expect(abs(r - 198.0 / 255.0) < 0.005)
+        #expect(abs(g - 198.0 / 255.0) < 0.005)
+        #expect(abs(b - 198.0 / 255.0) < 0.005)
+        #expect(abs(a - 1.0) < 0.005)
 
         // --color-filter-chip-selected-bg-hover & --color-filter-chip-selected-bg-pressed (Light 0.12 / 0.16)
         WorkbenchRedesignColors.NS.filterChipSelectedBgHover.usingColorSpace(.sRGB)!
@@ -547,21 +551,21 @@ func buttonPressedAndHoverColorTokensMatchDesignSpecification() {
         #expect(abs(b - 165.0 / 255.0) < 0.005)
         #expect(abs(a - 0.55) < 0.005)
 
-        // --color-overlay-surface-shortcut-button-bg-pressed & --color-popover-surface-shortcut-button-bg-pressed: Dark alpha 0.12
+        // --color-overlay-surface-shortcut-button-bg-pressed & --color-popover-surface-shortcut-button-bg-pressed: Dark alpha 0.16
         WorkbenchRedesignColors.NS.overlaySurfaceShortcutButtonPressedBg.usingColorSpace(.sRGB)!
             .getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(a - 0.12) < 0.005)
+        #expect(abs(a - 0.16) < 0.005)
         WorkbenchRedesignColors.NS.popoverSurfaceShortcutButtonPressedBg.usingColorSpace(.sRGB)!
             .getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(a - 0.12) < 0.005)
+        #expect(abs(a - 0.16) < 0.005)
 
-        // --color-overlay-surface-keycap-bg-pressed & --color-popover-surface-keycap-bg-pressed: Dark alpha 0.22
+        // --color-overlay-surface-keycap-bg-pressed (0.22) & --color-popover-surface-keycap-bg-pressed (0.24)
         WorkbenchRedesignColors.NS.overlaySurfaceKeycapPressedBg.usingColorSpace(.sRGB)!
             .getRed(&r, green: &g, blue: &b, alpha: &a)
         #expect(abs(a - 0.22) < 0.005)
         WorkbenchRedesignColors.NS.popoverSurfaceKeycapPressedBg.usingColorSpace(.sRGB)!
             .getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(a - 0.22) < 0.005)
+        #expect(abs(a - 0.24) < 0.005)
 
         // --color-filter-chip-selected-bg-hover & --color-filter-chip-selected-bg-pressed (Dark 0.18 / 0.24)
         WorkbenchRedesignColors.NS.filterChipSelectedBgHover.usingColorSpace(.sRGB)!

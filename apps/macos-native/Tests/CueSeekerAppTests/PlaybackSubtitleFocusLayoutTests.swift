@@ -3032,9 +3032,12 @@ func subtitleFocusThemeInterpolatesThreeTierTextColorsAcrossLightAndDarkAppearan
         of: PlaybackTheme.subtitleFocusCueGroupNative(selectionProgress: 1),
         in: lightAppearance
     )
-    #expect(lightGroupStart.r < lightGroupMid.r && lightGroupMid.r < lightGroupEnd.r)
-    #expect(lightGroupStart.g < lightGroupMid.g && lightGroupMid.g < lightGroupEnd.g)
-    #expect(lightGroupStart.b < lightGroupMid.b && lightGroupMid.b < lightGroupEnd.b)
+    #expect(abs(lightGroupStart.r - lightGroupMid.r) < 0.000_1 && abs(lightGroupMid.r - lightGroupEnd.r) < 0.000_1)
+    #expect(abs(lightGroupStart.g - lightGroupMid.g) < 0.000_1 && abs(lightGroupMid.g - lightGroupEnd.g) < 0.000_1)
+    #expect(abs(lightGroupStart.b - lightGroupMid.b) < 0.000_1 && abs(lightGroupMid.b - lightGroupEnd.b) < 0.000_1)
+    #expect(abs(lightGroupStart.a - 0.30) < 0.001)
+    #expect(abs(lightGroupMid.a - 0.525) < 0.001)
+    #expect(abs(lightGroupEnd.a - 0.75) < 0.001)
 }
 
 @MainActor

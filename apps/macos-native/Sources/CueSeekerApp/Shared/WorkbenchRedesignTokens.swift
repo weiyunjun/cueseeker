@@ -98,7 +98,7 @@ enum WorkbenchRedesignColors {
         static let bgCanvas = bgSurface
         static let bgHover = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.12)
         static let bgPressed = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.16)
-        static let menuItemSelectedBg = NSColor.dynamic(lightHex: "#E2E8F0", darkHex: "#FFFFFF", darkAlpha: 0.16)
+        static let menuItemSelectedBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.16)
         static let bgDisabled = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.04)
         static let bgControl = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF", darkAlpha: 0.08)
         static let bgDialog = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
@@ -114,16 +114,16 @@ enum WorkbenchRedesignColors {
         // surfaces and share one set. Each surface carries its own light
         // values so the keycap always reads one step apart from the background
         // under it; dark is translucent and follows the surface by itself.
-        static let overlaySurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#EDEEF2", darkHex: "#FFFFFF", darkAlpha: 0.06)
-        static let overlaySurfaceShortcutButtonPressedBg = NSColor.dynamic(lightHex: "#E1E4E9", darkHex: "#FFFFFF", darkAlpha: 0.12)
-        static let overlaySurfaceKeycapBg = NSColor.dynamic(lightHex: "#E1E4E9", darkHex: "#FFFFFF", darkAlpha: 0.10)
-        static let overlaySurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#D2D6DE", darkHex: "#FFFFFF", darkAlpha: 0.16)
-        static let overlaySurfaceKeycapPressedBg = NSColor.dynamic(lightHex: "#C4C9D3", darkHex: "#FFFFFF", darkAlpha: 0.22)
-        static let popoverSurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#F7F8FA", darkHex: "#FFFFFF", darkAlpha: 0.06)
-        static let popoverSurfaceShortcutButtonPressedBg = NSColor.dynamic(lightHex: "#EDEFF2", darkHex: "#FFFFFF", darkAlpha: 0.12)
-        static let popoverSurfaceKeycapBg = NSColor.dynamic(lightHex: "#EDEFF2", darkHex: "#FFFFFF", darkAlpha: 0.10)
-        static let popoverSurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#E0E3E8", darkHex: "#FFFFFF", darkAlpha: 0.16)
-        static let popoverSurfaceKeycapPressedBg = NSColor.dynamic(lightHex: "#D2D6DE", darkHex: "#FFFFFF", darkAlpha: 0.22)
+        static let overlaySurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#000000", lightAlpha: 0.06, darkHex: "#FFFFFF", darkAlpha: 0.10)
+        static let overlaySurfaceShortcutButtonPressedBg = NSColor.dynamic(lightHex: "#000000", lightAlpha: 0.12, darkHex: "#FFFFFF", darkAlpha: 0.16)
+        static let overlaySurfaceKeycapBg = NSColor.dynamic(lightHex: "#000000", lightAlpha: 0.08, darkHex: "#FFFFFF", darkAlpha: 0.10)
+        static let overlaySurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#000000", lightAlpha: 0.14, darkHex: "#FFFFFF", darkAlpha: 0.16)
+        static let overlaySurfaceKeycapPressedBg = NSColor.dynamic(lightHex: "#000000", lightAlpha: 0.20, darkHex: "#FFFFFF", darkAlpha: 0.22)
+        static let popoverSurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.12)
+        static let popoverSurfaceShortcutButtonPressedBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.16)
+        static let popoverSurfaceKeycapBg = NSColor.dynamic(lightHex: "#E6E6E6", darkHex: "#FFFFFF", darkAlpha: 0.10)
+        static let popoverSurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#D6D6D6", darkHex: "#FFFFFF", darkAlpha: 0.18)
+        static let popoverSurfaceKeycapPressedBg = NSColor.dynamic(lightHex: "#C6C6C6", darkHex: "#FFFFFF", darkAlpha: 0.24)
         static let badgeNeutralBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.20)
 
         // Border
@@ -183,10 +183,10 @@ enum WorkbenchRedesignColors {
 
         // Table Row
         static let tableRowHover = NSColor.dynamic(lightHex: "#F9FAFB", darkHex: "#26262B")
-        static let tableRowSelected = NSColor.dynamic(lightHex: "#ECEEF2", darkHex: "#313137")
+        static let tableRowSelected = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#2B2B31")
         static let rowHover = NSColor.dynamic(lightHex: "#F9FAFB", darkHex: "#383840")
-        static let rowSelected = NSColor.dynamic(lightHex: "#ECEEF2", darkHex: "#43434C")
-        static let rowActionBgPressed = NSColor.dynamic(lightHex: "#DEE2E8", darkHex: "#4E4E58")
+        static let rowSelected = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.08)
+        static let rowActionBgPressed = NSColor.dynamic(lightHex: "#D1D5DB", darkHex: "#FFFFFF", darkAlpha: 0.14)
         static let fileFolderCardBgPressed = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#3E3E47")
 
         // Checkbox
@@ -215,8 +215,8 @@ enum WorkbenchRedesignColors {
         static let fileGroupHeaderBg = NSColor.dynamic(lightHex: "#F8F9FB", darkHex: "#FFFFFF", darkAlpha: 0.04)
 
         // Scrollbar
-        static let scrollbarThumbDefault = NSColor.dynamic(lightHex: "#CBD5E1", darkHex: "#52525B")
-        static let scrollbarThumbInteractive = NSColor.dynamic(lightHex: "#94A3B8", darkHex: "#71717A")
+        static let scrollbarThumbDefault = NSColor.dynamic(lightHex: "#000000", lightAlpha: 0.18, darkHex: "#FFFFFF", darkAlpha: 0.22)
+        static let scrollbarThumbInteractive = NSColor.dynamic(lightHex: "#000000", lightAlpha: 0.34, darkHex: "#FFFFFF", darkAlpha: 0.38)
         static let scrollbarTrack = NSColor.clear
 
         // Chip

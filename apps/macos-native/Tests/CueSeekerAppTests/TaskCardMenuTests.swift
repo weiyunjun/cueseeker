@@ -91,11 +91,15 @@ struct TaskCardMenuTests {
         #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .aqua) == "#F9FAFB")
         #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .darkAqua) == "#383840")
 
-        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == "#ECEEF2")
-        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) == "#43434C")
+        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == "#E5E7EB")
+        #expect(alphaValue(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == 1.0)
+        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) == "#FFFFFF")
+        #expect(abs(alphaValue(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) - 0.08) < 0.001)
 
-        #expect(hexString(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .aqua) == "#DEE2E8")
-        #expect(hexString(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .darkAqua) == "#4E4E58")
+        #expect(hexString(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .aqua) == "#D1D5DB")
+        #expect(alphaValue(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .aqua) == 1.0)
+        #expect(hexString(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .darkAqua) == "#FFFFFF")
+        #expect(abs(alphaValue(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .darkAqua) - 0.14) < 0.001)
     }
 
     @Test
@@ -649,4 +653,12 @@ private func hexString(_ color: NSColor, appearance: NSAppearance.Name = .aqua) 
     let green = Int((srgb.greenComponent * 255).rounded())
     let blue = Int((srgb.blueComponent * 255).rounded())
     return String(format: "#%02X%02X%02X", red, green, blue)
+}
+
+private func alphaValue(_ color: NSColor, appearance: NSAppearance.Name = .aqua) -> CGFloat {
+    var resolved: NSColor?
+    NSAppearance(named: appearance)!.performAsCurrentDrawingAppearance {
+        resolved = color.usingColorSpace(.sRGB)
+    }
+    return resolved?.alphaComponent ?? 0
 }

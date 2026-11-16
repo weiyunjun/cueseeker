@@ -27,12 +27,12 @@ func playbackCueResultMetricsMatchCompactIteration() {
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.subtitleFocusCueGroupSelectedNative
-        ) == 0.68
+        ) == 0.75
     )
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.subtitleFocusCueUnselectedNative
-        ) == 0.26
+        ) == 0.30
     )
 }
 
@@ -42,19 +42,19 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
         playbackCueResultHex(
             PlaybackTheme.subtitleFocusOverlayBackgroundNative,
             appearanceName: .aqua
-        ) == "#FAFBFD"
+        ) == "#F4F4F4"
     )
     #expect(
         playbackCueResultHex(
             PlaybackTheme.subtitleFocusOverlayBackgroundNative,
             appearanceName: .darkAqua
-        ) == "#18181B"
+        ) == "#161616"
     )
     #expect(
         playbackCueResultHex(
             PlaybackTheme.subtitleFocusCueSelectedNative,
             appearanceName: .aqua
-        ) == "#0F172A"
+        ) == "#1A1A1A"
     )
     #expect(
         playbackCueResultAlpha(
@@ -66,61 +66,61 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
         playbackCueResultHex(
             PlaybackTheme.subtitleFocusCueGroupSelectedNative,
             appearanceName: .aqua
-        ) == "#334155"
+        ) == "#1A1A1A"
     )
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.subtitleFocusCueGroupSelectedNative,
             appearanceName: .aqua
-        ) == 1
+        ) == 0.75
     )
     #expect(
         playbackCueResultHex(
             PlaybackTheme.subtitleFocusCueUnselectedNative,
             appearanceName: .aqua
-        ) == "#0F172A"
+        ) == "#1A1A1A"
     )
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.subtitleFocusCueUnselectedNative,
             appearanceName: .aqua
-        ) == 0.26
+        ) == 0.30
     )
     #expect(
         playbackCueResultHex(
             PlaybackTheme.cueTimelineMutedNative,
             appearanceName: .aqua
-        ) == "#D0D5DD"
+        ) == "#D6D6D6"
     )
     #expect(
         playbackCueResultHex(
             PlaybackTheme.cueMetadataNative(isSelected: true),
             appearanceName: .aqua
-        ) == "#0F172A"
+        ) == "#1A1A1A"
     )
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.cueMetadataNative(isSelected: true),
             appearanceName: .aqua
-        ) == 0.56
+        ) == 0.54
     )
     #expect(
         playbackCueResultHex(
             PlaybackTheme.cueMetadataNative(isSelected: false),
             appearanceName: .aqua
-        ) == "#0F172A"
+        ) == "#1A1A1A"
     )
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.cueMetadataNative(isSelected: false),
             appearanceName: .aqua
-        ) == 0.22
+        ) == 0.24
     )
     #expect(
         playbackCueResultHex(
             PlaybackTheme.subtitleFocusCueSelectedNative,
             appearanceName: .darkAqua
-        ) == "#FFFFFF"
+        ) == "#EDEDED"
     )
     #expect(
         playbackCueResultAlpha(
@@ -132,55 +132,55 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
         playbackCueResultHex(
             PlaybackTheme.subtitleFocusCueGroupSelectedNative,
             appearanceName: .darkAqua
-        ) == "#FFFFFF"
+        ) == "#EDEDED"
     )
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.subtitleFocusCueGroupSelectedNative,
             appearanceName: .darkAqua
-        ) == 0.68
+        ) == 0.75
     )
     #expect(
         playbackCueResultHex(
             PlaybackTheme.subtitleFocusCueUnselectedNative,
             appearanceName: .darkAqua
-        ) == "#FFFFFF"
+        ) == "#EDEDED"
     )
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.subtitleFocusCueUnselectedNative,
             appearanceName: .darkAqua
-        ) == 0.26
+        ) == 0.30
     )
     #expect(
         playbackCueResultHex(
             PlaybackTheme.cueTimelineMutedNative,
             appearanceName: .darkAqua
-        ) == "#52525B"
+        ) == "#444444"
     )
     #expect(
         playbackCueResultHex(
             PlaybackTheme.cueMetadataNative(isSelected: true),
             appearanceName: .darkAqua
-        ) == "#FFFFFF"
+        ) == "#EDEDED"
     )
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.cueMetadataNative(isSelected: true),
             appearanceName: .darkAqua
-        ) == 0.56
+        ) == 0.54
     )
     #expect(
         playbackCueResultHex(
             PlaybackTheme.cueMetadataNative(isSelected: false),
             appearanceName: .darkAqua
-        ) == "#FFFFFF"
+        ) == "#EDEDED"
     )
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.cueMetadataNative(isSelected: false),
             appearanceName: .darkAqua
-        ) == 0.20
+        ) == 0.24
     )
 }
 
@@ -413,7 +413,7 @@ func playbackCueResultUsesMixedResolvedFontRunsAndDocumentedColors() throws {
 
     #expect(selectedGroup.style == .cueGroup)
     #expect(selectedGroup.style.font.pointSize == 20)
-    #expect(playbackCueResultAlpha(selectedGroup.color) == 0.68)
+    #expect(playbackCueResultAlpha(selectedGroup.color) == 0.75)
     #expect(selectedPrimary.style == .primary)
     #expect(
         selected.extent.firstVisualLineCenterOffset
@@ -460,7 +460,7 @@ func playbackCueResultUsesMixedResolvedFontRunsAndDocumentedColors() throws {
         viewportHeight: 2_000
     )
     #expect(unselected.visualLines.allSatisfy {
-        playbackCueResultAlpha($0.color) == 0.26
+        playbackCueResultAlpha($0.color) == 0.30
     })
     playbackCueResultExpectStrictThreePointGaps(unselected)
 }
