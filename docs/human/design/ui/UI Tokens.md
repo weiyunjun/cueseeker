@@ -279,6 +279,13 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 下划线偏移自当前行字体的默认下划线位置起向下计算（同行混排时取最低默认下划线位置）。
 
+### Text Selection
+
+- `--text-selection-ascent-scale`: `1.07`
+- `--text-selection-descent-scale`: `0.35`
+
+只读可选文本选区自当前视觉行基线起，分别按字号的 `--text-selection-ascent-scale` 与 `--text-selection-descent-scale` 倍向上、向下延伸。
+
 ## 1.3 尺寸
 
 ### Height
