@@ -293,6 +293,7 @@ struct WorkbenchAccessibilityStep4Tests {
                 .commandPanelSearchField,
                 .commandPanelRootOption(0),
                 .commandPanelRootOption(1),
+                .commandPanelFooterAction("close"),
                 .commandPanelFooterAction("open"),
             ])
 
@@ -311,6 +312,7 @@ struct WorkbenchAccessibilityStep4Tests {
                 .commandPanelRootOption(0),
                 .commandPanelRootOption(1),
                 .commandPanelRootOption(2),
+                .commandPanelFooterAction("close"),
                 .commandPanelFooterAction("open"),
             ])
 
@@ -375,7 +377,7 @@ struct WorkbenchAccessibilityStep4Tests {
             #expect(app.playback.commandPanelPresentation?.page == .root)
             #expect(app.workbenchAccessibility.focusedPlaybackTarget == nil)
 
-            // Open Search Results and verify targets
+            // Open Search Results and verify targets (no close footer button on secondary pages)
             #expect(app.presentPlaybackCommandPanelSearch(query: "hello", startsSearch: false))
             #expect(app.currentPlaybackAccessibilityTargets() == [
                 .commandPanelBackButton,
@@ -386,6 +388,16 @@ struct WorkbenchAccessibilityStep4Tests {
                 .commandPanelFooterAction("copy-deep-link"),
                 .commandPanelFooterAction("play"),
             ])
+
+            // Return to Root, move focus to footer Close button, and activate -> dismisses Command Panel cleanly
+            #expect(app.returnPlaybackCommandPanelToRoot())
+            app.applyPlaybackAccessibilityFocus(
+                .commandPanelFooterAction("close"),
+                surface: .commandPanel(.root)
+            )
+            #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+            #expect(app.playback.commandPanelPresentation == nil)
+            #expect(app.workbenchAccessibility.focusedPlaybackTarget == nil)
         }
     }
 
@@ -565,6 +577,7 @@ struct WorkbenchAccessibilityStep4Tests {
                 surface: .commandPanel,
                 status: nil,
                 actions: [
+                    .close(perform: {}),
                     .primary(id: "open", title: "Open", perform: {}),
                 ]
             )
@@ -579,14 +592,16 @@ struct WorkbenchAccessibilityStep4Tests {
             commandPanelFooterHost.layoutSubtreeIfNeeded()
             RunLoop.main.run(until: Date().addingTimeInterval(0.02))
 
-            PlaybackCueFooter.lastFocusedActionIDForTesting = nil
-            app.applyPlaybackAccessibilityFocus(
-                .commandPanelFooterAction("open"),
-                surface: .commandPanel(.root)
-            )
-            commandPanelFooterHost.layoutSubtreeIfNeeded()
-            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
-            #expect(PlaybackCueFooter.lastFocusedActionIDForTesting == "open")
+            for expectedActionID in ["close", "open"] {
+                PlaybackCueFooter.lastFocusedActionIDForTesting = nil
+                app.applyPlaybackAccessibilityFocus(
+                    .commandPanelFooterAction(expectedActionID),
+                    surface: .commandPanel(.root)
+                )
+                commandPanelFooterHost.layoutSubtreeIfNeeded()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+                #expect(PlaybackCueFooter.lastFocusedActionIDForTesting == expectedActionID)
+            }
         }
     }
 }

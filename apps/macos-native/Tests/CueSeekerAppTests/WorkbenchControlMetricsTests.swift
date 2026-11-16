@@ -302,7 +302,15 @@ func mediaCardGridMetricsAndMinimumWindowColumnCountMatchSpecification() {
     #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 676) == 3)
     #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 903) == 3)
     #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 904) == 4)
-    // Command Panel grid width (1040 - 40 = 1000px) fits 4 cards per row.
+    // Default Command Panel width (720px, minus 40px inline padding = 680px)
+    // compactly fits 3 cards per row; wider grids scale to 4+ cards per row.
+    #expect(WorkbenchControlMetrics.redesignCommandPanelMaxWidth == 720)
+    #expect(
+        PlaybackCommandPanelCardGrid.columnCount(
+            containerWidth: WorkbenchControlMetrics.redesignCommandPanelMaxWidth
+                - WorkbenchControlMetrics.redesignSpacing5 * 2
+        ) == 3
+    )
     #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 1_000) == 4)
     #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 1_131) == 4)
     #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 1_132) == 5)

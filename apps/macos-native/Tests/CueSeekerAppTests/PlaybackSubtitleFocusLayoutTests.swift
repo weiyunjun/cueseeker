@@ -140,6 +140,15 @@ func playbackCueFooterFormatsCompleteAndPreviewLimitedCounts() {
     #expect(copied == 1)
     #expect(exported == 1)
     #expect(selected == 1)
+
+    var closed = 0
+    let closeAction = PlaybackCueFooterAction.close { closed += 1 }
+    #expect(closeAction.id == "close")
+    #expect(closeAction.title == L("common.close"))
+    #expect(closeAction.keys == .escapeKey)
+    #expect(PlaybackCueFooterKeycap.escapeKey == .text("Esc"))
+    closeAction.perform()
+    #expect(closed == 1)
 }
 
 @MainActor

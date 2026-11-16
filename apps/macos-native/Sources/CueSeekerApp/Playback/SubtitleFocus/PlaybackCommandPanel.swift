@@ -87,6 +87,9 @@ struct PlaybackCommandPanel: View {
                                 onOpenPage: {
                                     appState.presentPlaybackCommandPanelPage($0)
                                 },
+                                onClose: {
+                                    _ = appState.dismissPlaybackCommandPanelFromUser()
+                                },
                                 onOpenSelectedItem: openSelectedItem
                             )
                         case .searchResults:
@@ -361,6 +364,7 @@ private struct PlaybackCommandPanelRoot: View {
     let onSubmitSearch: () -> Bool
     let onCopyCurrentCue: () -> Bool
     let onOpenPage: (PlaybackCommandPanelPage) -> Bool
+    let onClose: () -> Void
     let onOpenSelectedItem: () -> Void
 
     var body: some View {
@@ -455,6 +459,7 @@ private struct PlaybackCommandPanelRoot: View {
                         == .copyCurrentCue
                         ? L("playback.copy")
                         : L("playback.open"),
+                    onClose: onClose,
                     onOpenSelectedItem: onOpenSelectedItem
                 )
             }
@@ -566,119 +571,6 @@ private struct PlaybackCommandPanelRootRow: View {
     }
 }
 
-struct PlaybackCommandPanelHeaderLayoutGeometry: Equatable, Sendable {
-    let leadingFrame: CGRect
-    let titleFrame: CGRect
-    let trailingFrame: CGRect
-
-    static func resolve(
-        bounds: CGRect,
-        leadingSize: CGSize,
-        naturalTitleSize: CGSize,
-        trailingSize: CGSize,
-        spacing: CGFloat = WorkbenchControlMetrics.redesignSpacing3
-    ) -> Self {
-        let leadingFrame = CGRect(
-            x: bounds.minX,
-            y: bounds.midY - leadingSize.height / 2,
-            width: leadingSize.width,
-            height: leadingSize.height
-        )
-        let trailingFrame = CGRect(
-            x: bounds.maxX - trailingSize.width,
-            y: bounds.midY - trailingSize.height / 2,
-            width: trailingSize.width,
-            height: trailingSize.height
-        )
-
-        let minTitleX = leadingSize.width > 0
-            ? bounds.minX + leadingSize.width + spacing
-            : bounds.minX
-        let maxTitleX = trailingSize.width > 0
-            ? bounds.maxX - trailingSize.width - spacing
-            : bounds.maxX
-        let availableTitleWidth = max(0, maxTitleX - minTitleX)
-        let titleWidth = min(max(0, naturalTitleSize.width), availableTitleWidth)
-        let idealTitleMinX = bounds.midX - titleWidth / 2
-        let clampedTitleMinX = min(
-            max(idealTitleMinX, minTitleX),
-            max(minTitleX, maxTitleX - titleWidth)
-        )
-        let titleFrame = CGRect(
-            x: clampedTitleMinX,
-            y: bounds.midY - naturalTitleSize.height / 2,
-            width: titleWidth,
-            height: naturalTitleSize.height
-        )
-
-        return Self(
-            leadingFrame: leadingFrame,
-            titleFrame: titleFrame,
-            trailingFrame: trailingFrame
-        )
-    }
-}
-
-private struct PlaybackCommandPanelSecondaryHeaderLayout: Layout {
-    var spacing: CGFloat = WorkbenchControlMetrics.redesignSpacing3
-
-    func sizeThatFits(
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache _: inout ()
-    ) -> CGSize {
-        let maxHeight = subviews.reduce(CGFloat.zero) { current, subview in
-            max(current, subview.sizeThatFits(.unspecified).height)
-        }
-        return CGSize(
-            width: proposal.width ?? 0,
-            height: proposal.height ?? maxHeight
-        )
-    }
-
-    func placeSubviews(
-        in bounds: CGRect,
-        proposal _: ProposedViewSize,
-        subviews: Subviews,
-        cache _: inout ()
-    ) {
-        guard subviews.count >= 2 else {
-            return
-        }
-        let leadingSize = subviews[0].sizeThatFits(.unspecified)
-        let naturalTitleSize = subviews[1].sizeThatFits(.unspecified)
-        let trailingSize = subviews.count > 2
-            ? subviews[2].sizeThatFits(.unspecified)
-            : .zero
-
-        let geometry = PlaybackCommandPanelHeaderLayoutGeometry.resolve(
-            bounds: bounds,
-            leadingSize: leadingSize,
-            naturalTitleSize: naturalTitleSize,
-            trailingSize: trailingSize,
-            spacing: spacing
-        )
-
-        subviews[0].place(
-            at: geometry.leadingFrame.origin,
-            anchor: .topLeading,
-            proposal: ProposedViewSize(geometry.leadingFrame.size)
-        )
-        subviews[1].place(
-            at: geometry.titleFrame.origin,
-            anchor: .topLeading,
-            proposal: ProposedViewSize(geometry.titleFrame.size)
-        )
-        if subviews.count > 2 {
-            subviews[2].place(
-                at: geometry.trailingFrame.origin,
-                anchor: .topLeading,
-                proposal: ProposedViewSize(geometry.trailingFrame.size)
-            )
-        }
-    }
-}
-
 private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
     @EnvironmentObject private var localization: AppLocalizationStore
     let title: String
@@ -699,10 +591,12 @@ private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
     }
 
     var body: some View {
+        let titleFont = Font.system(
+            size: WorkbenchControlMetrics.redesignFontSizeBody,
+            weight: .semibold
+        )
         WorkbenchAccessibilityReader { accessibility in
-            PlaybackCommandPanelSecondaryHeaderLayout(
-                spacing: WorkbenchControlMetrics.redesignSpacing3
-            ) {
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 Button {
                     _ = onBack()
                 } label: {
@@ -747,14 +641,24 @@ private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
                 )
                 .accessibilityLabel(L("playback.back"))
 
-                WorkbenchSelectableText(
-                    title,
-                    fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: .semibold,
-                    color: WorkbenchRedesignColors.textPrimary,
-                    lineLimit: 1,
-                    truncationMode: .tail
-                )
+                HStack(spacing: 0) {
+                    WorkbenchSelectableText(
+                        title,
+                        fullCopyText: title,
+                        fontSize: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: .semibold,
+                        color: WorkbenchRedesignColors.textPrimary,
+                        lineLimit: 1,
+                        truncationMode: .tail
+                    )
+                    .workbenchTruncatedTextTooltip(
+                        scenarioID: "truncated.command_panel.secondary_title",
+                        text: title,
+                        font: titleFont
+                    )
+
+                    Spacer(minLength: 0)
+                }
 
                 trailing
             }
@@ -1366,26 +1270,36 @@ private struct PlaybackCommandPanelRecentExcerpts: View {
     }
 }
 
-/// The pages whose only key is Return. Everything else about the footer comes
-/// from the shared component.
+/// Footer for Command Panel pages with a primary Return action and an optional
+/// root Close (`Esc`) action. Everything else comes from the shared footer.
 private struct PlaybackCommandPanelFooter: View {
     @EnvironmentObject private var localization: AppLocalizationStore
     let status: String?
     var primaryActionTitle: String? = nil
+    var onClose: (() -> Void)? = nil
     let onOpenSelectedItem: () -> Void
+
+    private var footerActions: [PlaybackCueFooterAction] {
+        var actions: [PlaybackCueFooterAction] = []
+        if let onClose {
+            actions.append(.close(perform: onClose))
+        }
+        actions.append(
+            .primary(
+                id: "open",
+                title: primaryActionTitle ?? L("playback.open")
+            ) {
+                onOpenSelectedItem()
+            }
+        )
+        return actions
+    }
 
     var body: some View {
         PlaybackCueFooter(
             surface: .commandPanel,
             status: status,
-            actions: [
-                .primary(
-                    id: "open",
-                    title: primaryActionTitle ?? L("playback.open")
-                ) {
-                    onOpenSelectedItem()
-                },
-            ]
+            actions: footerActions
         )
         .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
     }

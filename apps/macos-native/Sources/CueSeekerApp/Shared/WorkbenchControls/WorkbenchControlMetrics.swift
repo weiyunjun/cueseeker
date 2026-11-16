@@ -469,8 +469,8 @@ enum WorkbenchControlMetrics {
     static let redesignTaskPanelHeight: CGFloat = 500
     /// --height-filter-dialog: 600px
     static let redesignFilterDialogHeight: CGFloat = 600
-    /// --width-command-panel-max: 1040px
-    static let redesignCommandPanelMaxWidth: CGFloat = 1_040
+    /// --width-command-panel-max: 720px
+    static let redesignCommandPanelMaxWidth: CGFloat = 720
     /// --height-command-panel-max: 720px
     static let redesignCommandPanelMaxHeight: CGFloat = 720
     /// --inset-command-panel-viewport: 40px

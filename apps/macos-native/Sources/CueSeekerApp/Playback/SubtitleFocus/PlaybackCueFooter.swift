@@ -73,11 +73,13 @@ enum PlaybackCueFooterKeycap: Equatable {
     case icon(AppIcon)
 
     static let returnKey = Self.icon(.arrowElbowDownLeft)
+    static let escapeKey = Self.text("Esc")
 }
 
-/// The key a footer action shows: Return, which is fixed, or a shortcut the
-/// user can rebind, drawn with whatever key it has now.
+/// The key a footer action shows: Esc or Return, which are fixed, or a shortcut
+/// the user can rebind, drawn with whatever key it has now.
 enum PlaybackCueFooterKeys: Equatable {
+    case escapeKey
     case returnKey
     case shortcut(PlaybackShortcutAction)
 }
@@ -136,6 +138,16 @@ struct PlaybackCueFooterAction: Identifiable {
         perform: @escaping () -> Void
     ) -> Self {
         Self(id: id, title: title, keys: .returnKey, perform: perform)
+    }
+
+    /// Dismisses the Command Panel root, paired with the fixed Esc keycap.
+    static func close(perform: @escaping () -> Void) -> Self {
+        Self(
+            id: "close",
+            title: L("common.close"),
+            keys: .escapeKey,
+            perform: perform
+        )
     }
 
     /// The three footer actions shown while editing a Collage.
@@ -602,6 +614,8 @@ private struct PlaybackCueFooterActionButton: View {
     /// nothing, so the button shows only its title.
     private var keycaps: [PlaybackCueFooterKeycap] {
         switch action.keys {
+        case .escapeKey:
+            [.escapeKey]
         case .returnKey:
             [.returnKey]
         case .shortcut(let shortcut):

@@ -177,64 +177,6 @@ func commandPanelPointerSelectionMovesTheRootHighlightWithinBounds() throws {
     #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 2)
 }
 
-@Test
-func commandPanelSecondaryHeaderCentersShiftsAndTruncatesTitleAroundControls() {
-    let bounds = CGRect(x: 0, y: 0, width: 1_000, height: 58)
-    let leadingSize = CGSize(width: 32, height: 32)
-    let trailingSize = CGSize(width: 220, height: 32)
-    let spacing: CGFloat = 12
-
-    // Short title stays strictly centered in the full header width.
-    let centered = PlaybackCommandPanelHeaderLayoutGeometry.resolve(
-        bounds: bounds,
-        leadingSize: leadingSize,
-        naturalTitleSize: CGSize(width: 120, height: 20),
-        trailingSize: trailingSize,
-        spacing: spacing
-    )
-    #expect(centered.leadingFrame.minX == 0)
-    #expect(centered.trailingFrame.maxX == 1_000)
-    #expect(centered.titleFrame.midX == bounds.midX)
-    #expect(centered.titleFrame.width == 120)
-
-    // Medium-long title shifts leftward into available space before truncating,
-    // keeping a 12pt gap from the trailing Filter + Sort controls.
-    let shifted = PlaybackCommandPanelHeaderLayoutGeometry.resolve(
-        bounds: bounds,
-        leadingSize: leadingSize,
-        naturalTitleSize: CGSize(width: 600, height: 20),
-        trailingSize: trailingSize,
-        spacing: spacing
-    )
-    #expect(shifted.titleFrame.width == 600)
-    #expect(shifted.titleFrame.maxX == shifted.trailingFrame.minX - spacing)
-    #expect(shifted.titleFrame.minX > shifted.leadingFrame.maxX + spacing)
-
-    // Very long title clamps to the available span with 12pt gaps on both sides.
-    let truncated = PlaybackCommandPanelHeaderLayoutGeometry.resolve(
-        bounds: bounds,
-        leadingSize: leadingSize,
-        naturalTitleSize: CGSize(width: 900, height: 20),
-        trailingSize: trailingSize,
-        spacing: spacing
-    )
-    #expect(truncated.titleFrame.minX == truncated.leadingFrame.maxX + spacing)
-    #expect(truncated.titleFrame.maxX == truncated.trailingFrame.minX - spacing)
-    #expect(truncated.titleFrame.width == 724)
-
-    // Secondary pages without trailing controls (Recent Videos / Excerpts) keep
-    // their title centered.
-    let withoutTrailing = PlaybackCommandPanelHeaderLayoutGeometry.resolve(
-        bounds: bounds,
-        leadingSize: leadingSize,
-        naturalTitleSize: CGSize(width: 140, height: 20),
-        trailingSize: .zero,
-        spacing: spacing
-    )
-    #expect(withoutTrailing.trailingFrame.width == 0)
-    #expect(withoutTrailing.titleFrame.midX == bounds.midX)
-}
-
 @MainActor
 @Test
 func commandPanelSearchSynchronizesFilterAndSortWithWorkbenchAndResetsSelection()

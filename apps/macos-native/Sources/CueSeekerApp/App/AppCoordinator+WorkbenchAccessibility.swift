@@ -2903,6 +2903,7 @@ extension AppCoordinator {
                 for ordinal in 0..<itemCount {
                     targets.append(.commandPanelRootOption(ordinal))
                 }
+                targets.append(.commandPanelFooterAction("close"))
                 targets.append(.commandPanelFooterAction("open"))
 
             case .recentVideos:
@@ -3370,6 +3371,10 @@ extension AppCoordinator {
 
         case .commandPanelFooterAction(let actionID):
             switch actionID {
+            case "close":
+                _ = dismissPlaybackCommandPanelFromUser()
+                reconcilePlaybackAccessibilityFocus()
+                return true
             case "open":
                 _ = openSelectedPlaybackCommandPanelItem()
                 reconcilePlaybackAccessibilityFocus()
