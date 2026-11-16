@@ -20,7 +20,7 @@ public struct DatabaseBootstrapResult: Equatable, Sendable {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 69
+    public static let currentSchemaVersion = 70
 
     @discardableResult
     public static func prepare(at path: URL) throws -> DatabaseBootstrapResult {
@@ -91,6 +91,7 @@ extension DatabaseBootstrap {
                 || previousVersion == 66
                 || previousVersion == 67
                 || previousVersion == 68
+                || previousVersion == 69
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             AppLogger.shared.error(
@@ -256,6 +257,9 @@ extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 68 {
             try migrateSchema68To69(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 69 {
+            try migrateSchema69To70(on: database)
             return false
         }
         guard previousVersion == 0 else {
@@ -498,10 +502,7 @@ extension DatabaseBootstrap {
             CREATE INDEX IF NOT EXISTS idx_subtitle_playback_finish_metadata_path
                 ON subtitle_playback_finish_metadata(subtitle_path);
 
-            CREATE VIRTUAL TABLE IF NOT EXISTS subtitle_cue_groups_fts USING fts5(
-                content,
-                cue_group_id UNINDEXED
-            );
+            \(subtitleCueGroupsFTSTableSQL)
 
             CREATE TABLE IF NOT EXISTS subtitle_language_manifests (
                 subtitle_file_id INTEGER PRIMARY KEY,
@@ -756,6 +757,14 @@ extension DatabaseBootstrap {
         }
         return previousVersion == 0
     }
+
+    static let subtitleCueGroupsFTSTableSQL = """
+        CREATE VIRTUAL TABLE IF NOT EXISTS subtitle_cue_groups_fts USING fts5(
+            content,
+            cue_group_id UNINDEXED,
+            tokenize="unicode61 remove_diacritics 0 categories 'L* N* P* S* M*'"
+        );
+        """
 
     /// The task queue's history. Written by `TaskRecordDatabase`; see its
     /// documentation for why progress is not a column.

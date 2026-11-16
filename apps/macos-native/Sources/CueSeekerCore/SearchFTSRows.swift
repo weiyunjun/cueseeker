@@ -72,6 +72,12 @@ enum SearchFTSRows {
             ORDER BY g.subtitle_file_id ASC, g.start_ms ASC, g.end_ms ASC, g.id ASC;
             """
         )
+        let insertStatement = try database.prepare(
+            """
+            INSERT INTO subtitle_cue_groups_fts(rowid, content, cue_group_id)
+            VALUES (?, ?, ?);
+            """
+        )
         var currentSubtitleFileID: Int64 = -1
         var sequence = 0
         while try statement.step() {
@@ -81,12 +87,18 @@ enum SearchFTSRows {
                 sequence = 0
             }
             sequence += 1
-            try insert(
-                on: database,
-                rowID: rowID(subtitleFileID: subtitleFileID, sequence: sequence),
-                cueGroupID: statement.int64Column(0),
-                content: statement.stringColumn(2)
+            try insertStatement.bind(
+                rowID(subtitleFileID: subtitleFileID, sequence: sequence),
+                at: 1
             )
+            try insertStatement.bind(
+                SearchQueryPlanner.segmentForFTS(statement.stringColumn(2)),
+                at: 2
+            )
+            try insertStatement.bind(statement.int64Column(0), at: 3)
+            try insertStatement.run()
+            try insertStatement.reset()
+            try insertStatement.clearBindings()
         }
     }
 }

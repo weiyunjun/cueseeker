@@ -34,7 +34,7 @@ func migratesFreshDatabaseToCurrentSchemaVersion() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 69)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 70)
     #expect(try sqliteColumnNames(in: "video_files", databaseURL: databaseURL).contains("hdr_metadata"))
     #expect(try sqliteIndexExists("idx_subtitle_cue_lines_subtitle_file", databaseURL: databaseURL))
     #expect(try !sqliteTableExists("ass_render_segments", databaseURL: databaseURL))
@@ -1355,7 +1355,7 @@ func migratesSchema58ByDroppingASSRenderSegmentsTable() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 69)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 70)
     #expect(try sqliteColumnNames(in: "video_files", databaseURL: databaseURL).contains("hdr_metadata"))
     #expect(try sqliteIndexExists("idx_subtitle_cue_lines_subtitle_file", databaseURL: databaseURL))
     #expect(try !sqliteTableExists("ass_render_segments", databaseURL: databaseURL))
@@ -1758,7 +1758,7 @@ func schema67UpgradesTo68WithSubtitleFileCueLineIndexAndUsesIndexForCounts() thr
 
     let bootstrapResult = try DatabaseBootstrap.prepare(at: databaseURL)
     #expect(!bootstrapResult.didCreateSchema)
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 69)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     #expect(try sqliteIndexExists("idx_subtitle_cue_lines_subtitle_file", databaseURL: databaseURL))
     #expect(try sqliteRowCount(in: "subtitle_cue_lines", databaseURL: databaseURL) == 1)
 
@@ -1801,7 +1801,7 @@ func schema68UpgradesTo69WithHDRMetadataColumnAndPendingProbe() throws {
 
     let result = try DatabaseBootstrap.prepare(at: databaseURL)
     #expect(!result.didCreateSchema)
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 69)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     let columns = try sqliteColumnNames(in: "video_files", databaseURL: databaseURL)
     #expect(columns.contains("hdr_metadata"))
     #expect(
@@ -1816,5 +1816,98 @@ func schema68UpgradesTo69WithHDRMetadataColumnAndPendingProbe() throws {
             sql: "SELECT COALESCE(hdr_metadata, '<NULL>') FROM video_files WHERE id = 1;"
         ) == "<NULL>"
     )
+}
+
+@Test
+func schema69UpgradesTo70RebuildingSingleCharacterFTSWithoutScanningMediaFiles() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexed = try IndexingDatabase(path: databaseURL)
+    try indexed.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/UnmountedDisk/Show/EP01.srt"),
+        videoFile: URL(fileURLWithPath: "/UnmountedDisk/Show/EP01.mkv"),
+        entries: [
+            SubtitleEntry(sequenceNumber: 1, startTimecode: "00:00:01,000", endTimecode: "00:00:02,000", startMilliseconds: 1_000, endMilliseconds: 2_000, text: "真的吗 我还什么都…"),
+            SubtitleEntry(sequenceNumber: 2, startTimecode: "00:00:03,000", endTimecode: "00:00:04,000", startMilliseconds: 3_000, endMilliseconds: 4_000, text: "1〜2週間くらい"),
+            SubtitleEntry(sequenceNumber: 3, startTimecode: "00:00:05,000", endTimecode: "00:00:06,000", startMilliseconds: 5_000, endMilliseconds: 6_000, text: "３万円くらいなら。"),
+            SubtitleEntry(sequenceNumber: 4, startTimecode: "00:00:07,000", endTimecode: "00:00:08,000", startMilliseconds: 7_000, endMilliseconds: 8_000, text: "ｓｕｍｉｍｉの初華"),
+            SubtitleEntry(sequenceNumber: 5, startTimecode: "00:00:09,000", endTimecode: "00:00:10,000", startMilliseconds: 9_000, endMilliseconds: 10_000, text: "睦は　Ｐａｓｔｅｌ＊Ｐａｌｅｔｔｅｓでしたっけ"),
+            SubtitleEntry(sequenceNumber: 6, startTimecode: "00:00:11,000", endTimecode: "00:00:12,000", startMilliseconds: 11_000, endMilliseconds: 12_000, text: "这首曲子是拉威尔的「Ma Mère l'Oye」"),
+            SubtitleEntry(sequenceNumber: 7, startTimecode: "00:00:13,000", endTimecode: "00:00:14,000", startMilliseconds: 13_000, endMilliseconds: 14_000, text: "ありがとう"),
+            SubtitleEntry(sequenceNumber: 8, startTimecode: "00:00:15,000", endTimecode: "00:00:16,000", startMilliseconds: 15_000, endMilliseconds: 16_000, text: "He said \"hello\" to me."),
+        ]
+    )
+    let bilingualGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:20.00",
+        endTimecode: "0:00:22.00",
+        startMilliseconds: 20_000,
+        endMilliseconds: 22_000,
+        searchContent: "我要退出CRYCHIC\nＣＲＹＣＨＩＣを辞めさせていただきますわ",
+        cueLines: [
+            testCueLine(eventIndex: 0, startMilliseconds: 20_000, endMilliseconds: 22_000, content: "我要退出CRYCHIC", displayOrder: 0),
+            testCueLine(eventIndex: 1, startMilliseconds: 20_000, endMilliseconds: 22_000, content: "ＣＲＹＣＨＩＣを辞めさせていただきますわ", displayOrder: 1),
+        ]
+    )
+    try indexed.replaceCueGroups(
+        subtitleFile: URL(fileURLWithPath: "/UnmountedDisk/Show/EP02.ass"),
+        videoFile: URL(fileURLWithPath: "/UnmountedDisk/Show/EP02.mkv"),
+        format: .ass,
+        cueGroups: [bilingualGroup]
+    )
+    let firstCueID = try #require(
+        try SearchDatabase(path: databaseURL).search("3万円").first?.entryID
+    )
+    let excerptDB = try ExcerptDatabase(path: databaseURL)
+    _ = try excerptDB.createExcerptList(name: "Default")
+    _ = try excerptDB.upsertExcerpt(cueID: firstCueID)
+
+    // Simulate legacy schema 69 FTS table (default unicode61 tokenizer and old rows).
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        DROP TABLE subtitle_cue_groups_fts;
+        CREATE VIRTUAL TABLE subtitle_cue_groups_fts USING fts5(content, cue_group_id UNINDEXED);
+        INSERT INTO subtitle_cue_groups_fts(rowid, content, cue_group_id)
+            SELECT (subtitle_file_id << 24) | ROW_NUMBER() OVER (
+                PARTITION BY subtitle_file_id ORDER BY start_ms ASC, end_ms ASC, id ASC
+            ), search_content, id
+            FROM subtitle_cue_groups;
+        PRAGMA user_version = 69;
+        """
+    )
+
+    let result = try DatabaseBootstrap.prepare(at: databaseURL)
+    #expect(!result.didCreateSchema)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 70)
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'subtitle_cue_groups_fts';"
+        )?.contains("unicode61 remove_diacritics 0 categories 'L* N* P* S* M*'") == true
+    )
+    #expect(try sqliteRowCount(in: "excerpts", databaseURL: databaseURL) == 1)
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT CAST(MIN(index_algorithm_version) AS TEXT) FROM subtitle_files;"
+        ) == "\(SubtitleCueIndexingRules.algorithmVersion)"
+    )
+
+    let search = try SearchDatabase(path: databaseURL)
+    #expect(try search.search("...").map(\.content) == ["真的吗 我还什么都…"])
+    #expect(try search.search("~").map(\.content) == ["1〜2週間くらい"])
+    #expect(try search.search("3").map(\.content) == ["３万円くらいなら。"])
+    #expect(try search.search("sumimi").map(\.content) == ["ｓｕｍｉｍｉの初華"])
+    #expect(try search.search("Pastel*Palettes").map(\.content) == ["睦は　Ｐａｓｔｅｌ＊Ｐａｌｅｔｔｅｓでしたっけ"])
+    #expect(try search.search("Mère").map(\.content) == ["这首曲子是拉威尔的「Ma Mère l'Oye」"])
+    #expect(try search.search("Mere").isEmpty)
+    #expect(try search.search("ありかとう").isEmpty)
+    #expect(try search.search("\"hello\"").map(\.content) == ["He said \"hello\" to me."])
+    #expect(try search.search("退出 辞め").isEmpty)
 }
 

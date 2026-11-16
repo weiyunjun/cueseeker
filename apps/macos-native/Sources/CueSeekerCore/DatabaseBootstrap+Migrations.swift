@@ -647,6 +647,58 @@ extension DatabaseBootstrap {
         }
     }
 
+    /// Schema 70 switches `subtitle_cue_groups_fts` to single-character
+    /// tokenization preserving diacritics and punctuation (`L* N* P* S* M*`),
+    /// rebuilds FTS rows from existing `subtitle_cue_groups` without rescanning
+    /// subtitle files on disk, and merges the FTS segments.
+    static func migrateSchema69To70(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let hasCueGroups = try !columnNames(of: "subtitle_cue_groups", in: database).isEmpty
+            if hasCueGroups {
+                try database.execute("DROP TABLE IF EXISTS subtitle_cue_groups_fts;")
+                try database.execute(subtitleCueGroupsFTSTableSQL)
+                try SearchFTSRows.rebuild(on: database)
+                try database.execute(
+                    "INSERT INTO subtitle_cue_groups_fts(subtitle_cue_groups_fts) VALUES('optimize');"
+                )
+            } else {
+                let hasFTS = try !columnNames(of: "subtitle_cue_groups_fts", in: database).isEmpty
+                var preservedRows: [(rowID: Int64, content: String, cueGroupID: Int64)] = []
+                if hasFTS {
+                    let statement = try database.prepare(
+                        "SELECT rowid, content, cue_group_id FROM subtitle_cue_groups_fts;"
+                    )
+                    while try statement.step() {
+                        preservedRows.append((
+                            rowID: statement.int64Column(0),
+                            content: statement.stringColumn(1),
+                            cueGroupID: statement.int64Column(2)
+                        ))
+                    }
+                }
+                try database.execute("DROP TABLE IF EXISTS subtitle_cue_groups_fts;")
+                try database.execute(subtitleCueGroupsFTSTableSQL)
+                if !preservedRows.isEmpty {
+                    let insert = try database.prepare(
+                        """
+                        INSERT INTO subtitle_cue_groups_fts(rowid, content, cue_group_id)
+                        VALUES (?, ?, ?);
+                        """
+                    )
+                    for row in preservedRows {
+                        try insert.bind(row.rowID, at: 1)
+                        try insert.bind(SearchQueryPlanner.segmentForFTS(row.content), at: 2)
+                        try insert.bind(row.cueGroupID, at: 3)
+                        try insert.run()
+                        try insert.reset()
+                        try insert.clearBindings()
+                    }
+                }
+            }
+            try database.execute("PRAGMA user_version = 70;")
+        }
+    }
+
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(

@@ -1532,3 +1532,24 @@ func playedExcerptListKeepsRecentPlayedTimestampAndDoesNotAutoRestoreCueAnchorOn
     #expect(summariesAfterRestore[0].list.recentCueID == nil)
     #expect(summariesAfterRestore[0].list.recentPlayedAt == expectedPlayedAtString)
 }
+
+@Test
+func overviewAndExcerptMatchersFollowUnifiedNormalizationAndLiteralSubstringRules() {
+    // Overview title matcher (shared by Library & Excerpt list overviews, #67)
+    #expect(OverviewNameSearchMatcher.matches("1〜2週間", query: "～"))
+    #expect(OverviewNameSearchMatcher.matches("本当に…", query: "..."))
+    #expect(OverviewNameSearchMatcher.matches("居中⋯", query: "..."))
+    #expect(OverviewNameSearchMatcher.matches("ｓｕｍｉｍｉ　初華", query: "sumimi 初華"))
+    #expect(OverviewNameSearchMatcher.matches("①番目", query: "1"))
+    #expect(!OverviewNameSearchMatcher.matches("ありがとう", query: "ありかとう"))
+    #expect(!OverviewNameSearchMatcher.matches("Ma Mère l'Oye", query: "Mere"))
+    #expect(!OverviewNameSearchMatcher.matches("alpha middle beta", query: "alpha beta"))
+    #expect(OverviewNameSearchMatcher.matches("Anything", query: "  \u{3000} "))
+
+    // Excerpt table matcher (#66)
+    #expect(SubtitleSearchQueryMatcher.matches("睦は　Ｐａｓｔｅｌ＊Ｐａｌｅｔｔｅｓでしたっけ", query: "Pastel*Palettes"))
+    #expect(SubtitleSearchQueryMatcher.matches("他说“二楼的楼震太剧烈了”", query: "\"二楼"))
+    #expect(!SubtitleSearchQueryMatcher.matches("「家賃一万円アップするぞ」", query: "\"家賃"))
+    #expect(!SubtitleSearchQueryMatcher.matches("ありがとう", query: "ありかとう"))
+    #expect(!SubtitleSearchQueryMatcher.matches("lässt", query: "lasst"))
+}

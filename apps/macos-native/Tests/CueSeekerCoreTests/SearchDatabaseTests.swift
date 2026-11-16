@@ -1182,16 +1182,16 @@ func ftsVocabularyDiagnosticsReportsTopAndQueryTerms() throws {
     let diagnostics = try SearchDatabase(path: database.path, access: .readWrite)
         .ftsVocabularyDiagnostics(for: "shared alpha", topTermLimit: 2)
 
-    #expect(diagnostics.uniqueTermCount >= 3)
-    #expect(diagnostics.totalOccurrences >= 6)
-    #expect(diagnostics.totalDocumentReferences >= 4)
+    #expect(diagnostics.uniqueTermCount >= 10)
+    #expect(diagnostics.totalOccurrences >= 25)
+    #expect(diagnostics.totalDocumentReferences >= 14)
     #expect(diagnostics.mostFrequentTerms.count == 2)
-    #expect(diagnostics.mostFrequentTerms.first?.term == "alpha")
-    #expect(diagnostics.mostFrequentTerms.first?.documentCount == 1)
-    #expect(diagnostics.mostFrequentTerms.first?.occurrenceCount == 3)
-    #expect(diagnostics.queryTerms.map(\.term) == ["shared", "alpha"])
-    #expect(diagnostics.queryTerms.map(\.documentCount) == [2, 1])
-    #expect(diagnostics.queryTerms.map(\.occurrenceCount) == [2, 3])
+    #expect(diagnostics.mostFrequentTerms.first?.term == "a")
+    #expect(diagnostics.mostFrequentTerms.first?.documentCount == 2)
+    #expect(diagnostics.mostFrequentTerms.first?.occurrenceCount == 9)
+    #expect(diagnostics.queryTerms.map(\.term) == ["s", "h", "a", "r", "e", "d", "l", "p"])
+    #expect(diagnostics.queryTerms.map(\.documentCount) == [2, 2, 2, 2, 2, 2, 1, 1])
+    #expect(diagnostics.queryTerms.map(\.occurrenceCount) == [2, 5, 9, 2, 3, 2, 3, 3])
 }
 
 @Test
@@ -1507,7 +1507,7 @@ func emptySearchQueryReturnsNoResults() throws {
 }
 
 @Test
-func searchNormalizesFTSQuerySyntaxCharacters() throws {
+func searchTreatsQuotesColonAndPunctuationAsLiteralCharacters() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         removeTemporaryDatabase(at: databaseURL)
@@ -1529,20 +1529,27 @@ func searchNormalizesFTSQuerySyntaxCharacters() throws {
                 endTimecode: "00:00:03,000",
                 startMilliseconds: 1_000,
                 endMilliseconds: 3_000,
+                text: "He said \"hello\" to spider-man again."
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:04,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 4_000,
+                endMilliseconds: 6_000,
                 text: "He said hello to spider-man again."
             )
         ]
     )
 
-    let results = try SearchDatabase(path: database.path).search(#""hello": spider-man"#)
-
-    #expect(results.count == 1)
-    #expect(results[0].content == "He said hello to spider-man again.")
+    let quotedResults = try SearchDatabase(path: database.path).search(#""hello""#)
+    #expect(quotedResults.map(\.content) == ["He said \"hello\" to spider-man again."])
+    #expect(try SearchDatabase(path: database.path).search(#""hello": spider-man"#).isEmpty)
     #expect(try SearchDatabase(path: database.path).search(":::").isEmpty)
 }
 
 @Test
-func searchUsesFlutterLikeSingleTokenPrefixMatching() throws {
+func searchMatchesSubstringsInsideWordsRegardlessOfPosition() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         removeTemporaryDatabase(at: databaseURL)
@@ -1566,14 +1573,14 @@ func searchUsesFlutterLikeSingleTokenPrefixMatching() throws {
         ]
     )
 
-    let results = try SearchDatabase(path: database.path).search("spi")
-
-    #expect(results.count == 1)
-    #expect(results[0].content == "Spider-man returns.")
+    #expect(try SearchDatabase(path: database.path).search("spi").map(\.content) == ["Spider-man returns."])
+    #expect(try SearchDatabase(path: database.path).search("man").map(\.content) == ["Spider-man returns."])
+    #expect(try SearchDatabase(path: database.path).search("ider").map(\.content) == ["Spider-man returns."])
+    #expect(try SearchDatabase(path: database.path).search("spiderman").isEmpty)
 }
 
 @Test
-func searchFiltersMultipleLatinTokensByWholeTokenOrder() throws {
+func searchRequiresContiguousSpaceSeparatedLatinSubstrings() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         removeTemporaryDatabase(at: databaseURL)
@@ -1615,7 +1622,7 @@ func searchFiltersMultipleLatinTokensByWholeTokenOrder() throws {
 
     let results = try SearchDatabase(path: database.path).search("alpha beta")
 
-    #expect(results.map(\.content) == ["alpha beta gamma", "alpha middle beta"])
+    #expect(results.map(\.content) == ["alpha beta gamma"])
 }
 
 @Test
@@ -1734,7 +1741,7 @@ func searchTreatsASCIIAndIdeographicSpacesAsEquivalent() throws {
 }
 
 @Test
-func invalidExplicitFTSQueryReturnsNoResults() throws {
+func trailingOperatorKeywordIsSearchedLiterallyWithoutFTSSyntaxError() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         removeTemporaryDatabase(at: databaseURL)
@@ -1744,8 +1751,8 @@ func invalidExplicitFTSQueryReturnsNoResults() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
-        subtitleFile: URL(fileURLWithPath: "/Media/InvalidSyntax.srt"),
-        videoFile: URL(fileURLWithPath: "/Media/InvalidSyntax.mkv"),
+        subtitleFile: URL(fileURLWithPath: "/Media/LiteralOperators.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/LiteralOperators.mkv"),
         entries: [
             SubtitleEntry(
                 sequenceNumber: 1,
@@ -1754,11 +1761,20 @@ func invalidExplicitFTSQueryReturnsNoResults() throws {
                 startMilliseconds: 1_000,
                 endMilliseconds: 3_000,
                 text: "hello syntax"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:04,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 4_000,
+                endMilliseconds: 6_000,
+                text: "hello AND world"
             )
         ]
     )
 
-    #expect(try SearchDatabase(path: database.path).search("hello AND").isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("hello AND").map(\.content) == ["hello AND world"])
+    #expect(try SearchDatabase(path: database.path).search("hello OR").isEmpty)
 }
 
 @Test
@@ -2021,11 +2037,12 @@ func searchKeepsOneCueWithSourceLineBreaksAsOneResult() throws {
         ]
     )
 
-    let results = try SearchDatabase(path: database.path).search("shared first second")
+    let results = try SearchDatabase(path: database.path).search("shared first line shared second")
     #expect(results.count == 1)
     #expect(results[0].content == content)
     #expect(results[0].cueLines == [content])
     #expect(results[0].cueGroupLines == [content])
+    #expect(try SearchDatabase(path: database.path).search("shared first second").isEmpty)
 }
 
 @Test
@@ -2698,5 +2715,187 @@ func searchDefaultOrderAlignsWithLibraryFolderNaturalOrderVideoOrderAndSubtitleP
         "match s2-e10",
         "match s10-e1"
     ])
+}
+
+@Test
+func unifiedLiteralSubstringSearchAndNormalizationMatrixPassesAllCases() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    let lines: [String] = [
+        "...",
+        "真的吗 我还什么都…",
+        "Amoris的真身 就是那个喵...",
+        "她是 Gli*Gre……",
+        "♪～",
+        "1〜2週間くらい",
+        "！",
+        "３万円くらいなら。",
+        "ｓｕｍｉｍｉの初華",
+        "ｱｲ･ﾜｽﾞ･ｻﾞ･ｽﾁｭｰﾃﾞﾝﾄ",
+        "「家賃一万円アップするぞ」",
+        "①番目",
+        "x² + y²",
+        "第Ⅱ章",
+        "堂々としてる",
+        "不可能に挑むあなたの姿が人々の気持ちを動かすのです",
+        "〇〇キロ　増えたんだろ",
+        "ありがとう",
+        "やっぱり",
+        "ありがとうございます",
+        "一級試験",
+        "也能让诸位沉浸在Ave Mujica的世界当中",
+        "招新QQ群：979092314",
+        "Don't be afraid 冲向前",
+        "I don’t know",
+        "这首曲子是拉威尔的「Ma Mère l'Oye」",
+        "只要对着它喊lässt并注入所有的魔力  就会发动",
+        "前往β世界线",
+        "Ave Mujicaの世界に迷い込んでいただけましたら",
+        "年会費は1万円",
+        "magic circle",
+        "She was there.",
+        "Spider-man returns.",
+        "20万円？",
+        "1,000年の眠りから…",
+        "回到后台前请不要摘下面具",
+        "同じ事務所とはいえ　ｓｕｍｉｍｉと並行しての活動は大変ですわよね",
+        "alpha middle beta",
+        "beta then alpha",
+        "回到后台前请不要摘下面具 毕竟不知道会不会有人在窥视",
+        "中文字幕由 萌樱字幕组 翻译制作\n仅供个人学习参考 不得商用",
+        "モーティスは少々　人見知りでして",
+        "睦喜欢Pastel*Palettes的歌对吧",
+        "睦は　Ｐａｓｔｅｌ＊Ｐａｌｅｔｔｅｓでしたっけ",
+        "关西人果然还是煎菜饼 AND 米饭",
+        "DO NOT GO",
+        "He said \"hello\" to me.",
+        "He said hello to me.",
+        "大丈夫だよ",
+        "他说“二楼的楼震太剧烈了”",
+        "居中⋯省略",
+    ]
+    let entries = lines.enumerated().map { index, line in
+        SubtitleEntry(
+            sequenceNumber: index + 1,
+            startTimecode: String(format: "00:%02d:%02d,000", index / 60, index % 60),
+            endTimecode: String(format: "00:%02d:%02d,500", index / 60, index % 60),
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: line
+        )
+    }
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Matrix.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Matrix.mkv"),
+        entries: entries
+    )
+
+    // #58 bilingual ASS cue group
+    try database.replaceCueGroups(
+        subtitleFile: URL(fileURLWithPath: "/Media/Bilingual58.ass"),
+        videoFile: URL(fileURLWithPath: "/Media/Bilingual58.mkv"),
+        format: .ass,
+        cueGroups: [
+            SubtitleCueGroup(
+                sequenceNumber: nil,
+                startTimecode: "0:00:01.00",
+                endTimecode: "0:00:02.00",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                searchContent: "我要退出CRYCHIC\nＣＲＹＣＨＩＣを辞めさせていただきますわ",
+                cueLines: [
+                    testCueLine(eventIndex: 0, startMilliseconds: 1_000, endMilliseconds: 2_000, content: "我要退出CRYCHIC", displayOrder: 0),
+                    testCueLine(eventIndex: 1, startMilliseconds: 1_000, endMilliseconds: 2_000, content: "ＣＲＹＣＨＩＣを辞めさせていただきますわ", displayOrder: 1),
+                ]
+            )
+        ]
+    )
+
+    let search = try SearchDatabase(path: databaseURL)
+    func hits(_ query: String) throws -> Set<String> {
+        let page = try search.searchPage(query, limit: 100)
+        let count = try search.searchResultCount(query)
+        let visible = try search.searchVisiblePage(query, limit: 100, cursor: .start)
+        #expect(page.totalCount == count)
+        #expect(visible.results.map(\.entryID) == page.results.map(\.entryID))
+        return Set(page.results.map(\.content))
+    }
+
+    // #01-#04 ellipsis
+    #expect(try hits("...").isSuperset(of: ["...", "真的吗 我还什么都…", "Amoris的真身 就是那个喵...", "她是 Gli*Gre……", "1,000年の眠りから…", "居中⋯省略"]))
+    #expect(try hits("…").isSuperset(of: ["...", "真的吗 我还什么都…", "Amoris的真身 就是那个喵...", "她是 Gli*Gre……", "居中⋯省略"]))
+    // #05-#08 symbols and tilde
+    #expect(try hits("♪") == ["♪～"])
+    #expect(try hits("~") == ["♪～", "1〜2週間くらい"])
+    #expect(try hits("～") == ["♪～", "1〜2週間くらい"])
+    #expect(try hits("!") == ["！"])
+    // #09-#21 width, kana, circled/superscript/roman, iteration & zero marks
+    #expect(try hits("3") == ["３万円くらいなら。", "招新QQ群：979092314"])
+    #expect(try hits("３") == ["３万円くらいなら。", "招新QQ群：979092314"])
+    #expect(try hits("3万円") == ["３万円くらいなら。"])
+    #expect(try hits("sumimi").isSuperset(of: ["ｓｕｍｉｍｉの初華", "同じ事務所とはいえ　ｓｕｍｉｍｉと並行しての活動は大変ですわよね"]))
+    #expect(try hits("ｓｕｍｉｍｉ").isSuperset(of: ["ｓｕｍｉｍｉの初華", "同じ事務所とはいえ　ｓｕｍｉｍｉと並行しての活動は大変ですわよね"]))
+    #expect(try hits("スチューデント") == ["ｱｲ･ﾜｽﾞ･ｻﾞ･ｽﾁｭｰﾃﾞﾝﾄ"])
+    #expect(try hits("｢家賃") == ["「家賃一万円アップするぞ」"])
+    #expect(try hits("1").contains("①番目"))
+    #expect(try hits("x2") == ["x² + y²"])
+    #expect(try hits("II") == ["第Ⅱ章"])
+    #expect(try hits("堂々") == ["堂々としてる"])
+    #expect(try hits("人々") == ["不可能に挑むあなたの姿が人々の気持ちを動かすのです"])
+    #expect(try hits("〇〇") == ["〇〇キロ　増えたんだろ"])
+    // #22-#25 strict Japanese/Chinese distinctions
+    #expect(try hits("ありかとう").isEmpty)
+    #expect(try hits("やつはり").isEmpty)
+    #expect(try hits("アリガトウ").isEmpty)
+    #expect(try hits("一级试验").isEmpty)
+    // #26-#38 mixed case, apostrophe, accents, Greek, CJK-Latin boundaries
+    #expect(try hits("ave mujica的世界") == ["也能让诸位沉浸在Ave Mujica的世界当中"])
+    #expect(try hits("qq群") == ["招新QQ群：979092314"])
+    #expect(try hits("don't") == ["Don't be afraid 冲向前", "I don’t know"])
+    #expect(try hits("dont").isEmpty)
+    #expect(try hits("Mère") == ["这首曲子是拉威尔的「Ma Mère l'Oye」"])
+    #expect(try hits("Mere").isEmpty)
+    #expect(try hits("lasst").isEmpty)
+    #expect(try hits("β") == ["前往β世界线"])
+    #expect(try hits("Ave Mujica").isSuperset(of: ["也能让诸位沉浸在Ave Mujica的世界当中", "Ave Mujicaの世界に迷い込んでいただけましたら"]))
+    #expect(try hits("の世界") == ["Ave Mujicaの世界に迷い込んでいただけましたら"])
+    #expect(try hits("万円").isSuperset(of: ["３万円くらいなら。", "年会費は1万円", "20万円？"]))
+    #expect(try hits("世界线") == ["前往β世界线"])
+    // #39-#58 literal substring & space rules
+    #expect(try hits("mag") == ["magic circle"])
+    #expect(try hits("ave muj").isSuperset(of: ["也能让诸位沉浸在Ave Mujica的世界当中", "Ave Mujicaの世界に迷い込んでいただけましたら"]))
+    #expect(try hits("mag cir").isEmpty)
+    #expect(try hits("he").isSuperset(of: ["She was there.", "He said \"hello\" to me.", "He said hello to me."]))
+    #expect(try hits("moris") == ["Amoris的真身 就是那个喵..."])
+    #expect(try hits("man") == ["Spider-man returns."])
+    #expect(try hits("spiderman").isEmpty)
+    #expect(try hits("2").contains("20万円？"))
+    #expect(try hits("092") == ["招新QQ群：979092314"])
+    #expect(try hits("1000").isEmpty)
+    #expect(try hits("后面").isEmpty)
+    #expect(try hits("后台 面具").isEmpty)
+    #expect(try hits("面具 后台").isEmpty)
+    #expect(try hits("sumimi 事務所").isEmpty)
+    #expect(try hits("alpha beta").isEmpty)
+    #expect(try hits("摘下面具 毕竟不知道") == ["回到后台前请不要摘下面具 毕竟不知道会不会有人在窥视"])
+    #expect(try hits("翻译制作 仅供个人学习参考") == ["中文字幕由 萌樱字幕组 翻译制作\n仅供个人学习参考 不得商用"])
+    #expect(try hits("少々人見知り").isEmpty)
+    #expect(try hits("退出 辞め").isEmpty)
+    // #59-#65, #68-#71 operators, asterisks, quotes, whitespace collapsing
+    #expect(try hits("Pastel*Palettes") == ["睦喜欢Pastel*Palettes的歌对吧", "睦は　Ｐａｓｔｅｌ＊Ｐａｌｅｔｔｅｓでしたっけ"])
+    #expect(try hits("煎菜饼 AND 米饭") == ["关西人果然还是煎菜饼 AND 米饭"])
+    #expect(try hits("煎菜饼 米饭").isEmpty)
+    #expect(try hits("DO NOT GO") == ["DO NOT GO"])
+    #expect(try hits("\"hello\"") == ["He said \"hello\" to me."])
+    #expect(try hits("  大丈夫  ") == ["大丈夫だよ"])
+    #expect(try hits("魔力 就会发动") == ["只要对着它喊lässt并注入所有的魔力  就会发动"])
+    #expect(try hits("\"二楼") == ["他说“二楼的楼震太剧烈了”"])
+    #expect(try hits("\"家賃").isEmpty)
 }
 

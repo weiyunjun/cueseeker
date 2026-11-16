@@ -155,3 +155,47 @@ func filterSetUsesSecondRuleJoinAsSetJoin() {
     #expect(orFilterSet.matches(display: "MyGO", cues: "大丈夫", languages: []))
     #expect(!orFilterSet.matches(display: "MyGO", cues: "別の台詞", languages: []))
 }
+
+@Test
+func filterSetAppliesUnifiedCharacterNormalizationAndCacheSignatures() {
+    let tildeContains = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(field: .display, operatorID: .contains, value: "  ~  ")
+    ])
+    #expect(tildeContains.matches(display: "1〜2週間", cues: "", languages: []))
+    #expect(tildeContains.matches(display: "♪～", cues: "", languages: []))
+
+    let ellipsisContains = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(field: .cues, operatorID: .contains, value: "...")
+    ])
+    #expect(ellipsisContains.matches(display: "", cues: "真的吗…", languages: []))
+    #expect(ellipsisContains.matches(display: "", cues: "居中⋯省略", languages: []))
+
+    let strictKanaAndAccents = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(field: .cues, operatorID: .contains, value: "ありかとう")
+    ])
+    #expect(!strictKanaAndAccents.matches(display: "", cues: "ありがとう", languages: []))
+
+    let accentMismatch = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(field: .cues, operatorID: .contains, value: "Mere")
+    ])
+    #expect(!accentMismatch.matches(display: "", cues: "Ma Mère l'Oye", languages: []))
+
+    let isRule = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(field: .display, operatorID: .is, value: "  Ｓｕｍｉｍｉ　初華  ")
+    ])
+    #expect(isRule.matches(display: "sumimi 初華", cues: "", languages: []))
+    #expect(!isRule.matches(display: "sumimi", cues: "", languages: []))
+
+    let isNotRule = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(field: .display, operatorID: .isNot, value: "ありかとう")
+    ])
+    #expect(isNotRule.matches(display: "ありがとう", cues: "", languages: []))
+
+    let ruleA = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(field: .cues, operatorID: .contains, value: "  Ｐａｓｔｅｌ＊Ｐａｌｅｔｔｅｓ 〜 … ‘a’ “b”  ")
+    ])
+    let ruleB = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(field: .cues, operatorID: .contains, value: "pastel*palettes ~ ... 'a' \"b\"")
+    ])
+    #expect(ruleA.cacheSignature == ruleB.cacheSignature)
+}

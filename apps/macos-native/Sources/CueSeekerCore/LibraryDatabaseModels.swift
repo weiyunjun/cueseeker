@@ -718,14 +718,11 @@ public struct CompleteLibraryFolderSummaryPresentation: Equatable, Sendable, Ide
 
 public enum OverviewNameSearchMatcher {
     public static func matches(_ candidate: String, query: String) -> Bool {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty else {
+        let normalizedQuery = SearchQueryPlanner.normalizeQuery(query)
+        guard !normalizedQuery.isEmpty else {
             return true
         }
-        return candidate.precomposedStringWithCanonicalMapping.range(
-            of: trimmedQuery.precomposedStringWithCanonicalMapping,
-            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
-        ) != nil
+        return SearchQueryPlanner.matchesNormalized(candidate, normalizedQuery: normalizedQuery)
     }
 }
 

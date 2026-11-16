@@ -91,7 +91,7 @@ public struct SubtitleSearchFilterRule: Codable, Equatable, Hashable, Sendable {
     fileprivate var signatureValue: String {
         switch field.dataType {
         case .string, .stringSet:
-            return value.lowercased()
+            return SearchQueryPlanner.normalizeQuery(value)
         case .number:
             return value
         }
@@ -109,15 +109,18 @@ public struct SubtitleSearchFilterRule: Codable, Equatable, Hashable, Sendable {
     }
 
     private func matchesString(_ candidate: String) -> Bool {
+        let normalizedValue = SearchQueryPlanner.normalizeQuery(value)
         switch operatorID {
         case .is:
-            return candidate.compare(value, options: [.caseInsensitive]) == .orderedSame
+            return SearchQueryPlanner.normalizeQuery(candidate) == normalizedValue
         case .isNot:
-            return candidate.compare(value, options: [.caseInsensitive]) != .orderedSame
+            return SearchQueryPlanner.normalizeQuery(candidate) != normalizedValue
         case .contains:
-            return candidate.range(of: value, options: [.caseInsensitive]) != nil
+            return !normalizedValue.isEmpty
+                && SearchQueryPlanner.matchesNormalized(candidate, normalizedQuery: normalizedValue)
         case .doesNotContain:
-            return candidate.range(of: value, options: [.caseInsensitive]) == nil
+            return normalizedValue.isEmpty
+                || !SearchQueryPlanner.matchesNormalized(candidate, normalizedQuery: normalizedValue)
         case .isEmpty:
             return candidate.isEmpty
         case .isNotEmpty:
@@ -133,11 +136,16 @@ public struct SubtitleSearchFilterRule: Codable, Equatable, Hashable, Sendable {
     }
 
     private func matchesStringSet(_ candidates: [String]) -> Bool {
+        let normalizedValue = SearchQueryPlanner.normalizeQuery(value)
         switch operatorID {
         case .contains:
-            return candidates.contains { $0.range(of: value, options: [.caseInsensitive]) != nil }
+            return !normalizedValue.isEmpty && candidates.contains {
+                SearchQueryPlanner.matchesNormalized($0, normalizedQuery: normalizedValue)
+            }
         case .doesNotContain:
-            return !candidates.contains { $0.range(of: value, options: [.caseInsensitive]) != nil }
+            return normalizedValue.isEmpty || !candidates.contains {
+                SearchQueryPlanner.matchesNormalized($0, normalizedQuery: normalizedValue)
+            }
         case .isEmpty:
             return candidates.isEmpty
         case .isNotEmpty:
