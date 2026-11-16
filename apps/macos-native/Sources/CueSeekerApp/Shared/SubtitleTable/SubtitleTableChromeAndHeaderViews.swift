@@ -1185,25 +1185,100 @@ struct SubtitleTableHeaderCellView: View {
     var alignment: Alignment = .leading
 
     var body: some View {
-        Group {
-            if alignment == .center {
-                Text(title)
-                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
-                    .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            } else {
-                HStack(spacing: 0) {
-                    Text(title)
-                        .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
-                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
-                        .lineLimit(1)
-                        .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
-                        .frame(maxHeight: .infinity, alignment: .center)
-                    Spacer(minLength: 0)
-                }
-            }
+        SubtitleTableHeaderTextRepresentable(
+            title: title,
+            isEnabled: isEnabled,
+            alignment: alignment
+        )
+        .frame(width: columnRect.width, height: columnRect.height)
+        .accessibilityLabel(title)
+    }
+}
+
+private struct SubtitleTableHeaderTextRepresentable: NSViewRepresentable {
+    let title: String
+    let isEnabled: Bool
+    let alignment: Alignment
+
+    func makeNSView(context _: Context) -> SubtitleTableHeaderTextNSView {
+        let view = SubtitleTableHeaderTextNSView()
+        update(view)
+        return view
+    }
+
+    func updateNSView(_ nsView: SubtitleTableHeaderTextNSView, context _: Context) {
+        update(nsView)
+    }
+
+    private func update(_ view: SubtitleTableHeaderTextNSView) {
+        view.configure(
+            title: title,
+            isEnabled: isEnabled,
+            alignment: alignment
+        )
+    }
+}
+
+@MainActor
+private final class SubtitleTableHeaderTextNSView: NSView {
+    private let textLayout = SubtitleTextLayout(maximumNumberOfLines: 1)
+    private var title: String = ""
+    private var isEnabled: Bool = true
+    private var alignment: Alignment = .leading
+
+    override var isFlipped: Bool { true }
+    override var isOpaque: Bool { false }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    func configure(title: String, isEnabled: Bool, alignment: Alignment) {
+        guard self.title != title
+                || self.isEnabled != isEnabled
+                || self.alignment != alignment
+        else {
+            return
         }
-        .frame(width: columnRect.width, height: columnRect.height, alignment: .center)
+        self.title = title
+        self.isEnabled = isEnabled
+        self.alignment = alignment
+        needsDisplay = true
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        let oldSize = frame.size
+        super.setFrameSize(newSize)
+        if oldSize != newSize {
+            needsDisplay = true
+        }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard !title.isEmpty, bounds.width > 0, bounds.height > 0 else { return }
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            let horizontalPadding = alignment == .center
+                ? 0
+                : WorkbenchControlMetrics.redesignPaddingHeaderTriggerX
+            let width = max(1, bounds.width - 2 * horizontalPadding)
+            let nsAlignment: NSTextAlignment = alignment == .center ? .center : .left
+            let attributed = SubtitleTableText.header(
+                title,
+                isEnabled: isEnabled,
+                alignment: nsAlignment
+            )
+            textLayout.update(attributedString: attributed, width: width)
+            let centerYOffset = textLayout.firstLineCenterYOffset ?? (textLayout.usedHeight / 2)
+            let origin = CGPoint(
+                x: bounds.minX + horizontalPadding,
+                y: max(bounds.minY, bounds.midY - centerYOffset)
+            )
+            textLayout.draw(at: origin)
+        }
     }
 }

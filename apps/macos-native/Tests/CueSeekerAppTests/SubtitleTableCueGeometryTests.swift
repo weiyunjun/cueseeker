@@ -204,8 +204,11 @@ func subtitleCueTypographyVisuallyCentersGlyphsInsideFixedLineHeights() throws {
             forUTF16Range: NSRange(location: 0, length: attributed.length),
             at: .zero
         )
+        let expectedSelectionHeight = ReadOnlyTextSelectionMetrics
+            .verticalBounds(baselineY: 0, fontSize: style.fontSize)
+            .height
         #expect(selectionRects.count == 1)
-        #expect(selectionRects.first?.height == style.lineHeight)
+        #expect(abs((selectionRects.first?.height ?? 0) - expectedSelectionHeight) < 0.001)
     }
 }
 

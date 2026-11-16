@@ -537,18 +537,16 @@ extension SubtitleTableView.Coordinator {
             let size = attributed.size()
             let leading = WorkbenchControlMetrics.redesignPaddingHeaderTriggerX
             let width = max(1, cellRect.width - 2 * leading)
-            textLayout.update(attributedString: attributed, width: width)
-            let lineHeight = textLayout.usedHeight
-            let centerYOffset = textLayout.firstLineCenterYOffset ?? (lineHeight / 2)
+            textLayout.update(
+                attributedString: attributed,
+                width: width,
+                maximumNumberOfLines: 1
+            )
+            let centerYOffset = textLayout.firstLineCenterYOffset ?? (textLayout.usedHeight / 2)
             let origin = CGPoint(
                 x: cellRect.minX + leading,
                 y: max(cellRect.minY, cellRect.midY - centerYOffset)
             )
-            let clipHeight = min(
-                cellRect.height,
-                max(lineHeight, SubtitleTableText.cellLineHeight) + 6
-            )
-            let clipY = cellRect.minY + max(0, (cellRect.height - clipHeight) / 2)
             return HeaderTextFragmentLayout(
                 columnID: columnID,
                 columnIndex: columnIndex,
@@ -559,14 +557,15 @@ extension SubtitleTableView.Coordinator {
                     width: width,
                     clipRect: CGRect(
                         x: origin.x,
-                        y: clipY,
+                        y: cellRect.minY,
                         width: max(0, min(size.width, cellRect.maxX - leading - origin.x)),
-                        height: clipHeight
+                        height: cellRect.height
                     ),
                     logicalUTF16Range: NSRange(
                         location: 0,
                         length: (title as NSString).length
-                    )
+                    ),
+                    maximumNumberOfLines: 1
                 )
             )
         }
@@ -592,7 +591,8 @@ extension SubtitleTableView.Coordinator {
                 guard item.fragment.clipRect.contains(point) else { return false }
                 textLayout.update(
                     attributedString: item.fragment.attributed,
-                    width: item.fragment.width
+                    width: item.fragment.width,
+                    maximumNumberOfLines: item.fragment.maximumNumberOfLines
                 )
                 return textLayout.containsText(at: point, origin: item.fragment.origin)
             }
@@ -628,7 +628,8 @@ extension SubtitleTableView.Coordinator {
         }
         textLayout.update(
             attributedString: candidate.fragment.attributed,
-            width: candidate.fragment.width
+            width: candidate.fragment.width,
+            maximumNumberOfLines: candidate.fragment.maximumNumberOfLines
         )
         return SubtitleTableTextPosition(
             row: .header,
@@ -659,13 +660,13 @@ extension SubtitleTableView.Coordinator {
             NSBezierPath.clip(item.fragment.clipRect)
             textLayout.update(
                 attributedString: item.fragment.attributed,
-                width: item.fragment.width
+                width: item.fragment.width,
+                maximumNumberOfLines: item.fragment.maximumNumberOfLines
             )
             drawSelectionBackground(
                 selectedRange,
                 with: textLayout,
-                at: item.fragment.origin,
-                targetLineHeight: SubtitleTableText.cellLineHeight
+                at: item.fragment.origin
             )
             NSGraphicsContext.restoreGraphicsState()
         }
@@ -1295,7 +1296,11 @@ extension SubtitleTableView.Coordinator {
     }
 
     func textBounds(for fragment: SubtitleTableTextFragmentLayout) -> CGRect {
-        textLayout.update(attributedString: fragment.attributed, width: fragment.width)
+        textLayout.update(
+            attributedString: fragment.attributed,
+            width: fragment.width,
+            maximumNumberOfLines: fragment.maximumNumberOfLines
+        )
         return (textLayout.unionUsedRect(at: fragment.origin) ?? CGRect(origin: fragment.origin, size: .zero))
             .intersection(fragment.clipRect)
     }
@@ -1437,7 +1442,8 @@ extension SubtitleTableView.Coordinator {
             guard item.fragment.clipRect.contains(point) else { return false }
             textLayout.update(
                 attributedString: item.fragment.attributed,
-                width: item.fragment.width
+                width: item.fragment.width,
+                maximumNumberOfLines: item.fragment.maximumNumberOfLines
             )
             return textLayout.containsText(at: point, origin: item.fragment.origin)
         }) else {
@@ -1445,7 +1451,8 @@ extension SubtitleTableView.Coordinator {
         }
         textLayout.update(
             attributedString: item.fragment.attributed,
-            width: item.fragment.width
+            width: item.fragment.width,
+            maximumNumberOfLines: item.fragment.maximumNumberOfLines
         )
         if clickCount >= 3 {
             let fullLength = item.fragment.logicalUTF16Range.length

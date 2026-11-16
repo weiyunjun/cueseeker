@@ -353,15 +353,13 @@ extension SubtitleTableView.Coordinator {
     func drawSelectionBackground(
         _ range: NSRange?,
         with layout: SubtitleTextLayout,
-        at origin: CGPoint,
-        targetLineHeight: CGFloat? = nil
+        at origin: CGPoint
     ) {
         guard let range, range.length > 0 else { return }
         NSColor.selectedTextBackgroundColor.setFill()
         for rect in layout.selectionRects(
             forUTF16Range: range,
-            at: origin,
-            targetLineHeight: targetLineHeight
+            at: origin
         ) {
             rect.fill()
         }
@@ -825,15 +823,6 @@ extension SubtitleTableView.Coordinator {
             path.fill()
         }
 
-        if selectedRange == nil {
-            for item in laidOutTags {
-                attributedTagText(item.attributed, isMuted: isMuted)
-                    .draw(in: tagTextRect(for: item, tagStyle: tagStyle))
-            }
-            NSGraphicsContext.restoreGraphicsState()
-            return
-        }
-
         for fragment in tagTextFragments(
             laidOutTags,
             tagStyle: tagStyle,
@@ -842,11 +831,13 @@ extension SubtitleTableView.Coordinator {
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath.clip(fragment.clipRect)
             textLayout.update(attributedString: fragment.attributed, width: fragment.width)
-            drawSelectionBackground(
-                localSelectionRange(selectedRange, in: fragment.logicalUTF16Range),
-                with: textLayout,
-                at: fragment.origin
-            )
+            if selectedRange != nil {
+                drawSelectionBackground(
+                    localSelectionRange(selectedRange, in: fragment.logicalUTF16Range),
+                    with: textLayout,
+                    at: fragment.origin
+                )
+            }
             textLayout.draw(at: fragment.origin)
             NSGraphicsContext.restoreGraphicsState()
         }
@@ -880,7 +871,12 @@ extension SubtitleTableView.Coordinator {
                 attributed: attributedTagText(item.attributed, isMuted: isMuted),
                 origin: textRect.origin,
                 width: textRect.width,
-                clipRect: textRect,
+                clipRect: CGRect(
+                    x: textRect.minX,
+                    y: item.tagRect.minY,
+                    width: textRect.width,
+                    height: item.tagRect.height
+                ),
                 logicalUTF16Range: NSRange(location: logicalOffset, length: length)
             )
         }

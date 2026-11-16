@@ -61,9 +61,14 @@ enum SubtitleTableText {
     static let cellLineHeight = WorkbenchControlMetrics.redesignLineHeightTableCell
 
     /// Builds a fixed line-box paragraph style with zero trailing line or paragraph spacing.
-    static func fixedLineParagraphStyle(lineHeight: CGFloat) -> NSParagraphStyle {
+    static func fixedLineParagraphStyle(
+        lineHeight: CGFloat,
+        lineBreakMode: NSLineBreakMode = .byWordWrapping,
+        alignment: NSTextAlignment = .left
+    ) -> NSParagraphStyle {
         let style = NSMutableParagraphStyle()
-        style.lineBreakMode = .byWordWrapping
+        style.lineBreakMode = lineBreakMode
+        style.alignment = alignment
         style.minimumLineHeight = lineHeight
         style.maximumLineHeight = lineHeight
         style.lineSpacing = 0
@@ -103,10 +108,22 @@ enum SubtitleTableText {
         NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
     }
 
-    static func header(_ text: String) -> NSAttributedString {
-        NSAttributedString(string: text, attributes: [
+    static func header(
+        _ text: String,
+        isEnabled: Bool = true,
+        alignment: NSTextAlignment = .left
+    ) -> NSAttributedString {
+        let color = isEnabled
+            ? WorkbenchRedesignColors.NS.textSecondary
+            : WorkbenchRedesignColors.NS.textDisabled
+        return NSAttributedString(string: text, attributes: [
             .font: redesignHeaderFont,
-            .foregroundColor: WorkbenchRedesignColors.NS.textSecondary,
+            .paragraphStyle: fixedLineParagraphStyle(
+                lineHeight: cellLineHeight,
+                lineBreakMode: .byTruncatingTail,
+                alignment: alignment
+            ),
+            .foregroundColor: color,
         ])
     }
 
@@ -164,8 +181,10 @@ final class SubtitleTextLayout {
     private let textStorage = NSTextStorage()
     private let layoutManager = NSLayoutManager()
     private let textContainer = NSTextContainer()
+    private let defaultMaximumNumberOfLines: Int
 
     init(maximumNumberOfLines: Int = 0) {
+        self.defaultMaximumNumberOfLines = maximumNumberOfLines
         textContainer.lineFragmentPadding = 0
         textContainer.maximumNumberOfLines = maximumNumberOfLines
         layoutManager.usesFontLeading = false
@@ -173,7 +192,12 @@ final class SubtitleTextLayout {
         textStorage.addLayoutManager(layoutManager)
     }
 
-    func update(attributedString: NSAttributedString, width: CGFloat) {
+    func update(
+        attributedString: NSAttributedString,
+        width: CGFloat,
+        maximumNumberOfLines: Int? = nil
+    ) {
+        textContainer.maximumNumberOfLines = maximumNumberOfLines ?? defaultMaximumNumberOfLines
         textStorage.setAttributedString(attributedString)
         textContainer.size = CGSize(width: max(0, width), height: .greatestFiniteMagnitude)
         layoutManager.ensureLayout(for: textContainer)
@@ -192,13 +216,14 @@ final class SubtitleTextLayout {
         let lineFragmentRect: CGRect
         let usedRect: CGRect
         let originalBaselineY: CGFloat
-        let fontMidYOffset: CGFloat
+        let fontSize: CGFloat
+        let metricCenterYOffset: CGFloat
         let fixedLineHeight: CGFloat?
         let lowestUnderlineOffset: CGFloat
         let deltaY: CGFloat
 
         var fontCenterYOffset: CGFloat {
-            lineFragmentRect.minY + originalBaselineY - fontMidYOffset + deltaY
+            lineFragmentRect.minY + originalBaselineY - metricCenterYOffset + deltaY
         }
     }
 
@@ -274,8 +299,7 @@ final class SubtitleTextLayout {
 
     func selectionRects(
         forUTF16Range range: NSRange,
-        at origin: CGPoint,
-        targetLineHeight: CGFloat? = nil
+        at origin: CGPoint
     ) -> [CGRect] {
         let safeRange = NSIntersectionRange(
             range,
@@ -292,30 +316,29 @@ final class SubtitleTextLayout {
         for line in lines {
             let lineSelectionRange = NSIntersectionRange(glyphRange, line.glyphRange)
             guard lineSelectionRange.length > 0 else { continue }
-            let resolvedLineHeight = targetLineHeight ?? line.fixedLineHeight
+            let baselineY = origin.y
+                + line.lineFragmentRect.minY
+                + line.originalBaselineY
+                + line.deltaY
+            let band = ReadOnlyTextSelectionMetrics.verticalBounds(
+                baselineY: baselineY,
+                fontSize: line.fontSize
+            )
             layoutManager.enumerateEnclosingRects(
                 forGlyphRange: lineSelectionRange,
                 withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
                 in: textContainer
             ) { rect, _ in
-                if let resolvedLineHeight, resolvedLineHeight > 0 {
-                    let selectionMinY = if targetLineHeight == nil, line.fixedLineHeight != nil {
-                        origin.y + line.lineFragmentRect.minY
-                    } else {
-                        origin.y + line.fontCenterYOffset - resolvedLineHeight / 2
-                    }
-                    rects.append(CGRect(
-                        x: origin.x + rect.minX,
-                        y: selectionMinY,
-                        width: rect.width,
-                        height: resolvedLineHeight
-                    ))
-                } else {
-                    rects.append(rect.offsetBy(dx: origin.x, dy: origin.y))
-                }
+                guard rect.width > 0 else { return }
+                rects.append(CGRect(
+                    x: origin.x + rect.minX,
+                    y: band.minY,
+                    width: rect.width,
+                    height: band.height
+                ))
             }
         }
-        return rects
+        return ReadOnlyTextSelectionMetrics.resolvingAdjacentLineOverlaps(rects)
     }
 
     func usedRects(at origin: CGPoint) -> [CGRect] {
@@ -418,8 +441,6 @@ final class SubtitleTextLayout {
                 }
             }
             let trimmedRange = NSRange(location: clampedStart, length: clampedEnd - clampedStart)
-            var maxAscender: CGFloat?
-            var minDescender: CGFloat?
             var maxUnderlineOffset: CGFloat?
             if trimmedRange.length > 0 {
                 let ctLine = CTLineCreateWithAttributedString(
@@ -430,8 +451,6 @@ final class SubtitleTextLayout {
                     if let runFont = (dict[kCTFontAttributeName] as? NSFont)
                         ?? (dict[NSAttributedString.Key.font] as? NSFont)
                     {
-                        maxAscender = max(maxAscender ?? runFont.ascender, runFont.ascender)
-                        minDescender = min(minDescender ?? runFont.descender, runFont.descender)
                         maxUnderlineOffset = max(
                             maxUnderlineOffset ?? -runFont.underlinePosition,
                             -runFont.underlinePosition
@@ -439,19 +458,20 @@ final class SubtitleTextLayout {
                     }
                 }
             }
-            let ascender = maxAscender ?? fallbackFont.ascender
-            let descender = minDescender ?? fallbackFont.descender
-            let fontMidYOffset = (ascender + descender) / 2
+            let fontSize = fallbackFont.pointSize
+            let metricCenterYOffset = ReadOnlyTextSelectionMetrics
+                .fixedLineHeightBaselineCenterOffset(fontSize: fontSize)
             let lowestUnderlineOffset = maxUnderlineOffset ?? -fallbackFont.underlinePosition
             let deltaY = fixedLineHeight.map {
-                ($0 / 2) - (originalBaselineY - fontMidYOffset)
+                ($0 / 2) - (originalBaselineY - metricCenterYOffset)
             } ?? 0
             return VisualLineMetrics(
                 glyphRange: glyphRange,
                 lineFragmentRect: lineFragmentRect,
                 usedRect: usedRect,
                 originalBaselineY: originalBaselineY,
-                fontMidYOffset: fontMidYOffset,
+                fontSize: fontSize,
+                metricCenterYOffset: metricCenterYOffset,
                 fixedLineHeight: fixedLineHeight,
                 lowestUnderlineOffset: lowestUnderlineOffset,
                 deltaY: deltaY
@@ -514,6 +534,7 @@ struct SubtitleTableTextFragmentLayout {
     let width: CGFloat
     let clipRect: CGRect
     let logicalUTF16Range: NSRange
+    var maximumNumberOfLines: Int = 0
 
     var foregroundColor: NSColor? {
         guard attributed.length > 0 else { return nil }

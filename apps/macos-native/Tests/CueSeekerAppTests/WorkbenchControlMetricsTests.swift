@@ -602,3 +602,53 @@ func taskCountBadgeGapMatchesFilterButtonSpacingToken() {
     )
     #expect(WorkbenchControlMetrics.redesignTaskCountBadgeGap == 8)
 }
+
+@Test
+func readOnlyTextSelectionMetricsScaleProportionallyAndResolveOverlaps() {
+    #expect(WorkbenchControlMetrics.redesignTextSelectionAscentScale == 1.07)
+    #expect(WorkbenchControlMetrics.redesignTextSelectionDescentScale == 0.35)
+
+    for fontSize in [CGFloat(12), 14, 20, 24] {
+        let bounds = ReadOnlyTextSelectionMetrics.verticalBounds(
+            baselineY: 100,
+            fontSize: fontSize
+        )
+        #expect(abs(bounds.minY - (100 - fontSize * 1.07)) < 0.0001)
+        #expect(abs(bounds.maxY - (100 + fontSize * 0.35)) < 0.0001)
+        #expect(abs(bounds.height - fontSize * 1.42) < 0.0001)
+
+        let offset = ReadOnlyTextSelectionMetrics.fixedLineHeightBaselineCenterOffset(
+            fontSize: fontSize
+        )
+        #expect(abs(offset - fontSize * 0.36) < 0.0001)
+        // A line centered by `fixedLineHeightBaselineCenterOffset` inside a fixed line box
+        // produces a selection rect whose vertical midpoint matches the line box midpoint.
+        let fixedLineHeight: CGFloat = 20
+        let baselineY = fixedLineHeight / 2 + offset
+        let centered = ReadOnlyTextSelectionMetrics.verticalBounds(
+            baselineY: baselineY,
+            fontSize: fontSize
+        )
+        #expect(abs((centered.minY + centered.maxY) / 2 - fixedLineHeight / 2) < 0.0001)
+    }
+
+    let overlapping = [
+        CGRect(x: 0, y: 0, width: 100, height: 20),
+        CGRect(x: 0, y: 18, width: 90, height: 20),
+        CGRect(x: 0, y: 36, width: 80, height: 20),
+    ]
+    let resolved = ReadOnlyTextSelectionMetrics.resolvingAdjacentLineOverlaps(overlapping)
+    #expect(resolved.count == 3)
+    #expect(abs(resolved[0].minY - 0) < 0.0001)
+    #expect(abs(resolved[0].maxY - 19) < 0.0001)
+    #expect(abs(resolved[1].minY - 19) < 0.0001)
+    #expect(abs(resolved[1].maxY - 37) < 0.0001)
+    #expect(abs(resolved[2].minY - 37) < 0.0001)
+    #expect(abs(resolved[2].maxY - 56) < 0.0001)
+
+    let nonOverlapping = [
+        CGRect(x: 0, y: 0, width: 100, height: 19.88),
+        CGRect(x: 0, y: 20.06, width: 80, height: 19.88),
+    ]
+    #expect(ReadOnlyTextSelectionMetrics.resolvingAdjacentLineOverlaps(nonOverlapping) == nonOverlapping)
+}

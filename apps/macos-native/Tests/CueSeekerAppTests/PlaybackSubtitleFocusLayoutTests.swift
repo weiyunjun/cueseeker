@@ -783,6 +783,21 @@ func subtitleFocusTextSelectionCrossesSoftWrapAndAnchorsAtLastGlyph() throws {
         length: abs(focus.utf16Offset - anchor.utf16Offset)
     )
 
+    let stackLayout = PlaybackVisualLineStackLayout()
+    let stackContentRect = CGRect(
+        x: cueRect.minX,
+        y: cueRect.minY + PlaybackSubtitleFocusMetrics.cueVerticalPadding,
+        width: cueRect.width,
+        height: cueRect.height - PlaybackSubtitleFocusMetrics.cueVerticalPadding * 2
+    )
+    _ = stackLayout.prepare(text: text, color: .white, width: stackContentRect.width)
+    let expectedLastSelection = try #require(
+        stackLayout.selectionRects(
+            forUTF16Range: NSRange(location: max(0, focus.utf16Offset - 1), length: 1),
+            in: stackContentRect
+        ).first
+    )
+
     #expect(anchor.lineUTF16Range == NSRange(
         location: 0,
         length: text.utf16.count
@@ -790,7 +805,74 @@ func subtitleFocusTextSelectionCrossesSoftWrapAndAnchorsAtLastGlyph() throws {
     #expect(focus.lineUTF16Range == anchor.lineUTF16Range)
     #expect(layout.selectedText(range: range) == text)
     #expect(abs(focus.boundaryPoint.x - lastLine.maxX) < 1)
-    #expect(abs(focus.boundaryPoint.y - lastLine.minY) < 1)
+    #expect(abs(focus.boundaryPoint.y - expectedLastSelection.minY) < 0.001)
+}
+
+@MainActor
+@Test
+func subtitleFocusSelectionRectsUseUnifiedBaselineScaleAndSplitSoftWraps() throws {
+    let scaleSum =
+        WorkbenchControlMetrics.redesignTextSelectionAscentScale
+        + WorkbenchControlMetrics.redesignTextSelectionDescentScale
+    let layout = PlaybackVisualLineStackLayout()
+
+    let mainSegment = PlaybackVisualLineStackSegment(
+        text: "Primary line",
+        font: .systemFont(
+            ofSize: PlaybackSubtitleFocusMetrics.cueFontSize,
+            weight: PlaybackSubtitleFocusMetrics.cueFontWeight
+        ),
+        color: .white,
+        nominalLineHeight: PlaybackSubtitleFocusMetrics.cueLineHeight
+    )
+    let extraSegment = PlaybackVisualLineStackSegment(
+        text: "Extra translation",
+        font: .systemFont(
+            ofSize: PlaybackSubtitleFocusMetrics.cueGroupFontSize,
+            weight: PlaybackSubtitleFocusMetrics.cueGroupFontWeight
+        ),
+        color: .white,
+        nominalLineHeight: PlaybackSubtitleFocusMetrics.cueGroupLineHeight
+    )
+
+    let singleMainPlan = layout.prepare(segments: [mainSegment], width: 600)
+    let singleMainRect = try #require(
+        layout.selectionRects(
+            forUTF16Range: NSRange(location: 0, length: ("Primary line" as NSString).length),
+            in: CGRect(x: 0, y: 0, width: 600, height: singleMainPlan.stackHeight + 20)
+        ).first
+    )
+    #expect(abs(singleMainRect.height - PlaybackSubtitleFocusMetrics.cueFontSize * scaleSum) < 0.01)
+
+    let singleExtraPlan = layout.prepare(segments: [extraSegment], width: 600)
+    let singleExtraRect = try #require(
+        layout.selectionRects(
+            forUTF16Range: NSRange(location: 0, length: ("Extra translation" as NSString).length),
+            in: CGRect(x: 0, y: 0, width: 600, height: singleExtraPlan.stackHeight + 20)
+        ).first
+    )
+    #expect(abs(singleExtraRect.height - PlaybackSubtitleFocusMetrics.cueGroupFontSize * scaleSum) < 0.01)
+
+    let multiPlan = layout.prepare(segments: [mainSegment, extraSegment], width: 600)
+    #expect(multiPlan.visualLineCount == 2)
+    let multiRects = layout.selectionRects(
+        forUTF16Range: NSRange(location: 0, length: ("Primary line\nExtra translation" as NSString).length),
+        in: CGRect(x: 0, y: 0, width: 600, height: multiPlan.stackHeight + 20)
+    )
+    #expect(multiRects.count == 2)
+    #expect(abs(multiRects[0].maxY - multiRects[1].minY) < 0.01)
+
+    let wrappedText = Array(repeating: "wrap", count: 20).joined(separator: " ")
+    let wrappedPlan = layout.prepare(text: wrappedText, color: .white, width: 160)
+    #expect(wrappedPlan.visualLineCount >= 2)
+    let wrappedRects = layout.selectionRects(
+        forUTF16Range: NSRange(location: 0, length: (wrappedText as NSString).length),
+        in: CGRect(x: 0, y: 0, width: 160, height: wrappedPlan.stackHeight + 20)
+    )
+    #expect(wrappedRects.count == wrappedPlan.visualLineCount)
+    for index in 1..<wrappedRects.count {
+        #expect(wrappedRects[index - 1].maxY <= wrappedRects[index].minY + 0.001)
+    }
 }
 
 @MainActor

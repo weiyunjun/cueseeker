@@ -298,12 +298,12 @@ extension SubtitleTableView.Coordinator {
         }
         textLayout.update(
             attributedString: item.fragment.attributed,
-            width: item.fragment.width
+            width: item.fragment.width,
+            maximumNumberOfLines: item.fragment.maximumNumberOfLines
         )
         return textLayout.selectionRects(
             forUTF16Range: selectedRange,
-            at: item.fragment.origin,
-            targetLineHeight: SubtitleTableText.cellLineHeight
+            at: item.fragment.origin
         ).compactMap {
             let clipped = $0.intersection(item.fragment.clipRect)
             return clipped.isNull || clipped.width <= 0 || clipped.height <= 0

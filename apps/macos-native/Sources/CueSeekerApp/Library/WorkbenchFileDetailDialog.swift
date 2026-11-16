@@ -112,6 +112,7 @@ private final class FileDetailDialogLayoutMetrics {
 
 struct WorkbenchFileDetailDialog: View {
     private static let menuCoordinateSpaceName = "fileDetailPairedMenuSpace"
+    private static let scrollContentTopAntiClipPadding: CGFloat = 2
 
     @ObservedObject var session: FileDetailDialogSession
     var menuGate: MenuGate? = nil
@@ -153,7 +154,7 @@ struct WorkbenchFileDetailDialog: View {
     private var fileDetailDialogBody: some View {
         WorkbenchAccessibilityReader { accessibility in
             WorkbenchDialogColumn(
-                spacing: WorkbenchControlMetrics.redesignSpacing4,
+                spacing: WorkbenchControlMetrics.redesignSpacing4 - Self.scrollContentTopAntiClipPadding,
                 maxHeight: availableSize.height - WorkbenchControlMetrics.redesignDialogTopPadding
             ) {
                 VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
@@ -202,6 +203,7 @@ struct WorkbenchFileDetailDialog: View {
                         }
                     }
                     .id(session.selectedItemID)
+                    .padding(.top, Self.scrollContentTopAntiClipPadding)
                     .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
                     .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
                 }

@@ -274,6 +274,10 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeBody: CGFloat = 14
     /// --font-size-caption: 12px
     static let redesignFontSizeCaption: CGFloat = 12
+    /// --text-selection-ascent-scale: 1.07
+    static let redesignTextSelectionAscentScale: CGFloat = 1.07
+    /// --text-selection-descent-scale: 0.35
+    static let redesignTextSelectionDescentScale: CGFloat = 0.35
     /// --font-size-toast: 14px
     static let redesignFontSizeToast: CGFloat = 14
     /// --line-height-toast: 20px
@@ -760,6 +764,69 @@ enum WorkbenchControlMetrics {
     static func firstLineCenter(fontSize: CGFloat) -> CGFloat {
         let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
         return (font.ascender - font.descender + font.leading) / 2
+    }
+}
+
+/// Shared baseline-proportional selection geometry and adjacent-line overlap resolution
+/// across all read-only selectable text renderers.
+enum ReadOnlyTextSelectionMetrics {
+    struct VerticalBounds: Equatable {
+        let minY: CGFloat
+        let maxY: CGFloat
+
+        var height: CGFloat {
+            max(0, maxY - minY)
+        }
+    }
+
+    static func verticalBounds(
+        baselineY: CGFloat,
+        fontSize: CGFloat
+    ) -> VerticalBounds {
+        let resolvedSize = max(0, fontSize)
+        return VerticalBounds(
+            minY: baselineY - resolvedSize * WorkbenchControlMetrics.redesignTextSelectionAscentScale,
+            maxY: baselineY + resolvedSize * WorkbenchControlMetrics.redesignTextSelectionDescentScale
+        )
+    }
+
+    static func fixedLineHeightBaselineCenterOffset(fontSize: CGFloat) -> CGFloat {
+        max(0, fontSize)
+            * (WorkbenchControlMetrics.redesignTextSelectionAscentScale
+                - WorkbenchControlMetrics.redesignTextSelectionDescentScale)
+            / 2
+    }
+
+    static func resolvingAdjacentLineOverlaps(_ rects: [CGRect]) -> [CGRect] {
+        guard rects.count > 1 else { return rects }
+        var bands: [(minY: CGFloat, maxY: CGFloat, rects: [CGRect])] = []
+        for rect in rects {
+            if let lastIndex = bands.indices.last,
+               abs(bands[lastIndex].minY - rect.minY) < 0.001,
+               abs(bands[lastIndex].maxY - rect.maxY) < 0.001
+            {
+                bands[lastIndex].rects.append(rect)
+            } else {
+                bands.append((rect.minY, rect.maxY, [rect]))
+            }
+        }
+        for index in 1..<bands.count {
+            let prevMinY = bands[index - 1].minY
+            let prevMaxY = bands[index - 1].maxY
+            let nextMinY = bands[index].minY
+            let nextMaxY = bands[index].maxY
+            guard prevMaxY > nextMinY else { continue }
+            let splitY = (prevMaxY + nextMinY) / 2
+            guard splitY > prevMinY, splitY < nextMaxY else { continue }
+            bands[index - 1].maxY = splitY
+            bands[index].minY = splitY
+        }
+        return bands.flatMap { band in
+            let height = max(0, band.maxY - band.minY)
+            return band.rects.map { rect in
+                CGRect(x: rect.minX, y: band.minY, width: rect.width, height: height)
+            }
+        }
     }
 }
 

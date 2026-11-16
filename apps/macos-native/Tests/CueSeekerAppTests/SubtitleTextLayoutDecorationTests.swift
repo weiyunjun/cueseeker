@@ -92,7 +92,10 @@ func subtitleCueFixedLineHeightCenteringPreservesUsedRectsAndPositionsUnderlines
         #expect(selectionRects.count == usedRects.count)
         #expect(underlines.count == usedRects.count)
         for ((usedRect, selectionRect), underline) in zip(zip(usedRects, selectionRects), underlines) {
-            #expect(selectionRect.height == style.lineHeight)
+            let expectedSelectionHeight = ReadOnlyTextSelectionMetrics
+                .verticalBounds(baselineY: 0, fontSize: style.fontSize)
+                .height
+            #expect(abs(selectionRect.height - expectedSelectionHeight) < 0.001)
             #expect(abs(underline.width - ceil(usedRect.width * 2) / 2) <= 0.5)
             #expect(underline.minY > usedRect.minY)
             #expect(underline.maxY <= usedRect.minY + style.lineHeight)
@@ -151,12 +154,18 @@ func subtitleBodySameFontRoleKeepsBaselineAndSelectionConsistentAcrossGlyphShape
 @Test
 func subtitleHeaderColumnsShareIdenticalCenteredSelectionTopAndHeight() throws {
     let cellRect = CGRect(x: 0, y: 0, width: 200, height: 44)
-    let titles = ["Cues", "Display Title", "Time Range", "Date Added"]
-    let expectedMinY = cellRect.midY - SubtitleTableText.cellLineHeight / 2
+    let titles = ["Cues", "Display Title", "Time Range", "Date Added", "台词", "显示名称"]
+    let expectedHeight = ReadOnlyTextSelectionMetrics
+        .verticalBounds(
+            baselineY: 0,
+            fontSize: WorkbenchControlMetrics.redesignFontSizeTableHeader
+        )
+        .height
+    let expectedMinY = cellRect.midY - expectedHeight / 2
 
     for title in titles {
         let attributed = SubtitleTableText.header(title)
-        let layout = SubtitleTextLayout()
+        let layout = SubtitleTextLayout(maximumNumberOfLines: 1)
         layout.update(attributedString: attributed, width: cellRect.width)
 
         let centerYOffset = try #require(layout.firstLineCenterYOffset)
@@ -164,12 +173,11 @@ func subtitleHeaderColumnsShareIdenticalCenteredSelectionTopAndHeight() throws {
         let selection = try #require(
             layout.selectionRects(
                 forUTF16Range: NSRange(location: 0, length: attributed.length),
-                at: origin,
-                targetLineHeight: SubtitleTableText.cellLineHeight
+                at: origin
             ).first
         )
 
         #expect(abs(selection.minY - expectedMinY) < 0.001)
-        #expect(selection.height == SubtitleTableText.cellLineHeight)
+        #expect(abs(selection.height - expectedHeight) < 0.001)
     }
 }

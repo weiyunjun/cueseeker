@@ -90,6 +90,10 @@ struct WorkbenchSelectableText: View {
 
     var body: some View {
         let resolvedLineHeight: CGFloat? = (lineHeight ?? 0) > 0 ? lineHeight : nil
+        let verticalBleed = Self.selectionVerticalBleed(
+            fontSize: fontSize,
+            lineHeight: resolvedLineHeight
+        )
         WorkbenchSelectableTextSizingLayout(
             text: text,
             font: nsFont,
@@ -115,6 +119,7 @@ struct WorkbenchSelectableText: View {
                     alignment: nsAlignment,
                     lineLimit: lineLimit,
                     lineHeight: resolvedLineHeight,
+                    verticalBleed: verticalBleed,
                     truncatesTail: truncationMode == .tail,
                     truncationMode: truncationMode,
                     isSelectable: isEffectivelySelectable,
@@ -126,8 +131,23 @@ struct WorkbenchSelectableText: View {
                     dialogID: dialogID,
                     isDialogCovered: isDialogCovered
                 )
+                .padding(.vertical, -verticalBleed)
             }
         }
+    }
+
+    private static func selectionVerticalBleed(
+        fontSize: CGFloat,
+        lineHeight: CGFloat?
+    ) -> CGFloat {
+        let selectionHeight = ReadOnlyTextSelectionMetrics
+            .verticalBounds(baselineY: 0, fontSize: fontSize)
+            .height
+        if let lineHeight, lineHeight > 0 {
+            let overflow = max(0, (selectionHeight - lineHeight) / 2)
+            return overflow > 0 ? ceil(overflow + 2) : 0
+        }
+        return max(4, ceil(fontSize * 0.25))
     }
 
     private static func nsFontWeight(for weight: Font.Weight) -> NSFont.Weight {
@@ -239,6 +259,7 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
     let alignment: NSTextAlignment
     let lineLimit: Int?
     let lineHeight: CGFloat?
+    let verticalBleed: CGFloat
     let truncatesTail: Bool
     let truncationMode: Text.TruncationMode?
     let isSelectable: Bool
@@ -276,6 +297,7 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
             alignment: alignment,
             lineLimit: lineLimit,
             lineHeight: lineHeight,
+            verticalBleed: verticalBleed,
             truncatesTail: truncatesTail,
             truncationMode: truncationMode,
             isSelectable: isSelectable,
@@ -306,7 +328,6 @@ final class WorkbenchSelectableTextNSView:
         let charRange: NSRange
         let truncatedGlyphRange: NSRange?
         let originalBaselineY: CGFloat
-        let fontMidYOffset: CGFloat
         let lowestUnderlineOffset: CGFloat
         let deltaY: CGFloat
     }
@@ -325,6 +346,7 @@ final class WorkbenchSelectableTextNSView:
     private(set) var alignment: NSTextAlignment = .left
     private(set) var lineLimit: Int? = nil
     private(set) var lineHeight: CGFloat? = nil
+    private(set) var verticalBleed: CGFloat = 0
     private(set) var truncatesTail: Bool = true
     private(set) var truncationMode: Text.TruncationMode? = nil
     private(set) var isSelectable: Bool = true
@@ -473,6 +495,11 @@ final class WorkbenchSelectableTextNSView:
         fatalError("init(coder:) has not been implemented")
     }
 
+    private var layoutBounds: CGRect {
+        let inset = min(max(0, verticalBleed), max(0, bounds.height / 2))
+        return bounds.insetBy(dx: 0, dy: inset)
+    }
+
     func configure(
         text: String,
         fullCopyText: String? = nil,
@@ -481,6 +508,7 @@ final class WorkbenchSelectableTextNSView:
         alignment: NSTextAlignment,
         lineLimit: Int?,
         lineHeight: CGFloat? = nil,
+        verticalBleed: CGFloat = 0,
         truncatesTail: Bool,
         truncationMode: Text.TruncationMode? = nil,
         isSelectable: Bool,
@@ -492,12 +520,14 @@ final class WorkbenchSelectableTextNSView:
         dialogID: WorkbenchDialogAccessibilityID? = nil,
         isDialogCovered: Bool = false
     ) {
+        let resolvedBleed = max(0, verticalBleed)
         let textChanged = self.text != text || self.fullCopyText != fullCopyText
         let styleChanged = self.font != font
             || self.textColor != textColor
             || self.alignment != alignment
             || self.lineLimit != lineLimit
             || self.lineHeight != lineHeight
+            || self.verticalBleed != resolvedBleed
             || self.truncatesTail != truncatesTail
             || self.truncationMode != truncationMode
             || self.isSelectable != isSelectable
@@ -517,6 +547,7 @@ final class WorkbenchSelectableTextNSView:
         self.alignment = alignment
         self.lineLimit = lineLimit
         self.lineHeight = lineHeight
+        self.verticalBleed = resolvedBleed
         self.truncatesTail = truncatesTail
         self.truncationMode = truncationMode
         self.isSelectable = isSelectable
@@ -586,14 +617,23 @@ final class WorkbenchSelectableTextNSView:
         clearSelection(notifyCoordinator: true)
     }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let localPoint = superview.map { convert(point, from: $0) } ?? point
+        guard layoutBounds.contains(localPoint) else {
+            return nil
+        }
+        return super.hitTest(point)
+    }
+
     override func resetCursorRects() {
         if AppPointerShape.manages(window) {
             addCursorRect(visibleRect, cursor: AppPointerShape.rectCursor)
         } else if canInteract {
             updateTextLayout()
             let origin = textOrigin()
+            let contentBounds = layoutBounds
             for rect in lineUsedRects(at: origin) {
-                let clipped = rect.intersection(bounds)
+                let clipped = rect.intersection(contentBounds)
                 if !clipped.isNull, clipped.width > 0, clipped.height > 0 {
                     addCursorRect(clipped, cursor: preferredPointerShape.cursor)
                 }
@@ -611,7 +651,7 @@ final class WorkbenchSelectableTextNSView:
             return .arrow
         }
         let point = convert(windowPoint, from: nil)
-        guard bounds.contains(point) else {
+        guard layoutBounds.contains(point) else {
             return .arrow
         }
         if onTap != nil || lineLimit == 1 || containsText(at: point) {
@@ -621,7 +661,7 @@ final class WorkbenchSelectableTextNSView:
     }
 
     func visibleWindowClipRect() -> CGRect? {
-        clippedVisibleWindowRect(for: convert(bounds, to: nil).standardized)
+        clippedVisibleWindowRect(for: convert(layoutBounds, to: nil).standardized)
     }
 
     func windowSelectionHitRect() -> CGRect? {
@@ -629,7 +669,7 @@ final class WorkbenchSelectableTextNSView:
             return nil
         }
         return clippedVisibleWindowRect(
-            for: convert(bounds.insetBy(dx: -4, dy: -2), to: nil).standardized
+            for: convert(layoutBounds.insetBy(dx: -4, dy: -2), to: nil).standardized
         )
     }
 
@@ -866,7 +906,7 @@ final class WorkbenchSelectableTextNSView:
 
         let point = convert(windowPoint, from: nil)
         WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
-        if let onTap, bounds.insetBy(dx: -2, dy: -2).contains(point) {
+        if let onTap, layoutBounds.insetBy(dx: -2, dy: -2).contains(point) {
             onTap()
         }
     }
@@ -933,7 +973,16 @@ final class WorkbenchSelectableTextNSView:
         if let selectedRange, selectedRange.length > 0 {
             NSColor.selectedTextBackgroundColor.setFill()
             for rect in selectionRects(forUTF16Range: selectedRange, at: origin) {
-                rect.intersection(bounds).fill()
+                let clippedMinX = max(bounds.minX, rect.minX)
+                let clippedMaxX = min(bounds.maxX, rect.maxX)
+                if clippedMaxX > clippedMinX, rect.height > 0 {
+                    CGRect(
+                        x: clippedMinX,
+                        y: rect.minY,
+                        width: clippedMaxX - clippedMinX,
+                        height: rect.height
+                    ).fill()
+                }
             }
         }
 
@@ -1085,20 +1134,23 @@ final class WorkbenchSelectableTextNSView:
     }
 
     private func textOrigin() -> CGPoint {
+        let contentBounds = layoutBounds
         let usedRect = layoutManager.usedRect(for: textContainer)
         let originY = lineLimit == 1
-            ? max(0, (bounds.height - usedRect.height) / 2)
-            : (lineHeight != nil ? 0 : max(0, (bounds.height - usedRect.height) / 2))
+            ? contentBounds.minY + max(0, (contentBounds.height - usedRect.height) / 2)
+            : (lineHeight != nil
+                ? contentBounds.minY
+                : contentBounds.minY + max(0, (contentBounds.height - usedRect.height) / 2))
         if lineLimit == 1, textContainer.lineBreakMode == .byClipping {
             switch alignment {
             case .center:
                 return CGPoint(
-                    x: (bounds.width - usedRect.width) / 2 - usedRect.minX,
+                    x: (contentBounds.width - usedRect.width) / 2 - usedRect.minX,
                     y: originY
                 )
             case .right:
                 return CGPoint(
-                    x: bounds.width - usedRect.maxX,
+                    x: contentBounds.width - usedRect.maxX,
                     y: originY
                 )
             default:
@@ -1281,34 +1333,33 @@ final class WorkbenchSelectableTextNSView:
         guard glyphRange.length > 0 else { return [] }
 
         var rects: [CGRect] = []
-        if let fixedLineHeight = (lineHeight ?? 0) > 0 ? lineHeight : nil {
-            for fragment in lineFragmentLayouts(at: resolvedOrigin) {
-                let lineSelectionRange = NSIntersectionRange(glyphRange, fragment.glyphRange)
-                guard lineSelectionRange.length > 0 else { continue }
-                layoutManager.enumerateEnclosingRects(
-                    forGlyphRange: lineSelectionRange,
-                    withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
-                    in: textContainer
-                ) { rect, _ in
-                    guard rect.width > 0 else { return }
-                    rects.append(CGRect(
-                        x: resolvedOrigin.x + rect.minX,
-                        y: resolvedOrigin.y + fragment.lineFragmentRect.minY,
-                        width: rect.width,
-                        height: fixedLineHeight
-                    ))
-                }
-            }
-        } else {
+        let fontSize = font.pointSize
+        for fragment in lineFragmentLayouts(at: resolvedOrigin) {
+            let lineSelectionRange = NSIntersectionRange(glyphRange, fragment.glyphRange)
+            guard lineSelectionRange.length > 0 else { continue }
+            let baselineY = resolvedOrigin.y
+                + fragment.lineFragmentRect.minY
+                + fragment.originalBaselineY
+                + fragment.deltaY
+            let band = ReadOnlyTextSelectionMetrics.verticalBounds(
+                baselineY: baselineY,
+                fontSize: fontSize
+            )
             layoutManager.enumerateEnclosingRects(
-                forGlyphRange: glyphRange,
+                forGlyphRange: lineSelectionRange,
                 withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
                 in: textContainer
             ) { rect, _ in
-                rects.append(rect.offsetBy(dx: resolvedOrigin.x, dy: resolvedOrigin.y))
+                guard rect.width > 0 else { return }
+                rects.append(CGRect(
+                    x: resolvedOrigin.x + rect.minX,
+                    y: band.minY,
+                    width: rect.width,
+                    height: band.height
+                ))
             }
         }
-        return rects
+        return ReadOnlyTextSelectionMetrics.resolvingAdjacentLineOverlaps(rects)
     }
 
     private func lineFragmentLayouts(at origin: CGPoint? = nil) -> [LineFragmentLayout] {
@@ -1317,6 +1368,9 @@ final class WorkbenchSelectableTextNSView:
         let validGlyphRange = layoutManager.glyphRange(for: textContainer)
         guard validGlyphRange.length > 0 else { return [] }
         let fixedLineHeight = (lineHeight ?? 0) > 0 ? lineHeight : nil
+        let centerOffset = ReadOnlyTextSelectionMetrics.fixedLineHeightBaselineCenterOffset(
+            fontSize: font.pointSize
+        )
         var fragments: [LineFragmentLayout] = []
         var glyphIndex = validGlyphRange.location
         while glyphIndex < NSMaxRange(validGlyphRange) {
@@ -1344,13 +1398,13 @@ final class WorkbenchSelectableTextNSView:
                 let originalBaselineY = layoutManager.location(
                     forGlyphAt: visibleLineGlyphs.location
                 ).y
-                let metrics = lineVisualMetrics(
+                let lowestUnderlineOffset = lineLowestUnderlineOffset(
                     charRange: charRange,
                     visibleLineGlyphs: visibleLineGlyphs,
                     truncatedGlyphRange: truncatedRange
                 )
                 let deltaY = fixedLineHeight.map {
-                    ($0 / 2) - (originalBaselineY - metrics.fontMidYOffset)
+                    ($0 / 2) - (originalBaselineY - centerOffset)
                 } ?? 0
                 fragments.append(
                     LineFragmentLayout(
@@ -1360,8 +1414,7 @@ final class WorkbenchSelectableTextNSView:
                         charRange: charRange,
                         truncatedGlyphRange: truncatedRange,
                         originalBaselineY: originalBaselineY,
-                        fontMidYOffset: metrics.fontMidYOffset,
-                        lowestUnderlineOffset: metrics.lowestUnderlineOffset,
+                        lowestUnderlineOffset: lowestUnderlineOffset,
                         deltaY: deltaY
                     )
                 )
@@ -1372,11 +1425,11 @@ final class WorkbenchSelectableTextNSView:
         return fragments
     }
 
-    private func lineVisualMetrics(
+    private func lineLowestUnderlineOffset(
         charRange: NSRange,
         visibleLineGlyphs: NSRange,
         truncatedGlyphRange: NSRange?
-    ) -> (fontMidYOffset: CGFloat, lowestUnderlineOffset: CGFloat) {
+    ) -> CGFloat {
         let metricText = NSMutableAttributedString()
         if let truncated = truncatedGlyphRange {
             let prefixGlyphCount = max(0, truncated.location - visibleLineGlyphs.location)
@@ -1416,38 +1469,25 @@ final class WorkbenchSelectableTextNSView:
             }
         }
 
-        let fallbackMidYOffset = (font.ascender + font.descender) / 2
         let fallbackUnderline = -font.underlinePosition
         guard metricText.length > 0 else {
-            return (fallbackMidYOffset, fallbackUnderline)
+            return fallbackUnderline
         }
 
         let ctLine = CTLineCreateWithAttributedString(metricText)
-        var maxAscender: CGFloat?
-        var minDescender: CGFloat?
         var maxUnderlineOffset: CGFloat?
         for case let run as CTRun in (CTLineGetGlyphRuns(ctLine) as NSArray) {
             let dict = CTRunGetAttributes(run) as NSDictionary
             if let runFont = (dict[kCTFontAttributeName] as? NSFont)
                 ?? (dict[NSAttributedString.Key.font] as? NSFont)
             {
-                maxAscender = max(maxAscender ?? runFont.ascender, runFont.ascender)
-                minDescender = min(minDescender ?? runFont.descender, runFont.descender)
                 maxUnderlineOffset = max(
                     maxUnderlineOffset ?? -runFont.underlinePosition,
                     -runFont.underlinePosition
                 )
             }
         }
-        let fontMidYOffset = if let maxAscender, let minDescender {
-            (maxAscender + minDescender) / 2
-        } else {
-            fallbackMidYOffset
-        }
-        return (
-            fontMidYOffset,
-            maxUnderlineOffset ?? fallbackUnderline
-        )
+        return maxUnderlineOffset ?? fallbackUnderline
     }
 
     private func trimmedCharacterRange(_ range: NSRange) -> NSRange {

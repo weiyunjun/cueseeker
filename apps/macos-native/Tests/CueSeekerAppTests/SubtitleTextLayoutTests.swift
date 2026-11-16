@@ -142,11 +142,17 @@ func subtitleTableBodyUsesFixedCenteredTwentyPointLineBoxesAndAlignsHitSelection
         #expect(paragraph.paragraphSpacing == 0)
 
         #expect(single.attribute(.baselineOffset, at: 0, effectiveRange: nil) == nil)
+        let expectedSelectionHeight = ReadOnlyTextSelectionMetrics
+            .verticalBounds(
+                baselineY: 0,
+                fontSize: WorkbenchControlMetrics.redesignFontSizeTable
+            )
+            .height
         let selection = layout.selectionRects(
             forUTF16Range: NSRange(location: 0, length: single.length),
             at: .zero
         )
-        #expect(selection.first?.height == expectedLineHeight)
+        #expect(abs((selection.first?.height ?? 0) - expectedSelectionHeight) < 0.001)
     }
 
     // Two explicit lines stack at 2 * 20 = 40 without trailing or extra lineSpacing.
@@ -171,8 +177,14 @@ func subtitleTableBodyUsesFixedCenteredTwentyPointLineBoxesAndAlignsHitSelection
         forUTF16Range: NSRange(location: 0, length: twoLines.length),
         at: .zero
     )
+    let expectedSelectionHeight = ReadOnlyTextSelectionMetrics
+        .verticalBounds(
+            baselineY: 0,
+            fontSize: WorkbenchControlMetrics.redesignFontSizeTable
+        )
+        .height
     #expect(selectionRects.count == 2)
-    #expect(selectionRects.allSatisfy { $0.height == 20 })
+    #expect(selectionRects.allSatisfy { abs($0.height - expectedSelectionHeight) < 0.001 })
 }
 
 private func attributedFont(_ attributed: NSAttributedString) throws -> NSFont {

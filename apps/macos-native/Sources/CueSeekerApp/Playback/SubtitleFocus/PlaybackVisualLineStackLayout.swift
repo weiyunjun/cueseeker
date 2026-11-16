@@ -11,6 +11,7 @@ struct PlaybackVisualLineStackSegment {
 
 struct PlaybackVisualLineStackLine: Equatable {
     let segmentIndex: Int
+    let fontSize: CGFloat
     let nominalLineHeight: CGFloat
     let glyphRange: NSRange
     let usedRect: CGRect
@@ -55,6 +56,7 @@ struct PlaybackVisualLineStackPlan: Equatable {
 final class PlaybackVisualLineStackLayout {
     private struct DraftLine {
         let segmentIndex: Int
+        let fontSize: CGFloat
         let nominalLineHeight: CGFloat
         let glyphRange: NSRange
         let usedRect: CGRect
@@ -218,6 +220,7 @@ final class PlaybackVisualLineStackLayout {
                 + layoutManager.location(forGlyphAt: lineGlyphRange.location).y
             draftLines.append(DraftLine(
                 segmentIndex: segmentIndex,
+                fontSize: segment.font.pointSize,
                 nominalLineHeight: segment.nominalLineHeight,
                 glyphRange: lineGlyphRange,
                 usedRect: usedRect,
@@ -233,6 +236,7 @@ final class PlaybackVisualLineStackLayout {
             let font = segment.font
             draftLines = [DraftLine(
                 segmentIndex: 0,
+                fontSize: font.pointSize,
                 nominalLineHeight: segment.nominalLineHeight,
                 glyphRange: NSRange(location: 0, length: 0),
                 usedRect: .zero,
@@ -259,6 +263,7 @@ final class PlaybackVisualLineStackLayout {
             }
             return PlaybackVisualLineStackLine(
                 segmentIndex: line.segmentIndex,
+                fontSize: line.fontSize,
                 nominalLineHeight: line.nominalLineHeight,
                 glyphRange: line.glyphRange,
                 usedRect: line.usedRect,
@@ -335,10 +340,14 @@ final class PlaybackVisualLineStackLayout {
                 in: contentRect
             )
             if point.y < firstRect.minY {
+                let firstBand = selectionBand(
+                    for: plan.lines[firstLineIndex],
+                    in: contentRect
+                )
                 return (
                     constrainedLineRange,
                     constrainedLineRange.location,
-                    CGPoint(x: firstRect.minX, y: firstRect.minY)
+                    CGPoint(x: firstRect.minX, y: firstBand.minY)
                 )
             }
             let lastRect = textRect(
@@ -346,10 +355,14 @@ final class PlaybackVisualLineStackLayout {
                 in: contentRect
             )
             if point.y > lastRect.maxY {
+                let lastBand = selectionBand(
+                    for: plan.lines[lastLineIndex],
+                    in: contentRect
+                )
                 return (
                     constrainedLineRange,
                     NSMaxRange(constrainedLineRange),
-                    CGPoint(x: lastRect.maxX, y: lastRect.minY)
+                    CGPoint(x: lastRect.maxX, y: lastBand.minY)
                 )
             }
             resolvedLineIndex = matchingLineIndices.min { left, right in
@@ -379,19 +392,20 @@ final class PlaybackVisualLineStackLayout {
         }
 
         let resolvedTextRect = textRect(for: line, in: contentRect)
+        let lineBand = selectionBand(for: line, in: contentRect)
         let localX = point.x - contentRect.minX
         if localX <= line.usedRect.minX {
             return (
                 lineUTF16Range,
                 selectableCharacterRange.location,
-                CGPoint(x: resolvedTextRect.minX, y: resolvedTextRect.minY)
+                CGPoint(x: resolvedTextRect.minX, y: lineBand.minY)
             )
         }
         if localX >= line.usedRect.maxX {
             return (
                 lineUTF16Range,
                 NSMaxRange(selectableCharacterRange),
-                CGPoint(x: resolvedTextRect.maxX, y: resolvedTextRect.minY)
+                CGPoint(x: resolvedTextRect.maxX, y: lineBand.minY)
             )
         }
 
@@ -437,7 +451,7 @@ final class PlaybackVisualLineStackLayout {
             CGPoint(
                 x: contentRect.minX
                     + (usesTrailingBoundary ? glyphRect.maxX : glyphRect.minX),
-                y: resolvedTextRect.minY
+                y: lineBand.minY
             )
         )
     }
@@ -457,8 +471,8 @@ final class PlaybackVisualLineStackLayout {
             forCharacterRange: safeRange,
             actualCharacterRange: nil
         )
-        var selectedLines: [(lineIndex: Int, rect: CGRect)] = []
-        for (index, line) in plan.lines.enumerated() {
+        var rects: [CGRect] = []
+        for line in plan.lines {
             let lineSelectionRange = NSIntersectionRange(
                 selectionGlyphRange,
                 line.glyphRange
@@ -470,40 +484,29 @@ final class PlaybackVisualLineStackLayout {
                 forGlyphRange: lineSelectionRange,
                 in: textContainer
             )
-            let halfHeight = line.nominalLineHeight / 2
-            let centerY = contentRect.minY + line.visibleCenterY
-            let lineRect = CGRect(
-                x: contentRect.minX + glyphRect.minX,
-                y: centerY - halfHeight,
-                width: glyphRect.width,
-                height: line.nominalLineHeight
-            )
-            if let lastIndex = selectedLines.indices.last,
-               selectedLines[lastIndex].lineIndex + 1 == index,
-               selectedLines[lastIndex].rect.maxY > lineRect.minY {
-                let splitY = (selectedLines[lastIndex].rect.maxY + lineRect.minY) / 2
-                if splitY > selectedLines[lastIndex].rect.minY, splitY < lineRect.maxY {
-                    selectedLines[lastIndex].rect = CGRect(
-                        x: selectedLines[lastIndex].rect.minX,
-                        y: selectedLines[lastIndex].rect.minY,
-                        width: selectedLines[lastIndex].rect.width,
-                        height: splitY - selectedLines[lastIndex].rect.minY
-                    )
-                    selectedLines.append((
-                        index,
-                        CGRect(
-                            x: lineRect.minX,
-                            y: splitY,
-                            width: lineRect.width,
-                            height: lineRect.maxY - splitY
-                        )
-                    ))
-                    continue
-                }
+            guard glyphRect.width > 0 else {
+                continue
             }
-            selectedLines.append((index, lineRect))
+            let band = selectionBand(for: line, in: contentRect)
+            rects.append(CGRect(
+                x: contentRect.minX + glyphRect.minX,
+                y: band.minY,
+                width: glyphRect.width,
+                height: band.height
+            ))
         }
-        return selectedLines.map(\.rect)
+        return ReadOnlyTextSelectionMetrics.resolvingAdjacentLineOverlaps(rects)
+    }
+
+    private func selectionBand(
+        for line: PlaybackVisualLineStackLine,
+        in contentRect: CGRect
+    ) -> ReadOnlyTextSelectionMetrics.VerticalBounds {
+        let baselineY = contentRect.minY + line.typographicTop + line.ascent
+        return ReadOnlyTextSelectionMetrics.verticalBounds(
+            baselineY: baselineY,
+            fontSize: line.fontSize
+        )
     }
 
     func drawSelection(
