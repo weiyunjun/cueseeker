@@ -50,16 +50,26 @@
 - **Filtered headless pure-logic tests**:
   - Command: `swift test --package-path apps/macos-native --filter "SearchQueryPlannerTests|SearchDatabaseTests|DatabaseBootstrapTests|SubtitleSearchFilterSetTests|ExcerptDatabaseTests|LibraryDatabaseTests|SubtitleIndexerTests|SearchStoreTests|ExcerptPresentationTests|URLSchemeSearchRoutingTests|PlaybackSearchOverlayTests"`
   - Result: `241` tests passed in `2.250` seconds (`0` failures, `0` skipped, no window-popping suites invoked).
-- **Schema `69 -> 70` Migration & Headless Cold Search Benchmark (`SearchBench --headless-cold`, 5 rounds, isolated copy of debug library dataset with 638 subtitle files under configured library folder scope, `wal_checkpoint(TRUNCATE)` prior to run)**:
-  - One-time `69 -> 70` FTS rebuild + optimize migration on isolated dataset: `1326.10 ms` (`Open connection` reported by `SearchBench`, database `433M -> 438M`).
+- **Schema `69 -> 70` Migration & Headless Cold Search Benchmark (`SearchBench --headless-cold`, 5 rounds back-to-back on isolated snapshots of the 638-file library dataset, `wal_checkpoint(TRUNCATE)` prior to run)**:
+  - One-time `69 -> 70` FTS rebuild + optimize migration on isolated dataset: `1326.10 ms` (`433M -> 438M`).
 
-| Query | Baseline Hits / Files (`Schema 69`) | Post-Change Hits / Files (`Schema 70`) | Baseline 1st / Full (`Schema 69`) | Post-Change 1st / Full (`Schema 70`) | Baseline Pure Backend 1st / Full | Post-Change Pure Backend 1st / Full |
-| --- | ---: | ---: | --- | --- | --- | --- |
-| `大丈夫` | 1462 / 498 | 1464 / 498 (+2) | 148.84 ms / 189.94 ms | **140.05 ms** / 223.87 ms | 44.61 ms / 85.71 ms (DB 85.10 ms) | **32.56 ms** / 116.39 ms (DB 115.81 ms) |
-| `今日` | 2301 / 498 | 2301 / 498 | 126.44 ms / 166.31 ms | 143.20 ms / 248.29 ms | 21.83 ms / 61.70 ms (DB 60.65 ms) | 34.34 ms / 139.42 ms (DB 138.45 ms) |
-| `の` | 76817 / 637 | 77679 / 637 (+862) | 125.19 ms / 612.94 ms | 126.42 ms / **499.56 ms** (-113.38 ms) | 21.56 ms / 509.32 ms (DB 457.73 ms) | **19.47 ms** / **392.61 ms** (DB 342.76 ms) |
+#### 1. End-to-End Full Chain Cold Benchmark (5 Rounds Average + Raw, incl. 100ms Debounce)
 
-  - Phase diagnostics confirmed `fts_hits` (`~0.8-1.6 ms`) and zero-allocation `line_validation` (`~3.9 ms` for `大丈夫`, `~6.1 ms` for `今日`) remain fast on cold runs; the round-to-round `~100 ms` variance seen on `大丈夫`/`今日` full completion occurred inside SQLite `F_NOCACHE` `cue_lines` / `count_progress` disk page reads immediately after the benchmark's 100ms debounce sleep (without debounce sleep, cold `searchPage` phase totals ran consistently in `38.6-41.5 ms` for `大丈夫` and `42.0-53.6 ms` for `今日`). High-cardinality `の` improved full completion by `-18.5%` despite recovering `862` additional previously missed boundary matches.
+| Query | Hits / Files (`69 -> 70`) | `Schema 69` 1st Avg (Raw, ms) | `Schema 70` 1st Avg (Raw, ms) | `Schema 69` Full Avg (Raw, ms) | `Schema 70` Full Avg (Raw, ms) |
+| --- | --- | --- | --- | --- | --- |
+| `大丈夫` | `1462/498 -> 1464/498` (+2) | 175.35 ms (`221.68, 136.26, 118.57, 261.53, 138.73`) | **137.30 ms** (`145.01, 124.60, 138.65, 132.80, 145.45`) | 332.38 ms (`591.21, 267.60, 149.09, 395.75, 258.26`) | **207.82 ms** (`261.60, 154.36, 208.92, 158.92, 255.29`) |
+| `今日` | `2301/498 -> 2301/498` (0) | 141.87 ms (`203.31, 124.51, 119.83, 124.73, 136.98`) | **127.22 ms** (`117.81, 121.57, 123.34, 135.60, 137.79`) | 257.54 ms (`555.44, 160.36, 162.12, 159.83, 249.94`) | **197.13 ms** (`158.47, 161.22, 156.73, 251.05, 258.19`) |
+| `の` | `76817/637 -> 77679/637` (+862) | 125.36 ms (`124.62, 122.42, 127.10, 125.21, 127.45`) | **124.35 ms** (`122.19, 125.02, 129.26, 124.15, 121.11`) | 629.48 ms (`640.18, 646.30, 640.89, 607.75, 612.30`) | **518.61 ms** (`507.94, 485.05, 564.17, 526.04, 509.83`) |
+
+#### 2. Pure Backend Breakdown (5 Rounds Average + Raw, excl. Debounce)
+
+| Query | `Schema 69` Backend 1st Avg (Raw, ms) | `Schema 70` Backend 1st Avg (Raw, ms) | `Schema 69` Backend Full Avg (DB / Commit; Raw, ms) | `Schema 70` Backend Full Avg (DB / Commit; Raw, ms) |
+| --- | --- | --- | --- | --- |
+| `大丈夫` | 71.73 ms (`116.77, 33.44, 17.30, 156.51, 34.65`) | **33.61 ms** (`39.98, 20.57, 37.98, 29.10, 40.42`) | 228.76 ms (`227.88 / 0.88`; `486.30, 164.78, 47.81, 290.73, 154.18`) | **104.13 ms** (`103.52 / 0.61`; `156.57, 50.34, 108.25, 55.23, 150.26`) |
+| `今日` | 39.29 ms (`100.21, 23.41, 19.54, 20.15, 33.12`) | **23.52 ms** (`16.29, 19.62, 18.31, 30.58, 32.78`) | 154.96 ms (`153.85 / 1.11`; `452.35, 59.26, 61.83, 55.25, 146.08`) | **93.43 ms** (`92.05 / 1.38`; `56.95, 59.26, 51.71, 146.03, 153.18`) |
+| `の` | 21.72 ms (`22.64, 17.42, 22.87, 20.18, 25.50`) | **20.86 ms** (`20.04, 20.01, 24.22, 19.60, 20.42`) | 525.84 ms (`473.52 / 52.32`; `538.20, 541.29, 536.67, 502.72, 510.35`) | **415.12 ms** (`366.99 / 48.13`; `405.78, 380.04, 459.14, 421.48, 409.14`) |
+
+  - Steady-state cold floor remained unchanged (`~48-55 ms` for `大丈夫`, `~51-61 ms` for `今日`), while high-cardinality `の` improved full completion across all 5 rounds (`525.84 ms -> 415.12 ms` pure backend, `-21.1%`) despite recovering `862` previously missed boundary matches (`+2` for `大丈夫`).
 
 ## Outcome
 
