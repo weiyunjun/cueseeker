@@ -66,11 +66,12 @@ private struct WorkbenchExcerptTableContent: View {
             scope: appState.uiProbeScope
         )
         let textCopySource = tableTextCopySource
+        let currentCoverSummary = coverSummary
         SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
             columns: SchemaWorkbenchSearchDefaults.excerptColumns,
             searchPlaceholder: L("excerpt.table.search_placeholder"),
-            summaryContent: coverSummary,
+            summaryContent: currentCoverSummary,
             hostsPageChromeInTable: true,
             tableSummary: tableSummary,
             searchResultCountText: exactSearchResultCountText,
@@ -146,7 +147,7 @@ private struct WorkbenchExcerptTableContent: View {
                     isCueInLibrary: { appState.isCueInLibrary($0) },
                     onToast: { appState.toast.show($0) },
                     showsHeader: showsTableHeader,
-                    pageChrome: excerptDetailPageChrome
+                    pageChrome: excerptDetailPageChrome(for: currentCoverSummary)
                 )
 
                 if showsEmptyListHint {
@@ -355,7 +356,9 @@ private struct WorkbenchExcerptTableContent: View {
         )
     }
 
-    private var excerptDetailPageChrome: SubtitleTablePageChrome? {
+    private func excerptDetailPageChrome(
+        for coverSummary: AnyView?
+    ) -> SubtitleTablePageChrome? {
         guard let coverSummary else { return nil }
         let actions = selectedSummaryActions ?? []
         let pinnedContent = AnyView(

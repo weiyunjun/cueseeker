@@ -67,8 +67,12 @@ final class ExcerptStore: ObservableObject {
     private var tableSearchDraftsByListID: [Int64: String] = [:]
     private(set) var tableResultSnapshotID = UUID()
     private(set) var tableResultExcerptIDs: [Int64]?
+    private var cachedPlaybackTableResultExcerptIDs: [Int64]?
+    private var cachedValidResultOrdinalByExcerptID: [Int64: Int] = [:]
     private(set) var residentRelations: [ExcerptRelation] = []
     private(set) var residentExcerptsByID: [Int64: Excerpt] = [:]
+    private var residentCueIDByExcerptID: [Int64: Int64] = [:]
+    private var residentExcerptIDByCueID: [Int64: Int64] = [:]
     private(set) var residentDataRevision: Int?
     private(set) var residentListID: Int64?
     private var residentSnapshotsByListID: [Int64: ExcerptResidentSnapshot] = [:]
@@ -79,7 +83,10 @@ final class ExcerptStore: ObservableObject {
     var tableSelectionEntryIDs: [Int] = []
 
     var playbackTableResultExcerptIDs: [Int64]? {
-        tableResultExcerptIDs?.filter { excerptID in
+        if let cachedPlaybackTableResultExcerptIDs {
+            return cachedPlaybackTableResultExcerptIDs
+        }
+        return tableResultExcerptIDs?.filter { excerptID in
             if let resident = residentExcerptsByID[excerptID] {
                 return resident.isValid
             }
@@ -152,15 +159,17 @@ final class ExcerptStore: ObservableObject {
         guard !validExcerptIDs.isEmpty else {
             return (.play, false, nil, nil, nil, 0)
         }
-        let hitOrdinal = summary.list.recentCueID.flatMap { targetCueID in
-            validExcerptIDs.firstIndex { excerptID in
-                residentRelations.first(where: { $0.id == excerptID })?.cueID == targetCueID
+        let hitOrdinal = summary.list.recentCueID
+            .flatMap { residentExcerptIDByCueID[$0] }
+            .flatMap { targetExcerptID in
+                cachedPlaybackTableResultExcerptIDs != nil
+                    ? cachedValidResultOrdinalByExcerptID[targetExcerptID]
+                    : validExcerptIDs.firstIndex(of: targetExcerptID)
             }
-        }
         let resolvedOrdinal = hitOrdinal ?? 0
         let actionKind: CoverSummaryActionKind = hitOrdinal != nil ? .resume : .play
         let targetExcerptID = validExcerptIDs[resolvedOrdinal]
-        let cueID = residentRelations.first(where: { $0.id == targetExcerptID })?.cueID
+        let cueID = residentCueIDByExcerptID[targetExcerptID]
         let targetExcerpt = residentExcerptsByID[targetExcerptID]
         return (
             actionKind,
@@ -477,10 +486,55 @@ final class ExcerptStore: ObservableObject {
             residentFacetSnapshot = cached.facetSnapshot
             residentListID = listID
             residentDataRevision = tableDataRevision
+            syncResidentRelationLookups()
+            rebuildPlaybackTableResultCache()
         } else {
             clearResidentSnapshot()
             clearTableRowsForReload()
         }
+    }
+
+    private func syncResidentRelationLookups() {
+        var cueIDByExcerptID: [Int64: Int64] = [:]
+        var excerptIDByCueID: [Int64: Int64] = [:]
+        cueIDByExcerptID.reserveCapacity(residentRelations.count)
+        excerptIDByCueID.reserveCapacity(residentRelations.count)
+        for relation in residentRelations {
+            cueIDByExcerptID[relation.id] = relation.cueID
+            excerptIDByCueID[relation.cueID] = relation.id
+        }
+        residentCueIDByExcerptID = cueIDByExcerptID
+        residentExcerptIDByCueID = excerptIDByCueID
+    }
+
+    private func rebuildPlaybackTableResultCache() {
+        guard let tableResultExcerptIDs,
+              !residentExcerptsByID.isEmpty || residentDataRevision != nil
+        else {
+            cachedPlaybackTableResultExcerptIDs = nil
+            cachedValidResultOrdinalByExcerptID = [:]
+            return
+        }
+        var validIDs: [Int64] = []
+        validIDs.reserveCapacity(tableResultExcerptIDs.count)
+        var ordinals: [Int64: Int] = [:]
+        ordinals.reserveCapacity(tableResultExcerptIDs.count)
+        for excerptID in tableResultExcerptIDs {
+            let isValid: Bool
+            if let resident = residentExcerptsByID[excerptID] {
+                isValid = resident.isValid
+            } else if let entryID = Int(exactly: excerptID) {
+                isValid = tableRowStore.snapshot.excerpt(entryID: entryID)?.isValid == true
+            } else {
+                isValid = false
+            }
+            if isValid {
+                ordinals[excerptID] = validIDs.count
+                validIDs.append(excerptID)
+            }
+        }
+        cachedPlaybackTableResultExcerptIDs = validIDs
+        cachedValidResultOrdinalByExcerptID = ordinals
     }
 
     private func receiveCueContentChange(_ change: CueContentStoreChange) {
@@ -503,11 +557,19 @@ final class ExcerptStore: ObservableObject {
 
     func clearTableRowsForReload(tableName: String = "excerpt") {
         tableRowsNeedReload = false
-        tableHasLoadedInitialPage = false
-        tableTotalSavedRowCount = 0
-        tableResultRowCount = 0
+        if tableHasLoadedInitialPage {
+            tableHasLoadedInitialPage = false
+        }
+        if tableTotalSavedRowCount != 0 {
+            tableTotalSavedRowCount = 0
+        }
+        if tableResultRowCount != 0 {
+            tableResultRowCount = 0
+        }
         tableResultSnapshotID = UUID()
         tableResultExcerptIDs = nil
+        cachedPlaybackTableResultExcerptIDs = nil
+        cachedValidResultOrdinalByExcerptID = [:]
         tableRowStore.updateResidentExcerptRelations(
             [],
             cueContentProvider: { _ in nil },
@@ -519,13 +581,20 @@ final class ExcerptStore: ObservableObject {
 
     func markTableRowsLoaded(totalSavedRowCount: Int) {
         tableRowsNeedReload = false
-        tableTotalSavedRowCount = totalSavedRowCount
-        tableHasLoadedInitialPage = true
+        if tableTotalSavedRowCount != totalSavedRowCount {
+            tableTotalSavedRowCount = totalSavedRowCount
+        }
+        if !tableHasLoadedInitialPage {
+            tableHasLoadedInitialPage = true
+        }
     }
 
     func installTableResultExcerptIDs(_ excerptIDs: [Int64]) {
         tableResultExcerptIDs = excerptIDs
-        tableResultRowCount = excerptIDs.count
+        rebuildPlaybackTableResultCache()
+        if tableResultRowCount != excerptIDs.count {
+            tableResultRowCount = excerptIDs.count
+        }
     }
 
     @discardableResult
@@ -556,6 +625,8 @@ final class ExcerptStore: ObservableObject {
     func beginTableResultProjection() {
         tableResultSnapshotID = UUID()
         tableResultExcerptIDs = nil
+        cachedPlaybackTableResultExcerptIDs = nil
+        cachedValidResultOrdinalByExcerptID = [:]
     }
 
     func installResidentSnapshot(
@@ -572,6 +643,8 @@ final class ExcerptStore: ObservableObject {
         residentFacetSnapshot = snapshot.facetSnapshot
         residentListID = listID
         residentDataRevision = dataRevision
+        syncResidentRelationLookups()
+        rebuildPlaybackTableResultCache()
     }
 
     func residentFacetProjection(
@@ -606,9 +679,12 @@ final class ExcerptStore: ObservableObject {
     func clearResidentSnapshot() {
         residentRelations = []
         residentExcerptsByID = [:]
+        residentCueIDByExcerptID = [:]
+        residentExcerptIDByCueID = [:]
         residentFacetSnapshot = nil
         residentListID = nil
         residentDataRevision = nil
+        rebuildPlaybackTableResultCache()
     }
 
     func removeExcerptFromCurrentProjection(id: Int64) {
@@ -630,6 +706,7 @@ final class ExcerptStore: ObservableObject {
         for id in ids {
             residentExcerptsByID[id] = nil
         }
+        syncResidentRelationLookups()
         residentFacetSnapshot = residentFacetSnapshot?.removingCueIDs(
             removedCueIDs
         )
@@ -644,7 +721,9 @@ final class ExcerptStore: ObservableObject {
                 facetSnapshot: updatedFacet
             )
         }
-        tableTotalSavedRowCount = residentRelations.count
+        if tableTotalSavedRowCount != residentRelations.count {
+            tableTotalSavedRowCount = residentRelations.count
+        }
         if let tableResultExcerptIDs {
             let previousEntryIDs = tableSelectionEntryIDs.isEmpty
                 ? tableResultExcerptIDs.map(Int.init)
@@ -652,7 +731,10 @@ final class ExcerptStore: ObservableObject {
             let remainingIDs = tableResultExcerptIDs.filter { !ids.contains($0) }
             let remainingEntryIDs = remainingIDs.map(Int.init)
             self.tableResultExcerptIDs = remainingIDs
-            tableResultRowCount = remainingIDs.count
+            rebuildPlaybackTableResultCache()
+            if tableResultRowCount != remainingIDs.count {
+                tableResultRowCount = remainingIDs.count
+            }
             tableResultSnapshotID = UUID()
             tableSelectionState.remap(
                 from: previousEntryIDs,
@@ -708,6 +790,7 @@ final class ExcerptStore: ObservableObject {
                 )
             }
         }
+        rebuildPlaybackTableResultCache()
         for (listID, cached) in residentSnapshotsByListID {
             let existingByID = Dictionary(
                 uniqueKeysWithValues: cached.resolvedExcerpts.map { ($0.id, $0) }

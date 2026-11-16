@@ -95,6 +95,7 @@ extension ExcerptStore {
                 searchText: tableSearchQuery(forListID: listID),
                 facetFilter: settings.excerptFacetFilter(forListID: listID),
                 sortOrder: settings.excerptSortOrder(forListID: listID),
+                includeDistribution: false,
                 normalizeFacetFilter: normalizeFacetFilter,
                 cueContentProvider: { [cueContentStore] cueID in
                     cueContentsByID[cueID] ?? cueContentStore.content(for: cueID)
@@ -953,6 +954,7 @@ extension ExcerptStore {
         searchText: String,
         facetFilter: CueFacetFilter,
         sortOrder: ExcerptSortOrder? = nil,
+        includeDistribution: Bool = true,
         normalizeFacetFilter: (CueFacetFilter) -> CueFacetFilter = { $0 }
     ) -> (relations: [ExcerptRelation], distribution: CueFacetDistribution) {
         Self.projectRelations(
@@ -962,6 +964,7 @@ extension ExcerptStore {
             searchText: searchText,
             facetFilter: facetFilter,
             sortOrder: sortOrder ?? tableSortOrder,
+            includeDistribution: includeDistribution,
             normalizeFacetFilter: normalizeFacetFilter,
             cueContentProvider: { [cueContentStore] cueID in
                 cueContentStore.content(for: cueID)
@@ -976,6 +979,7 @@ extension ExcerptStore {
         searchText: String,
         facetFilter: CueFacetFilter,
         sortOrder: ExcerptSortOrder,
+        includeDistribution: Bool = true,
         normalizeFacetFilter: (CueFacetFilter) -> CueFacetFilter = { $0 },
         cueContentProvider: (Int64) -> CueContent?
     ) -> (relations: [ExcerptRelation], distribution: CueFacetDistribution) {
@@ -1036,6 +1040,9 @@ extension ExcerptStore {
                 return lhs < rhs
             }.map { filteredRelations[$0] }
         }
+        guard includeDistribution else {
+            return (sortedRelations, .zero)
+        }
         let validFacetSnapshot = facetSnapshot?.keeping(
             cueIDs: validSearchMatchingCueIDs
         ) ?? .empty
@@ -1071,6 +1078,7 @@ extension ExcerptStore {
             searchText: searchText,
             facetFilter: facetFilter,
             sortOrder: sortOrder,
+            includeDistribution: false,
             normalizeFacetFilter: normalizeFacetFilter
         ).relations
         let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)

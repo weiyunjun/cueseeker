@@ -43,10 +43,15 @@
    - Updated `resurrectingVideoAndCueDoesNotAlterExistingFolderOrExcerptListResumeOrder` in `apps/macos-native/Tests/CueSeekerCoreTests/IndexPathIdentityTests.swift`.
    - Added `listCoverSummaryAndUnifiedPlaybackResolveSearchFilterSortAndTemporaryFallback` and `removingTargetExcerptWhileFrozenRevertsCoverSummaryToPlaySynchronouslyAndPreservesPlayedAt` in `apps/macos-native/Tests/CueSeekerAppTests/ExcerptLifecycleAndInvalidItemsTests.swift`.
 
+5. **Iterative Acceptance Fix - O(1) `Cover Summary` State Resolution & Projection Deduplication**:
+   - Eliminated the `O(N^2)` nested linear scan (`validExcerptIDs.firstIndex` over `residentRelations.first(where:)`) and repeated per-render array filtering in `ExcerptStore.swift` by maintaining direct `cueID <-> excerptID` resident lookup maps plus precomputed valid result IDs and ordinals whenever resident relations or table result IDs update, and guarding unchanged `@Published` count/load assignments.
+   - Skipped unused facet distribution reconstruction (`includeDistribution: false`) in `ExcerptStore+Execution.swift` when applying table sort/search/filter projections or resolving list playback.
+   - Deduplicated `coverSummary` construction in `WorkbenchExcerptTableView.swift` so a single `body` pass evaluates `Cover Summary` once instead of building a discarded duplicate for `SchemaWorkbenchSearchShell`.
+
 ## Verification
 
-- `swift build --package-path apps/macos-native`: succeeded (`Build complete! (8.48s)`, `0` errors).
-- Targeted headless unit tests (`swift test --package-path apps/macos-native --filter "..."` covering `ExcerptLifecycleAndInvalidItemsTests`, excerpt presentation/table/command-panel pure-logic tests in `CueSeekerAppTests`, and excerpt/tombstone/index-identity SQLite tests in `CueSeekerCoreTests`): `79` tests passed in `0.820` seconds (`0` failures).
+- `swift build --package-path apps/macos-native`: succeeded (`Build complete! (7.06s)`, `0` errors).
+- Targeted headless unit tests (`swift test --package-path apps/macos-native --filter "..."` covering `ExcerptLifecycleAndInvalidItemsTests`, `ExcerptListEditorTests`, `ExcerptPerformanceTrackerTests`, `ExcerptPresentationTests`, `PlaybackEntryAndExcerptNavigationTests`, `PlaybackExcerptOverlayTests`, `TableSandboxRowModelStoreTests`, `TableSandboxRowSelectionStateTests`, and `ExcerptDatabaseTests`): `91` tests passed in `0.881` seconds (`0` failures).
 
 ## Outcome
 
