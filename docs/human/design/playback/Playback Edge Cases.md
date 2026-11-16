@@ -12,7 +12,7 @@
 ## 2. 原则 2（边界刷新与失效拦截原则 / Boundary Reconciliation）
 - **离开又返回或主动更新视图触发刷新**：关闭再打开浮层、面包屑回退、从二级返回一级、跨 Sidebar Tab 切换再切回、在 Recent 顶栏切换 `Videos / Excerpt Lists`、在 Search 或 Excerpt 二级内输入搜索词或打开/修改 Filter 等行为，**以数据库实际内容变更结果为准拉取最新状态更新界面**（若任务未产生实质数据库内容变化，各界面均保持原样不刷新）。其中 Search 再次进入时：若期间仅因移除文件夹减少了库内容则只剔除失效结果；若因 Index 或 Add Folder 产生了数据库内容变化则按当前搜索词与已选 Filter 重新搜索。
 - **未刷新前的失效拦截**：在尚未刷新的冻结界面上点击已移出库的失效项，**严格拦截核心操作**：
-  - **尝试播放**：单条台词或视频统一进入播放页面并拦截播放（黑屏、进度归零），顶栏弹出红色报错横幅 `This item is no longer in the library`；摘录集入口（未刷新的 Excerpt 二级 `Play` / `Resume` 或两处 `Recent Excerpt Lists`）若列表内已无任何有效摘录，则不进入播放页，直接在当前界面弹出 `No Available Excerpts` Toast。
+  - **尝试播放**：单条台词或视频统一进入播放页面并拦截播放（黑屏、进度归零），顶栏弹出红色报错横幅 `This item is no longer in the library`；摘录集入口（未刷新的 Excerpt 二级 `Play` / `Resume` 或两处 `Recent Excerpt Lists`）若在当前搜索与筛选下无有效摘录，则不进入播放页，直接在当前界面弹出 `No Available Excerpts` Toast。
   - **数据操作**（保存/移动/复制深链接等）：严格拦截操作，在当前工作区弹出对应 Toast 提示。
 
 ## 3. 原则 3（父子层级回退与实体失效展示规则）

@@ -443,7 +443,7 @@
 - 图标：warning
 - 持续时间：1秒（Player Top-Left）/ 3秒（Bottom Right Toast）
 - Scenario ID：playback.hud.no_available_excerpts
-- 出现位置：Player Top-Left（摘录播放列表切集无有效项时）/ Bottom Right（两处 Recent Excerpt Lists 打开无有效摘录的列表，或未刷新的 Excerpt 二级界面点击无有效摘录列表的 Play / Resume 时）
+- 出现位置：Player Top-Left（摘录播放列表切集无有效项时）/ Bottom Right（两处 Recent Excerpt Lists 或未刷新的 Excerpt 二级界面 Play / Resume 打开在当前搜索与筛选下无有效摘录的列表时）
 - 动画：None（Player Top-Left）/ Default（Toast）
 
 #### 39. 播放列表无可用视频

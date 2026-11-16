@@ -716,7 +716,7 @@
    2. Supporting Content
       1. Primary Metadata
       2. Secondary Metadata
-   3. Progress（Optional，仅 Resume 态显示）
+   3. Progress（Optional）
       1. Progress Label
       2. Progress Bar
    4. Action Row
@@ -803,8 +803,8 @@
 
 #### States
 
-- Resume：存在最近播放记录，显示 Progress 区域，主按钮为 `Resume`。
-- Play：不存在最近播放记录，隐藏 Progress 区域，主按钮为 `Play`。
+- Resume：存在当前命中的最近播放记录，显示 Progress 区域，主按钮为 `Resume`。
+- Play：有可播放内容但无当前命中的最近播放记录，主按钮为 `Play`（Progress 区域按所在页面规则显示或隐藏）。
 - Disabled：没有可播放内容，隐藏 Progress 区域，主按钮为 Disabled 状态的 `Play`。
 
 ### C-11.3 Cover Crop Editor

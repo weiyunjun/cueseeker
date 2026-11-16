@@ -404,8 +404,8 @@
 - Tabs 默认在顶栏水平、垂直居中；空间不足时保持与左、右内容至少 `--spacing-3` 间距并向空余一侧偏移，两侧间距均达 `--spacing-3` 后截断左侧标题。卡片网格使用 `--padding-workbench-media-card-grid-inline`。
 - 默认选项：Videos。选择在 App 运行期间保留，重新启动后回到默认。
 - 按本地自然日凌晨 `00:00` 划分为 `Last 7 Days`、`Last 30 Days`、`Earlier`、`Never Played` 四个分组，仅展示非空分组；分组标题左边缘与未 Hover 时的卡片封面左边缘齐平。
-- `Excerpt Lists` 收录全部已存在的摘录集（仅在无任何摘录集时展示 Empty State），按历史实际播放时间归组，曾播放过的摘录集不因列表清空或摘录全部失效而改变分组；打开无有效摘录的摘录集时拦截并弹出右下角 `No Available Excerpts` Toast（持续 3 秒），不进入播放且不更新最近播放时间。
-- `Never Played`：Videos 收录无播放记录的文件夹（默认展示 `EP01`，按文件夹名称升序）；Excerpt Lists 收录从未实际播放过的摘录集（按创建时间正序，有有效摘录时从第 1 条有效字幕播放）。
+- `Excerpt Lists` 收录全部已存在的摘录集（仅在无任何摘录集时展示 Empty State，卡片徽章显示完整有效字幕数），按历史实际播放时间归组，曾播放过的摘录集不因列表清空或摘录全部失效而改变分组；打开在当前搜索与筛选下无有效摘录的摘录集时拦截并弹出右下角 `No Available Excerpts` Toast（持续 3 秒），不进入播放且不更新最近播放时间。
+- `Never Played`：Videos 收录无播放记录的文件夹（默认展示 `EP01`，按文件夹名称升序）；Excerpt Lists 收录从未实际播放过的摘录集（按创建时间正序，当前搜索与筛选下有有效摘录时按列表当前排序从第 1 条有效字幕播放）。
 - 空状态（保留顶栏 `Videos` / `Excerpt Lists` 切换标签）：当前子标签无可显示记录时，若 `File` 无任何已入库文件夹则居中显示带 `Go to File` 按钮的 Empty State（图标 `folder-hint`，文案 `Add a folder to get started.`）；若已有已入库文件夹则分别居中显示图标 `video`（文案 `No recent videos yet.`）或 `excerpt`（文案 `No recent excerpt lists yet.`）的 Empty State。
 
 #### Sizes
@@ -754,9 +754,9 @@
 - Cover Summary、Toolbar 与 Table Content Region 使用相同宽度和水平边界。
 - Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
 - Cover Summary 内容：
-  - Supporting Content 第 1 行为有效台词总数量与创建时间（`xx excerpts  Created yyyy-MM-dd`，中间以 2 个英文空格分隔），第 2 行为摘录列表描述（未填写时显示占位文案 `No description`；仅当描述发生单行截断或包含换行时支持点击在原地展开详情浮层，Hover 显示同色下划线与 Grab 指针）。
-  - Progress Label（仅 Resume 态显示）：`#x / y  台词内容`（`y` 为有效台词数，序号与台词内容之间以 2 个英文空格分隔，超出单行或遇换行均在末尾以 `...` 截断）。
-  - Action Row：`Resume` / `Play`（已同步状态下无有效摘录时为 Disabled `Play`；未刷新冻结状态下后台已无有效摘录时点击拦截并弹出右下角 3 秒 `No Available Excerpts` Toast）、`More`（图标 `dots-three`，弹出菜单内容与 Excerpt 一级界面卡片右键菜单一致，含 `Edit List` 与 `Delete List`；确认删除当前列表后自动退回 Excerpt 一级界面）。
+  - Supporting Content 第 1 行为完整有效台词总数量与创建时间（`xx excerpts  Created yyyy-MM-dd`，不受列表内搜索与筛选影响，中间以 2 个英文空格分隔），第 2 行为摘录列表描述（未填写时显示占位文案 `No description`；仅当描述发生单行截断或包含换行时支持点击在原地展开详情浮层，Hover 显示同色下划线与 Grab 指针）。
+  - Progress（`Resume` 与 `Play` 态均显示，`Disabled` 态隐藏）：Progress Label 为 `#x / yy  台词内容`，Progress Bar 比例为 `x / yy`（`yy` 为当前搜索与筛选下的有效台词数，与下方 Toolbar 统计一致；`Resume` 态对应命中的目标台词及其在当前搜索、筛选、排序下的序号 `x`，`Play` 态统一为 `#1 / yy` 及当前第 1 条有效台词；序号与台词内容之间以 2 个英文空格分隔，超出单行或遇换行均在末尾以 `...` 截断）。
+  - Action Row：`Resume` / `Play`（已同步状态下当前搜索与筛选无有效摘录时为 Disabled `Play`；未刷新冻结状态下后台在当前搜索与筛选下已无有效摘录时点击拦截并弹出右下角 3 秒 `No Available Excerpts` Toast）、`More`（图标 `dots-three`，弹出菜单内容与 Excerpt 一级界面卡片右键菜单一致，含 `Edit List` 与 `Delete List`；确认删除当前列表后自动退回 Excerpt 一级界面）。
 
 #### Spacing
 
@@ -785,7 +785,7 @@
 
 1. Default：
    - Row 1：从左到右依次为 Search Field（Search 页占位提示 `Search cues`，Excerpt 详情页占位提示 `Search excerpts`；自适应撑满整行剩余宽度）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Sort Trigger（图标为 `funnel-simple`，文字为当前选中的排序方式；点击展开与按钮左边缘对齐的 Radio Menu）
-   - Row 2（与下方表格左外框左对齐）：Result Count（Search 为 `xx results`，未输入搜索词时不显示；Excerpt 为 `xx excerpts`，仅统计有效台词）
+   - Row 2（与下方表格左外框左对齐）：Result Count（Search 为 `xx results`，未输入搜索词时不显示；Excerpt 为 `yy excerpts`，仅统计当前搜索与筛选下的有效台词）
 2. Select Mode：
    - Row 1（与下方表格等宽，左侧与表格左外框对齐）：从左到右依次为 Selected Count（`xx / yy rows selected`，可选行数不含 Unavailable 行，样式同 Result Count 且保持完整显示不截断）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`，宽度不足时优先缩减并尾部省略 `...`）、靠右对齐表格右外框的 `Exit Selection` 按钮（Button / Destructive，带 18px `sign-out` 图标）
    - Row 2（与下方表格左外框左对齐，单行空间不足时自动换行）：前 3 个通用 Neutral 按钮从左到右固定为 `Export to Anki`（图标 `export`，快捷键 `A`）、`Copy Deep Links`（图标 `link-simple`，快捷键 `D`）、`Copy Table`（图标 `copy`，快捷键 `T`）；Search 表格其后接 `Save to Excerpt List`（Neutral，图标 `arrow-right`，快捷键 `S`），Excerpt 表格其后依次接 `Move to`（Neutral，图标 `arrow-right`，快捷键 `M`）、`Duplicate to`（Neutral，图标 `arrow-right`，快捷键 `C`）、`Remove Excerpt`（Destructive，图标 `bookmark-simple`，快捷键 `R`）
