@@ -400,9 +400,11 @@ Rules:
   what mechanism the fix uses, how the change prevents recurrence, whether the
   approach conflicts with existing design direction, and which execution steps
   are needed with the purpose of each step.
-- Code identifiers, file paths, function names, variable names, and line numbers
-  are supporting evidence only. They must not replace the causal explanation,
-  and they should normally appear after the human-readable engineering summary
+- Code identifiers, file paths, function names, variable names, line numbers,
+  and internal state or mechanism jargon are supporting evidence only. They must
+  never replace plain user-observable interface symptoms and real minimal UI
+  action examples, must not pad simple actions with convoluted fictional
+  backstories, and should normally appear after the human-readable summary
   unless the user explicitly asks only for code locations.
 - When an implementation step has an agreed benchmark or acceptance metric, and
   the measured result is a regression or does not support the stated goal, the
@@ -492,20 +494,32 @@ Rules:
   `PointerHoverGateTests`, `CueGroupRefreshScopeIntegrationTests`,
   `PlaybackPageFocusIsolationTests`). Unfiltered `swift test` must never be run
   by default unless explicitly requested by the user.
-- During Code Review, before reporting any suspected issue, the AI must verify
-  exact UI labels, menu items, and shortcut definitions in source code and
-  cross-check relevant design and interaction documents under
-  `docs/human/design/` to confirm the behavior is not an established product
-  rule; theoretical branches unreachable through ordinary in-app interaction
-  must be dropped or explicitly noted as unreachable in normal UI rather than
-  fabricated into fake operation sequences. By default, Code Review output must
-  present only the symptom, concrete UI reproduction steps (exact screen,
-  control, key/pointer actions), and expected vs. actual behavior, stopping for
-  human verification without generating a fix prompt or editing code. After the
-  user confirms a reproduced issue, the AI must first explain why behavior
-  worked prior to the change, how the change introduced the issue, and the
-  proposed fix scope/approach, outputting a fix prompt or applying edits only
-  after alignment and explicit user instruction.
+- Across all collaboration stages (solution alignment, root-cause investigation,
+  approach discussion, and Code Review), before reporting any suspected bug or
+  collateral unexposed defect, the AI must verify exact UI labels, controls,
+  menu items, and shortcut definitions in source code and cross-check the latest
+  design and interaction documents under `docs/human/design/` to confirm the
+  behavior is not an established product rule. Theoretical branches unreachable
+  through ordinary in-app interaction must be dropped directly; the AI must
+  never work backward from code-branch differences to fabricate hypothetical UI
+  operation sequences, must never frame currently working behavior as an active
+  bug (anti-regression constraints must be explicitly labeled as existing
+  working behavior), and must never invent bugs to justify refactoring
+  (consolidating duplicated logic must be stated plainly as code cleanup). Every
+  suspected bug must be presented strictly in concise plain language using the
+  three-part format: a one-sentence symptom on the specific screen, concrete UI
+  reproduction steps (exact screen, control, and key/pointer actions), and
+  expected vs. actual behavior, without internal state or mechanism jargon.
+  During Code Review, output must present only those three parts and stop for
+  human verification without generating a fix prompt or editing code; during
+  solution alignment or approach discussion, any collateral suspected bugs
+  beyond the confirmed primary issue must likewise be listed separately with
+  concrete reproduction steps for human verification first, and must never be
+  included in requirement scope or used to expand change scope before the user
+  confirms reproduction. After human confirmation, the AI must first explain in
+  plain language why behavior previously worked (or the root cause), how the
+  issue arises, and the proposed fix scope/approach, outputting a fix prompt or
+  applying edits only after alignment and explicit user instruction.
 
 ## The Solution
 
