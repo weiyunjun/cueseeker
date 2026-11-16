@@ -300,7 +300,7 @@
 | Playback Collage | 已选字幕条数 / 字幕条数 | Copy Collage `P`、Export Collage `E`、Select `Return` |
 | Playback Playlist / Subtitle Playlist | 字幕条数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
 | Playback Playlist / Video Playlist | 视频数 | Play `Return` |
-| Command Panel Root | None | Open `Return`（选中 Copy Current Cue 时为 Copy `Return`） |
+| Command Panel Root | None | Close `Esc`、Open `Return`（选中 Copy Current Cue 时为 Copy `Return`） |
 | Command Panel / Recent Videos | 视频数 | Open `Return` |
 | Command Panel / Recent Excerpt Lists | 摘录集数 | Open `Return` |
 | Command Panel / Search Results | 结果数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
@@ -515,7 +515,12 @@
 #### Sizes
 
 - Header Height：`--height-command-panel-header`
+- Header Item Gap：`--spacing-3`
 - Content Horizontal Padding：`--spacing-5`
+
+#### Layout
+
+- Header 内 Title 位于 Back Action 右侧左对齐，占满右侧按钮区（或右内边缘）之外的剩余宽度，单行超出时尾部截断
 
 #### Variants
 

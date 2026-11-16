@@ -566,3 +566,10 @@
 - 触发延迟：1秒
 - Scenario ID：truncated.toolbar.batch_selection_banner
 - 所在位置：Search / Excerpt Toolbar（Select Mode 第一行中间提示文本）
+
+### 43. 命令面板二级页顶栏标题（Command Panel Secondary Title）
+- 显示内容：完整的当前二级页标题文本（搜索词、`Recent Videos` 或 `Recent Excerpt Lists`）
+- 触发条件：单行标题超出顶栏可用宽度发生尾部省略（`...`）时
+- 触发延迟：1秒
+- Scenario ID：truncated.command_panel.secondary_title
+- 所在位置：Command Panel Secondary Header 标题区

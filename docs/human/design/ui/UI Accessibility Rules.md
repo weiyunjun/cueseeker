@@ -310,7 +310,7 @@
 ### 3.4.3 命令面板（`L-09 Command Panel`）
 1. **一级根视图（`L-09.1 Root`）**：
    - 打开时默认聚焦顶部搜索框（无外圈光圈）；
-   - 按 `Tab` 开启无障碍时从第 1 个组件（顶部搜索框整体）开始依次遍历：顶部搜索框（及有文字时的内部 `✕`） → 中间选项列表（`Search Action`［Filled Query 时］ → `Copy Current Cue`［存在可用台词时］ → `Recent Videos` → `Recent Excerpt Lists`；无障碍位于该选项列表内时与 `Select` 双向跟随） → 底栏 `Open` / `Copy` 按钮。
+   - 按 `Tab` 开启无障碍时从第 1 个组件（顶部搜索框整体）开始依次遍历：顶部搜索框（及有文字时的内部 `✕`） → 中间选项列表（`Search Action`［Filled Query 时］ → `Copy Current Cue`［存在可用台词时］ → `Recent Videos` → `Recent Excerpt Lists`；无障碍位于该选项列表内时与 `Select` 双向跟随） → 底栏 `Close` 按钮 → `Open` / `Copy` 按钮。
 2. **二级视图 — `Recent Videos` / `Recent Excerpt Lists`（`L-09.2`）**：
    - 顶部返回按钮 → 中间区域（展示无文件夹引导空状态时为居中 `Go to File` 按钮；有卡片时按分组从上到下、从左到右遍历封面卡片网格，在网格内与 `Select` 双向跟随，每张卡片先选整体再选右下角 `dots-three` 按钮） → 底栏 `Open` 按钮。
 3. **二级视图 — `Search Results`（`L-09.2` / `L-09.3`）**：

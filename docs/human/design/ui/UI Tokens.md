@@ -409,7 +409,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-dialog-medium`: `480px`
 - `--width-dialog-large`: `600px`
 - `--width-dialog-x-large`: `720px`
-- `--width-command-panel-max`: `1040px`
+- `--width-command-panel-max`: `720px`
 - `--width-form-label`: `96px`
 - `--width-shortcut-field`: `144px`
 - `--width-settings-number-field`: `114px`
