@@ -439,6 +439,7 @@ extension AppCoordinator {
         ensurePlayerInitialized()
         clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
+        let previousPlaylistSource = playback.playlistSource
         let precheckedItemInLibrary: Bool?
         if let playlistSourceOverride {
             playback.setPlaylistSource(playlistSourceOverride)
@@ -484,6 +485,9 @@ extension AppCoordinator {
         let itemInLibrary = precheckedItemInLibrary ?? isCueInLibrary(result.entryID)
         currentPlaybackItemLeftLibrary = !itemInLibrary
         search.selectResult(result)
+        if playback.playlistSource !== previousPlaylistSource {
+            search.reclaimUnusedCueContent()
+        }
         if itemInLibrary, playbackSearchPromotion == nil {
             updateSearchNavigationSnapshotForOpenedResult(result)
         } else {
@@ -775,6 +779,7 @@ extension AppCoordinator {
             case .libraryFolder, .fileFolder, .fileFiles:
                 break
             }
+            search.reclaimUnusedCueContent()
             playback.clearAllErrors()
         } catch {
             showPlaybackError(error)

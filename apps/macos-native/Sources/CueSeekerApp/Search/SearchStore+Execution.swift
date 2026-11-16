@@ -129,6 +129,7 @@ extension SearchStore {
 
         guard !trimmedQuery.isEmpty else {
             markSearchIdle()
+            reclaimUnusedCueContent()
             finishSkippedSearch(
                 run: run,
                 event: "search_skipped_empty_query",
@@ -143,6 +144,7 @@ extension SearchStore {
             if shouldClearSelectionWhenUnavailable {
                 selectResult(nil)
             }
+            reclaimUnusedCueContent()
             finishSkippedSearch(
                 run: run,
                 event: "search_skipped_no_folders",
@@ -534,6 +536,7 @@ extension SearchStore {
 
         guard !trimmedQuery.isEmpty else {
             markSearchIdle()
+            reclaimUnusedCueContent()
             return
         }
 
@@ -542,6 +545,7 @@ extension SearchStore {
             if shouldClearSelectionWhenUnavailable {
                 selectResult(nil)
             }
+            reclaimUnusedCueContent()
             return
         }
 
@@ -787,10 +791,7 @@ extension SearchStore {
 
     private func resetResultLoadingState() {
         cancelNavigationTask()
-        let releasedRows = clearResults()
-        AppMemoryPressureRelief.relieveAfterLargeResultRelease(
-            estimatedReleasedRows: releasedRows
-        )
+        _ = clearResults()
     }
 
     func loadSearchRows(

@@ -99,6 +99,7 @@ extension AppCoordinator {
         if search.isPlaybackPruningActive || activePlaybackSource == .search {
             pruneInvalidSearchResultsFromLibrary()
         }
+        search.reclaimUnusedCueContent()
         refreshPlaybackChromeSnapshot(
             displayTitle: playback.chromeSnapshot.displayTitle
         )

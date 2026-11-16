@@ -628,6 +628,12 @@ final class AppCoordinator: ObservableObject {
         library.onWatchStateChanged = { [weak self] in
             self?.refreshExcerptForLibraryWatchStateChange()
         }
+        search.externalRetainedCueIDsProvider = { [weak self] in
+            self?.externalRetainedCueIDsForSearchReclamation() ?? []
+        }
+        playback.onPlaylistSourceDidChange = { [weak self] in
+            self?.search.reclaimUnusedCueContent()
+        }
         configureAnkiExportRunner()
         configureRenameRunner()
         configureLibraryTaskRunners()
@@ -1310,7 +1316,8 @@ final class AppCoordinator: ObservableObject {
             return
         }
         _ = search.clearResults()
-        search.clearCachedCueContent()
+        search.setSearchFacetSnapshot(nil)
+        search.reclaimUnusedCueContent()
         _ = search.consumePendingReappearanceRefresh()
         library.overviewSearchDraft = ""
         if excerpt.listOverview.lists.isEmpty, !excerpt.overviewSearchDraft.isEmpty {

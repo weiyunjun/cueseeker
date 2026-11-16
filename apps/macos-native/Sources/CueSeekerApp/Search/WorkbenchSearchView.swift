@@ -509,7 +509,6 @@ struct WorkbenchSearchView: View {
             hasDeferredRefreshWhileCovered = true
             return
         }
-        let releasedRows = max(rowStore.snapshot.loadedReferenceCount, rowStore.snapshot.totalRowCount)
         rowSelection.reset()
         persistSelection()
         rowStore.updateResidentSearchResults(
@@ -527,7 +526,6 @@ struct WorkbenchSearchView: View {
             didRestoreViewport = true
             tableScrollResetToken += 1
         }
-        AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
     }
 
     /// Search has no current list, so every list is a destination.

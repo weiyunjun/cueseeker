@@ -186,6 +186,7 @@ extension AppCoordinator {
             if didFilterCueIDs || source.boundary.totalCount != cueIDs.count {
                 _ = source.replaceResidentItems(
                     totalCount: cueIDs.count,
+                    residentCueIDs: cueIDs,
                     itemProvider: itemProvider
                 )
             }
@@ -199,6 +200,7 @@ extension AppCoordinator {
         let source = PlaybackPlaylistSource(
             origin: origin,
             totalCount: cueIDs.count,
+            residentCueIDs: cueIDs,
             itemProvider: itemProvider
         )
         playback.setPlaylistSource(
@@ -240,6 +242,7 @@ extension AppCoordinator {
         }
         _ = source.replaceResidentItems(
             totalCount: cueIDs.count,
+            residentCueIDs: cueIDs,
             itemProvider: searchPlaylistItemProvider(
                 cueIDs: cueIDs
             )

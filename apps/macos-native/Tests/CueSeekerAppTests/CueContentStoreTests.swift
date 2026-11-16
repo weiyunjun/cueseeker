@@ -1,3 +1,4 @@
+import Combine
 import Testing
 import CueSeekerCore
 @testable import CueSeekerApp
@@ -177,6 +178,140 @@ func unrelatedCanonicalCueChangeDoesNotReloadCoveredResidentExcerpt() {
 
     #expect(excerptStore.tableRowStore.snapshot.version == originalSnapshotVersion)
     #expect(excerptStore.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Resident Excerpt")
+}
+
+@MainActor
+@Test
+func cueContentStoreReclaimsUnusedEntriesSilentlyWithoutPublishingChanges() {
+    let store = CueContentStore()
+    var emittedChanges: [CueContentStoreChange] = []
+    let cancellable = store.changes.sink { emittedChanges.append($0) }
+    defer { cancellable.cancel() }
+
+    store.install([
+        cueContent(cueID: 1, content: "One"),
+        cueContent(cueID: 2, content: "Two"),
+        cueContent(cueID: 3, content: "Three"),
+        cueContent(cueID: 4, content: "Four"),
+    ])
+    emittedChanges.removeAll()
+    let revisionBeforeReclaim = store.revision
+
+    let removedPartial = store.reclaimUnused(retaining: [2, 4])
+    #expect(removedPartial == 2)
+    #expect(store.count == 2)
+    #expect(Set(store.cachedCueIDs) == [2, 4])
+    #expect(store.content(for: 1) == nil)
+    #expect(store.content(for: 3) == nil)
+    #expect(store.content(for: 2)?.content == "Two")
+    #expect(store.content(for: 4)?.content == "Four")
+    #expect(store.revision == revisionBeforeReclaim)
+    #expect(emittedChanges.isEmpty)
+
+    let removedAll = store.reclaimUnused(retaining: [])
+    #expect(removedAll == 2)
+    #expect(store.count == 0)
+    #expect(store.cachedCueIDs.isEmpty)
+    #expect(store.revision == revisionBeforeReclaim)
+    #expect(emittedChanges.isEmpty)
+}
+
+@MainActor
+@Test
+func sharedCueContentStoreSearchReclamationPreservesActiveAndCachedExcerptSnapshots() {
+    let cueStore = CueContentStore()
+    let excerptStore = ExcerptStore(cueContentStore: cueStore)
+    let searchStore = SearchStore(cueContentStore: cueStore)
+    searchStore.externalRetainedCueIDsProvider = { [weak excerptStore] in
+        excerptStore?.residentCueIDs ?? []
+    }
+
+    let excerptCueOne = cueContent(cueID: 11, content: "Cached List Excerpt")
+    let excerptCueTwo = cueContent(cueID: 22, content: "Active List Excerpt")
+    let searchCueOne = cueContent(cueID: 33, content: "Search Cue One")
+    let searchCueTwo = cueContent(cueID: 44, content: "Search Cue Two")
+    cueStore.install([excerptCueOne, excerptCueTwo, searchCueOne, searchCueTwo])
+
+    let listOneRelation = ExcerptRelation(
+        id: 101,
+        listID: 1,
+        cueID: 11,
+        createdAt: "2026-11-16T00:00:00Z"
+    )
+    excerptStore.setActiveListID(1)
+    excerptStore.installResidentSnapshot(
+        ExcerptResidentSnapshot(
+            relations: [listOneRelation],
+            resolvedExcerpts: [Excerpt(relation: listOneRelation, cueContent: excerptCueOne)],
+            cueContents: [excerptCueOne],
+            facetSnapshot: .empty
+        ),
+        listID: 1,
+        dataRevision: excerptStore.tableDataRevision
+    )
+
+    let listTwoRelation = ExcerptRelation(
+        id: 202,
+        listID: 2,
+        cueID: 22,
+        createdAt: "2026-11-16T00:01:00Z"
+    )
+    excerptStore.setActiveListID(2)
+    excerptStore.installResidentSnapshot(
+        ExcerptResidentSnapshot(
+            relations: [listTwoRelation],
+            resolvedExcerpts: [Excerpt(relation: listTwoRelation, cueContent: excerptCueTwo)],
+            cueContents: [excerptCueTwo],
+            facetSnapshot: .empty
+        ),
+        listID: 2,
+        dataRevision: excerptStore.tableDataRevision
+    )
+
+    searchStore.replaceResidentResults([
+        SubtitleSearchResult(cueContent: searchCueOne, searchRank: 0),
+        SubtitleSearchResult(cueContent: searchCueTwo, searchRank: 1),
+    ])
+    #expect(cueStore.count == 4)
+
+    searchStore.clearResults()
+    let removed = searchStore.reclaimUnusedCueContent()
+
+    #expect(removed == 2)
+    #expect(cueStore.content(for: 33) == nil)
+    #expect(cueStore.content(for: 44) == nil)
+    #expect(cueStore.content(for: 11) == excerptCueOne)
+    #expect(cueStore.content(for: 22) == excerptCueTwo)
+
+    excerptStore.setActiveListID(1)
+    #expect(excerptStore.residentRelations == [listOneRelation])
+    #expect(cueStore.content(for: 11)?.content == "Cached List Excerpt")
+}
+
+@MainActor
+@Test
+func cueContentStoreLargeReclamationUpdatesStoreSynchronouslyAndShrinksStorage() {
+    let store = CueContentStore()
+    var prebuilt: [Int64: CueContent] = [:]
+    prebuilt.reserveCapacity(6_000)
+    for cueID in Int64(1)...Int64(6_000) {
+        prebuilt[cueID] = cueContent(cueID: cueID, content: "Line \(cueID)")
+    }
+    #expect(store.installPrebuilt(prebuilt))
+    #expect(store.count == 6_000)
+
+    let removed = store.reclaimUnused(retaining: [10, 5_000])
+    #expect(removed == 5_998)
+    #expect(store.count == 2)
+    #expect(store.content(for: 10)?.content == "Line 10")
+    #expect(store.content(for: 5_000)?.content == "Line 5000")
+    #expect(store.content(for: 1) == nil)
+    #expect(store.content(for: 6_000) == nil)
+
+    // Subsequent prune with the same retained set is a no-op once compacted.
+    #expect(store.reclaimUnused(retaining: [10, 5_000]) == 0)
+    #expect(store.reclaimUnused(retaining: []) == 2)
+    #expect(store.count == 0)
 }
 
 private func cueContent(cueID: Int64, content: String) -> CueContent {

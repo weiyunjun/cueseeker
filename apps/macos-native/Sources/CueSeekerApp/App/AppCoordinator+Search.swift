@@ -349,8 +349,7 @@ extension AppCoordinator {
         }
 
         if clearExistingResults {
-            let releasedRows = search.clearResults()
-            AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
+            _ = search.clearResults()
         }
 
         guard let folderScopeOverride else {
@@ -377,6 +376,15 @@ extension AppCoordinator {
         return candidateCueIDs
     }
 
+    func externalRetainedCueIDsForSearchReclamation() -> Set<Int64> {
+        var retained = excerpt.residentCueIDs
+        if let activeSearchCueIDs = playback.playlistSource?.activeSearchCueIDs,
+           !activeSearchCueIDs.isEmpty {
+            retained.formUnion(activeSearchCueIDs)
+        }
+        return retained
+    }
+
     func pruneInvalidSearchResultsFromLibrary() {
         let candidateCueIDs = searchCandidateCueIDsForPruning()
         let liveCueIDs = cueIDsInLibrary(among: candidateCueIDs)
@@ -400,6 +408,7 @@ extension AppCoordinator {
                 return
             }
             pruneInvalidSearchResultsFromLibrary()
+            search.reclaimUnusedCueContent()
             if search.searchFacetFilter != search.resultFacetFilter
                 || search.searchSortOrder != search.resultSortOrder {
                 settings.searchFacetFilter = search.searchFacetFilter
@@ -413,7 +422,9 @@ extension AppCoordinator {
             guard !trimmedQuery.isEmpty else {
                 return
             }
-            search.clearCachedCueContent()
+            _ = search.clearResults()
+            search.setSearchFacetSnapshot(nil)
+            search.reclaimUnusedCueContent()
             settings.searchFacetFilter = search.searchFacetFilter
             settings.searchSortOrder = search.searchSortOrder
             startSearch(

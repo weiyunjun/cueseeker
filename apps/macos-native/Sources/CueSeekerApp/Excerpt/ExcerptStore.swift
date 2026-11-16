@@ -82,6 +82,23 @@ final class ExcerptStore: ObservableObject {
     var tableSelectionState = TableSandboxRowSelectionState()
     var tableSelectionEntryIDs: [Int] = []
 
+    var residentCueIDs: Set<Int64> {
+        guard !residentRelations.isEmpty || !residentSnapshotsByListID.isEmpty else {
+            return []
+        }
+        var cueIDs = Set<Int64>()
+        cueIDs.reserveCapacity(residentRelations.count)
+        for relation in residentRelations {
+            cueIDs.insert(relation.cueID)
+        }
+        for snapshot in residentSnapshotsByListID.values {
+            for relation in snapshot.relations {
+                cueIDs.insert(relation.cueID)
+            }
+        }
+        return cueIDs
+    }
+
     var playbackTableResultExcerptIDs: [Int64]? {
         if let cachedPlaybackTableResultExcerptIDs {
             return cachedPlaybackTableResultExcerptIDs

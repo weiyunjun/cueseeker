@@ -60,6 +60,7 @@ final class SearchStore: ObservableObject {
     private(set) var tableProjectionSource: SearchTableProjectionSource?
     private var indexedCueMutationGeneration: UInt64 = 0
     private var activeIndexedCueMutationGeneration: UInt64?
+    var externalRetainedCueIDsProvider: (() -> Set<Int64>)?
 
     @Published private(set) var indexedCueDataRevision: UInt64 = 0
     @Published private(set) var searchQuery = ""
@@ -279,8 +280,28 @@ final class SearchStore: ObservableObject {
         cueContentStore.content(for: cueID)
     }
 
-    func clearCachedCueContent() {
-        cueContentStore.removeAll()
+    @discardableResult
+    func reclaimUnusedCueContent() -> Int {
+        guard cueContentStore.count > 0 else {
+            return 0
+        }
+        return cueContentStore.reclaimUnused(retaining: retainedCueIDs())
+    }
+
+    private func retainedCueIDs() -> Set<Int64> {
+        var retained = externalRetainedCueIDsProvider?() ?? []
+        let searchCount = max(loadedSearchResultCueIDs.count, searchResultCueIDs.count)
+        let facetCount = searchFacetSnapshot?.cueIDs.count ?? 0
+        retained.reserveCapacity(retained.count + max(searchCount, facetCount) + 1)
+        retained.formUnion(loadedSearchResultCueIDs)
+        retained.formUnion(searchResultCueIDs)
+        if let facetCueIDs = searchFacetSnapshot?.cueIDs {
+            retained.formUnion(facetCueIDs)
+        }
+        if let selectedCueID = selectedSearchResult?.entryID {
+            retained.insert(selectedCueID)
+        }
+        return retained
     }
 
     var cachedCueContentRevision: UInt64 {
@@ -766,6 +787,7 @@ final class SearchStore: ObservableObject {
         guard generation == resultListGeneration else {
             return false
         }
+        var didReclaimDuringPrebuiltInstall = false
         commitResultMutation {
             isCountOnlySearchSnapshot = false
             let loadedResultCount: Int
@@ -774,10 +796,23 @@ final class SearchStore: ObservableObject {
                 let isUnchangedPrefixOnly = loadedSearchResultCueIDs == prebuiltCompletion.cueIDs
                     && searchRankByCueID.count == prebuiltCompletion.rankByCueID.count
                 if !isUnchangedPrefixOnly {
+                    var extraRetained = externalRetainedCueIDsProvider?() ?? []
+                    if let selectedCueID = selectedSearchResult?.entryID {
+                        extraRetained.insert(selectedCueID)
+                    }
+                    if let facetCueIDs = page.facetSnapshot?.cueIDs,
+                       facetCueIDs.count != prebuiltCompletion.cueIDs.count {
+                        extraRetained.formUnion(facetCueIDs)
+                    }
+                    if page.cueIDs.count != prebuiltCompletion.cueIDs.count {
+                        extraRetained.formUnion(page.cueIDs)
+                    }
                     cueContentStore.installPrebuilt(
                         prebuiltCompletion.contentByCueID,
-                        publishesChange: false
+                        publishesChange: false,
+                        reclaimingOutside: extraRetained
                     )
+                    didReclaimDuringPrebuiltInstall = true
                     loadedSearchResultCueIDs = prebuiltCompletion.cueIDs
                     searchRankByCueID = prebuiltCompletion.rankByCueID
                     tableProjectionRevision &+= 1
@@ -824,6 +859,9 @@ final class SearchStore: ObservableObject {
             searchStatus = .completed
             updateSearchSnapshotMutationRevision()
         }
+        if !didReclaimDuringPrebuiltInstall {
+            reclaimUnusedCueContent()
+        }
         return true
     }
 
@@ -857,6 +895,7 @@ final class SearchStore: ObservableObject {
             searchStatus = .completed
             updateSearchSnapshotMutationRevision()
         }
+        reclaimUnusedCueContent()
         pendingReappearanceRefreshMode = isUnfilteredZeroMatch ? .none : .rerunSearch
         return true
     }

@@ -373,6 +373,7 @@ extension AppCoordinator {
         currentPlaybackItemLeftLibrary = !itemInLibrary
         library.selectedLibraryVideo = video
         search.selectResult(nil)
+        search.reclaimUnusedCueContent()
         excerpt.selectedExcerpt = nil
         let navigationAvailability = libraryNavigationAvailability(for: video)
         setPlaybackChromeSnapshot(

@@ -213,6 +213,7 @@ final class PlaybackStore: ObservableObject {
         .redesignLibraryRecentGridMaxColumnsWithoutSidebar
     private(set) var commandPanelRecentCardScrollSequence: UInt64 = 0
     @Published private(set) var playlistSource: PlaybackPlaylistSource?
+    var onPlaylistSourceDidChange: (() -> Void)?
     private(set) var playbackSearchPlaylistOrdinal: Int?
     private(set) var playlistPosition: PlaybackPlaylistPosition?
     @Published var playbackStatus: PlaybackStatus = .idle
@@ -819,6 +820,7 @@ final class PlaybackStore: ObservableObject {
         if let playbackSearchSelectedOrdinal {
             _ = setPlaylistPosition(at: playbackSearchSelectedOrdinal)
         }
+        onPlaylistSourceDidChange?()
     }
 
     @discardableResult
@@ -901,10 +903,14 @@ final class PlaybackStore: ObservableObject {
     }
 
     func clearPlaylistSource() {
+        let hadSource = playlistSource != nil
         playbackSearchPlaylistOrdinal = nil
         playlistPosition = nil
         playlistSource?.invalidate()
         playlistSource = nil
+        if hadSource {
+            onPlaylistSourceDidChange?()
+        }
     }
 
     func setChromeSnapshot(_ snapshot: PlaybackChromeSnapshot) {

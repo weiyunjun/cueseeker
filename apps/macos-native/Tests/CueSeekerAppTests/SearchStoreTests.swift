@@ -1639,3 +1639,256 @@ func searchSortOrderProjectsCompletedSnapshotAndRestartsInFlightSearch() async t
     ])
 }
 
+@MainActor
+@Test
+func clearingSearchQueryReclaimsCueContentWhenNoSearchPlaylistIsActive() async throws {
+    try await withReclamationSearchTestApp { app, _ in
+        app.submitSearch("alpha")
+        await app.search.searchTask?.value
+        let alphaCueIDs = app.search.searchResults.map(\.entryID)
+        #expect(alphaCueIDs.count == 2)
+        for cueID in alphaCueIDs {
+            #expect(app.search.cachedCueContent(for: cueID) != nil)
+        }
+
+        app.updateSearchQuery("")
+        #expect(app.search.searchResults.isEmpty)
+        for cueID in alphaCueIDs {
+            #expect(app.search.cachedCueContent(for: cueID) == nil)
+        }
+    }
+}
+
+@MainActor
+@Test
+func sequentialSearchesAndZeroHitSearchEvictObsoleteCueContent() async throws {
+    try await withReclamationSearchTestApp { app, _ in
+        app.submitSearch("alpha")
+        await app.search.searchTask?.value
+        let alphaCueIDs = app.search.searchResults.map(\.entryID)
+        #expect(alphaCueIDs.count == 2)
+
+        app.submitSearch("beta")
+        await app.search.searchTask?.value
+        let betaCueIDs = app.search.searchResults.map(\.entryID)
+        #expect(betaCueIDs.count == 1)
+        for cueID in betaCueIDs {
+            #expect(app.search.cachedCueContent(for: cueID) != nil)
+        }
+        for cueID in alphaCueIDs {
+            #expect(app.search.cachedCueContent(for: cueID) == nil)
+        }
+
+        app.submitSearch("nomatchkeyword")
+        await app.search.searchTask?.value
+        #expect(app.search.searchStatus == .completed)
+        #expect(app.search.searchResults.isEmpty)
+        for cueID in alphaCueIDs + betaCueIDs {
+            #expect(app.search.cachedCueContent(for: cueID) == nil)
+        }
+    }
+}
+
+@MainActor
+@Test
+func facetFilterTightenAndRelaxKeepsCurrentRoundCueContentInMemory() async throws {
+    try await withReclamationSearchTestApp { app, _ in
+        app.submitSearch("shared")
+        await app.search.searchTask?.value
+        let allResults = app.search.searchResults
+        #expect(allResults.count == 2)
+        let shortCueID = try #require(
+            allResults.first(where: { $0.content == "shared s" })?.entryID
+        )
+        let longCueID = try #require(
+            allResults.first(where: { $0.content.contains("longest") })?.entryID
+        )
+
+        app.applySearchFacetFilter(CueFacetFilter(characters: [.oneToTen]))
+        #expect(app.search.searchResults.map(\.entryID) == [shortCueID])
+        // The filtered-out cue remains cached via searchFacetSnapshot so relaxing is instant.
+        #expect(app.search.cachedCueContent(for: shortCueID) != nil)
+        #expect(app.search.cachedCueContent(for: longCueID) != nil)
+
+        app.applySearchFacetFilter(CueFacetFilter())
+        #expect(Set(app.search.searchResults.map(\.entryID)) == [shortCueID, longCueID])
+        #expect(app.search.cachedCueContent(for: longCueID) != nil)
+    }
+}
+
+@MainActor
+@Test
+func activeSearchPlaylistProtectsCueContentAcrossCommandPanelEditsUntilPlaybackStopsOrSourceChanges() async throws {
+    try await withReclamationSearchTestApp { app, libraryRoot in
+        app.submitSearch("alpha")
+        await app.search.searchTask?.value
+        let alphaResults = app.search.searchResults
+        #expect(alphaResults.count == 2)
+        let alphaCueIDs = alphaResults.map(\.entryID)
+
+        app.openSearchResult(alphaResults[0])
+        #expect(app.playback.playlistSource?.kind == .search)
+        #expect(app.playback.playlistSource?.activeSearchCueIDs == alphaCueIDs)
+
+        #expect(app.presentPlaybackCommandPanel())
+        app.updatePlaybackCommandPanelQuery("")
+        #expect(app.search.searchResults.isEmpty)
+        #expect(app.playback.playlistSource?.activeSearchCueIDs == alphaCueIDs)
+        #expect(app.playback.playlistSource?.item(at: 0)?.identity == .search(alphaCueIDs[0]))
+        #expect(app.playback.playlistSource?.item(at: 1)?.identity == .search(alphaCueIDs[1]))
+        for cueID in alphaCueIDs {
+            #expect(app.search.cachedCueContent(for: cueID) != nil)
+        }
+
+        // Editing to another keyword triggers Command Panel count-only search and must still keep playlist cues.
+        app.updatePlaybackCommandPanelQuery("beta")
+        await app.search.searchTask?.value
+        #expect(app.search.isCountOnlySearchSnapshot)
+        #expect(app.search.searchResultTotalCount == 1)
+        #expect(app.playback.playlistSource?.item(at: 0)?.identity == .search(alphaCueIDs[0]))
+        #expect(app.playback.playlistSource?.item(at: 1)?.identity == .search(alphaCueIDs[1]))
+        for cueID in alphaCueIDs {
+            #expect(app.search.cachedCueContent(for: cueID) != nil)
+        }
+
+        // Stopping playback releases the previously pinned playlist cues.
+        app.stopPlayback()
+        #expect(app.playback.playlistSource == nil)
+        for cueID in alphaCueIDs {
+            #expect(app.search.cachedCueContent(for: cueID) == nil)
+        }
+
+        // Re-open search playback, clear Command Panel query, then switch playback source to a library video.
+        app.submitSearch("alpha")
+        await app.search.searchTask?.value
+        app.openSearchResult(app.search.searchResults[0])
+        #expect(app.presentPlaybackCommandPanel())
+        app.updatePlaybackCommandPanelQuery("")
+        for cueID in alphaCueIDs {
+            #expect(app.search.cachedCueContent(for: cueID) != nil)
+        }
+
+        let libraryVideos = try #require(app.libraryDatabase).libraryVideos(under: [libraryRoot])
+        let libraryVideo = try #require(libraryVideos.first)
+        app.openLibraryVideo(libraryVideo)
+        for cueID in alphaCueIDs {
+            #expect(app.search.cachedCueContent(for: cueID) == nil)
+        }
+    }
+}
+
+@MainActor
+@Test
+func excerptSnapshotsRemainValidAndPreservedAcrossSearchAndReappearanceCleanup() async throws {
+    try await withReclamationSearchTestApp { app, _ in
+        app.submitSearch("alpha")
+        await app.search.searchTask?.value
+        let alphaOne = try #require(app.search.searchResults.first)
+
+        app.submitSearch("beta")
+        await app.search.searchTask?.value
+        let betaOne = try #require(app.search.searchResults.first)
+
+        let excerptDB = try #require(app.excerptDatabase)
+        let listOne = try excerptDB.createExcerptList(name: "List One", description: "")
+        let listTwo = try excerptDB.createExcerptList(name: "List Two", description: "")
+        _ = try excerptDB.upsertExcerpt(cueID: alphaOne.entryID, listID: listOne.id)
+        _ = try excerptDB.upsertExcerpt(cueID: betaOne.entryID, listID: listTwo.id)
+
+        app.excerpt.setActiveListID(listOne.id)
+        app.reloadExcerptTableRows()
+        await app.excerptTableRowsTask?.value
+        app.excerpt.setActiveListID(listTwo.id)
+        app.reloadExcerptTableRows()
+        await app.excerptTableRowsTask?.value
+
+        #expect(app.excerpt.residentCueIDs == Set([alphaOne.entryID, betaOne.entryID]))
+        #expect(app.cueContent.content(for: alphaOne.entryID) != nil)
+        #expect(app.cueContent.content(for: betaOne.entryID) != nil)
+
+        app.submitSearch("shared")
+        await app.search.searchTask?.value
+        let sharedCueIDs = app.search.searchResults.map(\.entryID)
+        #expect(sharedCueIDs.count == 2)
+
+        // Clear search and exercise reappearance rerun cleanup.
+        app.updateSearchQuery("")
+        app.search.markPendingReappearanceRefresh(.rerunSearch)
+        app.refreshSearchOnReappearanceIfNeeded()
+
+        for cueID in sharedCueIDs {
+            #expect(app.search.cachedCueContent(for: cueID) == nil)
+        }
+        #expect(app.cueContent.content(for: alphaOne.entryID) != nil)
+        #expect(app.cueContent.content(for: betaOne.entryID) != nil)
+        #expect(app.search.externalRetainedCueIDsProvider?().isSuperset(
+            of: [alphaOne.entryID, betaOne.entryID]
+        ) == true)
+
+        app.excerpt.setActiveListID(listOne.id)
+        app.reloadExcerptTableRows()
+        await app.excerptTableRowsTask?.value
+        let restoredRow = try #require(app.excerpt.tableRowStore.snapshot.row(at: 0))
+        #expect(restoredRow.cueState == .normal)
+        #expect(app.excerpt.tableRowStore.snapshot.excerpt(entryID: restoredRow.id)?.isValid == true)
+    }
+}
+
+@MainActor
+private func withReclamationSearchTestApp(
+    _ body: @MainActor (AppCoordinator, URL) async throws -> Void
+) async throws {
+    let suiteName = "CueSeekerSearchReclamationTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    let testRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent(suiteName, isDirectory: true)
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        try? FileManager.default.removeItem(at: testRoot)
+    }
+
+    let libraryRoot = testRoot.appendingPathComponent("Library", isDirectory: true)
+    try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
+    try """
+    1
+    00:00:01,000 --> 00:00:02,000
+    alpha line one
+
+    2
+    00:00:03,000 --> 00:00:04,000
+    alpha line two
+
+    3
+    00:00:05,000 --> 00:00:06,000
+    beta single match
+
+    4
+    00:00:07,000 --> 00:00:08,000
+    shared s
+
+    5
+    00:00:09,000 --> 00:00:10,000
+    shared longest line in episode
+
+    """.write(
+        to: libraryRoot.appendingPathComponent("Episode.srt"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try Data([0]).write(to: libraryRoot.appendingPathComponent("Episode.mkv"))
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: testRoot.appendingPathComponent("CueSeeker.sqlite")
+    )
+    app.addFolder(libraryRoot)
+    await app.tasks.waitUntilIdle()
+    await app.libraryTask?.value
+    await app.recentWatchingTask?.value
+    await app.completeLibraryTask?.value
+    await app.databaseStorageStatsTask?.value
+
+    try await body(app, libraryRoot)
+}
+

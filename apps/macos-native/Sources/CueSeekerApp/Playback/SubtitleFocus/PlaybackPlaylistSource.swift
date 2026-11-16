@@ -290,6 +290,7 @@ final class PlaybackPlaylistSource: ObservableObject {
     @Published private(set) var boundary: PlaybackPlaylistSourceBoundary
 
     private var itemProvider: PlaybackPlaylistSharedItemProvider?
+    private(set) var residentCueIDs: [Int64]
     private var isActive = true
     /// Set once the playlist holds its own items: the stores it was read from
     /// no longer reach it.
@@ -298,11 +299,13 @@ final class PlaybackPlaylistSource: ObservableObject {
     convenience init(
         kind: PlaybackPlaylistSourceKind,
         totalCount: Int,
+        residentCueIDs: [Int64] = [],
         itemProvider: @escaping PlaybackPlaylistSharedItemProvider
     ) {
         self.init(
             origin: .unspecified(kind),
             totalCount: totalCount,
+            residentCueIDs: residentCueIDs,
             itemProvider: itemProvider
         )
     }
@@ -310,9 +313,11 @@ final class PlaybackPlaylistSource: ObservableObject {
     init(
         origin: PlaybackPlaylistSourceOrigin,
         totalCount: Int,
+        residentCueIDs: [Int64] = [],
         itemProvider: @escaping PlaybackPlaylistSharedItemProvider
     ) {
         self.origin = origin
+        self.residentCueIDs = residentCueIDs
         self.itemProvider = itemProvider
         boundary = PlaybackPlaylistSourceBoundary(
             datasetID: UUID(),
@@ -320,6 +325,13 @@ final class PlaybackPlaylistSource: ObservableObject {
             revision: 0,
             totalCount: max(0, totalCount)
         )
+    }
+
+    var activeSearchCueIDs: [Int64] {
+        guard isActive, !isHeld, case .search = origin else {
+            return []
+        }
+        return residentCueIDs
     }
 
     var hasItems: Bool {
@@ -352,12 +364,14 @@ final class PlaybackPlaylistSource: ObservableObject {
     @discardableResult
     func replaceResidentItems(
         totalCount: Int,
+        residentCueIDs: [Int64] = [],
         itemProvider: @escaping PlaybackPlaylistSharedItemProvider
     ) -> Bool {
         guard isActive, !isHeld else {
             return false
         }
 
+        self.residentCueIDs = residentCueIDs
         self.itemProvider = itemProvider
         publishBoundary(totalCount: totalCount)
         return true
@@ -380,6 +394,7 @@ final class PlaybackPlaylistSource: ObservableObject {
             item.ordinal == ordinal ? item : item.moved(to: ordinal)
         }
         isHeld = true
+        residentCueIDs = []
         itemProvider = { ordinal in
             heldItems.indices.contains(ordinal) ? heldItems[ordinal] : nil
         }
@@ -425,6 +440,7 @@ final class PlaybackPlaylistSource: ObservableObject {
             return
         }
         isActive = false
+        residentCueIDs = []
         itemProvider = nil
         boundary = PlaybackPlaylistSourceBoundary(
             datasetID: boundary.datasetID,
