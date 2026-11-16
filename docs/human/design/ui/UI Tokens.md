@@ -31,7 +31,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-bg-surface`: Light `#FFFFFF`; Dark `#1C1C1F`
 - `--color-bg-hover`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.12)`
 - `--color-bg-pressed`: Light `#E5E7EB`; Dark `rgba(255,255,255,0.16)`
-- `--color-menu-item-selected-bg`: Light `#E2E8F0`; Dark `rgba(255,255,255,0.16)`
+- `--color-menu-item-selected-bg`: Light `#E5E7EB`; Dark `rgba(255,255,255,0.16)`
 - `--color-badge-neutral-bg`: Light `#E5E7EB`; Dark `rgba(255,255,255,0.20)`
 - `--color-bg-disabled`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.04)`
 - `--color-bg-control`: Light `#FFFFFF`; Dark `rgba(255,255,255,0.08)`
@@ -42,16 +42,16 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-app-sidebar-item-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-app-topbar-bg`: Light `#FFFFFF`; Dark `#1C1C1F`
 - `--color-file-group-header-bg`: Light `#F8F9FB`; Dark `rgba(255,255,255,0.04)`
-- `--color-overlay-surface-shortcut-button-bg-hover`: Light `#EDEEF2`; Dark `rgba(255,255,255,0.06)`
-- `--color-overlay-surface-shortcut-button-bg-pressed`: Light `#E1E4E9`; Dark `rgba(255,255,255,0.12)`
-- `--color-overlay-surface-keycap-bg`: Light `#E1E4E9`; Dark `rgba(255,255,255,0.10)`
-- `--color-overlay-surface-keycap-bg-hover`: Light `#D2D6DE`; Dark `rgba(255,255,255,0.16)`
-- `--color-overlay-surface-keycap-bg-pressed`: Light `#C4C9D3`; Dark `rgba(255,255,255,0.22)`
-- `--color-popover-surface-shortcut-button-bg-hover`: Light `#F7F8FA`; Dark `rgba(255,255,255,0.06)`
-- `--color-popover-surface-shortcut-button-bg-pressed`: Light `#EDEFF2`; Dark `rgba(255,255,255,0.12)`
-- `--color-popover-surface-keycap-bg`: Light `#EDEFF2`; Dark `rgba(255,255,255,0.10)`
-- `--color-popover-surface-keycap-bg-hover`: Light `#E0E3E8`; Dark `rgba(255,255,255,0.16)`
-- `--color-popover-surface-keycap-bg-pressed`: Light `#D2D6DE`; Dark `rgba(255,255,255,0.22)`
+- `--color-overlay-surface-shortcut-button-bg-hover`: Light `rgba(0,0,0,0.06)`; Dark `rgba(255,255,255,0.10)`
+- `--color-overlay-surface-shortcut-button-bg-pressed`: Light `rgba(0,0,0,0.12)`; Dark `rgba(255,255,255,0.16)`
+- `--color-overlay-surface-keycap-bg`: Light `rgba(0,0,0,0.08)`; Dark `rgba(255,255,255,0.10)`
+- `--color-overlay-surface-keycap-bg-hover`: Light `rgba(0,0,0,0.14)`; Dark `rgba(255,255,255,0.16)`
+- `--color-overlay-surface-keycap-bg-pressed`: Light `rgba(0,0,0,0.20)`; Dark `rgba(255,255,255,0.22)`
+- `--color-popover-surface-shortcut-button-bg-hover`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.12)`
+- `--color-popover-surface-shortcut-button-bg-pressed`: Light `#E5E7EB`; Dark `rgba(255,255,255,0.16)`
+- `--color-popover-surface-keycap-bg`: Light `#E6E6E6`; Dark `rgba(255,255,255,0.10)`
+- `--color-popover-surface-keycap-bg-hover`: Light `#D6D6D6`; Dark `rgba(255,255,255,0.18)`
+- `--color-popover-surface-keycap-bg-pressed`: Light `#C6C6C6`; Dark `rgba(255,255,255,0.24)`
 
 ### Border
 
@@ -128,10 +128,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-table-bg`: Light `#FFFFFF`; Dark `#2E2E34`
 - `--color-row-hover`: Light `#F9FAFB`; Dark `#383840`
 - `--color-file-folder-card-bg-pressed`: Light `#F3F4F6`; Dark `#3E3E47`
-- `--color-row-selected`: Light `#ECEEF2`; Dark `#43434C`
-- `--color-row-action-bg-pressed`: Light `#DEE2E8`; Dark `#4E4E58`
+- `--color-row-selected`: Light `#E5E7EB`; Dark `rgba(255,255,255,0.08)`
+- `--color-row-action-bg-pressed`: Light `#D1D5DB`; Dark `rgba(255,255,255,0.14)`
 - `--color-table-row-hover`: Light `#F9FAFB`; Dark `#26262B`
-- `--color-table-row-selected`: Light `#ECEEF2`; Dark `#313137`
+- `--color-table-row-selected`: Light `#F3F4F6`; Dark `#2B2B31`
 
 ### Status
 
@@ -149,8 +149,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 ### Scrollbar
 
-- `--color-scrollbar-thumb-default`: Light `#CBD5E1`; Dark `#52525B`
-- `--color-scrollbar-thumb-interactive`: Light `#94A3B8`; Dark `#71717A`
+- `--color-scrollbar-thumb-default`: Light `rgba(0,0,0,0.18)`; Dark `rgba(255,255,255,0.22)`
+- `--color-scrollbar-thumb-interactive`: Light `rgba(0,0,0,0.34)`; Dark `rgba(255,255,255,0.38)`
 - `--color-scrollbar-track`: Light `transparent`; Dark `transparent`
 
 ### Library Media
@@ -210,13 +210,13 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 ### Subtitle Focus
 
-- `--color-subtitle-focus-overlay-bg`: Light `#FAFBFD`; Dark `#18181B`
-- `--color-subtitle-focus-cue-selected`: Light `#0F172A`; Dark `#FFFFFF`
-- `--color-subtitle-focus-cue-group-selected`: Light `#334155`; Dark `rgba(255,255,255,0.68)`
-- `--color-subtitle-focus-cue-unselected`: Light `rgba(15,23,42,0.26)`; Dark `rgba(255,255,255,0.26)`
-- `--color-playback-cue-timeline-muted`: Light `#D0D5DD`; Dark `#52525B`
-- `--color-playback-cue-metadata-selected`: Light `rgba(15,23,42,0.56)`; Dark `rgba(255,255,255,0.56)`
-- `--color-playback-cue-metadata-unselected`: Light `rgba(15,23,42,0.22)`; Dark `rgba(255,255,255,0.20)`
+- `--color-subtitle-focus-overlay-bg`: Light `#F4F4F4`; Dark `#161616`
+- `--color-subtitle-focus-cue-selected`: Light `#1A1A1A`; Dark `#EDEDED`
+- `--color-subtitle-focus-cue-group-selected`: Light `rgba(26,26,26,0.75)`; Dark `rgba(237,237,237,0.75)`
+- `--color-subtitle-focus-cue-unselected`: Light `rgba(26,26,26,0.30)`; Dark `rgba(237,237,237,0.30)`
+- `--color-playback-cue-timeline-muted`: Light `#D6D6D6`; Dark `#444444`
+- `--color-playback-cue-metadata-selected`: Light `rgba(26,26,26,0.54)`; Dark `rgba(237,237,237,0.54)`
+- `--color-playback-cue-metadata-unselected`: Light `rgba(26,26,26,0.24)`; Dark `rgba(237,237,237,0.24)`
 
 ## 1.2 字体与文本
 

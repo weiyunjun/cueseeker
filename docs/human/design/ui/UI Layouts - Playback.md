@@ -472,7 +472,9 @@
 
 - Background：`--color-bg-dialog`
 - Radius：`--radius-dialog`
-- Shadow：`--shadow-popover`
+- Shadow：`--shadow-dialog`
+- Outline：`--color-dialog-outline`，容器外侧 1 物理像素
+- Edge Highlight：`--color-dialog-edge-highlight`，容器内侧 `1px`
 - Scrim：`--color-command-panel-scrim`
 
 #### Layer
