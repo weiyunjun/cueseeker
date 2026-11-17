@@ -35,7 +35,7 @@
 
 - Expanded
   - Docked：窗口宽度 ≥ `--min-width-workbench-page-content` + `--width-app-sidebar` 时与页面并排布局。
-  - Overlay：窗口宽度 < `--min-width-workbench-page-content` + `--width-app-sidebar` 时全高浮于顶栏与页面之上（右侧 1px `--color-border-muted` 分隔线，阴影 `--shadow-popover`），以 `--duration-sidebar-motion` 透明度淡入淡出；点击 Sidebar Toggle 时收起。
+  - Overlay：窗口宽度 < `--min-width-workbench-page-content` + `--width-app-sidebar` 时全高浮于顶栏与页面之上（右侧 1px `--color-border-muted` 分隔线，阴影 `--shadow-popover`，覆盖区内屏蔽下层顶栏与页面交互，仅红绿灯、Sidebar Toggle 与 Sidebar 自身保持可交互），以 `--duration-sidebar-motion` 透明度淡入淡出；点击 Sidebar Toggle 时收起。
 - Collapsed
   - Auto Collapse：窗口宽度 < `--min-width-workbench-page-content` + `--width-app-sidebar` 时自动收起，收起后不自动展开。只在 Workbench 可见时判定，从播放页返回时判定一次。
 
