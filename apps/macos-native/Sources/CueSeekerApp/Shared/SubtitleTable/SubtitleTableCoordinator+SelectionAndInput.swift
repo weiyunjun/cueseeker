@@ -10,9 +10,15 @@ extension SubtitleTableView.Coordinator {
         updatePressedRowActionRow(nil)
     }
 
+    private var effectiveInterfaceLayers: InterfaceLayerRegistry? { interfaceLayers ?? (container?.window as? CueSeekerMainWindow)?.interfaceLayers }
+
+    func isPointOccluded(_ windowPoint: CGPoint) -> Bool {
+        effectiveInterfaceLayers?.isPointOccluded(windowPoint, on: interfaceLayerContext.layer, sublayer: interfaceLayerContext.sublayer) ?? false
+    }
+
     var externalTextSelectionWindowRect: CGRect? {
-        guard let container, container.window != nil else { return nil }
-        return selectableTableDataRectInRootCoordinates
+        guard let container, container.window != nil, let rect = selectableTableDataRectInRootCoordinates else { return nil }
+        return effectiveInterfaceLayers?.unoccludedWindowRect(rect, on: interfaceLayerContext.layer, sublayer: interfaceLayerContext.sublayer) ?? (effectiveInterfaceLayers == nil ? rect : nil)
     }
 
     private var selectableTableDataRectInRootCoordinates: CGRect? {
@@ -89,7 +95,9 @@ extension SubtitleTableView.Coordinator {
     }
 
     func isWindowPointInSelectableDataRegion(_ windowPoint: CGPoint) -> Bool {
-        guard selectableTableDataRectInRootCoordinates?.contains(windowPoint) == true else {
+        guard !isPointOccluded(windowPoint),
+              selectableTableDataRectInRootCoordinates?.contains(windowPoint) == true
+        else {
             return false
         }
         if let documentView {
@@ -123,7 +131,7 @@ extension SubtitleTableView.Coordinator {
         startWindowPoint: CGPoint,
         currentWindowPoint: CGPoint
     ) -> Bool {
-        guard canBeginExternalTextSelection else {
+        guard canBeginExternalTextSelection, !isPointOccluded(startWindowPoint) else {
             return false
         }
         return beginProjectedDragTextSelection(
@@ -727,7 +735,7 @@ extension SubtitleTableView.Coordinator {
     }
 
     func headerPointerShape(atWindowPoint windowPoint: CGPoint) -> PointerShape {
-        guard !isPointerFrozen else { return .arrow }
+        guard !isPointerFrozen, !isPointOccluded(windowPoint) else { return .arrow }
         if SubtitleTableActiveTextDragState.isDraggingSelection {
             return .iBeam
         }
@@ -752,7 +760,7 @@ extension SubtitleTableView.Coordinator {
     /// everything else answer the arrow. Only the row under the pointer
     /// is laid out for the answer.
     func pointerShape(atWindowPoint windowPoint: CGPoint) -> PointerShape {
-        guard !isPointerFrozen, let documentView else {
+        guard !isPointerFrozen, !isPointOccluded(windowPoint), let documentView else {
             return .arrow
         }
         if SubtitleTableActiveTextDragState.isDraggingSelection {
@@ -1386,6 +1394,10 @@ extension SubtitleTableView.Coordinator {
         if isPointerFrozen {
             return
         }
+        if isPointOccluded(windowPoint) {
+            clearHover()
+            return
+        }
         // The Selection Action Overlay floats over the table. Inside it the
         // table keeps the row it had when the pointer moved in, and takes a
         // new one only after the pointer moves back onto the table.
@@ -1556,6 +1568,7 @@ extension SubtitleTableView.Coordinator {
         guard isEnabled,
               !isMenuOpen,
               !isCoveredByHigherLayer,
+              !isPointOccluded(windowPoint),
               let documentView
         else {
             return false
@@ -1678,6 +1691,7 @@ extension SubtitleTableView.Coordinator {
               !isSelectionMode,
               !isMenuOpen,
               !isCoveredByHigherLayer,
+              !isPointOccluded(windowPoint),
               let headerView
         else {
             return false
@@ -1889,6 +1903,7 @@ extension SubtitleTableView.Coordinator {
         // is the same press that opens this row's menu.
         guard isEnabled,
               !isCoveredByHigherLayer,
+              !isPointOccluded(windowPoint),
               let documentView,
               let container
         else {

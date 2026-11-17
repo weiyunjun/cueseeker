@@ -1,3 +1,4 @@
+import CoreGraphics
 import Testing
 @testable import CueSeekerApp
 
@@ -174,4 +175,74 @@ func closingDialogMenuWhileStackedDialogIsOpenPreservesHoverSuppression() {
     menuToken = nil
     _ = menuToken
     #expect(!PointerHoverScrollState.shared.isSuppressedByKeyboardOrController)
+}
+
+@MainActor
+@Test
+func windowOcclusionRegionRespectsSublayerAndLayerIsolation() {
+    let layers = InterfaceLayerRegistry()
+    let region = WindowOcclusionRegion(
+        hostLayer: .workbenchPage,
+        minimumUnoccludedSublayer: .overlaySidebar,
+        windowRect: CGRect(x: 0, y: 0, width: 240, height: 800)
+    )
+    layers.setWindowOcclusionRegion(region, forKey: "overlaySidebar")
+    #expect(layers.hasWindowOcclusionRegions)
+
+    let insidePoint = CGPoint(x: 120, y: 400)
+    #expect(layers.isPointOccluded(insidePoint, on: .workbenchPage, sublayer: .content))
+    #expect(!layers.isPointOccluded(insidePoint, on: .workbenchPage, sublayer: .overlaySidebar))
+    #expect(!layers.isPointOccluded(insidePoint, on: .playbackOverlay, sublayer: .content))
+    #expect(!layers.isPointOccluded(insidePoint, on: .dialog, sublayer: .content))
+
+    #expect(layers.isPointOccluded(CGPoint(x: 239.5, y: 400), on: .workbenchPage))
+    #expect(!layers.isPointOccluded(CGPoint(x: 240, y: 400), on: .workbenchPage))
+
+    layers.setWindowOcclusionRegion(
+        WindowOcclusionRegion(hostLayer: .workbenchPage, minimumUnoccludedSublayer: .overlaySidebar, windowRect: .zero),
+        forKey: "overlaySidebar"
+    )
+    #expect(!layers.hasWindowOcclusionRegions)
+    #expect(!layers.isPointOccluded(insidePoint, on: .workbenchPage))
+}
+
+@MainActor
+@Test
+func unoccludedWindowRectClipsStraddlingControls() {
+    let layers = InterfaceLayerRegistry()
+    layers.setWindowOcclusionRegion(
+        WindowOcclusionRegion(
+            hostLayer: .workbenchPage,
+            minimumUnoccludedSublayer: .overlaySidebar,
+            windowRect: CGRect(x: 0, y: 0, width: 240, height: 800)
+        ),
+        forKey: "overlaySidebar"
+    )
+
+    let whollyCovered = CGRect(x: 40, y: 100, width: 180, height: 30)
+    #expect(layers.unoccludedWindowRect(whollyCovered, on: .workbenchPage, sublayer: .content) == nil)
+    #expect(layers.unoccludedWindowRect(whollyCovered, on: .workbenchPage, sublayer: .overlaySidebar) == whollyCovered)
+
+    let straddlingRight = CGRect(x: 180, y: 100, width: 200, height: 30)
+    #expect(
+        layers.unoccludedWindowRect(straddlingRight, on: .workbenchPage, sublayer: .content)
+            == CGRect(x: 240, y: 100, width: 140, height: 30)
+    )
+
+    let outside = CGRect(x: 240, y: 100, width: 200, height: 30)
+    #expect(layers.unoccludedWindowRect(outside, on: .workbenchPage, sublayer: .content) == outside)
+
+    layers.setWindowOcclusionRegion(
+        WindowOcclusionRegion(
+            hostLayer: .workbenchPage,
+            minimumUnoccludedSublayer: .overlaySidebar,
+            windowRect: CGRect(x: 0, y: 0, width: 240, height: 300)
+        ),
+        forKey: "overlaySidebar"
+    )
+    let straddlingTop = CGRect(x: 20, y: 200, width: 100, height: 200)
+    #expect(
+        layers.unoccludedWindowRect(straddlingTop, on: .workbenchPage, sublayer: .content)
+            == CGRect(x: 20, y: 300, width: 100, height: 100)
+    )
 }

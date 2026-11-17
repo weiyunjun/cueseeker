@@ -361,6 +361,11 @@ enum AppPointerShape {
         guard let content = window?.contentView else {
             return .arrow
         }
+        if let mainWindow = window as? CueSeekerMainWindow,
+           !allowsMenuModalIBeam(),
+           mainWindow.isOccludedWorkbenchPoint(windowPoint) {
+            return .arrow
+        }
         let point = content.superview?.convert(windowPoint, from: nil) ?? windowPoint
         var view = content.hitTest(point)
         while let current = view {

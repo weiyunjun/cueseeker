@@ -369,6 +369,7 @@ final class WorkbenchSelectableTextNSView:
     private(set) var truncationTooltipSurface: TooltipSurface = .main
     private(set) var isPlayerUIVisible: Bool = true
     private(set) var isTextTruncated: Bool = false
+    private weak var interfaceLayers: InterfaceLayerRegistry?
     private(set) var interfaceLayerContext = InterfaceLayerContext()
     private(set) var dialogID: WorkbenchDialogAccessibilityID? = nil
 
@@ -580,6 +581,7 @@ final class WorkbenchSelectableTextNSView:
         self.truncationTooltipScenarioID = truncationTooltipScenarioID
         self.truncationTooltipSurface = truncationTooltipSurface
         self.isPlayerUIVisible = isPlayerUIVisible
+        self.interfaceLayers = interfaceLayers
         self.interfaceLayerContext = interfaceLayerContext
         self.dialogID = dialogID
 
@@ -683,6 +685,7 @@ final class WorkbenchSelectableTextNSView:
         }()
         session.registry = interfaceLayers
         session.layer = interfaceLayerContext.layer
+        session.sublayer = interfaceLayerContext.sublayer
         session.setFrozen(isFrozenOrCovered)
         tooltipProbe?.frame = layoutBounds
     }
@@ -702,11 +705,16 @@ final class WorkbenchSelectableTextNSView:
         )
     }
 
+    private var effectiveInterfaceLayers: InterfaceLayerRegistry? { interfaceLayers ?? (window as? CueSeekerMainWindow)?.interfaceLayers }
+
+    private func isPointOccluded(_ windowPoint: CGPoint) -> Bool {
+        effectiveInterfaceLayers?.isPointOccluded(windowPoint, on: interfaceLayerContext.layer, sublayer: interfaceLayerContext.sublayer) ?? false
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         let localPoint = superview.map { convert(point, from: $0) } ?? point
-        guard layoutBounds.contains(localPoint) else {
-            return nil
-        }
+        guard layoutBounds.contains(localPoint) else { return nil }
+        if window != nil, isPointOccluded(superview?.convert(point, to: nil) ?? convert(localPoint, to: nil)) { return nil }
         return super.hitTest(point)
     }
 
@@ -792,7 +800,11 @@ final class WorkbenchSelectableTextNSView:
             current = ancestor.superview
         }
 
-        let rect = candidateWindowRect.intersection(viewportRect)
+        var rect = candidateWindowRect.intersection(viewportRect)
+        if let effectiveInterfaceLayers {
+            guard let unoccluded = effectiveInterfaceLayers.unoccludedWindowRect(rect, on: interfaceLayerContext.layer, sublayer: interfaceLayerContext.sublayer) else { return nil }
+            rect = unoccluded
+        }
         guard !rect.isNull, !rect.isEmpty else {
             return nil
         }
@@ -869,7 +881,7 @@ final class WorkbenchSelectableTextNSView:
     // MARK: - Mouse & Keyboard Handling
 
     override func rightMouseDown(with event: NSEvent) {
-        if canInteract {
+        if canInteract, !isPointOccluded(event.locationInWindow) {
             clearSelection(notifyCoordinator: true)
             WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
         }
@@ -877,7 +889,7 @@ final class WorkbenchSelectableTextNSView:
     }
 
     override func mouseDown(with event: NSEvent) {
-        guard canInteract else {
+        guard canInteract, !isPointOccluded(event.locationInWindow) else {
             super.mouseDown(with: event)
             return
         }

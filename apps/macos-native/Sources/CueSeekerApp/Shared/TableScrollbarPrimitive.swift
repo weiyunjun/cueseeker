@@ -440,21 +440,31 @@ class TableScrollbarOverlayView: NSView {
             at: NSEvent.mouseLocation,
             belowWindowWithWindowNumber: 0
         ) == window.windowNumber
+        let windowPoint = window.mouseLocationOutsideOfEventStream
         guard !AppCursorVisibility.isCursorHidden,
               !PointerHoverScrollState.shared.isHoverSuppressed,
-              isPointerOverWindow
+              isPointerOverWindow,
+              !isPointOccluded(atWindowPoint: windowPoint)
         else {
             hoveredAxis = nil
             return
         }
-        hoveredAxis = axis(at: convert(window.mouseLocationOutsideOfEventStream, from: nil))
+        hoveredAxis = axis(at: convert(windowPoint, from: nil))
+    }
+
+    private func isPointOccluded(atWindowPoint windowPoint: CGPoint) -> Bool {
+        guard let mainWindow = window as? CueSeekerMainWindow,
+              mainWindow.interfaceLayers?.hasUncoveredOpenMenu != true else { return false }
+        return mainWindow.isOccludedWorkbenchPoint(windowPoint)
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         let localPoint = superview.map { convert(point, from: $0) } ?? point
+        let windowPoint = superview?.convert(point, to: nil) ?? convert(localPoint, to: nil)
         guard isPresented,
               !isHidden,
               !isInteractionFrozen,
+              !isPointOccluded(atWindowPoint: windowPoint),
               axis(at: localPoint) != nil
         else {
             return nil
@@ -498,6 +508,10 @@ class TableScrollbarOverlayView: NSView {
         else {
             return
         }
+        if isPointOccluded(atWindowPoint: event.locationInWindow) {
+            hoveredAxis = nil
+            return
+        }
         hoveredAxis = axis(at: convert(event.locationInWindow, from: nil))
     }
 
@@ -513,6 +527,7 @@ class TableScrollbarOverlayView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard !isPointOccluded(atWindowPoint: event.locationInWindow) else { return }
         let point = convert(event.locationInWindow, from: nil)
         guard let axis = axis(at: point),
               let geometry = geometry(),

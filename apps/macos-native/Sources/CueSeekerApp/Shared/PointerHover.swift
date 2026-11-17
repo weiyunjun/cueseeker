@@ -576,11 +576,23 @@ final class PointerHoverSession: ObservableObject {
         }
     }
 
+    static func syncWindowOcclusionPointerMoved(in window: NSWindow, at windowPoint: CGPoint) {
+        registeredSessions = registeredSessions.filter { $0.value.value != nil }
+        for box in registeredSessions.values {
+            guard let session = box.value, !session.isFrozen, session.probeView?.window === window,
+                  (session.tracksLocation ? session.locationGate.hasActiveHover : session.gate.hasActiveHover)
+                    || session.probeLocalPointIfInside(windowPoint) != nil
+            else { continue }
+            session.handleStateChanged(atWindowPoint: windowPoint)
+        }
+    }
+
     let id = UUID()
     var gate = PointerHoverGate()
     var locationGate = PointerHoverLocationGate()
     weak var registry: InterfaceLayerRegistry?
     var layer: InterfaceLayer = .workbenchPage
+    var sublayer: InterfaceSublayer = .content
     var isFrozen = false
     var ignoresLayerFreeze = false
     var tracksLocation = false
@@ -760,7 +772,7 @@ final class PointerHoverSession: ObservableObject {
         handleStateChanged()
     }
 
-    func report(_ isHovered: Bool) {
+    func report(_ isHovered: Bool, atWindowPoint windowPoint: CGPoint? = nil) {
         if !tracksLocation,
            !isFrozen,
            probeView?.window != nil,
@@ -768,7 +780,8 @@ final class PointerHoverSession: ObservableObject {
         {
             return
         }
-        if !isHovered, let probe = probeView as? PointerHoverProbeView {
+        let effectiveHovered = isHovered && !isWindowPointOccluded(windowPoint)
+        if !effectiveHovered, let probe = probeView as? PointerHoverProbeView {
             probe.setAssumesMouseInside(false)
         }
         let scrollState = PointerHoverScrollState.shared
@@ -778,10 +791,10 @@ final class PointerHoverSession: ObservableObject {
             && !scrollState.isSuppressedByKeyboardOrController
             && !isCursorHidden
         if !isFrozen, !scrollState.isSuppressedByKeyboardOrController {
-            syncPointerHandShape(isHovered, followsPointer: followsPointer)
+            syncPointerHandShape(effectiveHovered, followsPointer: followsPointer)
         }
         let delivered = gate.report(
-            isHovered,
+            effectiveHovered,
             isFrozen: isFrozen,
             isScrolling: scrollState.isScrolling,
             isCursorHidden: isCursorHidden,
@@ -809,24 +822,17 @@ final class PointerHoverSession: ObservableObject {
     }
 
     func handleWindowMouseMoved(locationInWindow: CGPoint) {
-        guard let probeView,
-              probeView.window != nil,
-              !probeView.isHiddenOrHasHiddenAncestor,
-              probeView.bounds.width > 0,
-              probeView.bounds.height > 0
+        guard probeView?.window != nil,
+              !isWindowPointOccluded(locationInWindow),
+              let localPoint = probeLocalPointIfInside(locationInWindow)
         else {
+            reportLocation(nil)
             return
         }
-        let localPoint = probeView.convert(locationInWindow, from: nil)
-        let visibleBounds = probeView.bounds.intersection(probeView.visibleRect)
-        if !visibleBounds.isEmpty && visibleBounds.contains(localPoint) {
-            reportLocation(localPoint)
-        } else {
-            reportLocation(nil)
-        }
+        reportLocation(localPoint)
     }
 
-    func handleStateChanged() {
+    func handleStateChanged(atWindowPoint explicitWindowPoint: CGPoint? = nil) {
         let scrollState = PointerHoverScrollState.shared
         let isCursorHidden = AppCursorVisibility.isCursorHidden
         if tracksLocation {
@@ -834,7 +840,7 @@ final class PointerHoverSession: ObservableObject {
                !scrollState.isScrolling,
                !isCursorHidden,
                !scrollState.isSuppressedByKeyboardOrController {
-                switch currentPointerSampleInView() {
+                switch currentPointerSampleInView(atWindowPoint: explicitWindowPoint) {
                 case .inside(let localPoint):
                     let delivered = locationGate.report(
                         localPoint,
@@ -883,7 +889,7 @@ final class PointerHoverSession: ObservableObject {
            !scrollState.isScrolling,
            !isCursorHidden,
            !scrollState.isSuppressedByKeyboardOrController,
-           let pointerInside = currentPointerInsideView() {
+           let pointerInside = currentPointerInsideView(atWindowPoint: explicitWindowPoint) {
             if let probe = probeView as? PointerHoverProbeView {
                 probe.setAssumesMouseInside(pointerInside)
             }
@@ -999,8 +1005,26 @@ final class PointerHoverSession: ObservableObject {
         }
     }
 
-    private func currentPointerInsideView() -> Bool? {
-        switch currentPointerSampleInView() {
+    func isWindowPointOccluded(_ explicitWindowPoint: CGPoint? = nil) -> Bool {
+        guard let window = probeView?.window,
+              let layers = registry ?? (window as? CueSeekerMainWindow)?.interfaceLayers
+        else { return false }
+        return layers.isPointOccluded(explicitWindowPoint ?? window.mouseLocationOutsideOfEventStream, on: layer, sublayer: sublayer)
+    }
+
+    private func probeLocalPointIfInside(_ windowPoint: CGPoint) -> CGPoint? {
+        guard let probeView, !probeView.isHiddenOrHasHiddenAncestor,
+              probeView.bounds.width > 0, probeView.bounds.height > 0 else { return nil }
+        if let windowHitRect {
+            return (windowHitRect()?.contains(windowPoint) ?? false) ? probeView.convert(windowPoint, from: nil) : nil
+        }
+        let localPoint = probeView.convert(windowPoint, from: nil)
+        let visibleBounds = probeView.bounds.intersection(probeView.visibleRect)
+        return (!visibleBounds.isEmpty && visibleBounds.contains(localPoint)) ? localPoint : nil
+    }
+
+    private func currentPointerInsideView(atWindowPoint explicitWindowPoint: CGPoint? = nil) -> Bool? {
+        switch currentPointerSampleInView(atWindowPoint: explicitWindowPoint) {
         case .unavailable:
             return nil
         case .outside:
@@ -1010,31 +1034,15 @@ final class PointerHoverSession: ObservableObject {
         }
     }
 
-    private func currentPointerSampleInView() -> ProbeSample {
-        guard let probeView,
-              let window = probeView.window,
-              !probeView.isHiddenOrHasHiddenAncestor,
-              probeView.bounds.width > 0,
-              probeView.bounds.height > 0
-        else {
-            return .unavailable
-        }
-        guard NSWindow.windowNumber(
-            at: NSEvent.mouseLocation,
-            belowWindowWithWindowNumber: 0
-        ) == window.windowNumber else {
+    private func currentPointerSampleInView(atWindowPoint explicitWindowPoint: CGPoint? = nil) -> ProbeSample {
+        guard let window = probeView?.window else { return .unavailable }
+        guard NSWindow.windowNumber(at: NSEvent.mouseLocation, belowWindowWithWindowNumber: 0) == window.windowNumber else {
             return .outside
         }
-        let locationInWindow = window.mouseLocationOutsideOfEventStream
-        if let windowHitRect {
-            guard let hitRect = windowHitRect(), hitRect.contains(locationInWindow) else {
-                return .outside
-            }
-            return .inside(probeView.convert(locationInWindow, from: nil))
-        }
-        let localPoint = probeView.convert(locationInWindow, from: nil)
-        let visibleBounds = probeView.bounds.intersection(probeView.visibleRect)
-        guard !visibleBounds.isEmpty && visibleBounds.contains(localPoint) else {
+        let locationInWindow = explicitWindowPoint ?? window.mouseLocationOutsideOfEventStream
+        guard !isWindowPointOccluded(locationInWindow),
+              let localPoint = probeLocalPointIfInside(locationInWindow)
+        else {
             return .outside
         }
         return .inside(localPoint)
@@ -1114,9 +1122,10 @@ final class PointerHoverProbeView: NSView {
             session?.handleWindowMouseMoved(locationInWindow: locationInWindow)
             return
         }
-        let inside = session?.windowHitRect?()?.contains(locationInWindow) ?? true
+        let inside = (session?.windowHitRect?()?.contains(locationInWindow) ?? true)
+            && session?.isWindowPointOccluded(locationInWindow) != true
         setAssumesMouseInside(inside)
-        session?.report(inside)
+        session?.report(inside, atWindowPoint: locationInWindow)
     }
 }
 
@@ -1163,6 +1172,7 @@ private struct PointerHoverModifier: ViewModifier {
         session.ignoresLayerFreeze = ignoresLayerFreeze
         session.registry = interfaceLayers
         session.layer = layerContext.layer
+        session.sublayer = layerContext.sublayer
         session.action = { [weak session] isHovered in
             guard let session else { return }
             onSessionHover(session, isHovered)
@@ -1223,6 +1233,7 @@ private struct PointerHoverLocationModifier: ViewModifier {
             session.locationAction = action
             session.registry = interfaceLayers
             session.layer = layerContext.layer
+            session.sublayer = layerContext.sublayer
             session.initializeIfNeeded(isFrozen: isFrozen)
         }()
         content
@@ -1232,6 +1243,7 @@ private struct PointerHoverLocationModifier: ViewModifier {
                 session.locationAction = action
                 session.registry = interfaceLayers
                 session.layer = layerContext.layer
+                session.sublayer = layerContext.sublayer
                 session.setFrozen(effectiveIsFrozen)
                 session.syncScrollListener()
             }
@@ -1240,6 +1252,7 @@ private struct PointerHoverLocationModifier: ViewModifier {
                 session.locationAction = action
                 session.registry = interfaceLayers
                 session.layer = layerContext.layer
+                session.sublayer = layerContext.sublayer
                 session.setFrozen(interfaceLayers?.isFrozen(layerContext.layer) ?? isFrozen)
             }
             .onDisappear {

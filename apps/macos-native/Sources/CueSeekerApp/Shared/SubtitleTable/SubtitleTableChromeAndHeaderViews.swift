@@ -576,7 +576,9 @@ final class SubtitleVirtualTableHeaderView: NSView, PointerShapeProviding {
                 return
             }
         }
-        guard let mouseLoc = windowLocation ?? window?.mouseLocationOutsideOfEventStream else {
+        guard let mouseLoc = windowLocation ?? window?.mouseLocationOutsideOfEventStream,
+              coordinator?.isPointOccluded(mouseLoc) != true
+        else {
             isHeaderHovered = false
             isIndexHeaderHovered = false
             return

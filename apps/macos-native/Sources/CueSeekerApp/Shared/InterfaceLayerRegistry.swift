@@ -44,6 +44,21 @@ enum InterfaceLayer: Int, CaseIterable, Comparable {
     }
 }
 
+enum InterfaceSublayer: Int, Comparable, Hashable {
+    case content = 0, overlaySidebar = 1
+    static func < (lhs: InterfaceSublayer, rhs: InterfaceSublayer) -> Bool { lhs.rawValue < rhs.rawValue }
+}
+
+struct WindowOcclusionRegion: Equatable {
+    let hostLayer: InterfaceLayer
+    let minimumUnoccludedSublayer: InterfaceSublayer
+    let windowRect: CGRect
+
+    func occludes(_ windowPoint: CGPoint, on layer: InterfaceLayer, sublayer: InterfaceSublayer = .content) -> Bool {
+        layer == hostLayer && sublayer < minimumUnoccludedSublayer && windowRect.contains(windowPoint)
+    }
+}
+
 /// The one place that answers "is this layer covered" and "must this layer
 /// keep its picture". Each layer's open state stays with the module that owns
 /// it; the module reports transitions here, and every surface that used to
@@ -64,9 +79,45 @@ final class InterfaceLayerRegistry: ObservableObject {
     /// Dialogs are centred in the main window, so this is where it keeps the
     /// keyboard.
     var topDialogSize: CGSize?
+    private(set) var windowOcclusionRegions: [String: WindowOcclusionRegion] = [:]
+    var hasWindowOcclusionRegions: Bool { !windowOcclusionRegions.isEmpty }
 
     var hasOpenDialog: Bool {
         openLayers.contains { $0.isDialog }
+    }
+
+    func setWindowOcclusionRegion(_ region: WindowOcclusionRegion?, forKey key: String) {
+        let normalized = region.flatMap { !$0.windowRect.isNull && !$0.windowRect.isEmpty ? $0 : nil }
+        guard windowOcclusionRegions[key] != normalized else { return }
+        if let normalized { windowOcclusionRegions[key] = normalized } else { windowOcclusionRegions.removeValue(forKey: key) }
+        Task { @MainActor [weak self] in
+            guard self != nil else { return }
+            PointerHoverSession.syncScrollSettled()
+            AppPointerShape.reevaluate()
+        }
+    }
+
+    func isPointOccluded(_ windowPoint: CGPoint, on layer: InterfaceLayer, sublayer: InterfaceSublayer = .content) -> Bool {
+        windowOcclusionRegions.values.contains { $0.occludes(windowPoint, on: layer, sublayer: sublayer) }
+    }
+
+    func unoccludedWindowRect(_ rect: CGRect, on layer: InterfaceLayer, sublayer: InterfaceSublayer = .content) -> CGRect? {
+        var result = rect.standardized
+        guard !result.isNull, !result.isEmpty else { return nil }
+        for region in windowOcclusionRegions.values where region.hostLayer == layer && sublayer < region.minimumUnoccludedSublayer {
+            let occ = region.windowRect.standardized
+            guard occ.intersects(result) else { continue }
+            if occ.contains(result) { return nil }
+            if occ.minY <= result.minY + 0.01 && occ.maxY >= result.maxY - 0.01 {
+                if occ.minX <= result.minX + 0.01 { result = CGRect(x: occ.maxX, y: result.minY, width: result.maxX - occ.maxX, height: result.height) }
+                else if occ.maxX >= result.maxX - 0.01 { result.size.width = occ.minX - result.minX }
+            } else if occ.minX <= result.minX + 0.01 && occ.maxX >= result.maxX - 0.01 {
+                if occ.minY <= result.minY + 0.01 { result = CGRect(x: result.minX, y: occ.maxY, width: result.width, height: result.maxY - occ.maxY) }
+                else if occ.maxY >= result.maxY - 0.01 { result.size.height = occ.minY - result.minY }
+            }
+            guard !result.isNull, result.width > 0.01, result.height > 0.01 else { return nil }
+        }
+        return result
     }
 
     func setOpen(_ layer: InterfaceLayer, _ isOpen: Bool) {
@@ -367,6 +418,7 @@ struct InterfaceLayerCoverageBridge: ViewModifier {
 /// when their own cards are the ones the reader is pointing at.
 struct InterfaceLayerContext: Equatable {
     var layer: InterfaceLayer = .workbenchPage
+    var sublayer: InterfaceSublayer = .content
     var coveredLayers: Set<InterfaceLayer> = []
     var frozenLayers: Set<InterfaceLayer> = []
 
@@ -387,6 +439,10 @@ extension View {
     /// content written for the page below it must claim it.
     func interfaceLayer(_ layer: InterfaceLayer) -> some View {
         modifier(InterfaceLayerModifier(layer: layer))
+    }
+
+    func interfaceSublayer(_ sublayer: InterfaceSublayer) -> some View {
+        modifier(InterfaceLayerModifier(sublayer: sublayer))
     }
 }
 
@@ -420,14 +476,16 @@ enum InterfaceLayerHosting {
 }
 
 private struct InterfaceLayerModifier: ViewModifier {
-    let layer: InterfaceLayer
+    var layer: InterfaceLayer? = nil
+    var sublayer: InterfaceSublayer? = nil
     @Environment(\.interfaceLayerContext) private var context
 
     func body(content: Content) -> some View {
         content.environment(
             \.interfaceLayerContext,
             InterfaceLayerContext(
-                layer: layer,
+                layer: layer ?? context.layer,
+                sublayer: sublayer ?? (layer != nil ? .content : context.sublayer),
                 coveredLayers: context.coveredLayers,
                 frozenLayers: context.frozenLayers
             )

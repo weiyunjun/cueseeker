@@ -171,11 +171,10 @@ class CueSeekerWindow: NSWindow {
                 return
             }
         case .leftMouseDown:
+            let isOccluded = isOccludedEvent(event)
             MainActor.assumeIsolated {
-                WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseDown(
-                    window: self,
-                    event: event
-                )
+                if isOccluded { WorkbenchStaticTextSelectionCoordinator.shared.clearSelection() }
+                else { WorkbenchStaticTextSelectionCoordinator.shared.handleWindowLeftMouseDown(window: self, event: event) }
             }
             cancelFocusedTextInputIfOutside(at: event.locationInWindow)
             onMouseDownClearAccessibility?()
@@ -222,6 +221,10 @@ class CueSeekerWindow: NSWindow {
                 WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
             }
             onMouseDownClearAccessibility?()
+            if isOccludedEvent(event) {
+                if hasFocusedTextInput { _ = makeFirstResponder(nil) }
+                break
+            }
             if isPointInsideFocusedTextInput(at: event.locationInWindow) {
                 hasUserFocusedTextInput = true
                 return
@@ -241,8 +244,8 @@ class CueSeekerWindow: NSWindow {
             break
         }
         let beganTrackedControlSession = event.type == .leftMouseDown
-            ? MainActor.assumeIsolated { beginTrackedControlMouseSessionIfNeeded(for: event) }
-            : false
+            && !isOccludedEvent(event)
+            && MainActor.assumeIsolated { beginTrackedControlMouseSessionIfNeeded(for: event) }
         defer {
             if beganTrackedControlSession {
                 MainActor.assumeIsolated {
@@ -505,11 +508,18 @@ class CueSeekerWindow: NSWindow {
         control.needsDisplay = true
     }
 
+    private func isOccludedEvent(_ event: NSEvent) -> Bool {
+        MainActor.assumeIsolated { isOccludedWorkbenchPoint(event.locationInWindow) }
+    }
+
+    @MainActor
+    func isOccludedWorkbenchPoint(_ windowPoint: CGPoint) -> Bool { false }
+
     func cancelFocusedTextInputIfOutside(at windowPoint: NSPoint) {
         guard hasFocusedTextInput else {
             return
         }
-        if !isPointInsideFocusedTextInput(at: windowPoint) {
+        if MainActor.assumeIsolated({ isOccludedWorkbenchPoint(windowPoint) }) || !isPointInsideFocusedTextInput(at: windowPoint) {
             _ = makeFirstResponder(nil)
         }
     }
@@ -696,6 +706,14 @@ final class CueSeekerMainWindow: CueSeekerWindow {
         super.toggleFullScreen(sender)
     }
 
+    weak var interfaceLayers: InterfaceLayerRegistry?
+
+    @MainActor
+    override func isOccludedWorkbenchPoint(_ windowPoint: CGPoint) -> Bool {
+        guard let interfaceLayers, !interfaceLayers.isCovered(.workbenchPage) else { return false }
+        return interfaceLayers.isPointOccluded(windowPoint, on: .workbenchPage)
+    }
+
     /// A real pointer movement is the one event that asks the shape to be
     /// decided again; it is asked after dispatch, so every surface has
     /// answered the movement first.
@@ -703,6 +721,11 @@ final class CueSeekerMainWindow: CueSeekerWindow {
         super.sendEvent(event)
         switch event.type {
         case .mouseMoved:
+            MainActor.assumeIsolated {
+                if !PointerHoverScrollState.shared.isHoverSuppressed, interfaceLayers?.hasWindowOcclusionRegions == true {
+                    PointerHoverSession.syncWindowOcclusionPointerMoved(in: self, at: event.locationInWindow)
+                }
+            }
             AppPointerShape.pointerMoved(in: self, at: event.locationInWindow)
         case .leftMouseDragged, .rightMouseDragged:
             if AppPointerShape.hasActiveTextDrag {

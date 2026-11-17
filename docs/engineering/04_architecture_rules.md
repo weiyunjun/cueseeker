@@ -862,6 +862,11 @@ Replacement and simplicity rules:
   `interfaceLayer(_:)`. A subtree that does not claim one answers for the
   workbench page, so a dialog or the playback chrome would read the freeze it
   put on the page below and stop answering its own pointer.
+- Local window spatial occlusion (such as the compact-window `Overlay` `Sidebar`)
+  is adjudicated centrally by `InterfaceLayerRegistry` using registered
+  `WindowOcclusionRegion` bounds and `interfaceSublayer(_:)` tags. Underlying
+  controls must never hardcode overlay visibility flags such as
+  `!isOverlaySidebarVisible`.
 - Playback keyboard shortcuts are handled through a local AppKit key-down monitor and must not intercept keys while native text input is focused.
 - Playback shortcut handling should route through shared playback state instead of duplicating command behavior in individual views.
 - Playback controller support is a macOS platform-integration boundary covered

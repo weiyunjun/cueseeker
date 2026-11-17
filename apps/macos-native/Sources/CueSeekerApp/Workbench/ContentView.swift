@@ -599,6 +599,7 @@ struct AppTopBar: View {
             }
         } sidebarToggle: {
             sidebarToggle
+                .interfaceSublayer(.overlaySidebar)
         } overlaySidebar: {
             AppSidebar()
                 .overlay(alignment: .trailing) {
@@ -607,6 +608,7 @@ struct AppTopBar: View {
                         .frame(width: AppShellLayout.sidebarBorderWidth)
                         .allowsHitTesting(false)
                 }
+                .background(WindowOcclusionRegionProbe(isActive: isOverlaySidebarVisible, interfaceLayers: appState.interfaceLayers))
                 .compositingGroup()
                 .shadowToken(WorkbenchRedesignColors.shadowPopover, cornerRadius: 0)
                 .overlay(alignment: .top) {
@@ -622,6 +624,7 @@ struct AppTopBar: View {
                     )
                     .frame(height: AppShellLayout.topBarHeight)
                 }
+                .interfaceSublayer(.overlaySidebar)
         }
     }
 
@@ -664,7 +667,6 @@ struct AppTopBar: View {
         .disabled(!routeState.canGoBack)
         .workbenchTooltip(
             scenarioID: "topbar.navigation.back",
-            isActive: !isOverlaySidebarVisible,
             label: routeState.canGoBack
                 ? L("topbar.back")
                 : L("tooltip.topbar.back.disabled")
@@ -705,7 +707,6 @@ struct AppTopBar: View {
         .disabled(!routeState.canGoForward)
         .workbenchTooltip(
             scenarioID: "topbar.navigation.forward",
-            isActive: !isOverlaySidebarVisible,
             label: routeState.canGoForward
                 ? L("topbar.forward")
                 : L("tooltip.topbar.forward.disabled")
@@ -758,6 +759,39 @@ struct AppTopBar: View {
         layoutState.isSidebarVisible
             ? L("topbar.hide_sidebar")
             : L("topbar.show_sidebar")
+    }
+}
+
+private struct WindowOcclusionRegionProbe: NSViewRepresentable {
+    let isActive: Bool
+    let interfaceLayers: InterfaceLayerRegistry
+
+    func makeNSView(context: Context) -> ProbeView { ProbeView() }
+    func updateNSView(_ nsView: ProbeView, context: Context) { nsView.sync(isActive: isActive, interfaceLayers: interfaceLayers) }
+    static func dismantleNSView(_ nsView: ProbeView, coordinator: Void) { nsView.sync(isActive: false, interfaceLayers: nsView.interfaceLayers) }
+
+    final class ProbeView: NSView {
+        private var isActive = false
+        private(set) weak var interfaceLayers: InterfaceLayerRegistry?
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        override func layout() { super.layout(); report() }
+        override func setFrameSize(_ newSize: NSSize) { super.setFrameSize(newSize); report() }
+        override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); report() }
+
+        func sync(isActive: Bool, interfaceLayers: InterfaceLayerRegistry?) {
+            self.isActive = isActive
+            self.interfaceLayers = interfaceLayers
+            report()
+        }
+
+        private func report() {
+            if let mainWindow = window as? CueSeekerMainWindow { mainWindow.interfaceLayers = interfaceLayers }
+            let region = (isActive && window != nil && bounds.width > 0 && bounds.height > 0)
+                ? WindowOcclusionRegion(hostLayer: .workbenchPage, minimumUnoccludedSublayer: .overlaySidebar, windowRect: convert(bounds, to: nil).standardized)
+                : nil
+            interfaceLayers?.setWindowOcclusionRegion(region, forKey: "overlaySidebar")
+        }
     }
 }
 
