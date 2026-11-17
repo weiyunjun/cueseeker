@@ -163,21 +163,21 @@ final class TooltipCenter: ObservableObject {
         WorkbenchControlMetrics.redesignTooltipSkipWindowDelay
 
     struct HoveredTarget: Equatable {
-        let targetID: UUID
-        let surface: TooltipSurface
-        let scenarioID: String
-        var anchorRect: CGRect
-        var content: TooltipContent
+        var item: TooltipActiveItem
         var hoverDelay: TimeInterval
-        var isPlayerChrome: Bool = false
+        var targetID: UUID { item.targetID }
     }
 
     @Published private(set) var activeItem: TooltipActiveItem?
     private(set) var hoveredTarget: HoveredTarget?
     private(set) var suppressedTargetID: UUID?
+    private(set) var suppressedOriginScreenLocation: CGPoint?
     private(set) var lastHoverDismissedAt: Date?
     let skipWindowDelay: TimeInterval
     private let now: () -> Date
+    private let mouseLocation: () -> CGPoint
+    private let isPointerInteractionBlocked: (() -> Bool)?
+    private let isHoverSuppressed: (() -> Bool)?
     private var hoverTask: Task<Void, Never>?
     private var localEventMonitor: Any?
     private var notificationObservers: [NSObjectProtocol] = []
@@ -185,19 +185,68 @@ final class TooltipCenter: ObservableObject {
     init(
         installEventMonitors: Bool = false,
         skipWindowDelay: TimeInterval = TooltipCenter.defaultSkipWindowDelay,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        mouseLocation: @escaping () -> CGPoint = { NSEvent.mouseLocation },
+        isPointerInteractionBlocked: (() -> Bool)? = nil,
+        isHoverSuppressed: (() -> Bool)? = nil
     ) {
         self.skipWindowDelay = skipWindowDelay
         self.now = now
+        self.mouseLocation = mouseLocation
+        self.isPointerInteractionBlocked = isPointerInteractionBlocked
+        self.isHoverSuppressed = isHoverSuppressed
         if installEventMonitors {
             setUpEventMonitors()
         }
     }
 
-    private func isWithinSkipWindow(at date: Date) -> Bool {
-        guard let lastHoverDismissedAt else {
-            return false
+    private var isBlocked: Bool {
+        isPointerInteractionBlocked?() ?? (
+            NSEvent.pressedMouseButtons != 0
+                || WorkbenchStaticTextSelectionCoordinator.shared.isDraggingSelection
+                || SubtitleTableActiveTextDragState.isDraggingSelection
+        )
+    }
+
+    private var isSuppressed: Bool {
+        isHoverSuppressed?() ?? (
+            PointerHoverScrollState.shared.isHoverSuppressed
+                || AppCursorVisibility.isCursorHidden
+        )
+    }
+
+    static func anchorRect(in window: NSWindow?, windowRect: CGRect?) -> CGRect? {
+        guard let contentHeight = window?.contentView?.bounds.height,
+              let windowRect, !windowRect.isNull, windowRect.width > 0, windowRect.height > 0
+        else { return nil }
+        return CGRect(
+            x: windowRect.minX,
+            y: contentHeight - windowRect.maxY,
+            width: windowRect.width,
+            height: windowRect.height
+        )
+    }
+
+    func syncHover(
+        targetID: UUID, isHovered: Bool, isActive: Bool,
+        surface: TooltipSurface = .main, scenarioID: String?,
+        window: NSWindow?, windowRect: CGRect?,
+        content: TooltipContent, hoverDelay: TimeInterval = TooltipCenter.defaultHoverDelay,
+        isPlayerChrome: Bool = false, allowSkipWindow: Bool = true
+    ) {
+        guard isHovered, isActive, let scenarioID, !scenarioID.isEmpty,
+              let anchorRect = Self.anchorRect(in: window, windowRect: windowRect) else {
+            hoverEnded(targetID: targetID, allowSkipWindow: allowSkipWindow && isActive && !isHovered)
+            return
         }
+        hoverBegan(
+            targetID: targetID, surface: surface, scenarioID: scenarioID,
+            anchorRect: anchorRect, content: content, hoverDelay: hoverDelay, isPlayerChrome: isPlayerChrome
+        )
+    }
+
+    private func isWithinSkipWindow(at date: Date) -> Bool {
+        guard let lastHoverDismissedAt else { return false }
         let elapsed = date.timeIntervalSince(lastHoverDismissedAt)
         return elapsed >= 0 && elapsed <= skipWindowDelay
     }
@@ -215,17 +264,23 @@ final class TooltipCenter: ObservableObject {
             hoverEnded(targetID: targetID)
             return
         }
+        if isBlocked || isSuppressed {
+            if hoveredTarget?.targetID != targetID {
+                dismiss()
+            } else {
+                lastHoverDismissedAt = nil
+            }
+            return
+        }
 
+        let item = TooltipActiveItem(
+            targetID: targetID, surface: surface, scenarioID: scenarioID,
+            anchorRect: anchorRect, content: content, isPlayerChrome: isPlayerChrome
+        )
+        let target = HoveredTarget(item: item, hoverDelay: hoverDelay)
         if hoveredTarget?.targetID == targetID {
-            updateTarget(
-                targetID: targetID,
-                surface: surface,
-                scenarioID: scenarioID,
-                anchorRect: anchorRect,
-                content: content,
-                hoverDelay: hoverDelay,
-                isPlayerChrome: isPlayerChrome
-            )
+            hoveredTarget = target
+            if activeItem?.targetID == targetID { activeItem = item }
             return
         }
 
@@ -233,107 +288,41 @@ final class TooltipCenter: ObservableObject {
         hoverTask = nil
         if suppressedTargetID != targetID {
             suppressedTargetID = nil
+            suppressedOriginScreenLocation = nil
         }
-
-        let target = HoveredTarget(
-            targetID: targetID,
-            surface: surface,
-            scenarioID: scenarioID,
-            anchorRect: anchorRect,
-            content: content,
-            hoverDelay: hoverDelay,
-            isPlayerChrome: isPlayerChrome
-        )
         hoveredTarget = target
 
         let shouldSkipDelay = activeItem != nil || isWithinSkipWindow(at: now())
         lastHoverDismissedAt = nil
-
         guard suppressedTargetID != targetID else {
-            if activeItem != nil {
-                activeItem = nil
-            }
+            if activeItem != nil { activeItem = nil }
             return
         }
-
         if shouldSkipDelay {
-            activeItem = TooltipActiveItem(
-                targetID: target.targetID,
-                surface: target.surface,
-                scenarioID: target.scenarioID,
-                anchorRect: target.anchorRect,
-                content: target.content,
-                isPlayerChrome: target.isPlayerChrome
-            )
+            activeItem = item
         } else {
-            if activeItem != nil {
-                activeItem = nil
-            }
+            if activeItem != nil { activeItem = nil }
             scheduleShow(for: target)
         }
     }
 
-    func updateAnchor(
-        targetID: UUID,
-        anchorRect: CGRect,
-        content: TooltipContent
-    ) {
-        guard let current = hoveredTarget, current.targetID == targetID else {
-            return
-        }
-        updateTarget(
-            targetID: targetID,
-            surface: current.surface,
-            scenarioID: current.scenarioID,
-            anchorRect: anchorRect,
-            content: content,
-            hoverDelay: current.hoverDelay,
-            isPlayerChrome: current.isPlayerChrome
-        )
-    }
-
-    func updateTarget(
-        targetID: UUID,
-        surface: TooltipSurface = .main,
-        scenarioID: String,
-        anchorRect: CGRect,
-        content: TooltipContent,
-        hoverDelay: TimeInterval = TooltipCenter.defaultHoverDelay,
-        isPlayerChrome: Bool = false
-    ) {
-        guard hoveredTarget?.targetID == targetID else {
-            return
-        }
-        guard !content.isEmpty, anchorRect.width > 0, anchorRect.height > 0 else {
+    func updateAnchor(targetID: UUID, anchorRect: CGRect, content: TooltipContent? = nil) {
+        guard var current = hoveredTarget, current.targetID == targetID else { return }
+        let nextContent = content ?? current.item.content
+        guard !nextContent.isEmpty, anchorRect.width > 0, anchorRect.height > 0 else {
             hoverEnded(targetID: targetID)
             return
         }
-
-        hoveredTarget = HoveredTarget(
-            targetID: targetID,
-            surface: surface,
-            scenarioID: scenarioID,
-            anchorRect: anchorRect,
-            content: content,
-            hoverDelay: hoverDelay,
-            isPlayerChrome: isPlayerChrome
-        )
-
-        if activeItem?.targetID == targetID {
-            activeItem = TooltipActiveItem(
-                targetID: targetID,
-                surface: surface,
-                scenarioID: scenarioID,
-                anchorRect: anchorRect,
-                content: content,
-                isPlayerChrome: isPlayerChrome
-            )
-        }
+        current.item.anchorRect = anchorRect
+        current.item.content = nextContent
+        hoveredTarget = current
+        if activeItem?.targetID == targetID { activeItem = current.item }
     }
 
     func hoverEnded(targetID: UUID, allowSkipWindow: Bool = true) {
         if suppressedTargetID == targetID {
             suppressedTargetID = nil
+            suppressedOriginScreenLocation = nil
         }
         if hoveredTarget?.targetID == targetID {
             hoverTask?.cancel()
@@ -352,9 +341,25 @@ final class TooltipCenter: ObservableObject {
         lastHoverDismissedAt = nil
         if let currentTargetID = hoveredTarget?.targetID {
             suppressedTargetID = currentTargetID
+            suppressedOriginScreenLocation = mouseLocation()
+        } else {
+            suppressedOriginScreenLocation = nil
         }
-        if activeItem != nil {
-            activeItem = nil
+        if activeItem != nil { activeItem = nil }
+    }
+
+    func notePointerMoved(atScreenLocation screenLocation: CGPoint) {
+        guard !isBlocked, !isSuppressed,
+              let target = hoveredTarget, suppressedTargetID == target.targetID
+        else { return }
+        if let origin = suppressedOriginScreenLocation,
+           !PointerHoverScrollState.hasMovedAtLeastWakeThreshold(from: origin, to: screenLocation)
+        { return }
+        suppressedTargetID = nil
+        suppressedOriginScreenLocation = nil
+        lastHoverDismissedAt = nil
+        if activeItem == nil, hoverTask == nil {
+            scheduleShow(for: target)
         }
     }
 
@@ -367,30 +372,20 @@ final class TooltipCenter: ObservableObject {
         hoverTask = nil
         hoveredTarget = nil
         suppressedTargetID = nil
+        suppressedOriginScreenLocation = nil
         lastHoverDismissedAt = nil
-        if activeItem != nil {
-            activeItem = nil
-        }
+        if activeItem != nil { activeItem = nil }
     }
 
     /// Immediately reveals the pending hovered target if its delay has elapsed (used in deterministic tests).
     func revealPendingNowForTesting() {
-        guard let target = hoveredTarget,
-              suppressedTargetID != target.targetID
-        else {
-            return
-        }
+        guard !isBlocked, !isSuppressed,
+              let target = hoveredTarget, suppressedTargetID != target.targetID
+        else { return }
         hoverTask?.cancel()
         hoverTask = nil
         lastHoverDismissedAt = nil
-        activeItem = TooltipActiveItem(
-            targetID: target.targetID,
-            surface: target.surface,
-            scenarioID: target.scenarioID,
-            anchorRect: target.anchorRect,
-            content: target.content,
-            isPlayerChrome: target.isPlayerChrome
-        )
+        activeItem = target.item
     }
 
     private func scheduleShow(for target: HoveredTarget) {
@@ -400,24 +395,15 @@ final class TooltipCenter: ObservableObject {
             if delayNanoseconds > 0 {
                 try? await Task.sleep(nanoseconds: delayNanoseconds)
             }
-            guard !Task.isCancelled else {
-                return
-            }
+            guard !Task.isCancelled else { return }
             guard let self,
+                  !self.isBlocked,
+                  !self.isSuppressed,
                   let current = self.hoveredTarget,
                   current.targetID == targetID,
                   self.suppressedTargetID != targetID
-            else {
-                return
-            }
-            self.activeItem = TooltipActiveItem(
-                targetID: current.targetID,
-                surface: current.surface,
-                scenarioID: current.scenarioID,
-                anchorRect: current.anchorRect,
-                content: current.content,
-                isPlayerChrome: current.isPlayerChrome
-            )
+            else { return }
+            self.activeItem = current.item
         }
     }
 
@@ -718,6 +704,15 @@ struct TooltipSurfaceBackground: View {
 }
 
 private struct TooltipModifier: ViewModifier {
+    private struct Spec: Equatable {
+        let isActive: Bool
+        let surface: TooltipSurface
+        let scenarioID: String
+        let content: TooltipContent
+        let hoverDelay: TimeInterval
+        let isPlayerChrome: Bool
+    }
+
     let scenarioID: String
     let surface: TooltipSurface
     let isActive: Bool
@@ -726,261 +721,80 @@ private struct TooltipModifier: ViewModifier {
 
     @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.isPlayerUIVisible) private var isPlayerUIVisible
-    @State private var targetID = UUID()
+    @State private var hoverSession: PointerHoverSession?
 
-    private var effectiveIsActive: Bool {
-        isActive
-            && !content.isEmpty
-            && !layerContext.isFrozen
-            && isPlayerUIVisible
+    private var spec: Spec {
+        Spec(
+            isActive: isActive && !content.isEmpty && !layerContext.isFrozen && isPlayerUIVisible,
+            surface: surface,
+            scenarioID: scenarioID,
+            content: content,
+            hoverDelay: hoverDelay,
+            isPlayerChrome: layerContext.layer == .playbackPage
+        )
     }
 
     func body(content viewContent: Content) -> some View {
-        viewContent.background(
-            TooltipTrackingRepresentable(
-                targetID: targetID,
-                surface: surface,
-                scenarioID: scenarioID,
-                isActive: effectiveIsActive,
-                content: content,
-                hoverDelay: hoverDelay,
-                isPlayerChrome: layerContext.layer == .playbackPage
-            )
-        )
-    }
-}
-
-private struct TooltipTrackingRepresentable: NSViewRepresentable {
-    let targetID: UUID
-    let surface: TooltipSurface
-    let scenarioID: String
-    let isActive: Bool
-    let content: TooltipContent
-    let hoverDelay: TimeInterval
-    let isPlayerChrome: Bool
-
-    func makeNSView(context: Context) -> TooltipTrackingNSView {
-        let view = TooltipTrackingNSView()
-        view.configure(
-            targetID: targetID,
-            surface: surface,
-            scenarioID: scenarioID,
-            isActive: isActive,
-            content: content,
-            hoverDelay: hoverDelay,
-            isPlayerChrome: isPlayerChrome
-        )
-        return view
-    }
-
-    func updateNSView(_ nsView: TooltipTrackingNSView, context: Context) {
-        nsView.configure(
-            targetID: targetID,
-            surface: surface,
-            scenarioID: scenarioID,
-            isActive: isActive,
-            content: content,
-            hoverDelay: hoverDelay,
-            isPlayerChrome: isPlayerChrome
-        )
-    }
-
-    static func dismantleNSView(_ nsView: TooltipTrackingNSView, coordinator: ()) {
-        let id = nsView.targetID
-        MainActor.assumeIsolated {
-            TooltipCenter.shared.hoverEnded(targetID: id, allowSkipWindow: false)
-        }
-    }
-}
-
-final class TooltipTrackingNSView: NSView {
-    private(set) var targetID = UUID()
-    private var surface: TooltipSurface = .main
-    private var scenarioID = ""
-    private var isActive = false
-    private var content: TooltipContent = .standard(label: "", shortcut: .none, wrapsText: false)
-    private var hoverDelay: TimeInterval = TooltipCenter.defaultHoverDelay
-    private var isPlayerChrome = false
-    private var trackingAreaRef: NSTrackingArea?
-    private var isPointerInside = false
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
-    }
-
-    func configure(
-        targetID: UUID,
-        surface: TooltipSurface,
-        scenarioID: String,
-        isActive: Bool,
-        content: TooltipContent,
-        hoverDelay: TimeInterval,
-        isPlayerChrome: Bool = false
-    ) {
-        self.targetID = targetID
-        self.surface = surface
-        self.scenarioID = scenarioID
-        self.isActive = isActive
-        self.content = content
-        self.hoverDelay = hoverDelay
-        self.isPlayerChrome = isPlayerChrome
-
-        guard isActive, window != nil else {
-            if isPointerInside {
-                isPointerInside = false
+        let current = spec
+        viewContent
+            .onPointerHoverSession { session, isHovered in
+                if isHovered {
+                    hoverSession = session
+                    bind(session: session)
+                }
+                sync(session: session, spec: current, allowSkipWindow: true)
+                if !isHovered { hoverSession = nil }
             }
-            TooltipCenter.shared.hoverEnded(targetID: targetID, allowSkipWindow: false)
-            return
-        }
-
-        if isPointerInside, let anchorRect = anchorRectInWindow() {
-            TooltipCenter.shared.updateTarget(
-                targetID: targetID,
-                surface: surface,
-                scenarioID: scenarioID,
-                anchorRect: anchorRect,
-                content: content,
-                hoverDelay: hoverDelay,
-                isPlayerChrome: isPlayerChrome
-            )
-        }
+            .onChange(of: current) { next in
+                if let hoverSession { sync(session: hoverSession, spec: next, allowSkipWindow: false) }
+            }
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingAreaRef {
-            removeTrackingArea(trackingAreaRef)
-        }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [
-                .mouseEnteredAndExited,
-                .activeAlways,
-                .inVisibleRect,
-            ],
-            owner: self,
-            userInfo: nil
-        )
-        addTrackingArea(area)
-        trackingAreaRef = area
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window == nil {
-            isPointerInside = false
+    private func bind(session: PointerHoverSession) {
+        guard session.onDisappear == nil else { return }
+        let targetID = session.id
+        session.onDisappear = {
             TooltipCenter.shared.hoverEnded(targetID: targetID, allowSkipWindow: false)
         }
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        isPointerInside = true
-        guard isActive, let anchorRect = anchorRectInWindow() else {
-            return
+        session.onBoundsChanged = { [weak session] in
+            guard let probe = session?.probeView,
+                  let anchor = TooltipCenter.anchorRect(in: probe.window, windowRect: probe.convert(probe.bounds, to: nil))
+            else { return }
+            TooltipCenter.shared.updateAnchor(targetID: targetID, anchorRect: anchor)
         }
-        TooltipCenter.shared.hoverBegan(
-            targetID: targetID,
-            surface: surface,
-            scenarioID: scenarioID,
-            anchorRect: anchorRect,
-            content: content,
-            hoverDelay: hoverDelay,
-            isPlayerChrome: isPlayerChrome
+    }
+
+    private func sync(session: PointerHoverSession, spec: Spec, allowSkipWindow: Bool) {
+        let probe = session.probeView
+        TooltipCenter.shared.syncHover(
+            targetID: session.id, isHovered: session.gate.deliveredIsHovered,
+            isActive: spec.isActive, surface: spec.surface, scenarioID: spec.scenarioID,
+            window: probe?.window, windowRect: probe.map { $0.convert($0.bounds, to: nil) },
+            content: spec.content, hoverDelay: spec.hoverDelay,
+            isPlayerChrome: spec.isPlayerChrome, allowSkipWindow: allowSkipWindow
         )
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        isPointerInside = false
-        TooltipCenter.shared.hoverEnded(targetID: targetID)
-    }
-
-    func anchorRectInWindow() -> CGRect? {
-        guard let window,
-              let contentView = window.contentView,
-              bounds.width > 0,
-              bounds.height > 0
-        else {
-            return nil
-        }
-        let rectInWindow = convert(bounds, to: nil)
-        let contentHeight = contentView.bounds.height
-        return CGRect(
-            x: rectInWindow.minX,
-            y: contentHeight - rectInWindow.maxY,
-            width: rectInWindow.width,
-            height: rectInWindow.height
-        )
-    }
-}
-
-private struct TruncatedTextRenderedWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat { 0 }
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
-private struct TruncatedTextIntrinsicWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat { 0 }
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }
 
 private struct TextTruncationObserverModifier: ViewModifier {
     let text: String
-    let font: Font
+    let font: NSFont
     let onChange: (Bool) -> Void
-
     @State private var renderedWidth: CGFloat = 0
-    @State private var intrinsicWidth: CGFloat = 0
 
     func body(content: Content) -> some View {
+        let intrinsic = text.isEmpty ? 0 : (text as NSString).size(withAttributes: [.font: font]).width
         content
-            .background(
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: TruncatedTextRenderedWidthKey.self,
-                        value: proxy.size.width
-                    )
-                }
-            )
-            .background(
-                Text(text)
-                    .font(font)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .hidden()
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                    .background(
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: TruncatedTextIntrinsicWidthKey.self,
-                                value: proxy.size.width
-                            )
-                        }
-                    )
-            )
-            .onPreferenceChange(TruncatedTextRenderedWidthKey.self) { width in
-                renderedWidth = width
-                reportTruncation()
-            }
-            .onPreferenceChange(TruncatedTextIntrinsicWidthKey.self) { width in
-                intrinsicWidth = width
-                reportTruncation()
-            }
+            .background(GeometryReader { proxy in
+                Color.clear
+                    .onAppear { renderedWidth = proxy.size.width; report(intrinsic: intrinsic) }
+                    .onChange(of: proxy.size.width) { renderedWidth = $0; report(intrinsic: intrinsic) }
+            })
+            .onChange(of: intrinsic) { report(intrinsic: $0) }
     }
 
-    private func reportTruncation() {
-        onChange(
-            TooltipGeometry.isTextTruncated(
-                intrinsicWidth: intrinsicWidth,
-                renderedWidth: renderedWidth
-            )
-        )
+    private func report(intrinsic: CGFloat) {
+        onChange(TooltipGeometry.isTextTruncated(intrinsicWidth: intrinsic, renderedWidth: renderedWidth))
     }
 }
 
@@ -988,24 +802,13 @@ private struct TruncatedTextTooltipModifier: ViewModifier {
     let scenarioID: String
     let surface: TooltipSurface
     let text: String
-    let font: Font
-
+    let font: NSFont
     @State private var isTruncated = false
 
     func body(content: Content) -> some View {
         content
-            .onTextTruncationChange(text: text, font: font) { truncated in
-                if isTruncated != truncated {
-                    isTruncated = truncated
-                }
-            }
-            .workbenchTooltip(
-                scenarioID: scenarioID,
-                surface: surface,
-                isActive: isTruncated,
-                label: text,
-                wrapsText: true
-            )
+            .onTextTruncationChange(text: text, font: font) { if isTruncated != $0 { isTruncated = $0 } }
+            .workbenchTooltip(scenarioID: scenarioID, surface: surface, isActive: isTruncated, label: text, wrapsText: true)
     }
 }
 
@@ -1036,7 +839,7 @@ extension View {
 
     func onTextTruncationChange(
         text: String,
-        font: Font,
+        font: NSFont,
         perform action: @escaping (Bool) -> Void
     ) -> some View {
         modifier(
@@ -1052,7 +855,7 @@ extension View {
         scenarioID: String,
         surface: TooltipSurface = .main,
         text: String,
-        font: Font
+        font: NSFont
     ) -> some View {
         modifier(
             TruncatedTextTooltipModifier(

@@ -1766,4 +1766,57 @@ struct WorkbenchSelectableTextTests {
         #expect(WorkbenchStaticTextSelectionCoordinator.shared.selectedText == nil)
         #expect(spyContainer.rightMouseDownCount == 1)
     }
+
+    @MainActor
+    @Test
+    func selectableTextViewDetectsSingleLineAndMultilineTextKitTruncation() {
+        let font = NSFont.systemFont(ofSize: 13, weight: .regular)
+        let textView = WorkbenchSelectableTextNSView(frame: CGRect(x: 0, y: 0, width: 100, height: 22))
+
+        func configureView(text: String, lineLimit: Int?, truncationMode: Text.TruncationMode = .tail, width: CGFloat) {
+            textView.setFrameSize(CGSize(width: width, height: 48))
+            textView.configure(
+                text: text,
+                font: font,
+                textColor: .labelColor,
+                alignment: .left,
+                lineLimit: lineLimit,
+                truncatesTail: truncationMode == .tail,
+                truncationMode: truncationMode,
+                isSelectable: true,
+                preferredPointerShape: .iBeam,
+                showsUnderline: false,
+                onTap: nil,
+                truncationTooltipScenarioID: "truncated.dialog.title",
+                interfaceLayerContext: InterfaceLayerContext()
+            )
+            textView.prepareLayoutForFlow()
+        }
+
+        configureView(text: "", lineLimit: 1, width: 100)
+        #expect(!textView.isTextTruncated)
+
+        configureView(text: "Long header title that truncates", lineLimit: 1, width: 0)
+        #expect(!textView.isTextTruncated)
+
+        configureView(text: "Short", lineLimit: 1, width: 160)
+        #expect(!textView.isTextTruncated)
+
+        let longTitle = "Very Long Header Title That Should Truncate Cleanly"
+        configureView(text: longTitle, lineLimit: 1, truncationMode: .tail, width: 100)
+        #expect(textView.isTextTruncated)
+
+        configureView(text: longTitle, lineLimit: 1, truncationMode: .middle, width: 100)
+        #expect(textView.isTextTruncated)
+
+        configureView(text: longTitle, lineLimit: 1, truncationMode: .tail, width: 600)
+        #expect(!textView.isTextTruncated)
+
+        configureView(text: "Fits cleanly", lineLimit: 2, width: 160)
+        #expect(!textView.isTextTruncated)
+
+        let longMultiline = String(repeating: "Word ", count: 30)
+        configureView(text: longMultiline, lineLimit: 2, width: 100)
+        #expect(textView.isTextTruncated)
+    }
 }

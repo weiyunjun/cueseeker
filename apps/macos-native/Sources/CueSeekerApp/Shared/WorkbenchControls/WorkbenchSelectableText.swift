@@ -21,6 +21,8 @@ struct WorkbenchSelectableText: View {
     var showsUnderline: Bool = false
     var allowsMenuModalInteraction: Bool = false
     var onTap: (() -> Void)? = nil
+    var truncationTooltipScenarioID: String? = nil
+    var truncationTooltipSurface: TooltipSurface = .main
 
     @Environment(\.interfaceLayerContext) private var interfaceLayerContext
     @Environment(\.workbenchDialogID) private var dialogID
@@ -40,7 +42,9 @@ struct WorkbenchSelectableText: View {
         preferredPointerShape: PointerShape = .iBeam,
         showsUnderline: Bool = false,
         allowsMenuModalInteraction: Bool = false,
-        onTap: (() -> Void)? = nil
+        onTap: (() -> Void)? = nil,
+        truncationTooltipScenarioID: String? = nil,
+        truncationTooltipSurface: TooltipSurface = .main
     ) {
         self.text = text
         self.fullCopyText = fullCopyText
@@ -57,6 +61,8 @@ struct WorkbenchSelectableText: View {
         self.showsUnderline = showsUnderline
         self.allowsMenuModalInteraction = allowsMenuModalInteraction
         self.onTap = onTap
+        self.truncationTooltipScenarioID = truncationTooltipScenarioID
+        self.truncationTooltipSurface = truncationTooltipSurface
     }
 
     private var swiftUIFont: Font {
@@ -126,6 +132,8 @@ struct WorkbenchSelectableText: View {
                     showsUnderline: showsUnderline,
                     allowsMenuModalInteraction: allowsMenuModalInteraction,
                     onTap: onTap,
+                    truncationTooltipScenarioID: truncationTooltipScenarioID,
+                    truncationTooltipSurface: truncationTooltipSurface,
                     interfaceLayerContext: interfaceLayerContext,
                     dialogID: dialogID
                 )
@@ -265,27 +273,30 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
     let showsUnderline: Bool
     let allowsMenuModalInteraction: Bool
     let onTap: (() -> Void)?
+    let truncationTooltipScenarioID: String?
+    let truncationTooltipSurface: TooltipSurface
     let interfaceLayerContext: InterfaceLayerContext
     let dialogID: WorkbenchDialogAccessibilityID?
 
-    func makeNSView(context _: Context) -> WorkbenchSelectableTextNSView {
+    func makeNSView(context: Context) -> WorkbenchSelectableTextNSView {
         let view = WorkbenchSelectableTextNSView()
-        update(view)
+        update(view, environment: context.environment)
         return view
     }
 
-    func updateNSView(_ nsView: WorkbenchSelectableTextNSView, context _: Context) {
-        update(nsView)
+    func updateNSView(_ nsView: WorkbenchSelectableTextNSView, context: Context) {
+        update(nsView, environment: context.environment)
     }
 
     static func dismantleNSView(_ nsView: WorkbenchSelectableTextNSView, coordinator _: ()) {
         MainActor.assumeIsolated {
+            nsView.endTruncationTooltip()
             nsView.clearSelection(notifyCoordinator: true)
             WorkbenchStaticTextSelectionCoordinator.shared.unregister(nsView)
         }
     }
 
-    private func update(_ view: WorkbenchSelectableTextNSView) {
+    private func update(_ view: WorkbenchSelectableTextNSView, environment: EnvironmentValues) {
         view.configure(
             text: text,
             fullCopyText: fullCopyText,
@@ -302,6 +313,10 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
             showsUnderline: showsUnderline,
             allowsMenuModalInteraction: allowsMenuModalInteraction,
             onTap: onTap,
+            truncationTooltipScenarioID: truncationTooltipScenarioID,
+            truncationTooltipSurface: truncationTooltipSurface,
+            isPlayerUIVisible: environment.isPlayerUIVisible,
+            interfaceLayers: environment.interfaceLayers,
             interfaceLayerContext: interfaceLayerContext,
             dialogID: dialogID
         )
@@ -350,6 +365,10 @@ final class WorkbenchSelectableTextNSView:
     private(set) var showsUnderline: Bool = false
     private(set) var allowsMenuModalInteraction: Bool = false
     var onTap: (() -> Void)?
+    private(set) var truncationTooltipScenarioID: String? = nil
+    private(set) var truncationTooltipSurface: TooltipSurface = .main
+    private(set) var isPlayerUIVisible: Bool = true
+    private(set) var isTextTruncated: Bool = false
     private(set) var interfaceLayerContext = InterfaceLayerContext()
     private(set) var dialogID: WorkbenchDialogAccessibilityID? = nil
 
@@ -360,6 +379,8 @@ final class WorkbenchSelectableTextNSView:
     private var activeClickCount = 1
     private var didDrag = false
     private var needsTextLayout = true
+    private var tooltipSession: PointerHoverSession?
+    private var tooltipProbe: PointerHoverProbeView?
 
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { false }
@@ -512,6 +533,10 @@ final class WorkbenchSelectableTextNSView:
         showsUnderline: Bool,
         allowsMenuModalInteraction: Bool = false,
         onTap: (() -> Void)?,
+        truncationTooltipScenarioID: String? = nil,
+        truncationTooltipSurface: TooltipSurface = .main,
+        isPlayerUIVisible: Bool = true,
+        interfaceLayers: InterfaceLayerRegistry? = nil,
         interfaceLayerContext: InterfaceLayerContext,
         dialogID: WorkbenchDialogAccessibilityID? = nil
     ) {
@@ -533,6 +558,9 @@ final class WorkbenchSelectableTextNSView:
             || self.interfaceLayerContext.isCovered != interfaceLayerContext.isCovered
             || self.interfaceLayerContext.isFrozen != interfaceLayerContext.isFrozen
             || self.dialogID != dialogID
+        let tooltipChanged = self.truncationTooltipScenarioID != truncationTooltipScenarioID
+            || self.truncationTooltipSurface != truncationTooltipSurface
+            || self.isPlayerUIVisible != isPlayerUIVisible
 
         self.text = text
         self.fullCopyText = fullCopyText
@@ -549,6 +577,9 @@ final class WorkbenchSelectableTextNSView:
         self.showsUnderline = showsUnderline
         self.allowsMenuModalInteraction = allowsMenuModalInteraction
         self.onTap = onTap
+        self.truncationTooltipScenarioID = truncationTooltipScenarioID
+        self.truncationTooltipSurface = truncationTooltipSurface
+        self.isPlayerUIVisible = isPlayerUIVisible
         self.interfaceLayerContext = interfaceLayerContext
         self.dialogID = dialogID
 
@@ -562,6 +593,13 @@ final class WorkbenchSelectableTextNSView:
             window?.invalidateCursorRects(for: self)
             needsDisplay = true
         }
+
+        configureTruncationTooltip(interfaceLayers: interfaceLayers)
+        if textChanged || styleChanged || layerChanged || tooltipChanged, tooltipSession != nil {
+            Task { @MainActor [weak self] in
+                self?.syncTruncationTooltip(allowSkipWindow: false)
+            }
+        }
     }
 
     override func setFrameSize(_ newSize: NSSize) {
@@ -570,6 +608,7 @@ final class WorkbenchSelectableTextNSView:
         if oldSize != newSize {
             needsTextLayout = true
             updateTextLayout()
+            tooltipProbe?.frame = layoutBounds
             window?.invalidateCursorRects(for: self)
             needsDisplay = true
         }
@@ -584,6 +623,7 @@ final class WorkbenchSelectableTextNSView:
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window == nil {
+            endTruncationTooltip()
             clearSelection(notifyCoordinator: true)
             WorkbenchStaticTextSelectionCoordinator.shared.unregister(self)
         } else {
@@ -607,7 +647,59 @@ final class WorkbenchSelectableTextNSView:
 
     override func viewDidHide() {
         super.viewDidHide()
+        endTruncationTooltip()
         clearSelection(notifyCoordinator: true)
+    }
+
+    func endTruncationTooltip() {
+        tooltipSession?.handleViewDisappeared()
+    }
+
+    private func configureTruncationTooltip(interfaceLayers: InterfaceLayerRegistry?) {
+        guard let scenarioID = truncationTooltipScenarioID, !scenarioID.isEmpty else {
+            endTruncationTooltip()
+            tooltipProbe?.removeFromSuperview()
+            tooltipProbe = nil
+            tooltipSession = nil
+            return
+        }
+        let session = tooltipSession ?? {
+            let created = PointerHoverSession()
+            created.windowHitRect = { [weak self] in self?.visibleWindowClipRect() }
+            created.action = { [weak self] _ in self?.syncTruncationTooltip() }
+            created.onDisappear = { [targetID = created.id] in
+                TooltipCenter.shared.hoverEnded(targetID: targetID, allowSkipWindow: false)
+            }
+            created.onBoundsChanged = { [weak self] in
+                self?.syncTruncationTooltip(allowSkipWindow: false)
+            }
+            let probe = PointerHoverProbeView(frame: layoutBounds)
+            probe.session = created
+            created.probeView = probe
+            addSubview(probe)
+            tooltipProbe = probe
+            tooltipSession = created
+            return created
+        }()
+        session.registry = interfaceLayers
+        session.layer = interfaceLayerContext.layer
+        session.setFrozen(isFrozenOrCovered)
+        tooltipProbe?.frame = layoutBounds
+    }
+
+    private func syncTruncationTooltip(allowSkipWindow: Bool = true) {
+        guard let session = tooltipSession else { return }
+        let isEligible = isTextTruncated && isPlayerUIVisible && canInteract
+        if isTrackingMouse && isEligible { return }
+        TooltipCenter.shared.syncHover(
+            targetID: session.id, isHovered: session.gate.deliveredIsHovered,
+            isActive: isEligible, surface: truncationTooltipSurface,
+            scenarioID: truncationTooltipScenarioID, window: window,
+            windowRect: visibleWindowClipRect(),
+            content: .standard(label: fullCopyText ?? text, shortcut: .none, wrapsText: true),
+            isPlayerChrome: interfaceLayerContext.layer == .playbackPage,
+            allowSkipWindow: allowSkipWindow
+        )
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -1001,6 +1093,7 @@ final class WorkbenchSelectableTextNSView:
         let availableWidth = max(0, bounds.width)
         let effectiveAlignment: NSTextAlignment
         let paragraphLineBreak: NSLineBreakMode
+        var singleLineTruncated: Bool?
         if lineLimit == 1 {
             let naturalWidth = Self.measuredSingleLineWidth(for: text, font: font)
             let wantsTruncation: Bool
@@ -1020,6 +1113,7 @@ final class WorkbenchSelectableTextNSView:
                 truncatingBreakMode = .byTruncatingTail
             }
             let isTruncated = wantsTruncation && availableWidth > 0 && availableWidth < naturalWidth - 1.5
+            singleLineTruncated = isTruncated
             effectiveAlignment = isTruncated ? alignment : .left
             paragraphLineBreak = isTruncated ? truncatingBreakMode : .byClipping
             textContainer.maximumNumberOfLines = 1
@@ -1051,7 +1145,24 @@ final class WorkbenchSelectableTextNSView:
             NSAttributedString(string: text, attributes: attributes)
         )
         layoutManager.ensureLayout(for: textContainer)
+        isTextTruncated = singleLineTruncated ?? (
+            (lineLimit ?? 0) > 0 && truncatesTail && availableWidth > 0 && !text.isEmpty && hasTruncatedGlyphLineFragment()
+        )
         needsTextLayout = false
+    }
+
+    private func hasTruncatedGlyphLineFragment() -> Bool {
+        let validGlyphRange = layoutManager.glyphRange(for: textContainer)
+        var glyphIndex = validGlyphRange.location
+        while glyphIndex < NSMaxRange(validGlyphRange) {
+            var lineRange = NSRange(location: 0, length: 0)
+            _ = layoutManager.lineFragmentRect(forGlyphAt: glyphIndex, effectiveRange: &lineRange)
+            let range = layoutManager.truncatedGlyphRange(inLineFragmentForGlyphAt: glyphIndex)
+            if range.location != NSNotFound && range.length > 0 { return true }
+            guard lineRange.length > 0 else { break }
+            glyphIndex = NSMaxRange(lineRange)
+        }
+        return false
     }
 
     nonisolated private static func makeTextAttributes(

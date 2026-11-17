@@ -650,15 +650,8 @@ struct SchemaWorkbenchSearchToolbar: View {
                 weight: .regular,
                 color: WorkbenchRedesignColors.textMuted,
                 lineLimit: 1,
-                truncationMode: .tail
-            )
-            .workbenchTruncatedTextTooltip(
-                scenarioID: "truncated.toolbar.batch_selection_banner",
-                text: bannerHint,
-                font: .system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: .regular
-                )
+                truncationMode: .tail,
+                truncationTooltipScenarioID: "truncated.toolbar.batch_selection_banner"
             )
 
             Spacer(minLength: 0)

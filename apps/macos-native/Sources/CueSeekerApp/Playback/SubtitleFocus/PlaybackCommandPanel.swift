@@ -591,10 +591,6 @@ private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
     }
 
     var body: some View {
-        let titleFont = Font.system(
-            size: WorkbenchControlMetrics.redesignFontSizeBody,
-            weight: .semibold
-        )
         WorkbenchAccessibilityReader { accessibility in
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 Button {
@@ -649,12 +645,8 @@ private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
                         weight: .semibold,
                         color: WorkbenchRedesignColors.textPrimary,
                         lineLimit: 1,
-                        truncationMode: .tail
-                    )
-                    .workbenchTruncatedTextTooltip(
-                        scenarioID: "truncated.command_panel.secondary_title",
-                        text: title,
-                        font: titleFont
+                        truncationMode: .tail,
+                        truncationTooltipScenarioID: "truncated.command_panel.secondary_title"
                     )
 
                     Spacer(minLength: 0)

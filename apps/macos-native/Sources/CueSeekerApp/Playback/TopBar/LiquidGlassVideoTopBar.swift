@@ -74,7 +74,7 @@ struct LiquidGlassVideoTopBar: View {
                         .workbenchTruncatedTextTooltip(
                             scenarioID: "truncated.player.title",
                             text: title,
-                            font: .system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .semibold)
+                            font: .systemFont(ofSize: WorkbenchControlMetrics.redesignFontSizeBody, weight: .semibold)
                         )
                         .allowsHitTesting(false)
                 } trailing: {

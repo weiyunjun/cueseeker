@@ -652,6 +652,132 @@ struct TooltipTests {
         #expect(center.activeItem == nil)
     }
 
+    @MainActor
+    @Test
+    func tooltipCenterBlocksWhileMousePressedOrHoverSuppressed() async throws {
+        var currentTime = Date(timeIntervalSinceReferenceDate: 20_000)
+        var isBlocked = false
+        var isSuppressed = false
+        let center = TooltipCenter(
+            skipWindowDelay: 0.3,
+            now: { currentTime },
+            isPointerInteractionBlocked: { isBlocked },
+            isHoverSuppressed: { isSuppressed }
+        )
+        let targetA = UUID()
+        let targetB = UUID()
+        let anchorA = CGRect(x: 40, y: 40, width: 80, height: 24)
+        let anchorB = CGRect(x: 140, y: 40, width: 80, height: 24)
+
+        // Establish a dismissed tooltip so the 300ms skip window would otherwise be open.
+        center.hoverBegan(
+            targetID: targetA,
+            scenarioID: "topbar.entry.tasks",
+            anchorRect: anchorA,
+            content: .standard(label: "Tasks", shortcut: .none, wrapsText: false),
+            hoverDelay: 0.04
+        )
+        center.revealPendingNowForTesting()
+        center.hoverEnded(targetID: targetA)
+        #expect(center.lastHoverDismissedAt == currentTime)
+
+        // Held mouse button or active text drag must block starting or revealing targetB.
+        isBlocked = true
+        currentTime = currentTime.addingTimeInterval(0.05)
+        center.hoverBegan(
+            targetID: targetB,
+            scenarioID: "topbar.entry.settings",
+            anchorRect: anchorB,
+            content: .standard(label: "Settings", shortcut: .none, wrapsText: false),
+            hoverDelay: 0.04
+        )
+        #expect(center.hoveredTarget == nil)
+        #expect(center.activeItem == nil)
+        center.revealPendingNowForTesting()
+        #expect(center.activeItem == nil)
+
+        // Stationary pointer suppression must also block hoverBegan.
+        isBlocked = false
+        isSuppressed = true
+        center.hoverBegan(
+            targetID: targetB,
+            scenarioID: "topbar.entry.settings",
+            anchorRect: anchorB,
+            content: .standard(label: "Settings", shortcut: .none, wrapsText: false),
+            hoverDelay: 0.04
+        )
+        #expect(center.hoveredTarget == nil)
+        #expect(center.activeItem == nil)
+
+        // Once unblocked/unsuppressed, hovering waits the delay before showing.
+        isSuppressed = false
+        center.hoverBegan(
+            targetID: targetB,
+            scenarioID: "topbar.entry.settings",
+            anchorRect: anchorB,
+            content: .standard(label: "Settings", shortcut: .none, wrapsText: false),
+            hoverDelay: 0.02
+        )
+        #expect(center.activeItem == nil)
+        for _ in 0..<50 where center.activeItem == nil {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        #expect(center.activeItem?.targetID == targetB)
+    }
+
+    @MainActor
+    @Test
+    func tooltipCenterRestartsFullDelayOnlyAfterWakeMovementWithinSameTarget() async throws {
+        var currentTime = Date(timeIntervalSinceReferenceDate: 30_000)
+        let pointerOrigin = CGPoint(x: 200, y: 200)
+        let center = TooltipCenter(
+            skipWindowDelay: 0.3,
+            now: { currentTime },
+            mouseLocation: { pointerOrigin },
+            isPointerInteractionBlocked: { false },
+            isHoverSuppressed: { false }
+        )
+        let target = UUID()
+        let anchor = CGRect(x: 160, y: 180, width: 120, height: 24)
+
+        center.hoverBegan(
+            targetID: target,
+            scenarioID: "truncated.dialog.title",
+            anchorRect: anchor,
+            content: .standard(label: "Long Dialog Title", shortcut: .none, wrapsText: true),
+            hoverDelay: 0.02
+        )
+        center.revealPendingNowForTesting()
+        #expect(center.activeItem?.targetID == target)
+
+        center.hideImmediately()
+        #expect(center.activeItem == nil)
+        #expect(center.suppressedTargetID == target)
+        #expect(center.lastHoverDismissedAt == nil)
+
+        // Movement smaller than wakeMovementThreshold (0.5pt) must remain suppressed.
+        center.notePointerMoved(atScreenLocation: CGPoint(x: 200.2, y: 200.2))
+        #expect(center.suppressedTargetID == target)
+        center.revealPendingNowForTesting()
+        #expect(center.activeItem == nil)
+
+        // Reaching wakeMovementThreshold clears suppression and restarts the full delay (no instant skip).
+        currentTime = currentTime.addingTimeInterval(0.05)
+        center.notePointerMoved(
+            atScreenLocation: CGPoint(
+                x: pointerOrigin.x + PointerHoverScrollState.wakeMovementThreshold,
+                y: pointerOrigin.y
+            )
+        )
+        #expect(center.suppressedTargetID == nil)
+        #expect(center.activeItem == nil)
+
+        for _ in 0..<50 where center.activeItem == nil {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        #expect(center.activeItem?.targetID == target)
+    }
+
     private func localized(_ key: String, language: AppLanguage) -> String {
         AppLocalization._bundleForTesting(language).localizedString(
             forKey: key,

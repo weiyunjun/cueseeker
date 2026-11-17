@@ -515,7 +515,7 @@ private struct CueFacetFilterChip: View {
                 .truncationMode(.tail)
                 .onTextTruncationChange(
                     text: option.title,
-                    font: .system(size: WorkbenchControlMetrics.redesignFontSizeBody)
+                    font: .systemFont(ofSize: WorkbenchControlMetrics.redesignFontSizeBody, weight: .regular)
                 ) { truncated in
                     if isTitleTruncated != truncated {
                         isTitleTruncated = truncated

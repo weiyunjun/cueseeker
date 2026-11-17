@@ -102,10 +102,6 @@ struct TaskPanel: View {
 
     private func headerRow(accessibility: WorkbenchAccessibilityCoordinator?) -> some View {
         let titleText = L("task.title")
-        let titleFont = Font.system(
-            size: WorkbenchControlMetrics.redesignDialogTitleFontSize,
-            weight: WorkbenchControlMetrics.redesignFontWeightDialogTitle
-        )
         let focusedTab = TaskQueueTab.allCases.first {
             accessibility?.isDialogFocused(.taskPanelTab($0), dialogID: dialogID) == true
         }
@@ -123,12 +119,8 @@ struct TaskPanel: View {
                 color: WorkbenchRedesignColors.textPrimary,
                 lineLimit: 1,
                 truncationMode: .tail,
-                alignment: .leading
-            )
-            .workbenchTruncatedTextTooltip(
-                scenarioID: "truncated.dialog.title",
-                text: titleText,
-                font: titleFont
+                alignment: .leading,
+                truncationTooltipScenarioID: "truncated.dialog.title"
             )
         } center: {
             WorkbenchTabs(

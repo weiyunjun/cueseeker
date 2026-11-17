@@ -252,6 +252,9 @@ class CueSeekerWindow: NSWindow {
         }
         let hadPressedMouseButtonsBeforeSend = (NSEvent.pressedMouseButtons & 0b11) != 0
         super.sendEvent(event)
+        if event.type == .mouseMoved, !PointerHoverScrollState.shared.isHoverSuppressed {
+            TooltipCenter.shared.notePointerMoved(atScreenLocation: NSEvent.mouseLocation)
+        }
         let didFinishMouseButtonTracking =
             event.type == .leftMouseUp
             || event.type == .rightMouseUp

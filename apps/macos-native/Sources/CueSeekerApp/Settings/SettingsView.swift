@@ -131,8 +131,8 @@ struct SettingsView: View {
                             scenarioID: "truncated.settings.topbar.title",
                             surface: .settings,
                             text: selectedCategory.title,
-                            font: .system(
-                                size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
+                            font: .systemFont(
+                                ofSize: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
                                 weight: .semibold
                             )
                         )

@@ -602,6 +602,7 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizePageTitle: CGFloat = 20
     /// --font-weight-page-title: 600
     static let redesignFontWeightPageTitle: Font.Weight = .semibold
+    static let redesignNSFontWeightPageTitle: NSFont.Weight = .semibold
     /// --font-size-library-title: 14px
     static let redesignFontSizeLibraryTitle: CGFloat = 14
     /// --font-size-library-meta: 12px
@@ -867,9 +868,9 @@ struct WorkbenchPageTitle: View {
             .workbenchTruncatedTextTooltip(
                 scenarioID: "truncated.topbar.page_title",
                 text: title,
-                font: .system(
-                    size: WorkbenchControlMetrics.redesignFontSizePageTitle,
-                    weight: WorkbenchControlMetrics.redesignFontWeightPageTitle
+                font: .systemFont(
+                    ofSize: WorkbenchControlMetrics.redesignFontSizePageTitle,
+                    weight: WorkbenchControlMetrics.redesignNSFontWeightPageTitle
                 )
             )
             .allowsHitTesting(false)
