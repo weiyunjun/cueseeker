@@ -20,8 +20,9 @@ import SwiftUI
 /// See `docs/human/requirements/20260911-UI-In-Window Dialogs And Only
 /// Confirmation Blocks Closing.md`.
 struct WorkbenchDialogLayer<Dialogs: View>: View {
-    /// The open dialogs, bottom first. A change to it is what animates.
-    let dialogIDs: [AnyHashable]
+    /// The base (level 1) and stacked (level >= 2) open dialogs, bottom first.
+    let baseDialogIDs: [AnyHashable]
+    let stackedDialogIDs: [AnyHashable]
     /// The height of the page's top bar.
     let topBandHeight: CGFloat
     @ViewBuilder let dialogs: () -> Dialogs
@@ -29,8 +30,34 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
     @Environment(\.interfaceLayers) private var interfaceLayers
     @State private var previousDialogIDs: [AnyHashable] = []
 
+    init(
+        baseDialogIDs: [AnyHashable] = [],
+        stackedDialogIDs: [AnyHashable] = [],
+        topBandHeight: CGFloat,
+        @ViewBuilder dialogs: @escaping () -> Dialogs
+    ) {
+        self.baseDialogIDs = baseDialogIDs
+        self.stackedDialogIDs = stackedDialogIDs
+        self.topBandHeight = topBandHeight
+        self.dialogs = dialogs
+    }
+
+    init(
+        dialogIDs: [AnyHashable],
+        topBandHeight: CGFloat,
+        @ViewBuilder dialogs: @escaping () -> Dialogs
+    ) {
+        self.init(
+            baseDialogIDs: dialogIDs,
+            stackedDialogIDs: [],
+            topBandHeight: topBandHeight,
+            dialogs: dialogs
+        )
+    }
+
     var body: some View {
-        let hasOpenDialogs = !dialogIDs.isEmpty
+        let allDialogIDs = baseDialogIDs + stackedDialogIDs
+        let hasOpenDialogs = !allDialogIDs.isEmpty
 
         GeometryReader { proxy in
             ZStack {
@@ -73,7 +100,7 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
                 }
                 .animation(
                     WorkbenchDialogMotion.dialogTransactionAnimation(reducesMotion: reduceMotion),
-                    value: dialogIDs
+                    value: allDialogIDs
                 )
                 .zIndex(1)
             }
@@ -88,14 +115,13 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
             )
         }
         // This is where the dialogs are drawn over the page, so this is where
-        // the dialog layer is registered: open while the list has a dialog in
-        // it, closed once it is empty. A dialog added to the list needs
-        // nothing else to be registered.
+        // `.dialog` and `.stackedDialog` are registered.
         .onAppear {
-            previousDialogIDs = dialogIDs
-            interfaceLayers?.setOpen(.dialog, !dialogIDs.isEmpty)
+            previousDialogIDs = allDialogIDs
+            interfaceLayers?.setOpen(.dialog, !baseDialogIDs.isEmpty)
+            interfaceLayers?.setOpen(.stackedDialog, !stackedDialogIDs.isEmpty)
         }
-        .onChange(of: dialogIDs) { newDialogIDs in
+        .onChange(of: allDialogIDs) { newDialogIDs in
             let oldDialogIDs = previousDialogIDs
             previousDialogIDs = newDialogIDs
             if let lastID = newDialogIDs.last {
@@ -104,19 +130,22 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
                     trigger: "dialog_layer"
                 )
             }
-            if !oldDialogIDs.isEmpty && !newDialogIDs.isEmpty {
-                if newDialogIDs.count < oldDialogIDs.count {
-                    PointerHoverScrollState.shared.clearSuppressionForOverlayClose(recalculate: true)
-                    AppPointerShape.reevaluateAfterInterfaceChange()
-                } else if newDialogIDs.count > oldDialogIDs.count
-                    || newDialogIDs.last != oldDialogIDs.last
-                {
-                    PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
-                }
+            let baseChanged = !baseDialogIDs.isEmpty != (interfaceLayers?.isOpen(.dialog) ?? false)
+            let stackedChanged = !stackedDialogIDs.isEmpty != (interfaceLayers?.isOpen(.stackedDialog) ?? false)
+            if !oldDialogIDs.isEmpty,
+               !newDialogIDs.isEmpty,
+               !baseChanged,
+               !stackedChanged,
+               newDialogIDs.last != oldDialogIDs.last
+            {
+                PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
             }
         }
-        .onChange(of: dialogIDs.isEmpty) { isEmpty in
+        .onChange(of: baseDialogIDs.isEmpty) { isEmpty in
             interfaceLayers?.setOpen(.dialog, !isEmpty)
+        }
+        .onChange(of: stackedDialogIDs.isEmpty) { isEmpty in
+            interfaceLayers?.setOpen(.stackedDialog, !isEmpty)
         }
     }
 }
@@ -128,10 +157,6 @@ private struct WorkbenchDialogLayerSizeKey: EnvironmentKey {
 private struct WorkbenchDialogAvailableSizeKey: EnvironmentKey {
     /// Outside the layer nothing narrows a dialog.
     static let defaultValue = CGSize(width: CGFloat.infinity, height: .infinity)
-}
-
-private struct IsWorkbenchDialogCoveredKey: EnvironmentKey {
-    static let defaultValue = false
 }
 
 private extension EnvironmentValues {
@@ -146,11 +171,6 @@ extension EnvironmentValues {
     var workbenchDialogAvailableSize: CGSize {
         get { self[WorkbenchDialogAvailableSizeKey.self] }
         set { self[WorkbenchDialogAvailableSizeKey.self] = newValue }
-    }
-
-    var isWorkbenchDialogCovered: Bool {
-        get { self[IsWorkbenchDialogCoveredKey.self] }
-        set { self[IsWorkbenchDialogCoveredKey.self] = newValue }
     }
 }
 
@@ -253,12 +273,11 @@ private extension View {
 }
 
 extension View {
-    /// Places a dialog in the dialog layer, `level` above the veil. Only a
-    /// Confirmation stacks on another dialog, so it alone takes the level
-    /// above the rest. A dialog with another one above it is veiled and takes
-    /// no input.
-    func workbenchDialog(level: Double = 1, isCovered: Bool = false) -> some View {
-        modifier(WorkbenchDialogChrome(isCovered: isCovered))
+    /// Places a dialog in the dialog layer, `level` above the veil. Only
+    /// level >= 2 dialogs (Confirmation and Task Info) stack on another
+    /// dialog. A covered dialog is veiled and takes no input.
+    func workbenchDialog(level: Double = 1) -> some View {
+        modifier(WorkbenchDialogChrome(level: level))
             .transition(.workbenchDialog)
             // A view on its way out loses its place in the stack unless it
             // carries one: the veil would cover a closing dialog, and a closing
@@ -272,25 +291,36 @@ extension View {
 /// clipped them to its corner, kept a hairline just outside that corner, lit
 /// the edge just inside it in dark, and cast the shadow.
 private struct WorkbenchDialogChrome: ViewModifier {
-    let isCovered: Bool
+    let level: Double
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
     @Environment(\.interfaceLayers) private var interfaceLayers
+    @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.workbenchDialogLayerSize) private var layerSize
+
+    private var dialogLayer: InterfaceLayer {
+        level >= 2 ? .stackedDialog : .dialog
+    }
+
+    private var isCovered: Bool {
+        layerContext.coveredLayers.contains(dialogLayer)
+            || (interfaceLayers?.isCovered(dialogLayer) ?? false)
+    }
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(
             cornerRadius: WorkbenchControlMetrics.redesignDialogCornerRadius,
             style: .circular
         )
+        let isCovered = self.isCovered
 
         WorkbenchDialogFrame {
             content
-                // A dialog is the top layer; its own controls must not read
-                // the freeze the dialog itself put on the page below.
-                .interfaceLayer(.dialog)
-                .environment(\.isWorkbenchDialogCovered, isCovered)
+                // A dialog owns its own layer; its own controls must not read
+                // the freeze it put on the layers below.
+                .interfaceLayer(dialogLayer)
         }
+        .allowsHitTesting(!isCovered)
             // What shows of the sheet itself where its whole points outgrow
             // the dialog.
             .background(WorkbenchRedesignColors.bgDialog)

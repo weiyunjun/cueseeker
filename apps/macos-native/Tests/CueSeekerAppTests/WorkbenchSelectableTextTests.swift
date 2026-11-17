@@ -1088,7 +1088,7 @@ struct WorkbenchSelectableTextTests {
 
         let (window, rootView) = makeTestWindow(size: CGSize(width: 360, height: 240))
 
-        // Covered lower dialog node vs active top dialog node.
+        // Covered lower dialog node vs active top stacked dialog node.
         let coveredDialogText = WorkbenchSelectableTextNSView(frame: CGRect(x: 24, y: 184, width: 220, height: 22))
         coveredDialogText.configure(
             text: "Covered Lower Dialog",
@@ -1101,8 +1101,11 @@ struct WorkbenchSelectableTextTests {
             preferredPointerShape: .iBeam,
             showsUnderline: false,
             onTap: nil,
-            interfaceLayerContext: InterfaceLayerContext(layer: .dialog),
-            isDialogCovered: true
+            interfaceLayerContext: InterfaceLayerContext(
+                layer: .dialog,
+                coveredLayers: [.workbenchPage, .dialog],
+                frozenLayers: [.workbenchPage, .dialog]
+            )
         )
         rootView.addSubview(coveredDialogText)
 
@@ -1118,8 +1121,11 @@ struct WorkbenchSelectableTextTests {
             preferredPointerShape: .iBeam,
             showsUnderline: false,
             onTap: nil,
-            interfaceLayerContext: InterfaceLayerContext(layer: .dialog),
-            isDialogCovered: false
+            interfaceLayerContext: InterfaceLayerContext(
+                layer: .stackedDialog,
+                coveredLayers: [.workbenchPage, .dialog],
+                frozenLayers: [.workbenchPage, .dialog]
+            )
         )
         rootView.addSubview(topDialogText)
         rootView.layoutSubtreeIfNeeded()
@@ -1683,15 +1689,18 @@ struct WorkbenchSelectableTextTests {
 
     @Test
     func listCardSelectableTextPreservesHoverProbeAndRightClickClearsSelectionBeforeMenu() {
+        PointerHoverScrollState.shared.resetForTesting()
         WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
-        defer { WorkbenchStaticTextSelectionCoordinator.shared.clearSelection() }
+        defer {
+            WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            PointerHoverScrollState.shared.resetForTesting()
+        }
 
-        // 1. PointerHoverProbeView with tracksHostedContent arms hover on enter and upgrades to .assumeInside.
+        // 1. PointerHoverProbeView uses a single tracking area that upgrades to .assumeInside on enter.
         let session = PointerHoverSession()
         var hoverStates: [Bool] = []
         session.action = { hoverStates.append($0) }
         let probe = PointerHoverProbeView(frame: CGRect(x: 0, y: 0, width: 220, height: 60))
-        probe.tracksHostedContent = true
         probe.session = session
         session.probeView = probe
         probe.updateTrackingAreas()

@@ -115,3 +115,63 @@ func aDialogCoversTheLayerItOpensOver() {
 
     #expect(inThePanel.isCovered)
 }
+
+@MainActor
+@Test
+func stackedDialogFreezesAndCoversLowerDialogWithoutFreezingItself() {
+    let layers = InterfaceLayerRegistry()
+    layers.setOpen(.dialog, true)
+    #expect(layers.hasOpenDialog)
+    #expect(InterfaceLayer.dialog.isDialog)
+    #expect(InterfaceLayer.stackedDialog.isDialog)
+    #expect(!layers.isFrozen(.dialog))
+    #expect(!layers.isCovered(.dialog))
+
+    layers.setOpen(.stackedDialog, true)
+    #expect(layers.hasOpenDialog)
+    #expect(layers.isCovered(.dialog))
+    #expect(layers.isFrozen(.dialog))
+    #expect(!layers.isCovered(.stackedDialog))
+    #expect(!layers.isFrozen(.stackedDialog))
+
+    layers.setOpen(.stackedDialog, false)
+    #expect(layers.hasOpenDialog)
+    #expect(!layers.isCovered(.dialog))
+    #expect(!layers.isFrozen(.dialog))
+
+    layers.setOpen(.dialog, false)
+    #expect(!layers.hasOpenDialog)
+}
+
+@MainActor
+@Test
+func closingDialogMenuWhileStackedDialogIsOpenPreservesHoverSuppression() {
+    PointerHoverScrollState.shared.resetForTesting()
+    defer { PointerHoverScrollState.shared.resetForTesting() }
+
+    let layers = InterfaceLayerRegistry()
+    layers.setOpen(.dialog, true)
+
+    var menuToken: InterfaceLayerRegistry.OpenMenuToken? =
+        layers.registerOpenMenu(ownedBy: .dialog)
+    #expect(PointerHoverScrollState.shared.isSuppressedByKeyboardOrController)
+
+    // Opening a stacked dialog from the dialog menu freezes `.dialog`;
+    // closing the old menu afterward must keep hover suppressed for the new dialog.
+    layers.setOpen(.stackedDialog, true)
+    menuToken = nil
+    _ = menuToken
+    #expect(layers.isFrozen(.dialog))
+    #expect(PointerHoverScrollState.shared.isSuppressedByKeyboardOrController)
+
+    // Closing the stacked dialog returns to `.dialog` and clears suppression.
+    layers.setOpen(.stackedDialog, false)
+    #expect(!PointerHoverScrollState.shared.isSuppressedByKeyboardOrController)
+
+    // Closing a dialog menu without a stacked dialog above it immediately clears suppression.
+    menuToken = layers.registerOpenMenu(ownedBy: .dialog)
+    #expect(PointerHoverScrollState.shared.isSuppressedByKeyboardOrController)
+    menuToken = nil
+    _ = menuToken
+    #expect(!PointerHoverScrollState.shared.isSuppressedByKeyboardOrController)
+}

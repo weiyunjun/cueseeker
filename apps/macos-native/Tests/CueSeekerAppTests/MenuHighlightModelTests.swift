@@ -12,7 +12,7 @@ struct MenuHighlightModelTests {
         defer { model.close() }
 
         // Positions 1 and 4 stand for a divider and a disabled item.
-        model.open(selectablePositions: [0, 2, 3, 5], defaultPosition: 2)
+        model.open(selectablePositions: [0, 2, 3, 5])
 
         #expect(model.highlightedPosition == nil)
         #expect(model.selectedPosition == nil)
@@ -168,6 +168,8 @@ struct MenuHighlightModelTests {
     @Test
     func wheelScrollingLocksHoverUntilDebounceSettlesOrPointerMoves() {
         AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+        defer { PointerHoverScrollState.shared.resetForTesting() }
         let model = MenuHighlightModel()
         defer { model.close() }
         model.open(selectablePositions: [0, 1, 2])
@@ -176,20 +178,22 @@ struct MenuHighlightModelTests {
 
         // The wheel slides rows under a stationary pointer; Hover stays locked
         // during scrolling.
-        model.noteScrolled()
+        PointerHoverScrollState.shared.noteScrolled()
         model.noteHover(false, at: 1)
         model.noteHover(true, at: 2)
         #expect(model.hoveredPosition == 1)
 
         // Settling after the 300ms scroll debounce updates Hover to the row
         // now under the pointer.
-        model.noteScrollSettled()
+        PointerHoverScrollState.shared.settleScroll()
         #expect(model.hoveredPosition == 2)
     }
 
     @Test
     func onlyKeyboardMovesAnnounceThemselvesForScrollFollowing() {
         AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+        defer { PointerHoverScrollState.shared.resetForTesting() }
         let model = MenuHighlightModel()
         defer { model.close() }
         model.open(selectablePositions: [0, 1])
@@ -199,8 +203,8 @@ struct MenuHighlightModelTests {
         #expect(model.keyboardMoveCount == 1)
 
         // Wheel and hover movement have nothing to reveal.
-        model.noteScrolled()
-        model.notePointerMoved()
+        PointerHoverScrollState.shared.noteScrolled()
+        PointerHoverScrollState.shared.notePointerMoved()
         model.noteHover(true, at: 0)
         #expect(model.keyboardMoveCount == 1)
     }
@@ -264,8 +268,7 @@ struct MenuHighlightModelTests {
         let model = MenuHighlightModel()
         defer { model.close() }
         model.open(
-            selectablePositions: Array(presets.indices),
-            defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.5)
+            selectablePositions: Array(presets.indices)
         )
         #expect(model.highlightedPosition == nil)
 
@@ -340,5 +343,33 @@ struct MenuHighlightModelTests {
         #expect(model.notePointerMoved(atScreenLocation: CGPoint(x: origin.x + 0.5, y: origin.y)))
         #expect(!model.isSuppressedByKeyboard)
         #expect(model.highlightedPosition == 1)
+    }
+
+    @Test
+    func scrollStateWakeClearsSuppressionAndRestoresMenuHover() {
+        AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+        let model = MenuHighlightModel()
+        defer {
+            model.close()
+            PointerHoverScrollState.shared.resetForTesting()
+            AppCursorVisibility.resetForTesting()
+        }
+
+        PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
+        model.open(selectablePositions: [0, 1, 2])
+        #expect(model.isSuppressedByKeyboard)
+
+        // Keyboard moved selection to item 0 while pointer stayed over item 2.
+        model.moveHighlight(by: 1)
+        #expect(model.highlightedPosition == 0)
+        model.noteHover(true, at: 2)
+        #expect(model.highlightedPosition == 0)
+
+        // Real pointer displacement wakes MenuHighlightModel and restores hover on item 2.
+        let movedPoint = CGPoint(x: NSEvent.mouseLocation.x + 1.0, y: NSEvent.mouseLocation.y)
+        #expect(PointerHoverScrollState.shared.notePointerMoved(atScreenLocation: movedPoint))
+        #expect(!model.isSuppressedByKeyboard)
+        #expect(model.highlightedPosition == 2)
     }
 }

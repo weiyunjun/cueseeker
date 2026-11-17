@@ -1307,7 +1307,7 @@ private struct WorkbenchFileCard: View {
             cornerRadius: rowCornerRadius,
             style: .continuous
         ))
-        .onPointerHover(tracksHostedContent: onTap == nil) { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
     }
 }
 

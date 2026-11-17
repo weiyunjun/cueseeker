@@ -42,20 +42,28 @@ struct WorkbenchScrollView<Content: View>: View {
     private let axes: Axis.Set
     private let scrollbarInset: CGFloat
     private let scrollbarAppearanceMode: TableScrollbarAppearanceMode
+    private let ignoresLayerFreeze: Bool
     private let controller: WorkbenchScrollViewController?
     private let content: Content
+    @Environment(\.interfaceLayerContext) private var layerContext
     @StateObject private var bridge: WorkbenchScrollViewBridge
+
+    private var isFrozen: Bool {
+        ignoresLayerFreeze ? layerContext.isCovered : layerContext.isFrozen
+    }
 
     init(
         _ axes: Axis.Set = .vertical,
         scrollbarInset: CGFloat = TableScrollbarPrimitiveMetrics.inset,
         scrollbarAppearanceMode: TableScrollbarAppearanceMode = .inherited,
+        ignoresLayerFreeze: Bool = false,
         controller: WorkbenchScrollViewController? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.axes = axes
         self.scrollbarInset = scrollbarInset
         self.scrollbarAppearanceMode = scrollbarAppearanceMode
+        self.ignoresLayerFreeze = ignoresLayerFreeze
         self.controller = controller
         self.content = content()
         _bridge = StateObject(wrappedValue: WorkbenchScrollViewBridge())
@@ -73,12 +81,14 @@ struct WorkbenchScrollView<Content: View>: View {
                     .frame(width: 0, height: 0)
                 }
         }
+        .scrollDisabled(isFrozen)
         .overlay {
             WorkbenchScrollViewOverlayRepresentable(
                 axes: axes,
                 bridge: bridge,
                 scrollbarInset: scrollbarInset,
-                scrollbarAppearanceMode: scrollbarAppearanceMode
+                scrollbarAppearanceMode: scrollbarAppearanceMode,
+                ignoresLayerFreeze: ignoresLayerFreeze
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -128,13 +138,18 @@ private struct WorkbenchScrollViewOverlayRepresentable: NSViewRepresentable {
     let bridge: WorkbenchScrollViewBridge
     let scrollbarInset: CGFloat
     let scrollbarAppearanceMode: TableScrollbarAppearanceMode
+    let ignoresLayerFreeze: Bool
     /// A menu open over this layer, or a higher layer covering it, freezes the
     /// Scrollbar the same way it freezes the cards beside it.
     @Environment(\.interfaceLayerContext) private var layerContext
 
+    private var isFrozen: Bool {
+        ignoresLayerFreeze ? layerContext.isCovered : layerContext.isFrozen
+    }
+
     func makeNSView(context: Context) -> WorkbenchScrollViewOverlayView {
         let view = WorkbenchScrollViewOverlayView()
-        view.isInteractionFrozen = layerContext.isFrozen
+        view.isInteractionFrozen = isFrozen
         view.edgeInset = scrollbarInset
         view.appearanceMode = scrollbarAppearanceMode
         bridge.register(overlayView: view, axes: axes)
@@ -145,7 +160,7 @@ private struct WorkbenchScrollViewOverlayRepresentable: NSViewRepresentable {
         _ nsView: WorkbenchScrollViewOverlayView,
         context: Context
     ) {
-        nsView.isInteractionFrozen = layerContext.isFrozen
+        nsView.isInteractionFrozen = isFrozen
         nsView.edgeInset = scrollbarInset
         nsView.appearanceMode = scrollbarAppearanceMode
         bridge.register(overlayView: nsView, axes: axes)
@@ -242,7 +257,10 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
         overlayView.onDrag = { [weak self] event in
             self?.handleDrag(event)
         }
-        overlayView.onScrollWheel = { [weak self] event in
+        overlayView.onScrollWheel = { [weak self, weak overlayView] event in
+            guard overlayView?.isInteractionFrozen != true else {
+                return
+            }
             self?.scrollView?.scrollWheel(with: event)
         }
         activateIfReady()

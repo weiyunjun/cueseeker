@@ -867,7 +867,7 @@ private struct TaskCardContainer<Content: View>: View {
             cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
             style: .continuous
         ))
-        .onPointerHover(tracksHostedContent: true) { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
     }
 }
 

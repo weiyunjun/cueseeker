@@ -428,13 +428,6 @@ extension SubtitleTableView.Coordinator {
                     .selectablePositions(
                         destinationCount: rowActionDestinations.count
                     ),
-                // Only saving remembers a destination; moving and
-                // duplicating open on their first list as before.
-                defaultPosition: action == .saveToExcerpt
-                    ? ExcerptDestinationMenu.defaultPosition(
-                        destinations: rowActionDestinations
-                    )
-                    : nil,
                 initiallySuppressed: true
             )
         }

@@ -9,12 +9,12 @@ enum WindowMouseEventDisposition {
 
 enum StaticTextFlowScope: Hashable {
     case menuModalPopover(windowNumber: Int)
-    case dialog(windowNumber: Int, dialogID: WorkbenchDialogAccessibilityID?)
+    case dialog(windowNumber: Int, layer: InterfaceLayer, dialogID: WorkbenchDialogAccessibilityID?)
     case surface(windowNumber: Int, layer: InterfaceLayer)
 
     var windowNumber: Int {
         switch self {
-        case .menuModalPopover(let wn), .dialog(let wn, _), .surface(let wn, _):
+        case .menuModalPopover(let wn), .dialog(let wn, _, _), .surface(let wn, _):
             return wn
         }
     }
@@ -23,8 +23,8 @@ enum StaticTextFlowScope: Hashable {
         switch self {
         case .menuModalPopover:
             return 1_000
-        case .dialog:
-            return 500
+        case .dialog(_, let layer, _):
+            return 500 + layer.rawValue
         case .surface(_, let layer):
             return layer.rawValue
         }

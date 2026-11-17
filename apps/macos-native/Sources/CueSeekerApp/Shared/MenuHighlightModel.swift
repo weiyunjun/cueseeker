@@ -25,13 +25,6 @@ final class MenuHighlightModel: ObservableObject {
 
     private static var instances: [WeakBox] = []
 
-    static func broadcastScrolled() {
-        instances.removeAll { $0.value == nil }
-        for box in instances {
-            box.value?.noteScrolled()
-        }
-    }
-
     static func broadcastSelectionMovedByKeyboardOrController() {
         instances.removeAll { $0.value == nil }
         for box in instances {
@@ -117,7 +110,9 @@ final class MenuHighlightModel: ObservableObject {
     private(set) var selectablePositions: [Int] = []
     private(set) var allPositions: [Int] = []
     private(set) var isOpen = false
-    private(set) var isScrolling = false
+    private var isScrolling: Bool {
+        PointerHoverScrollState.shared.isScrolling
+    }
     private(set) var isSuppressedByKeyboard = false
     private var suppressedOriginScreenLocation: CGPoint?
     private(set) var pinnedPosition: Int?
@@ -142,18 +137,14 @@ final class MenuHighlightModel: ObservableObject {
 
     /// Opens the surface with no item highlighted by default (`highlightedPosition == nil`,
     /// `accessibilityPosition == nil`).
-    /// The `defaultPosition` parameter is retained for call-site compatibility and ignored.
     func open(
         selectablePositions: [Int],
         allPositions: [Int]? = nil,
-        defaultPosition: Int? = nil,
         initiallySuppressed: Bool = false
     ) {
-        _ = defaultPosition
         self.selectablePositions = selectablePositions
         self.allPositions = allPositions ?? selectablePositions
         isOpen = true
-        isScrolling = false
         let shouldSuppress = initiallySuppressed
             || PointerHoverScrollState.shared.isSuppressedByKeyboardOrController
         isSuppressedByKeyboard = shouldSuppress
@@ -172,7 +163,6 @@ final class MenuHighlightModel: ObservableObject {
         accessibilityPosition = nil
         pinnedPosition = nil
         rawHoveredPosition = nil
-        isScrolling = false
         isSuppressedByKeyboard = false
         suppressedOriginScreenLocation = nil
     }
@@ -355,16 +345,8 @@ final class MenuHighlightModel: ObservableObject {
         return true
     }
 
-    func noteScrolled() {
-        isScrolling = true
-    }
-
     func noteScrollSettled() {
-        guard isScrolling else {
-            return
-        }
-        isScrolling = false
-        guard !isSuppressedByKeyboard else {
+        guard !isScrolling, !isSuppressedByKeyboard else {
             return
         }
         syncHoveredPosition()
@@ -396,8 +378,7 @@ final class MenuHighlightModel: ObservableObject {
         rawHoveredPosition = positionUnderPointer.flatMap {
             selectablePositions.contains($0) ? $0 : nil
         }
-        isScrolling = false
-        guard !isSuppressedByKeyboard else {
+        guard !isScrolling, !isSuppressedByKeyboard else {
             return
         }
         syncHoveredPosition()
@@ -413,9 +394,6 @@ final class MenuHighlightModel: ObservableObject {
             return false
         }
         suppressedOriginScreenLocation = nil
-        if isScrolling {
-            isScrolling = false
-        }
         let wasSuppressedByKeyboard = isSuppressedByKeyboard
         if isSuppressedByKeyboard {
             isSuppressedByKeyboard = false

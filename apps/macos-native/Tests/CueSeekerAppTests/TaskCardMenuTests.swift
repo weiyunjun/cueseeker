@@ -637,7 +637,7 @@ struct TaskCardMenuTests {
         #expect(!incompleteStrings.contains("Incomplete"))
 
         let probes = collectHoverProbes(in: host)
-        #expect(probes.contains { $0.tracksHostedContent })
+        #expect(probes.contains { !$0.tracksLocation })
     }
 }
 

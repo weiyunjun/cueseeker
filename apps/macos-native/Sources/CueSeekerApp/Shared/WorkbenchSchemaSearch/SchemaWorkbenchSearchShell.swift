@@ -1060,7 +1060,6 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
         externalIsSortMenuOpen?.wrappedValue = true
         sortMenuHighlight.open(
             selectablePositions: Array(sortOptions.indices),
-            defaultPosition: 0,
             initiallySuppressed: true
         )
     }
@@ -1136,9 +1135,6 @@ struct SchemaWorkbenchSortMenuHost<Content: View>: View {
         selectionMenuHighlight.open(
             selectablePositions: ExcerptDestinationMenu.selectablePositions(
                 destinationCount: destinationMenu.destinations.count
-            ),
-            defaultPosition: ExcerptDestinationMenu.defaultPosition(
-                destinations: destinationMenu.destinations
             ),
             initiallySuppressed: true
         )

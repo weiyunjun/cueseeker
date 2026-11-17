@@ -29,11 +29,15 @@ enum InterfaceLayer: Int, CaseIterable, Comparable {
     case commandPanel
     /// Whatever the dialog layer inside the main window is drawing: Edit
     /// Cover, the Excerpt List Editor, Rename, Filter, Export to Anki, the
-    /// Task panel and Confirmation. The layer registers itself from its own
-    /// list of open dialogs, so a dialog added to the layer is registered with
-    /// it. A Confirmation may stack on another dialog, and the layer stays open
-    /// until the last of them closes.
+    /// Task panel and Confirmation.
     case dialog
+    /// A second-level dialog stacked above another dialog (for example,
+    /// Confirmation or Task Info over the Task panel).
+    case stackedDialog
+
+    var isDialog: Bool {
+        self == .dialog || self == .stackedDialog
+    }
 
     static func < (lhs: InterfaceLayer, rhs: InterfaceLayer) -> Bool {
         lhs.rawValue < rhs.rawValue
@@ -61,6 +65,10 @@ final class InterfaceLayerRegistry: ObservableObject {
     /// keyboard.
     var topDialogSize: CGSize?
 
+    var hasOpenDialog: Bool {
+        openLayers.contains { $0.isDialog }
+    }
+
     func setOpen(_ layer: InterfaceLayer, _ isOpen: Bool) {
         guard openLayers.contains(layer) != isOpen else {
             return
@@ -68,7 +76,7 @@ final class InterfaceLayerRegistry: ObservableObject {
         let isFullWindowSwitch = layer == .playbackPage || layer == .playbackOverlay
         if isOpen {
             openLayers.insert(layer)
-            if layer == .dialog || layer == .playbackPage {
+            if layer.isDialog || layer == .playbackPage {
                 givePageFocusUp()
             }
             if isFullWindowSwitch {
@@ -79,16 +87,14 @@ final class InterfaceLayerRegistry: ObservableObject {
             CardHighlightModel.broadcastLayerFrozenChanged(true, in: self) { candidate in
                 self.isFrozen(candidate)
             }
-            PointerHoverSession.broadcastLayerFrozenChanged(true, in: self) { candidate in
-                self.isFrozen(candidate)
-            }
+            PointerHoverSession.syncFrozenStates(in: self)
             if !isFullWindowSwitch {
                 PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
             }
             AppPointerShape.reevaluateAfterInterfaceChange()
         } else {
             openLayers.remove(layer)
-            if layer == .dialog {
+            if layer.isDialog && !hasOpenDialog {
                 topDialogSize = nil
             }
             if isFullWindowSwitch {
@@ -96,18 +102,14 @@ final class InterfaceLayerRegistry: ObservableObject {
                     clearsFrozenHover: true
                 )
                 AppPointerShape.reevaluateAfterInterfaceChange()
-                PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { candidate in
-                    !self.isFrozen(candidate)
-                }
+                PointerHoverSession.syncFrozenStates(in: self)
                 CardHighlightModel.broadcastLayerFrozenChanged(false, in: self) { candidate in
                     !self.isFrozen(candidate)
                 }
             } else {
                 PointerHoverScrollState.shared.clearSuppressionForOverlayClose(recalculate: false)
                 AppPointerShape.reevaluateAfterInterfaceChange()
-                PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { candidate in
-                    !self.isFrozen(candidate)
-                }
+                PointerHoverSession.syncFrozenStates(in: self)
                 CardHighlightModel.broadcastLayerFrozenChanged(false, in: self) { candidate in
                     !self.isFrozen(candidate)
                 }
@@ -131,7 +133,8 @@ final class InterfaceLayerRegistry: ObservableObject {
             return
         }
         if let field = pageFocus as? WorkbenchNativeSingleLineTextField,
-           field.interfaceLayer == .dialog {
+           field.interfaceLayer.isDialog,
+           !isCovered(field.interfaceLayer) {
             return
         }
         Task { @MainActor in
@@ -139,7 +142,8 @@ final class InterfaceLayerRegistry: ObservableObject {
                 return
             }
             if let field = pageFocus as? WorkbenchNativeSingleLineTextField,
-               field.interfaceLayer == .dialog {
+               field.interfaceLayer.isDialog,
+               !isCovered(field.interfaceLayer) {
                 return
             }
             if let mainWindow = window as? CueSeekerMainWindow,
@@ -176,9 +180,7 @@ final class InterfaceLayerRegistry: ObservableObject {
         CardHighlightModel.broadcastLayerFrozenChanged(true, in: self) { layer in
             self.isFrozen(layer)
         }
-        PointerHoverSession.broadcastLayerFrozenChanged(true, in: self) { layer in
-            self.isFrozen(layer)
-        }
+        PointerHoverSession.syncFrozenStates(in: self)
         PointerHoverScrollState.shared.suppressHoverUntilMouseMoves()
         TooltipCenter.shared.dismissFromUserInteraction()
         return OpenMenuToken(registry: self, owner: owner)
@@ -197,9 +199,7 @@ final class InterfaceLayerRegistry: ObservableObject {
         if shouldUnsuppressOwner {
             PointerHoverScrollState.shared.clearSuppressionForOverlayClose(recalculate: false)
         }
-        PointerHoverSession.broadcastLayerFrozenChanged(false, in: self) { layer in
-            !self.isFrozen(layer)
-        }
+        PointerHoverSession.syncFrozenStates(in: self)
         CardHighlightModel.broadcastLayerFrozenChanged(false, in: self) { layer in
             !self.isFrozen(layer)
         }
@@ -354,7 +354,7 @@ struct InterfaceLayerCoverageBridge: ViewModifier {
                 \.isPlaybackOverlayCovered,
                 layers.isCovered(.playbackOverlay)
             )
-            .environment(\.isDialogOpen, layers.isOpen(.dialog))
+            .environment(\.isDialogOpen, layers.hasOpenDialog)
     }
 }
 

@@ -399,7 +399,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             let handled = MainActor.assumeIsolated {
                 // An open dialog owns the keyboard; the player under it hears
                 // nothing.
-                guard !self.appState.interfaceLayers.isOpen(.dialog) else {
+                guard !self.appState.interfaceLayers.hasOpenDialog else {
                     return false
                 }
                 return self.appState.handlePlaybackKeyDown(
@@ -555,7 +555,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         settingsWindow.isFocusLocked = { [settingsInterfaceLayers] in
             MainActor.assumeIsolated {
                 settingsInterfaceLayers.hasUncoveredOpenMenu
-                    || settingsInterfaceLayers.isOpen(.dialog)
+                    || settingsInterfaceLayers.hasOpenDialog
             }
         }
         settingsWindow.title = L("settings.window.title")

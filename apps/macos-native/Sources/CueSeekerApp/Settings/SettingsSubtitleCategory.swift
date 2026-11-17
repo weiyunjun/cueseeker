@@ -1104,6 +1104,7 @@ struct SettingsSubtitleFontMenu: View {
         MenuHeightCap(height: maximumHeight) {
             WorkbenchScrollView(
                 scrollbarInset: MenuMetrics.scrollbarOuterGap,
+                ignoresLayerFreeze: true,
                 controller: activeScrollController
             ) {
                 MenuItemStack(

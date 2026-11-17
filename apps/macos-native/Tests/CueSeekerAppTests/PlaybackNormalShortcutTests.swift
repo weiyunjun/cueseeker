@@ -286,9 +286,7 @@ func openSpeedMenuOwnsArrowKeysInsteadOfVolume() throws {
         #expect(viewModel.volume != initialVolume)
         let volumeBeforeMenu = viewModel.volume
 
-        app.playback.openSpeedMenu(
-            defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.0)
-        )
+        app.playback.openSpeedMenu()
         let speedMenuSession = openSpeedMenuGateClient(app)
         defer { speedMenuSession.close() }
         let highlight = app.playback.speedMenuHighlight
@@ -370,9 +368,7 @@ func openingCommandPanelFreezesTheMenusUnderneathIt() throws {
             return true
         }
         defer { menuSession.close() }
-        app.playback.openSpeedMenu(
-            defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.0)
-        )
+        app.playback.openSpeedMenu()
         let speedMenuSession = openSpeedMenuGateClient(app)
         defer { speedMenuSession.close() }
         let highlight = app.playback.speedMenuHighlight
@@ -408,9 +404,7 @@ func openSpeedMenuSpendsEveryKeyItDoesNotTake() throws {
         let viewModel = try #require(app.playback.playbackViewModel)
         // The Command Panel opens only over a visible playback page.
         app.playback.isPlaybackSurfaceExpanded = true
-        app.playback.openSpeedMenu(
-            defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.0)
-        )
+        app.playback.openSpeedMenu()
         let speedMenuSession = openSpeedMenuGateClient(app)
         defer { speedMenuSession.close() }
         let volume = viewModel.volume

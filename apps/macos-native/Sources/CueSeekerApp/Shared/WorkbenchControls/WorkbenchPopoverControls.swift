@@ -114,7 +114,7 @@ struct WorkbenchPopoverRow: View {
             }
         )
         .contentShape(Rectangle())
-        .onWindowFocusAwareHover { inside in
+        .onPointerHover(ignoresLayerFreeze: true) { inside in
             onHoverChange?(inside)
             isHovered = isEnabled && inside
         }
@@ -218,7 +218,8 @@ struct WorkbenchPopoverPanel<Content: View>: View {
             MenuHeightCap(height: maximumHeight) {
                 WorkbenchScrollView(
                     scrollbarInset: MenuMetrics.scrollbarOuterGap,
-                    scrollbarAppearanceMode: isPlayerChrome ? .playerChrome : .inherited
+                    scrollbarAppearanceMode: isPlayerChrome ? .playerChrome : .inherited,
+                    ignoresLayerFreeze: true
                 ) {
                     MenuItemStack(
                         padding: MenuMetrics.padding,

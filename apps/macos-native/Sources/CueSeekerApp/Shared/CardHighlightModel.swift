@@ -36,13 +36,6 @@ final class CardHighlightModel: ObservableObject {
 
     private static var instances: [WeakBox] = []
 
-    static func broadcastScrolled() {
-        instances.removeAll { $0.value == nil }
-        for box in instances {
-            box.value?.noteScrolled()
-        }
-    }
-
     static func broadcastSelectionMovedByKeyboardOrController(
         clearsFrozenHover: Bool = false
     ) {
@@ -120,12 +113,6 @@ final class CardHighlightModel: ObservableObject {
     weak var registry: InterfaceLayerRegistry?
     var layer: InterfaceLayer = .workbenchPage
 
-    /// Compatibility accessor: returns `selectedID` when the interface maintains
-    /// a `Select` state (Playback), or `hoveredID` on Workbench interfaces.
-    var currentID: String? {
-        keepsCurrentWhenPointerLeaves ? selectedID : hoveredID
-    }
-
     /// Workbench card grids animate `Hover` background transitions (`0.12s`),
     /// whereas Playback card grids (`Playback Overlay` and `Command Panel`)
     /// switch `Hover` and `Select` backgrounds immediately without animation.
@@ -135,12 +122,11 @@ final class CardHighlightModel: ObservableObject {
 
     let keepsCurrentWhenPointerLeaves: Bool
 
-    /// Kept for API compatibility; pointer hover no longer mutates `Select`.
-    var adopt: ((String?) -> Void)?
-
     private(set) var isFrozen = false
-    private(set) var isScrolling = false
     private(set) var isSuppressedByKeyboard = false
+    private var isScrolling: Bool {
+        PointerHoverScrollState.shared.isScrolling
+    }
     private var rawHoveredID: String?
     private var rawHoveredShowsHand = true
     private var hoveredActionButtonCardID: String?
@@ -237,10 +223,6 @@ final class CardHighlightModel: ObservableObject {
         selectedID = id
     }
 
-    func setCurrent(_ id: String?) {
-        setSelected(id)
-    }
-
     /// Resets both `Select` and `Hover` when switching between sub-interfaces
     /// hosted by the same view.
     func reset() {
@@ -259,7 +241,6 @@ final class CardHighlightModel: ObservableObject {
         hoveredID = nil
         rawHoveredID = nil
         hoveredActionButtonCardID = nil
-        isScrolling = false
         isSuppressedByKeyboard = PointerHoverScrollState.shared.isSuppressedByKeyboardOrController
     }
 
@@ -362,7 +343,6 @@ final class CardHighlightModel: ObservableObject {
     func notePress(id: String) {
         unregisterRawHoverFromPointerShapeIfNeeded(excluding: id)
         rawHoveredID = id
-        isScrolling = false
         isSuppressedByKeyboard = false
         hoveredID = AppCursorVisibility.isCursorHidden ? nil : id
     }
@@ -419,9 +399,6 @@ final class CardHighlightModel: ObservableObject {
     }
 
     func notePointerMoved() {
-        if isScrolling {
-            isScrolling = false
-        }
         let wasSuppressedByKeyboard = isSuppressedByKeyboard
         if isSuppressedByKeyboard {
             isSuppressedByKeyboard = false
@@ -440,16 +417,8 @@ final class CardHighlightModel: ObservableObject {
         syncHoveredID()
     }
 
-    func noteScrolled() {
-        isScrolling = true
-    }
-
     func noteScrollSettled() {
-        guard isScrolling else {
-            return
-        }
-        isScrolling = false
-        guard !isFrozen, !isSuppressedByKeyboard else {
+        guard !isFrozen, !isScrolling, !isSuppressedByKeyboard else {
             return
         }
         if let rawHoveredID {

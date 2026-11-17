@@ -64,28 +64,30 @@ struct CardHighlightModelTests {
     @Test
     func wheelScrollingLocksHoverUntilDebounceSettlesOrPointerMoves() {
         AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+        defer { PointerHoverScrollState.shared.resetForTesting() }
         let model = workbench()
         model.noteHover(true, id: "a")
         #expect(model.hoveredID == "a")
 
         // Scrolling slides another card under a stationary pointer; Hover stays
         // locked during the scroll.
-        model.noteScrolled()
+        PointerHoverScrollState.shared.noteScrolled()
         model.noteHover(false, id: "a")
         model.noteHover(true, id: "b")
         #expect(model.hoveredID == "a")
 
         // Once the 300ms scroll debounce settles, Hover updates to the card
         // now under the pointer.
-        model.noteScrollSettled()
+        PointerHoverScrollState.shared.settleScroll()
         #expect(model.hoveredID == "b")
 
         // Physical pointer movement during scrolling also immediately updates.
-        model.noteScrolled()
+        PointerHoverScrollState.shared.noteScrolled()
         model.noteHover(false, id: "b")
         model.noteHover(true, id: "c")
         #expect(model.hoveredID == "b")
-        model.notePointerMoved()
+        PointerHoverScrollState.shared.notePointerMoved()
         #expect(model.hoveredID == "c")
     }
 
@@ -314,14 +316,6 @@ struct CardHighlightModelTests {
             }
             return result
         }
-        func hasLegacyFocusOnlyProbe(in view: NSView) -> Bool {
-            if view is WindowFocusHoverProbeView {
-                return true
-            }
-            return view.subviews.contains(where: hasLegacyFocusOnlyProbe)
-        }
-
-        #expect(!hasLegacyFocusOnlyProbe(in: host))
         let cardProbes = collectCardProbes(in: host).sorted {
             $0.convert(NSPoint.zero, to: host).x < $1.convert(NSPoint.zero, to: host).x
         }

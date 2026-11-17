@@ -281,7 +281,8 @@ private struct ContentDialogLayerHost: View {
     /// the Task panel raises its confirmations here, as every page does.
     var body: some View {
         WorkbenchDialogLayer(
-            dialogIDs: openDialogIDs,
+            baseDialogIDs: baseDialogIDs,
+            stackedDialogIDs: stackedDialogIDs,
             topBandHeight: isPlaybackPageVisible
                 ? WorkbenchControlMetrics.redesignAppTopbarHeight
                 : AppShellLayout.topBarHeight
@@ -466,7 +467,7 @@ private struct ContentDialogLayerHost: View {
             if tasks.isPanelOpen {
                 TaskPanel(tasks: tasks, confirmation: confirmation)
                     .environment(\.workbenchDialogID, .taskPanel)
-                    .workbenchDialog(isCovered: confirmation.session != nil || tasks.detailTaskID != nil)
+                    .workbenchDialog()
             }
 
             if let detailTaskID = tasks.detailTaskID,
@@ -492,7 +493,7 @@ private struct ContentDialogLayerHost: View {
         }
     }
 
-    private var openDialogIDs: [AnyHashable] {
+    private var baseDialogIDs: [AnyHashable] {
         var ids: [AnyHashable] = []
         if let session = libraryStore.coverEditingSession {
             ids.append("edit_cover:\(session.id)")
@@ -527,6 +528,11 @@ private struct ContentDialogLayerHost: View {
         if tasks.isPanelOpen {
             ids.append("task_panel")
         }
+        return ids
+    }
+
+    private var stackedDialogIDs: [AnyHashable] {
+        var ids: [AnyHashable] = []
         if let detailTaskID = tasks.detailTaskID,
            tasks.taskDetailSnapshot(for: detailTaskID) != nil
         {

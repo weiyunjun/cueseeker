@@ -833,10 +833,11 @@ Replacement and simplicity rules:
   surface to remember that is what left buttons, cards and the Scrollbar out of
   step with an open menu. `onPointerHover` answers layer freeze/unfreeze and
   scroll debounce once, from the layer registry, including for cover cards
-  reporting to `CardHighlightModel`. Only two places remain outside
-  `onPointerHover`: menu content, which belongs to the layer it froze and
-  reports to `MenuHighlightModel` via `onWindowFocusAwareHover`; and Toast,
-  which does not participate in the layer list at all.
+  reporting to `CardHighlightModel` and menu content reporting to
+  `MenuHighlightModel` (with `ignoresLayerFreeze: true`, so menu items ignore
+  the freeze their own menu placed on its owning layer while still freezing when
+  a higher layer covers that owner). Only Toast does not participate in the
+  layer list at all.
 - An AppKit surface that takes `mouseMoved` from its own tracking area is
   outside `onPointerHover` and must carry the freeze answer itself, the way the
   Scrollbar does. Reaching for a new one is a reason to check this rule.

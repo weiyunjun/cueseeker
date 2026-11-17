@@ -454,6 +454,7 @@ class TableScrollbarOverlayView: NSView {
         let localPoint = superview.map { convert(point, from: $0) } ?? point
         guard isPresented,
               !isHidden,
+              !isInteractionFrozen,
               axis(at: localPoint) != nil
         else {
             return nil
@@ -586,6 +587,9 @@ class TableScrollbarOverlayView: NSView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        guard !isInteractionFrozen else {
+            return
+        }
         if let onScrollWheel {
             onScrollWheel(event)
         } else {

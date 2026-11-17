@@ -73,12 +73,7 @@ struct PointerHoverGateTests {
         #expect(probe.trackingAreas.first?.options.contains(.activeAlways) == true)
 
         probe.setAssumesMouseInside(false)
-        probe.setTracksReenter(true)
         #expect(probe.trackingAreas.first?.options.contains(.activeAlways) == true)
-
-        let focusProbe = WindowFocusHoverProbeView(frame: NSRect(x: 0, y: 0, width: 120, height: 40))
-        focusProbe.setAssumesMouseInside(true)
-        #expect(focusProbe.trackingAreas.first?.options.contains(.activeAlways) == true)
 
         let hostingView = CueSeekerHostingView(rootView: EmptyView())
         let scrollbarView = TableScrollbarOverlayView(frame: NSRect(x: 0, y: 0, width: 20, height: 100))
@@ -122,7 +117,7 @@ struct PointerHoverGateTests {
         #expect(cardHighlight.selectedID == "card-0")
 
         let menuHighlight = MenuHighlightModel()
-        menuHighlight.open(selectablePositions: [0, 1, 2], defaultPosition: nil)
+        menuHighlight.open(selectablePositions: [0, 1, 2])
         defer { menuHighlight.close() }
         menuHighlight.noteHover(true, at: 1)
         #expect(menuHighlight.hoveredPosition == 1)
@@ -172,7 +167,7 @@ struct PointerHoverGateTests {
         cardHighlight.setSelected("card-0")
 
         let menuHighlight = MenuHighlightModel()
-        menuHighlight.open(selectablePositions: [0, 1, 2], defaultPosition: 0)
+        menuHighlight.open(selectablePositions: [0, 1, 2])
         defer { menuHighlight.close() }
 
         NotificationCenter.default.post(
@@ -250,7 +245,7 @@ struct PointerHoverGateTests {
         defer { PointerHoverScrollState.shared.resetForTesting() }
 
         let menuHighlight = MenuHighlightModel()
-        menuHighlight.open(selectablePositions: Array(0..<10), defaultPosition: 0)
+        menuHighlight.open(selectablePositions: Array(0..<10))
         defer { menuHighlight.close() }
 
         menuHighlight.noteHover(true, at: 0)
@@ -454,24 +449,20 @@ struct PointerHoverGateTests {
         let probe = PointerHoverProbeView(frame: NSRect(x: 0, y: 0, width: 120, height: 80))
         probe.session = session
         session.probeView = probe
+        probe.updateTrackingAreas()
 
         session.report(true)
         #expect(deliveredStates == [true])
-        #expect(!probe.tracksReenter)
-
-        // Simulate unfreeze clearing hover when pointer walked off while frozen:
-        // `tracksReenter` arms a crossing tracking area so an immediate re-entry
-        // delivers `true` even if SwiftUI `.onHover` never saw `mouseExited`.
-        probe.setTracksReenter(true)
-        #expect(probe.tracksReenter)
         #expect(probe.trackingAreas.count == 1)
 
+        // Simulate unfreeze clearing hover when pointer walked off while frozen:
+        // the single tracking area stays armed to catch immediate pointer re-entry.
         session.isFrozen = true
         session.report(false)
         session.setFrozen(false)
         #expect(deliveredStates == [true, false])
+        #expect(probe.trackingAreas.count == 1)
 
-        probe.setTracksReenter(true)
         let dummyEnter = try #require(NSEvent.enterExitEvent(
             with: .mouseEntered,
             location: NSPoint(x: 20, y: 20),
@@ -484,7 +475,6 @@ struct PointerHoverGateTests {
             userData: nil
         ))
         probe.mouseEntered(with: dummyEnter)
-        #expect(!probe.tracksReenter)
         #expect(probe.assumesMouseInside)
         #expect(deliveredStates == [true, false, true])
 

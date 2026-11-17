@@ -183,7 +183,7 @@ func subtitleMenuKeysNavigateSubtitlesAndOffItemAndMutuallyExcludeOtherPlayerMen
         areSubtitlesVisible: true
     )
 
-    store.openSpeedMenu(defaultPosition: 2)
+    store.openSpeedMenu()
     #expect(store.isSpeedMenuOpen)
     store.openSubtitleMenu(menu)
     #expect(!store.isSpeedMenuOpen)

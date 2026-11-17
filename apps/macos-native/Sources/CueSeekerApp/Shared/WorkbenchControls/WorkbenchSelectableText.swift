@@ -24,7 +24,6 @@ struct WorkbenchSelectableText: View {
 
     @Environment(\.interfaceLayerContext) private var interfaceLayerContext
     @Environment(\.workbenchDialogID) private var dialogID
-    @Environment(\.isWorkbenchDialogCovered) private var isDialogCovered
 
     init(
         _ text: String,
@@ -128,8 +127,7 @@ struct WorkbenchSelectableText: View {
                     allowsMenuModalInteraction: allowsMenuModalInteraction,
                     onTap: onTap,
                     interfaceLayerContext: interfaceLayerContext,
-                    dialogID: dialogID,
-                    isDialogCovered: isDialogCovered
+                    dialogID: dialogID
                 )
                 .padding(.vertical, -verticalBleed)
             }
@@ -269,7 +267,6 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
     let onTap: (() -> Void)?
     let interfaceLayerContext: InterfaceLayerContext
     let dialogID: WorkbenchDialogAccessibilityID?
-    let isDialogCovered: Bool
 
     func makeNSView(context _: Context) -> WorkbenchSelectableTextNSView {
         let view = WorkbenchSelectableTextNSView()
@@ -306,8 +303,7 @@ private struct WorkbenchSelectableTextRepresentable: NSViewRepresentable {
             allowsMenuModalInteraction: allowsMenuModalInteraction,
             onTap: onTap,
             interfaceLayerContext: interfaceLayerContext,
-            dialogID: dialogID,
-            isDialogCovered: isDialogCovered
+            dialogID: dialogID
         )
     }
 }
@@ -356,7 +352,6 @@ final class WorkbenchSelectableTextNSView:
     var onTap: (() -> Void)?
     private(set) var interfaceLayerContext = InterfaceLayerContext()
     private(set) var dialogID: WorkbenchDialogAccessibilityID? = nil
-    private(set) var isDialogCovered: Bool = false
 
     private(set) var selectedRange: NSRange?
     private(set) var isTrackingMouse = false
@@ -387,8 +382,12 @@ final class WorkbenchSelectableTextNSView:
         if allowsMenuModalInteraction {
             return .menuModalPopover(windowNumber: wn)
         }
-        if interfaceLayerContext.layer == .dialog {
-            return .dialog(windowNumber: wn, dialogID: dialogID)
+        if interfaceLayerContext.layer.isDialog {
+            return .dialog(
+                windowNumber: wn,
+                layer: interfaceLayerContext.layer,
+                dialogID: dialogID
+            )
         }
         return .surface(windowNumber: wn, layer: interfaceLayerContext.layer)
     }
@@ -448,9 +447,6 @@ final class WorkbenchSelectableTextNSView:
     }
 
     var isFrozenOrCovered: Bool {
-        if isDialogCovered {
-            return true
-        }
         if allowsMenuModalInteraction {
             return interfaceLayerContext.isCovered
         }
@@ -517,8 +513,7 @@ final class WorkbenchSelectableTextNSView:
         allowsMenuModalInteraction: Bool = false,
         onTap: (() -> Void)?,
         interfaceLayerContext: InterfaceLayerContext,
-        dialogID: WorkbenchDialogAccessibilityID? = nil,
-        isDialogCovered: Bool = false
+        dialogID: WorkbenchDialogAccessibilityID? = nil
     ) {
         let resolvedBleed = max(0, verticalBleed)
         let textChanged = self.text != text || self.fullCopyText != fullCopyText
@@ -538,7 +533,6 @@ final class WorkbenchSelectableTextNSView:
             || self.interfaceLayerContext.isCovered != interfaceLayerContext.isCovered
             || self.interfaceLayerContext.isFrozen != interfaceLayerContext.isFrozen
             || self.dialogID != dialogID
-            || self.isDialogCovered != isDialogCovered
 
         self.text = text
         self.fullCopyText = fullCopyText
@@ -557,7 +551,6 @@ final class WorkbenchSelectableTextNSView:
         self.onTap = onTap
         self.interfaceLayerContext = interfaceLayerContext
         self.dialogID = dialogID
-        self.isDialogCovered = isDialogCovered
 
         if textChanged || !canInteract {
             clearSelection(notifyCoordinator: true)

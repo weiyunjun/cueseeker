@@ -2043,7 +2043,7 @@ extension AppCoordinator {
             return handleDialogControllerInput(input)
         }
 
-        if interfaceLayers.isOpen(.dialog) {
+        if interfaceLayers.hasOpenDialog {
             return false
         }
 
@@ -2776,7 +2776,7 @@ extension AppCoordinator {
 
     func activePlaybackAccessibilitySurface() -> PlaybackAccessibilitySurface? {
         guard activeDialogAccessibilityID() == nil,
-              !interfaceLayers.isOpen(.dialog)
+              !interfaceLayers.hasOpenDialog
         else {
             return nil
         }
@@ -3222,12 +3222,8 @@ extension AppCoordinator {
         case .playerSpeedMenu:
             if playback.isSpeedMenuOpen {
                 playback.closeSpeedMenu()
-            } else if let viewModel = playback.playbackViewModel {
-                playback.openSpeedMenu(
-                    defaultPosition: PlaybackViewModel.speedPresetIndex(
-                        for: viewModel.playbackSpeed
-                    )
-                )
+            } else if playback.playbackViewModel != nil {
+                playback.openSpeedMenu()
             }
             reconcilePlaybackAccessibilityFocus()
             return true

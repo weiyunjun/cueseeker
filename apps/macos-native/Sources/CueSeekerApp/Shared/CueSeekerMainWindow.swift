@@ -652,7 +652,7 @@ class CueSeekerWindow: NSWindow {
             return false
         }
         return MainActor.assumeIsolated {
-            selectableText.interfaceLayerContext.layer == .dialog && selectableText.canInteract
+            selectableText.interfaceLayerContext.layer.isDialog && selectableText.canInteract
         }
     }
 }

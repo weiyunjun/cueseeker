@@ -737,7 +737,8 @@ struct FileDetailPairedSwitcherMenuPopover: View {
         ScrollViewReader { proxy in
             FileDetailPairedMenuHeightCap(width: width, height: maximumHeight) {
                 WorkbenchScrollView(
-                    scrollbarInset: MenuMetrics.scrollbarOuterGap
+                    scrollbarInset: MenuMetrics.scrollbarOuterGap,
+                    ignoresLayerFreeze: true
                 ) {
                     FileDetailPairedMenuItemStack(
                         menuWidth: width,
@@ -891,7 +892,7 @@ struct FileDetailPairedMenuItemRow: View {
                 }
             )
             .contentShape(Rectangle())
-            .onWindowFocusAwareHover { inside in
+            .onPointerHover(ignoresLayerFreeze: true) { inside in
                 onHoverChange?(inside)
             }
         }

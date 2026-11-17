@@ -236,7 +236,7 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         guard selectedItemID != itemID || forcesScroll else {
             return
         }
-        highlight.setCurrent(itemID)
+        highlight.setSelected(itemID)
         guard let itemID else {
             scrollRequest = nil
             return

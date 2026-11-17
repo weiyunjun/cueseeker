@@ -118,11 +118,7 @@ struct PlaybackChromeView: View {
             get: { playback.isSpeedMenuOpen },
             set: { isVisible in
                 if isVisible {
-                    playback.openSpeedMenu(
-                        defaultPosition: PlaybackViewModel.speedPresetIndex(
-                            for: viewModel.playbackSpeed
-                        )
-                    )
+                    playback.openSpeedMenu()
                 } else {
                     playback.closeSpeedMenu()
                 }

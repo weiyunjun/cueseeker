@@ -329,7 +329,7 @@ private struct SettingsDialogLayerHost: View {
 
     var body: some View {
         WorkbenchDialogLayer(
-            dialogIDs: confirmation.session.map { ["settings_confirmation:\($0.id)"] } ?? [],
+            stackedDialogIDs: confirmation.session.map { ["settings_confirmation:\($0.id)"] } ?? [],
             topBandHeight: WorkbenchControlMetrics.redesignSettingsTitlebarHeight
         ) {
             if let session = confirmation.session {

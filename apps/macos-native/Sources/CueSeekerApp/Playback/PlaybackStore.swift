@@ -254,12 +254,11 @@ final class PlaybackStore: ObservableObject {
     }
     let speedMenuHighlight = MenuHighlightModel()
 
-    func openSpeedMenu(defaultPosition: Int?) {
+    func openSpeedMenu() {
         closeSubtitleMenu()
         closeMoreMenu()
         speedMenuHighlight.open(
             selectablePositions: Array(PlaybackViewModel.speedPresets.indices),
-            defaultPosition: defaultPosition,
             initiallySuppressed: true
         )
         isSpeedMenuOpen = true
@@ -306,9 +305,6 @@ final class PlaybackStore: ObservableObject {
         excerptDestinationMenuHighlight.open(
             selectablePositions: ExcerptDestinationMenu.selectablePositions(
                 destinationCount: menu.destinations.count
-            ),
-            defaultPosition: ExcerptDestinationMenu.defaultPosition(
-                destinations: menu.destinations
             ),
             initiallySuppressed: true
         )

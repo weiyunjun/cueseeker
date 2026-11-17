@@ -20,17 +20,36 @@ func dialogLayerIsOpenWhileItsListHasADialogAndClosedOnceItIsEmpty() {
     #expect(layers.isOpen(.dialog))
     #expect(layers.isCovered(.workbenchPage))
 
-    // A second dialog stacking on the first keeps the layer open.
-    hostingView.rootView = dialogLayer(dialogIDs: ["rename", "confirmation"], layers: layers)
+    // A second dialog stacking on the first opens `.stackedDialog` while keeping `.dialog` open.
+    hostingView.rootView = dialogLayer(
+        baseDialogIDs: ["rename"],
+        stackedDialogIDs: ["confirmation"],
+        layers: layers
+    )
     hostingView.layoutSubtreeIfNeeded()
     #expect(layers.isOpen(.dialog))
+    #expect(layers.isOpen(.stackedDialog))
+    #expect(layers.hasOpenDialog)
+    #expect(layers.isCovered(.dialog))
+    #expect(layers.isFrozen(.dialog))
+    #expect(!layers.isCovered(.stackedDialog))
+    #expect(layers.topDialogSize == CGSize(width: 240, height: 120))
 
-    // The kept dialog size goes with the layer, so the window hands the
-    // keyboard out again.
-    layers.topDialogSize = CGSize(width: 480, height: 320)
+    // Closing the stacked dialog restores the lower dialog's size without clearing `topDialogSize`.
+    hostingView.rootView = dialogLayer(baseDialogIDs: ["rename"], layers: layers)
+    hostingView.layoutSubtreeIfNeeded()
+    #expect(layers.isOpen(.dialog))
+    #expect(!layers.isOpen(.stackedDialog))
+    #expect(layers.hasOpenDialog)
+    #expect(!layers.isCovered(.dialog))
+    #expect(layers.topDialogSize == CGSize(width: 320, height: 180))
+
+    // Closing the last dialog clears `topDialogSize` and unregisters both layers.
     hostingView.rootView = dialogLayer(dialogIDs: [], layers: layers)
     hostingView.layoutSubtreeIfNeeded()
     #expect(!layers.isOpen(.dialog))
+    #expect(!layers.isOpen(.stackedDialog))
+    #expect(!layers.hasOpenDialog)
     #expect(!layers.isCovered(.workbenchPage))
     #expect(layers.topDialogSize == nil)
     withExtendedLifetime(hostingView) {}
@@ -165,18 +184,33 @@ private func dialogLayer(
     dialogIDs: [AnyHashable],
     layers: InterfaceLayerRegistry
 ) -> AnyView {
+    dialogLayer(baseDialogIDs: dialogIDs, stackedDialogIDs: [], layers: layers)
+}
+
+@MainActor
+private func dialogLayer(
+    baseDialogIDs: [AnyHashable],
+    stackedDialogIDs: [AnyHashable] = [],
+    layers: InterfaceLayerRegistry
+) -> AnyView {
     AnyView(
-        WorkbenchDialogLayer(dialogIDs: dialogIDs, topBandHeight: 40) {
-            ForEach(Array(dialogIDs.enumerated()), id: \.offset) { index, id in
+        WorkbenchDialogLayer(
+            baseDialogIDs: baseDialogIDs,
+            stackedDialogIDs: stackedDialogIDs,
+            topBandHeight: 40
+        ) {
+            ForEach(Array(baseDialogIDs.enumerated()), id: \.offset) { _, id in
                 Text(String(describing: id))
                     .frame(width: 320, height: 180)
-                    .workbenchDialog(
-                        level: Double(index + 1),
-                        isCovered: index < dialogIDs.count - 1
-                    )
+                    .workbenchDialog(level: 1)
+            }
+            ForEach(Array(stackedDialogIDs.enumerated()), id: \.offset) { _, id in
+                Text(String(describing: id))
+                    .frame(width: 240, height: 120)
+                    .workbenchDialog(level: 2)
             }
         }
-        .environment(\.interfaceLayers, layers)
+        .modifier(InterfaceLayerCoverageBridge(layers: layers))
         .frame(width: 800, height: 600)
     )
 }

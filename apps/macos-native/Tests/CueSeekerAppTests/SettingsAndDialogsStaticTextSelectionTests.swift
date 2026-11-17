@@ -121,6 +121,7 @@ extension WorkbenchSelectableTextTests {
         AppLocalization.apply(.english)
         defer {
             WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            PointerHoverScrollState.shared.resetForTesting()
             AppLocalization.apply(.english)
         }
 
@@ -395,6 +396,7 @@ extension WorkbenchSelectableTextTests {
         AppLocalization.apply(.english)
         defer {
             WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            PointerHoverScrollState.shared.resetForTesting()
             AppLocalization.apply(.english)
         }
 
@@ -551,6 +553,7 @@ extension WorkbenchSelectableTextTests {
         AppLocalization.apply(.english)
         defer {
             WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            PointerHoverScrollState.shared.resetForTesting()
             AppLocalization.apply(.english)
         }
 
@@ -696,6 +699,7 @@ extension WorkbenchSelectableTextTests {
         AppLocalization.apply(.english)
         defer {
             WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            PointerHoverScrollState.shared.resetForTesting()
             AppLocalization.apply(.english)
         }
 
@@ -1327,6 +1331,7 @@ extension WorkbenchSelectableTextTests {
         AppLocalization.apply(.english)
         defer {
             WorkbenchStaticTextSelectionCoordinator.shared.clearSelection()
+            PointerHoverScrollState.shared.resetForTesting()
             AppLocalization.apply(.english)
         }
 

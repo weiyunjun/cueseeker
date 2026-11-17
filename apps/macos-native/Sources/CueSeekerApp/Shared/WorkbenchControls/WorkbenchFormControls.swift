@@ -27,7 +27,10 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
     @Environment(\.interfaceLayerContext) private var layerContext
 
     var resolvedInterfaceLayer: InterfaceLayer {
-        isDialogField ? .dialog : layerContext.layer
+        if layerContext.layer.isDialog {
+            return layerContext.layer
+        }
+        return isDialogField ? .dialog : layerContext.layer
     }
 
     func makeCoordinator() -> Coordinator {
